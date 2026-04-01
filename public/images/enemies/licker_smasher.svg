@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg_licker_smasher.png" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" style="stop-color:#3d0a1f;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#1a000a;stop-opacity:1"/>
+    </radialGradient>
+    <filter id="glow_licker_smasher.png">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="scan_licker_smasher.png" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" style="stop-color:#cc00ff;stop-opacity:0"/>
+      <stop offset="50%" style="stop-color:#cc00ff;stop-opacity:0.1"/>
+      <stop offset="100%" style="stop-color:#cc00ff;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" fill="url(#bg_licker_smasher.png)"/>
+  
+  <!-- Scan lines -->
+  <rect x="0" y="0" width="512" height="512" fill="url(#scan_licker_smasher.png)" opacity="0.5"/>
+  
+  <!-- Fog/mist effect -->
+  <ellipse cx="256" cy="450" rx="280" ry="120" fill="#1a000a" opacity="0.6"/>
+  
+  <!-- Character silhouette -->
+  <g transform="translate(256, 260)" filter="url(#glow_licker_smasher.png)">
+    <text font-size="180" text-anchor="middle" dominant-baseline="central" fill="#cc00ff" opacity="0.9" style="text-shadow: 0 0 20px #cc00ff">👾</text>
+  </g>
+  
+  <!-- Name plate -->
+  <rect x="80" y="420" width="352" height="48" rx="6" fill="#1a000a" opacity="0.85" stroke="#cc00ff" stroke-width="1.5" stroke-opacity="0.6"/>
+  <text x="256" y="451" font-family="monospace" font-size="20" font-weight="bold" text-anchor="middle" fill="#cc00ff" letter-spacing="2">LICKER SMASHER</text>
+  
+  <!-- Variant badge -->
+  <rect x="360" y="30" width="130" height="28" rx="4" fill="#cc00ff" opacity="0.2" stroke="#cc00ff" stroke-width="1" stroke-opacity="0.5"/>
+  <text x="425" y="49" font-family="monospace" font-size="11" text-anchor="middle" fill="#cc00ff" opacity="0.8">T-TYPE</text>
+  
+  <!-- Corner decorations -->
+  <line x1="20" y1="20" x2="70" y2="20" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  <line x1="20" y1="20" x2="20" y2="70" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  <line x1="492" y1="20" x2="442" y2="20" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  <line x1="492" y1="20" x2="492" y2="70" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  <line x1="20" y1="492" x2="70" y2="492" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  <line x1="20" y1="492" x2="20" y2="442" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  <line x1="492" y1="492" x2="442" y2="492" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  <line x1="492" y1="492" x2="492" y2="442" stroke="#cc00ff" stroke-width="2" opacity="0.4"/>
+  
+  <!-- Danger stripes at bottom -->
+  <g opacity="0.15">
+    <rect x="0" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 7 505)"/>
+    <rect x="28" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 35 505)"/>
+    <rect x="56" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 63 505)"/>
+    <rect x="84" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 91 505)"/>
+    <rect x="112" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 119 505)"/>
+    <rect x="140" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 147 505)"/>
+    <rect x="168" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 175 505)"/>
+    <rect x="196" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 203 505)"/>
+    <rect x="224" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 231 505)"/>
+    <rect x="252" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 259 505)"/>
+    <rect x="280" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 287 505)"/>
+    <rect x="308" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 315 505)"/>
+    <rect x="336" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 343 505)"/>
+    <rect x="364" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 371 505)"/>
+    <rect x="392" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 399 505)"/>
+    <rect x="420" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 427 505)"/>
+    <rect x="448" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 455 505)"/>
+    <rect x="476" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 483 505)"/>
+    <rect x="504" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 511 505)"/>
+    <rect x="532" y="498" width="14" height="14" fill="#cc00ff" transform="rotate(45 539 505)"/>
+  </g>
+</svg>

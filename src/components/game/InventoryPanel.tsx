@@ -1,0 +1,383 @@
+'use client';
+
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useGameStore } from '@/game/store';
+import { ItemInstance } from '@/game/types';
+import { CombatHpPanel } from './HpBar';
+import { CHARACTER_IMAGES } from '@/game/data/enemies';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack } from 'lucide-react';
+
+export default function InventoryPanel() {
+  const state = useGameStore();
+  const { party, inventoryOpen, selectedCharacterId, toggleInventory, equipItem, consumeItemOutsideCombat, combineHerbs, selectCharacter, transferItem } = state;
+  const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
+  const [showTransferPicker, setShowTransferPicker] = useState(false);
+
+  if (!inventoryOpen) return null;
+
+  const selectedChar = party.find(p => p.id === selectedCharacterId) || party[0];
+
+  const rarityColors: Record<string, string> = {
+    common: 'border-white/[0.08]',
+    uncommon: 'border-cyan-400/30',
+    rare: 'border-purple-400/30',
+  };
+
+  const rarityGlow: Record<string, string> = {
+    common: '',
+    uncommon: 'shadow-[0_0_8px_rgba(34,211,238,0.1)]',
+    rare: 'shadow-[0_0_8px_rgba(168,85,247,0.1)]',
+  };
+
+  const rarityBg: Record<string, string> = {
+    common: 'bg-white/[0.04]',
+    uncommon: 'bg-white/[0.04]',
+    rare: 'bg-white/[0.04]',
+  };
+
+  const raritySelectedBg: Record<string, string> = {
+    common: 'bg-white/[0.1] border-white/20',
+    uncommon: 'bg-white/[0.1] border-cyan-400/40',
+    rare: 'bg-white/[0.1] border-purple-400/40',
+  };
+
+  const rarityBadge: Record<string, string> = {
+    common: 'bg-white/10 text-white/70 border-0',
+    uncommon: 'bg-white/10 text-cyan-300/80 border-0',
+    rare: 'bg-white/10 text-purple-300/80 border-0',
+  };
+
+  const typeLabels: Record<string, string> = {
+    weapon: 'Arma',
+    healing: 'Cura',
+    ammo: 'Munizioni',
+    utility: 'Utilità',
+    antidote: 'Antidoto',
+    bag: 'Borsa',
+  };
+
+  // Build icon grid (always show all slots)
+  const totalSlots = selectedChar?.maxInventorySlots || 6;
+  const items = selectedChar?.inventory || [];
+  const slots = Array.from({ length: totalSlots }, (_, i) => items[i] || null);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) { toggleInventory(); setSelectedItem(null); } }}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        className="w-full max-w-lg max-h-[90vh] glass-dark rounded-xl flex flex-col overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-white">Inventario</h2>
+            <Badge className="bg-white/10 text-white/60 border-0 text-xs">
+              {items.length}/{totalSlots} (max 12)
+            </Badge>
+          </div>
+          <Button variant="ghost" onClick={() => { toggleInventory(); setSelectedItem(null); }} className="text-white/60 hover:text-white hover:bg-white/[0.05]">
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+
+        {/* Character Tabs */}
+        <div className="flex border-b border-white/[0.06] bg-white/[0.03]">
+          {party.map(char => (
+            <button
+              key={char.id}
+              onClick={() => { selectCharacter(char.id); setSelectedItem(null); }}
+              className={`flex-1 px-3 py-2.5 text-sm transition-all border-b-2 ${
+                char.id === selectedChar?.id
+                  ? 'border-white/20 text-white bg-white/[0.08]'
+                  : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.05]'
+              }`}
+            >
+              <span className="mr-1.5">
+                {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
+              </span>
+              {char.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Character Stats — full HP panel */}
+        {selectedChar && (
+          <div className="shrink-0 px-2 py-2 border-b border-white/[0.06] bg-white/[0.03]">
+            <CombatHpPanel
+              current={selectedChar.currentHp}
+              max={selectedChar.maxHp}
+              name={selectedChar.name}
+              statusEffects={selectedChar.statusEffects}
+              imageSrc={CHARACTER_IMAGES[selectedChar.archetype]}
+            />
+            <div className="flex gap-2.5 text-[10px] mt-1.5">
+              <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + (selectedChar.weapon?.atkBonus || 0)}</span>
+              <span className="text-white/40">🛡️ DEF {selectedChar.baseDef}</span>
+              <span className="text-white/40">💨 SPD {selectedChar.baseSpd}</span>
+              <span className="text-white/30">Lv.{selectedChar.level} · {selectedChar.archetype.toUpperCase()}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Icon Grid */}
+        <div className="flex-1 min-h-0 p-4">
+          <div className="grid grid-cols-6 gap-2">
+            {slots.map((item, index) => {
+              const isSelected = item && selectedItem?.uid === item.uid;
+              return (
+                <motion.button
+                  key={item?.uid || `empty_${index}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.03 }}
+                  onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
+                  className={`aspect-square rounded-lg border-2 flex items-center justify-center text-2xl transition-all duration-200 ${
+                    item
+                      ? `${isSelected ? raritySelectedBg[item.rarity] : `${rarityColors[item.rarity]} ${rarityBg[item.rarity]}`} ${rarityGlow[item.rarity]} hover:scale-110 cursor-pointer`
+                      : 'border-white/[0.04] bg-white/[0.02] cursor-default'
+                  } ${item?.isEquipped ? 'ring-1 ring-amber-500/40' : ''}`}
+                >
+                  {item ? (
+                    <span className="relative">
+                      {item.icon}
+                      {item.quantity > 1 && (
+                        <span className="absolute -top-1.5 -right-1.5 text-[8px] bg-black/70 text-white/80 rounded-full w-4 h-4 flex items-center justify-center font-bold border border-white/[0.1]">
+                          {item.quantity}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-white/10 text-lg">+</span>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Detail Panel - always visible, no animation */}
+        <div className="shrink-0 border-t border-white/[0.06] bg-white/[0.03]">
+          {selectedItem ? (
+            <div className="p-4">
+              <div className="flex items-start gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-lg ${rarityBg[selectedItem.rarity]} ${rarityGlow[selectedItem.rarity]} border ${rarityColors[selectedItem.rarity]} flex items-center justify-center text-2xl shrink-0`}>
+                  {selectedItem.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="font-bold text-white text-sm truncate">{selectedItem.name}</span>
+                    {selectedItem.quantity > 1 && (
+                      <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px]`}>x{selectedItem.quantity}</Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px]`}>
+                      {typeLabels[selectedItem.type] || selectedItem.type}
+                    </Badge>
+                    <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px]`}>
+                      {selectedItem.rarity === 'common' ? 'Comune' : selectedItem.rarity === 'uncommon' ? 'Non Comune' : 'Raro'}
+                    </Badge>
+                    {selectedItem.isEquipped && (
+                      <Badge className="bg-amber-900/50 text-amber-300 border-0 text-[10px]">Equipaggiato</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-white/60 mb-3 leading-relaxed">{selectedItem.description}</p>
+
+              {/* Item stats */}
+              {selectedItem.weaponStats && (
+                <div className="flex gap-3 mb-3 text-xs">
+                  <span className="text-amber-400/80">⚔️ ATK +{selectedItem.weaponStats.atkBonus}</span>
+                  <span className="text-white/40">{selectedItem.weaponStats.type === 'melee' ? 'Corpo a Corpo' : 'A Distanza'}</span>
+                </div>
+              )}
+              {selectedItem.effect && (
+                <div className="flex flex-wrap gap-3 mb-3 text-xs text-white/60">
+                  {selectedItem.effect.type === 'heal' && (
+                    <span className="text-green-400/80">❤️ Cura {selectedItem.effect.value} HP</span>
+                  )}
+                  {selectedItem.effect.type === 'add_slots' && (
+                    <span className="text-amber-400/80">🧳 +{selectedItem.effect.value} slot inventario</span>
+                  )}
+                  {selectedItem.effect.statusCured && (
+                    <span className="text-purple-400/80">
+                      ✨ Cura {selectedItem.effect.statusCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s).join(', ')}
+                    </span>
+                  )}
+                  {selectedItem.effect.target === 'one_ally' && (
+                    <span className="text-cyan-400/70">🎯 Bersaglio: Alleato</span>
+                  )}
+                  {selectedItem.effect.target === 'all_allies' && (
+                    <span className="text-cyan-400/70">🎯 Bersaglio: Tutti</span>
+                  )}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 flex-wrap">
+                {selectedItem.equippable && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => equipItem(selectedChar.id, selectedItem.uid)}
+                    className={`text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
+                      selectedItem.isEquipped
+                        ? 'border-amber-500/30 text-amber-400/80'
+                        : ''
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5 mr-1.5" />
+                    {selectedItem.isEquipped ? 'Equipaggiato' : 'Equipaggia'}
+                  </Button>
+                )}
+                {selectedItem.usable && !selectedItem.equippable && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { consumeItemOutsideCombat(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
+                    disabled={selectedItem.type === 'bag' && selectedChar.maxInventorySlots >= 12}
+                    className={`text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 ${
+                      selectedItem.type === 'bag'
+                        ? ''
+                        : ''
+                    }`}
+                  >
+                    <FlaskConical className="w-3.5 h-3.5 mr-1.5" /> {selectedItem.type === 'bag' ? 'Equipaggia' : 'Usa'}
+                  </Button>
+                )}
+                {selectedItem.itemId === 'herb_red' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { combineHerbs(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
+                    disabled={!selectedChar.inventory.some(i => i.itemId === 'herb_green')}
+                    className={`text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
+                      selectedChar.inventory.some(i => i.itemId === 'herb_green')
+                        ? ''
+                        : 'cursor-not-allowed'
+                    }`}
+                  >
+                    <Blend className="w-3.5 h-3.5 mr-1.5" /> Combina con Erba Verde
+                  </Button>
+                )}
+                {/* Transfer item to another character */}
+                {party.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowTransferPicker(true)}
+                    className="text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" /> Dai a...
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="py-3 px-4 flex items-center gap-2 text-white/40 text-xs">
+              <Backpack className="w-3.5 h-3.5" />
+              Seleziona un oggetto per visualizzarne i dettagli
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 border-t border-white/[0.04] text-center">
+          <Button variant="ghost" size="sm" onClick={() => { toggleInventory(); setSelectedItem(null); }} className="text-white/40 hover:text-white hover:bg-white/[0.05] text-xs">
+            Chiudi Inventario
+          </Button>
+        </div>
+      </motion.div>
+
+      {/* Transfer Picker Overlay */}
+      <AnimatePresence>
+        {showTransferPicker && selectedItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-10 flex items-center justify-center p-4 glass-overlay"
+            onClick={() => setShowTransferPicker(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-sm glass-dark rounded-xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-white/[0.06]">
+                <div className="flex items-center gap-3">
+                  <div className="text-xl">{selectedItem.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-white">Dai a...</h3>
+                    <p className="text-xs text-white/60 truncate">Scegli a chi passare <span className="text-cyan-400">{selectedItem.name}</span></p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setShowTransferPicker(false)} className="text-white/60 hover:text-white hover:bg-white/[0.05] h-8 w-8 p-0">
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="p-3 space-y-2">
+                {party
+                  .filter(c => c.id !== selectedChar?.id)
+                  .map(char => {
+                    const hasSpace = char.inventory.length < char.maxInventorySlots || selectedItem.type === 'bag';
+                    return (
+                      <motion.button
+                        key={char.id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          const success = transferItem(selectedChar!.id, selectedItem.uid, char.id);
+                          if (success) {
+                            setSelectedItem(null);
+                            setShowTransferPicker(false);
+                          }
+                        }}
+                        disabled={!hasSpace}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
+                          hasSpace
+                            ? 'border-white/[0.08] hover:border-white/20 bg-white/[0.03] hover:bg-white/[0.08]'
+                            : 'border-white/[0.04] bg-white/[0.02] opacity-50 cursor-not-allowed'
+                        }`}
+                      >
+                        <span className="text-xl">
+                          {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-semibold text-white">{char.name}</span>
+                          <div className="text-xs text-white/40">
+                            {char.inventory.length}/{char.maxInventorySlots} slot
+                          </div>
+                        </div>
+                        {!hasSpace && (
+                          <Badge className="bg-red-500/10 text-red-400 border-0 text-[10px] shrink-0">
+                            Pieno
+                          </Badge>
+                        )}
+                        <ArrowRightLeft className="w-4 h-4 text-white/30 shrink-0" />
+                      </motion.button>
+                    );
+                  })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
