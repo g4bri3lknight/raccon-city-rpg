@@ -635,6 +635,7 @@ export default function CombatScreen() {
                 )}
               </button>
               <button
+                onClick={() => !autoCombat && handleMenuAction('special')}
                 disabled={specialCd > 0 || autoCombat}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
                   aiPredictedAction === 'special'
@@ -649,6 +650,7 @@ export default function CombatScreen() {
                 )}
               </button>
               <button
+                onClick={() => !autoCombat && handleMenuAction('special2')}
                 disabled={special2Cd > 0 || autoCombat}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
                   aiPredictedAction === 'special2'
@@ -663,6 +665,7 @@ export default function CombatScreen() {
                 )}
               </button>
               <button
+                onClick={() => !autoCombat && handleMenuAction('use_item')}
                 disabled={usableItems.length === 0 || autoCombat}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
                   aiPredictedAction === 'use_item'
@@ -675,6 +678,7 @@ export default function CombatScreen() {
                 <span className="ml-auto text-[9px] text-gray-500">{usableItems.length}</span>
               </button>
               <button
+                onClick={() => !autoCombat && handleMenuAction('defend')}
                 disabled={autoCombat}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
                   aiPredictedAction === 'defend'

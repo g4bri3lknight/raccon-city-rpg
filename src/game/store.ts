@@ -33,6 +33,21 @@ import {
 import { WeaponInstance } from './types';
 
 const MAX_INVENTORY_SLOTS = 12;
+
+// ── Auto-merge inventory stacks: combines items with the same itemId ──
+function mergeInventoryStacks(inventory: ItemInstance[]): ItemInstance[] {
+  const stackMap = new Map<string, ItemInstance>();
+  for (const item of inventory) {
+    const existing = stackMap.get(item.itemId);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      stackMap.set(item.itemId, { ...item });
+    }
+  }
+  return Array.from(stackMap.values());
+}
+
 let notifId = 0;
 let charUid = 0;
 function newCharId() { return `char_${++charUid}`; }
@@ -463,22 +478,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
             quantity: foundEntry.quantity,
           };
 
-          // Find character with space (try selected first, then any)
+          // Find character with space (try selected first, then any), auto-stack if same item exists
           const targetId = state.selectedCharacterId || state.party[0]?.id;
           let finder: typeof state.party[0] | null = null;
           const updatedParty = state.party.map(p => {
-            if (!finder && p.inventory.length < p.maxInventorySlots && p.id === targetId) {
-              finder = p;
-              return { ...p, inventory: [...p.inventory, newItem] };
+            if (!finder && p.id === targetId) {
+              // Try to add to existing stack first
+              const existingIdx = p.inventory.findIndex(i => i.itemId === foundEntry.itemId);
+              if (existingIdx >= 0) {
+                finder = p;
+                const updatedInv = [...p.inventory];
+                updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + foundEntry.quantity };
+                return { ...p, inventory: updatedInv };
+              }
+              // No existing stack, add as new entry if space available
+              if (p.inventory.length < p.maxInventorySlots) {
+                finder = p;
+                return { ...p, inventory: [...p.inventory, newItem] };
+              }
             }
             return p;
           });
           // Fallback: any party member with space
           if (!finder) {
             const fallbackParty = updatedParty.map(p => {
-              if (!finder && p.inventory.length < p.maxInventorySlots && p.currentHp > 0) {
-                finder = p;
-                return { ...p, inventory: [...p.inventory, newItem] };
+              if (!finder && p.currentHp > 0) {
+                const existingIdx = p.inventory.findIndex(i => i.itemId === foundEntry.itemId);
+                if (existingIdx >= 0) {
+                  finder = p;
+                  const updatedInv = [...p.inventory];
+                  updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + foundEntry.quantity };
+                  return { ...p, inventory: updatedInv };
+                }
+                if (p.inventory.length < p.maxInventorySlots) {
+                  finder = p;
+                  return { ...p, inventory: [...p.inventory, newItem] };
+                }
               }
               return p;
             });
@@ -732,27 +767,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
         continue;
       }
 
-      // ── NORMAL ITEM ──
-      const newItem: ItemInstance = {
-        uid: `${itemId}_${Date.now()}_${Math.random()}`,
-        itemId,
-        name: itemDef.name,
-        description: itemDef.description,
-        type: itemDef.type,
-        rarity: itemDef.rarity,
-        icon: itemDef.icon,
-        usable: itemDef.usable,
-        equippable: itemDef.equippable,
-        effect: itemDef.effect,
-        quantity: 1,
-      };
-
+      // ── NORMAL ITEM (auto-stack if same item exists) ──
       const finderChar = updatedParty.find(p => p.id === targetId);
-      const hasSpace = finderChar && finderChar.inventory.length < finderChar.maxInventorySlots;
-      if (hasSpace) {
-        updatedParty = updatedParty.map(p =>
-          p.id === targetId ? { ...p, inventory: [...p.inventory, newItem] } : p
-        );
+      // Try to add to existing stack first
+      const existingIdx = finderChar ? finderChar.inventory.findIndex(i => i.itemId === itemId) : -1;
+      if (existingIdx >= 0) {
+        updatedParty = updatedParty.map(p => {
+          if (p.id !== targetId) return p;
+          const updatedInv = [...p.inventory];
+          updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + 1 };
+          return { ...p, inventory: updatedInv };
+        });
         foundNames.push(itemDef.name);
         lastNotif = {
           id: `notif_${++notifId}`,
@@ -763,7 +788,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
           characterId: targetId,
         };
       } else {
-        foundNames.push(`${itemDef.name} (inventario pieno!)`);
+        const hasSpace = finderChar && finderChar.inventory.length < finderChar.maxInventorySlots;
+        if (hasSpace) {
+          const newItem: ItemInstance = {
+            uid: `${itemId}_${Date.now()}_${Math.random()}`,
+            itemId,
+            name: itemDef.name,
+            description: itemDef.description,
+            type: itemDef.type,
+            rarity: itemDef.rarity,
+            icon: itemDef.icon,
+            usable: itemDef.usable,
+            equippable: itemDef.equippable,
+            effect: itemDef.effect,
+            quantity: 1,
+          };
+          updatedParty = updatedParty.map(p =>
+            p.id === targetId ? { ...p, inventory: [...p.inventory, newItem] } : p
+          );
+          foundNames.push(itemDef.name);
+          lastNotif = {
+            id: `notif_${++notifId}`,
+            type: 'item_found' as const,
+            message: itemDef.name,
+            icon: itemDef.icon,
+            subMessage: `Ricevuto da ${finderChar?.name || 'qualcuno'}`,
+            characterId: targetId,
+          };
+        } else {
+          foundNames.push(`${itemDef.name} (inventario pieno!)`);
+        }
       }
     }
 
@@ -996,15 +1050,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
         }
 
-        // Decrease quantity, remove only if qty reaches 0
-        const newInventory = p.inventory
-          .map(i => {
-            if (i.uid !== itemUid) return { ...i };
-            const newQty = i.quantity - 1;
-            if (newQty <= 0) return null;
-            return { ...i, quantity: newQty };
-          })
-          .filter((i): i is NonNullable<typeof i> => i !== null);
+        // Decrease quantity, remove only if qty reaches 0, then auto-merge stacks
+        const newInventory = mergeInventoryStacks(
+          p.inventory
+            .map(i => {
+              if (i.uid !== itemUid) return { ...i };
+              const newQty = i.quantity - 1;
+              if (newQty <= 0) return null;
+              return { ...i, quantity: newQty };
+            })
+            .filter((i): i is NonNullable<typeof i> => i !== null)
+        );
 
         return { ...updatedCharacter, inventory: newInventory };
       });
@@ -1422,28 +1478,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
         allLoot.push(...generateLoot(enemy.definitionId, lootDiff.lootMult));
       }
 
-      // Distribute loot
+      // Distribute loot (auto-merge stacks of same item)
       const lostLoot: string[] = [];
       for (const itemId of allLoot) {
         const itemDef = ITEMS[itemId];
         if (!itemDef) continue;
-        const newItem: ItemInstance = {
-          uid: `${itemId}_${Date.now()}_${Math.random()}`,
-          itemId,
-          name: itemDef.name,
-          description: itemDef.description,
-          type: itemDef.type,
-          rarity: itemDef.rarity,
-          icon: itemDef.icon,
-          usable: itemDef.usable,
-          equippable: itemDef.equippable,
-          effect: itemDef.effect,
-          quantity: 1,
-        };
         let added = false;
         updatedParty = updatedParty.map(p => {
-          if (!added && p.inventory.length < p.maxInventorySlots) {
+          if (added) return p;
+          // Try to add to existing stack first
+          const existingIdx = p.inventory.findIndex(i => i.itemId === itemId);
+          if (existingIdx >= 0) {
             added = true;
+            const updatedInv = [...p.inventory];
+            updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + 1 };
+            return { ...p, inventory: updatedInv };
+          }
+          // No existing stack, add as new entry
+          if (p.inventory.length < p.maxInventorySlots) {
+            added = true;
+            const newItem: ItemInstance = {
+              uid: `${itemId}_${Date.now()}_${Math.random()}`,
+              itemId,
+              name: itemDef.name,
+              description: itemDef.description,
+              type: itemDef.type,
+              rarity: itemDef.rarity,
+              icon: itemDef.icon,
+              usable: itemDef.usable,
+              equippable: itemDef.equippable,
+              effect: itemDef.effect,
+              quantity: 1,
+            };
             return { ...p, inventory: [...p.inventory, newItem] };
           }
           return p;
