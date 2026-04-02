@@ -244,6 +244,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   mapOpen: false,
   debugOpen: false,
   godMode: false,
+  skipNextEncounter: false,
+  completedEvents: [],
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -253,7 +255,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [] });
   },
 
   startAdventure: (selectedArchetypes: Archetype[]) => {
@@ -277,6 +279,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unlockedPaths: [],
       visitedLocations: ['city_outskirts'],
       mapOpen: false,
+      skipNextEncounter: false,
+      completedEvents: [],
     });
   },
 
@@ -306,6 +310,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unlockedPaths: [],
       visitedLocations: [],
       mapOpen: false,
+      skipNextEncounter: false,
+      completedEvents: [],
     });
   },
 
@@ -320,7 +326,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const ambient = location.ambientText[Math.floor(Math.random() * location.ambientText.length)];
     const newLog = [...state.messageLog, `[${state.turnCount}] ${ambient}`];
 
-    // Check for combat encounter
+    // Check for combat encounter (skip if just resolved an event)
+    const shouldSkipEncounter = state.skipNextEncounter;
+    if (shouldSkipEncounter) {
+      set({ messageLog: newLog, turnCount: state.turnCount + 1, skipNextEncounter: false });
+      return;
+    }
+
     if (Math.random() * 100 < location.encounterRate) {
       const diff = getDifficultyConfig(state.partySize);
       // Spawn enemies scaled by party size
@@ -614,15 +626,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const turnIncrease = destination.encounterRate > 40 ? 2 : 1;
 
+    // Only show event if not already completed
+    const eventAlreadyCompleted = state.completedEvents.includes(locationId);
+    const showEvent = destination.storyEvent && !eventAlreadyCompleted;
+
     set({
       currentLocationId: locationId,
       messageLog: newLog,
       turnCount: state.turnCount + turnIncrease,
-      activeEvent: destination.storyEvent || null,
+      activeEvent: showEvent ? destination.storyEvent : null,
       eventOutcome: null,
       unlockedPaths: newUnlockedPaths,
       visitedLocations: newVisited,
       party: updatedParty,
+      skipNextEncounter: true, // Prevent immediate combat after traveling
     });
   },
 
@@ -842,6 +859,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const outcome = choice.outcome;
     let updatedParty = [...state.party];
     const logMessages: string[] = [
+      `[${state.turnCount}] 📖 Evento: ${event.title}`,
+      `[${state.turnCount}] ${event.description}`,
+      `[${state.turnCount}] → ${choice.text}`,
       `[${state.turnCount}] 📖 ${outcome.description}`,
     ];
 
@@ -856,6 +876,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Receive items
     if (outcome.receiveItems) {
+      const lootSummary: string[] = [];
       for (const itemEntry of outcome.receiveItems) {
         const itemDef = ITEMS[itemEntry.itemId];
         if (!itemDef) continue;
@@ -876,11 +897,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
         updatedParty = updatedParty.map(p => {
           if (!added && p.inventory.length < p.maxInventorySlots) {
             added = true;
-            logMessages.push(`[${state.turnCount}] 🎒 ${p.name} riceve: ${itemDef.name} x${itemEntry.quantity}`);
+            lootSummary.push(`${itemDef.name} x${itemEntry.quantity} → ${p.name}`);
             return { ...p, inventory: [...p.inventory, newItem] };
           }
           return p;
         });
+        if (!added) {
+          lootSummary.push(`${itemDef.name} x${itemEntry.quantity} → perso (inventario pieno)`);
+        }
+      }
+      if (lootSummary.length > 0) {
+        logMessages.push(`[${state.turnCount}] 🎒 Bottino ottenuto:`);
+        for (const line of lootSummary) {
+          logMessages.push(`[${state.turnCount}]   · ${line}`);
+        }
       }
     }
 
@@ -895,6 +925,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       const firstActor = allActors[0];
 
+      // Mark event as completed even when it triggers combat
+      const newCompletedCombat = state.completedEvents.includes(state.currentLocationId)
+        ? state.completedEvents
+        : [...state.completedEvents, state.currentLocationId];
+
       set({
         phase: 'combat',
         party: updatedParty,
@@ -902,6 +937,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         enemies,
         activeEvent: null,
         eventOutcome: outcome,
+        completedEvents: newCompletedCombat,
         combat: {
           turn: 1,
           playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
@@ -932,15 +968,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Check for game over
     if (updatedParty.every(p => p.currentHp <= 0)) {
+      const newCompleted = state.completedEvents.includes(state.currentLocationId)
+        ? state.completedEvents
+        : [...state.completedEvents, state.currentLocationId];
       set({
         phase: 'game-over',
         party: updatedParty,
         activeEvent: null,
         eventOutcome: outcome,
         messageLog: [...state.messageLog, ...logMessages],
+        completedEvents: newCompleted,
       });
       return;
     }
+
+    // Mark event as completed for this location
+    const newCompleted = state.completedEvents.includes(state.currentLocationId)
+      ? state.completedEvents
+      : [...state.completedEvents, state.currentLocationId];
 
     set({
       activeEvent: null,
@@ -948,11 +993,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       party: updatedParty,
       messageLog: [...state.messageLog, ...logMessages],
       turnCount: state.turnCount + 1,
+      skipNextEncounter: true,
+      completedEvents: newCompleted,
     });
   },
 
   closeEvent: () => {
-    set({ activeEvent: null, eventOutcome: null });
+    set({ activeEvent: null, eventOutcome: null, skipNextEncounter: true });
   },
 
   toggleInventory: () => {
@@ -1534,7 +1581,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       const lootNames = allLoot.map(id => ITEMS[id]?.name).filter(Boolean);
-      let victoryMsg = `🎉 Vittoria! +${totalExp} EXP. Trovati: ${lootNames.join(', ') || 'niente'}.`;
+      let victoryMsg = `⚔️ Sei sopravvissuto allo scontro. +${totalExp} EXP.`;
       if (lostLoot.length > 0) {
         victoryMsg += ` ⚠️ Inventario pieno! Persi: ${lostLoot.join(', ')}`;
       }
@@ -1543,7 +1590,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         turn: state.combat.turn,
         actorName: 'Sistema',
         actorType: 'player',
-        action: 'Vittoria',
+        action: 'Sopravvissuto',
         message: victoryMsg,
       });
 
@@ -1553,16 +1600,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
           notification: {
             id: `notif_${++notifId}`,
             type: 'victory',
-            message: 'VITTORIA FINALE!',
-            icon: '👑',
-            subMessage: `+${totalExp} EXP · Boss sconfitto!`,
+            message: 'EVASIONE COMPLETATA',
+            icon: '🚪',
+            subMessage: `Boss eliminato. +${totalExp} EXP`,
             lootNames: allLoot.map(id => ITEMS[id]?.name).filter(Boolean),
             levelUps: levelUpMessages,
           },
           combat: { ...state.combat, log: newLog, isVictory: true, isProcessing: true },
           party: updatedParty,
           enemies: updatedEnemies,
-          messageLog: [...state.messageLog, `[${state.turnCount}] 🎉 Nemico sconfitto!`, ...levelUpMessages],
+          messageLog: [
+            ...state.messageLog,
+            `[${state.turnCount}] ⚔️ Boss eliminato. Sei sopravvissuto. +${totalExp} EXP`,
+            ...levelUpMessages,
+          ],
         });
         setTimeout(() => {
           set({ phase: 'victory', combat: null, enemies: [], notification: null });
@@ -1574,16 +1625,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
         notification: {
           id: `notif_${++notifId}`,
           type: 'victory',
-          message: 'VITTORIA!',
-          icon: '🏆',
-          subMessage: `+${totalExp} EXP`,
+          message: 'SOPRAVVVISSUTO',
+          icon: '⚔️',
+          subMessage: `Sei sopravvissuto allo scontro. +${totalExp} EXP`,
           lootNames: allLoot.map(id => ITEMS[id]?.name).filter(Boolean),
           levelUps: levelUpMessages,
         },
         combat: { ...state.combat, log: newLog, isVictory: true, isProcessing: true },
         party: updatedParty,
         enemies: updatedEnemies,
-        messageLog: [...state.messageLog, `[${state.turnCount}] 🎉 Nemico sconfitto! +${totalExp} EXP`, ...levelUpMessages],
+        messageLog: [
+          ...state.messageLog,
+          `[${state.turnCount}] ⚔️ Sei sopravvissuto allo scontro. +${totalExp} EXP`,
+          ...levelUpMessages,
+        ],
       });
       setTimeout(() => {
         set({ phase: 'exploration', combat: null, enemies: [], notification: null });
@@ -2003,6 +2058,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       partySize: state.partySize,
       unlockedPaths: state.unlockedPaths,
       visitedLocations: state.visitedLocations,
+      completedEvents: state.completedEvents || [],
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -2062,6 +2118,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         partySize: data.partySize || 2,
         unlockedPaths: data.unlockedPaths || [],
         visitedLocations: data.visitedLocations || [],
+        completedEvents: data.completedEvents || [],
         mapOpen: false,
       });
       return true;

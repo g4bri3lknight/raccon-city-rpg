@@ -43,7 +43,7 @@ export default function ExplorationScreen() {
     if (explorationLogRef.current) {
       explorationLogRef.current.scrollTo({ top: explorationLogRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }, [messageLog.length]);
+  }, [messageLog.length, activeEvent]);
 
   if (!location) return null;
 
@@ -223,16 +223,56 @@ export default function ExplorationScreen() {
                     {msg}
                   </p>
                 ))}
-                {messageLog.length === 0 && (
+                {messageLog.length === 0 && !activeEvent && (
                   <p className="text-gray-600 italic text-sm">L&apos;avventura ha inizio...</p>
                 )}
+
+                {/* ── Evento con scelta — integrato nel Registro Eventi ── */}
+                <AnimatePresence>
+                  {activeEvent && (
+                    <motion.div
+                      key="active-event"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="space-y-2 pt-2 border-t border-red-900/30"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-red-300">Evento</span>
+                      </div>
+                      <h4 className="text-sm sm:text-base font-bold text-white leading-snug">{activeEvent.title}</h4>
+                      <p className="text-xs sm:text-sm text-white/70 leading-relaxed">{activeEvent.description}</p>
+                      <div className="space-y-1.5 pt-1">
+                        {activeEvent.choices.map((choice, i) => (
+                          <motion.button
+                            key={i}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.12 }}
+                            whileHover={{ scale: 1.01, x: 3 }}
+                            whileTap={{ scale: 0.99 }}
+                            onClick={() => handleEventChoice(i)}
+                            className="w-full text-left p-2 sm:p-2.5 rounded-lg border border-white/[0.08] hover:border-white/20
+                              bg-white/[0.03] hover:bg-white/[0.08] text-white/70 hover:text-white
+                              transition-all duration-200 text-xs sm:text-sm flex items-center gap-2"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5 text-red-400/60 shrink-0" />
+                            {choice.text}
+                          </motion.button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="shrink-0 p-3 border-t border-white/[0.06] glass-dark-accent">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
+            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent ? 'opacity-40 pointer-events-none' : ''}`}>
               <Button
                 onClick={explore}
                 disabled={aliveParty.length === 0}
@@ -307,53 +347,6 @@ export default function ExplorationScreen() {
         </div>
       </div>
 
-      {/* Story Event Modal */}
-      <AnimatePresence>
-        {activeEvent && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-overlay"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-lg glass-dark rounded-xl p-5 sm:p-6"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
-                <Badge className="bg-red-500/10 text-red-300 border-0 text-xs">
-                  Evento
-                </Badge>
-              </div>
-              <h3 className="text-lg sm:text-xl font-bold text-white mb-3 horror-text">{activeEvent.title}</h3>
-              <p className="text-white/70 text-sm leading-relaxed mb-5">{activeEvent.description}</p>
-              
-              <div className="space-y-2">
-                {activeEvent.choices.map((choice, i) => (
-                  <motion.button
-                    key={i}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.15 }}
-                    whileHover={{ scale: 1.02, x: 4 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleEventChoice(i)}
-                    className="w-full text-left p-3 rounded-lg border border-white/[0.08] hover:border-white/20 
-                      bg-white/[0.03] hover:bg-white/[0.08] text-white/70 hover:text-white
-                      transition-all duration-200 text-sm flex items-center gap-2"
-                  >
-                    <ChevronRight className="w-4 h-4 text-red-400/60 shrink-0" />
-                    {choice.text}
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CHARACTER_ARCHETYPES } from '@/game/data/characters';
@@ -8,9 +8,9 @@ import { Archetype } from '@/game/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Shield, Swords, Heart, Zap, ChevronRight, Check } from 'lucide-react';
+import { ArrowLeft, Shield, Swords, Heart, Zap, ChevronRight, Check, Users } from 'lucide-react';
 import { CHARACTER_IMAGES } from '@/game/data/enemies';
+import ItemIcon from './ItemIcon';
 
 function StatBar({ label, value, maxValue, color = 'red' }: { label: string; value: number; maxValue: number; color?: string }) {
   const pct = Math.min(100, (value / maxValue) * 100);
@@ -26,6 +26,7 @@ function StatBar({ label, value, maxValue, color = 'red' }: { label: string; val
       <span className="w-8 text-gray-400 font-mono uppercase">{label}</span>
       <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
         <motion.div
+          key={`${label}-${value}`}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.8, delay: 0.3 }}
@@ -37,12 +38,34 @@ function StatBar({ label, value, maxValue, color = 'red' }: { label: string; val
   );
 }
 
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 300 : -300,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    x: direction > 0 ? -300 : 300,
+    opacity: 0,
+  }),
+};
+
 export default function CharacterSelect() {
   const startAdventure = useGameStore(s => s.startAdventure);
   const startGame = useGameStore(s => s.startGame);
   const [selected, setSelected] = useState<Set<Archetype>>(new Set());
+  const [[currentIndex, direction], setCurrentIndex] = useState([0, 0]);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  const toggleSelect = (id: Archetype) => {
+  const archetypes = CHARACTER_ARCHETYPES;
+  const current = archetypes[currentIndex];
+
+  const maxStat = Math.max(...archetypes.map(a => Math.max(a.maxHp, a.atk * 5, a.def * 5, a.spd * 8)));
+
+  const toggleSelect = useCallback((id: Archetype) => {
     const next = new Set(selected);
     if (next.has(id)) {
       next.delete(id);
@@ -50,9 +73,22 @@ export default function CharacterSelect() {
       next.add(id);
     }
     setSelected(next);
-  };
+  }, [selected]);
 
-  const maxStat = Math.max(...CHARACTER_ARCHETYPES.map(a => Math.max(a.maxHp, a.atk * 5, a.def * 5, a.spd * 8)));
+  const goTo = useCallback((idx: number) => {
+    if (isAnimating || idx === currentIndex) return;
+    setIsAnimating(true);
+    setCurrentIndex([idx, idx > currentIndex ? 1 : -1]);
+    setTimeout(() => setIsAnimating(false), 350);
+  }, [currentIndex, isAnimating]);
+
+  const goNext = useCallback(() => {
+    goTo((currentIndex + 1) % archetypes.length);
+  }, [currentIndex, archetypes.length, goTo]);
+
+  const goPrev = useCallback(() => {
+    goTo((currentIndex - 1 + archetypes.length) % archetypes.length);
+  }, [currentIndex, archetypes.length, goTo]);
 
   const handleStart = () => {
     if (selected.size > 0) {
@@ -78,6 +114,12 @@ export default function CharacterSelect() {
     dps: 'bg-amber-900/60 text-amber-300',
   };
 
+  const archetypeGlowColors: Record<string, string> = {
+    tank: 'shadow-[0_0_30px_rgba(220,38,38,0.2)]',
+    healer: 'shadow-[0_0_30px_rgba(34,197,94,0.2)]',
+    dps: 'shadow-[0_0_30px_rgba(245,158,11,0.2)]',
+  };
+
   return (
     <div className="min-h-screen game-horror flex flex-col">
       {/* Header */}
@@ -97,140 +139,204 @@ export default function CharacterSelect() {
         </p>
       </div>
 
-      {/* Character Cards */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 items-stretch">
-          <AnimatePresence>
-            {CHARACTER_ARCHETYPES.map((arch, index) => {
-              const isSelected = selected.has(arch.id);
-              const Icon = archetypeIcons[arch.id];
-              return (
-                <motion.div
-                  key={arch.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.15, duration: 0.5 }}
-                >
-                  <Card
-                    className={`relative cursor-pointer transition-all duration-300 overflow-hidden h-full flex flex-col
-                      ${archetypeColors[arch.id]}
-                      ${isSelected ? 'ring-2 ring-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : ''}
-                      glass-dark`}
-                    onClick={() => toggleSelect(arch.id)}
-                  >
-                    {/* Selection indicator */}
-                    {isSelected && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-red-600 flex items-center justify-center"
-                      >
-                        <Check className="w-5 h-5 text-white" />
-                      </motion.div>
-                    )}
-
-                    {/* Portrait Image */}
-                    <div className="relative h-48 sm:h-56 overflow-hidden">
-                      <img
-                        src={CHARACTER_IMAGES[arch.id]}
-                        alt={arch.name}
-                        className="w-full h-full object-cover object-top"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent" />
-                      {/* Name overlay at bottom of image */}
-                      <div className="absolute bottom-0 left-0 right-0 p-4">
-                        <h3 className="text-lg font-bold text-gray-100 drop-shadow-lg">{arch.name}</h3>
-                        <Badge className={`${archetypeLabelColors[arch.id]} border-0 text-xs mt-1`}>
-                          {arch.id.toUpperCase()}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="p-5 flex flex-col flex-1">
-
-                      {/* Description */}
-                      <p className="text-gray-400 text-sm mb-4 leading-relaxed">
-                        {arch.description}
-                      </p>
-
-                      {/* Stats */}
-                      <div className="space-y-2 mb-4">
-                        <StatBar label="HP" value={arch.maxHp} maxValue={maxStat} color="red" />
-                        <StatBar label="ATK" value={arch.atk * 5} maxValue={maxStat} color="amber" />
-                        <StatBar label="DEF" value={arch.def * 5} maxValue={maxStat} color="green" />
-                        <StatBar label="SPD" value={arch.spd * 8} maxValue={maxStat} color="purple" />
-                      </div>
-
-                      {/* Special Ability */}
-                      <div className="glass-dark-inner rounded-lg p-3 mb-1.5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Zap className="w-3.5 h-3.5 text-yellow-500" />
-                          <span className="text-sm font-semibold text-yellow-400">{arch.specialName}</span>
-                          <span className="text-xs text-gray-500 ml-auto">CD: 2 turni</span>
-                        </div>
-                        <p className="text-xs text-gray-400">{arch.specialDescription}</p>
-                      </div>
-
-                      {/* Second Special Ability */}
-                      <div className="glass-dark-inner rounded-lg p-3 mb-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Zap className="w-3.5 h-3.5 text-orange-500" />
-                          <span className="text-sm font-semibold text-orange-400">{arch.special2Name}</span>
-                          <span className="text-xs text-gray-500 ml-auto">CD: 3 turni</span>
-                        </div>
-                        <p className="text-xs text-gray-400">{arch.special2Description}</p>
-                      </div>
-
-                      {/* Passive */}
-                      <div className="text-xs text-gray-500 italic">
-                        ✦ {arch.passiveDescription}
-                      </div>
-
-                      {/* Starting Items */}
-                      <div className="pt-3 border-t border-gray-800 mt-auto">
-                        <div className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Equipaggiamento Iniziale</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {arch.startingItems.map(item => (
-                            <span
-                              key={item.uid}
-                              className={`text-xs px-2 py-1 rounded ${
-                                item.rarity === 'rare' ? 'bg-purple-900/40 text-purple-300 border border-purple-700/30' :
-                                item.rarity === 'uncommon' ? 'bg-cyan-900/30 text-cyan-300 border border-cyan-700/20' :
-                                'bg-gray-800 text-gray-300 border border-gray-700/30'
-                              }`}
-                            >
-                              {item.icon} {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+      {/* Carousel Area */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-6 overflow-hidden">
+        {/* Carousel Dots */}
+        <div className="flex items-center gap-3 mb-6">
+          {archetypes.map((arch, idx) => {
+            const isActive = idx === currentIndex;
+            const isSel = selected.has(arch.id);
+            const Icon = archetypeIcons[arch.id];
+            return (
+              <button
+                key={arch.id}
+                onClick={() => goTo(idx)}
+                className={`relative flex items-center gap-2 sm:gap-2.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl border transition-all duration-300 ${
+                  isActive
+                    ? `${archetypeColors[arch.id].replace('hover:border-', 'border-')} bg-white/[0.06] text-white shadow-lg scale-105`
+                    : isSel
+                      ? 'border-white/20 bg-white/5 text-gray-300'
+                      : 'border-white/[0.06] bg-white/[0.02] text-gray-500 hover:text-gray-300 hover:border-white/15 hover:bg-white/[0.04]'
+                }`}
+              >
+                {isSel && !isActive && (
+                  <Check className="w-4 h-4 text-green-400" />
+                )}
+                <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isActive ? (arch.id === 'tank' ? 'text-red-400' : arch.id === 'healer' ? 'text-green-400' : 'text-amber-400') : 'text-gray-500'}`} />
+                <span className="text-sm sm:text-base font-semibold">{arch.name}</span>
+                {isActive && (
+                  <span className="hidden sm:inline text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded-md ml-1">VISUALIZZAZIONE</span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      </ScrollArea>
+
+        {/* Card Slider */}
+        <div className="w-full max-w-5xl mx-auto">
+          {/* Card Container */}
+          <div className="w-full overflow-hidden">
+            <AnimatePresence initial={false} custom={direction} mode="wait">
+              <motion.div
+                key={current.id}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="w-full"
+              >
+                <Card
+                  className={`relative cursor-pointer transition-all duration-300 overflow-hidden flex flex-col lg:flex-row
+                    ${archetypeColors[current.id]}
+                    ${selected.has(current.id) ? 'ring-2 ring-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : archetypeGlowColors[current.id]}
+                    glass-dark`}
+                  onClick={() => toggleSelect(current.id)}
+                >
+                  {/* Selection indicator */}
+                  {selected.has(current.id) && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute top-3 right-3 lg:top-3 lg:left-3 z-10 w-9 h-9 rounded-full bg-red-600 flex items-center justify-center shadow-lg"
+                    >
+                      <Check className="w-5 h-5 text-white" />
+                    </motion.div>
+                  )}
+
+                  {/* Portrait Image */}
+                  <div className="relative h-44 sm:h-52 lg:h-auto lg:w-[340px] xl:w-[400px] shrink-0 lg:self-stretch overflow-hidden">
+                    <img
+                      src={CHARACTER_IMAGES[current.id]}
+                      alt={current.name}
+                      className="w-full h-full object-cover object-top"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-gray-900/80" />
+                  </div>
+
+                  {/* Details Panel */}
+                  <div className="p-5 sm:p-6 flex flex-col flex-1 lg:min-w-0">
+                    {/* Name & Role Header */}
+                    <div className="mb-3">
+                      <h3 className="text-xl sm:text-2xl font-bold text-gray-100">{current.name}</h3>
+                      <Badge className={`${archetypeLabelColors[current.id]} border-0 text-[10px] mt-0.5`}>
+                        {current.id.toUpperCase()}
+                      </Badge>
+                    </div>
+
+                    {/* Description */}
+                    <p className="text-gray-400 text-sm mb-3 leading-relaxed">
+                      {current.description}
+                    </p>
+
+                    {/* Starting Items */}
+                    <div className="mb-4">
+                      <div className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Equipaggiamento Iniziale</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {current.startingItems.map(item => (
+                          <span
+                            key={item.uid}
+                            className={`text-xs px-2 py-1 rounded ${
+                              item.rarity === 'rare' ? 'bg-purple-900/40 text-purple-300 border border-purple-700/30' :
+                              item.rarity === 'uncommon' ? 'bg-cyan-900/30 text-cyan-300 border border-cyan-700/20' :
+                              'bg-gray-800 text-gray-300 border border-gray-700/30'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1"><ItemIcon itemId={item.itemId} rarity={item.rarity} size={14} /> {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="space-y-2 mb-4">
+                      <StatBar label="HP" value={current.maxHp} maxValue={maxStat} color="red" />
+                      <StatBar label="ATK" value={current.atk * 5} maxValue={maxStat} color="amber" />
+                      <StatBar label="DEF" value={current.def * 5} maxValue={maxStat} color="green" />
+                      <StatBar label="SPD" value={current.spd * 8} maxValue={maxStat} color="purple" />
+                    </div>
+
+                    {/* Special Ability */}
+                    <div className="glass-dark-inner rounded-lg p-3 mb-1.5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                        <span className="text-sm font-semibold text-yellow-400">{current.specialName}</span>
+                        <span className="text-xs text-gray-500 ml-auto">CD: 2 turni</span>
+                      </div>
+                      <p className="text-xs text-gray-400">{current.specialDescription}</p>
+                    </div>
+
+                    {/* Second Special Ability */}
+                    <div className="glass-dark-inner rounded-lg p-3 mb-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className="w-3.5 h-3.5 text-orange-500" />
+                        <span className="text-sm font-semibold text-orange-400">{current.special2Name}</span>
+                        <span className="text-xs text-gray-500 ml-auto">CD: 3 turni</span>
+                      </div>
+                      <p className="text-xs text-gray-400">{current.special2Description}</p>
+                    </div>
+
+                    {/* Passive */}
+                    <div className="text-xs text-gray-500 italic">
+                      ✦ {current.passiveDescription}
+                    </div>
+
+                  </div>
+                </Card>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Counter hint */}
+        <div className="mt-4 text-xs text-gray-600 flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5" />
+          {currentIndex + 1} / {archetypes.length}
+          <span className="mx-1">·</span>
+          Premi sulla card per selezionare
+        </div>
+      </div>
 
       {/* Bottom Bar */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="sticky bottom-0 p-4 sm:p-6 glass-dark-accent border-t border-red-900/30"
+        className="sticky bottom-0 p-4 sm:p-5 glass-dark-accent border-t border-red-900/30"
       >
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-          <div className="text-sm text-gray-400">
-            <span className="text-red-400 font-bold">{selected.size}</span>/3 selezionati
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <div className="text-base sm:text-lg text-gray-400 mb-2">
+              <span className="text-red-400 font-bold text-lg sm:text-xl">{selected.size}</span><span className="text-gray-500 text-sm">/3 selezionati</span>
+            </div>
             {selected.size === 0 && (
-              <span className="text-gray-600 ml-2">— Seleziona almeno un personaggio</span>
+              <span className="text-gray-600 text-sm">— Seleziona almeno un personaggio</span>
+            )}
+            {selected.size > 0 && (
+              <div className="flex gap-2">
+                {Array.from(selected).map(id => {
+                  const arch = archetypes.find(a => a.id === id);
+                  if (!arch) return null;
+                  const Icon = archetypeIcons[id];
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => goTo(archetypes.indexOf(arch))}
+                      className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-200 hover:border-red-600/50 hover:text-white transition-all"
+                    >
+                      <Icon className="w-4 h-4" />
+                      {arch.name}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
           <Button
             onClick={handleStart}
             disabled={selected.size === 0}
-            className="horror-btn px-8 py-3 text-sm tracking-wider uppercase
+            className="horror-btn px-6 sm:px-10 py-3 sm:py-4 text-sm sm:text-base tracking-wider uppercase
               bg-red-900/40 hover:bg-red-800/50 border-2 border-red-700/60 hover:border-red-500
               text-red-100 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed
               transition-all duration-300 hover:shadow-[0_0_20px_rgba(220,38,38,0.3)]"

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CombatAction } from '@/game/types';
 import { ENEMY_IMAGES, CHARACTER_IMAGES } from '@/game/data/enemies';
+import ItemIcon from './ItemIcon';
 import { WEAPON_AMMO } from '@/game/engine/combat';
 import { audio } from '@/game/engine/sounds';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
@@ -728,7 +729,9 @@ export default function CombatScreen() {
                     onClick={() => handleItemSelect(item.uid)}
                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-gray-200 hover:bg-amber-950/30 hover:text-amber-200 border border-transparent hover:border-amber-700/30 transition-all text-left"
                   >
-                    <span className="text-base">{item.icon}</span>
+                    <span className="text-base flex items-center">
+                      <ItemIcon itemId={item.itemId} rarity={item.rarity} size={20} />
+                    </span>
                     <div className="min-w-0">
                       <div className="font-medium">{item.name}</div>
                       <div className="text-[10px] text-gray-500 truncate">{item.description}</div>
@@ -740,6 +743,28 @@ export default function CombatScreen() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── AI MODE PANEL — top-right in arena ── */}
+      {!isCombatEnd && (
+        <div className="absolute z-40 top-2 right-2 sm:top-3 sm:right-3 glass-dark rounded-lg px-4 py-2.5 flex items-center gap-3" style={{ minWidth: '240px' }}>
+          <div className="flex items-center gap-1.5">
+            {autoCombat && <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />}
+            <span className={`text-xs font-semibold ${autoCombat ? 'text-amber-300' : 'text-gray-500'}`}>
+              {autoCombat ? '⚔️ Combattimento automatico' : '🤖 Combattimento manuale'}
+            </span>
+          </div>
+          <button
+            onClick={toggleAutoCombat}
+            className={`text-xs px-3 py-1.5 rounded border font-semibold transition-all whitespace-nowrap ${
+              autoCombat
+                ? 'border-amber-500/30 text-amber-300 bg-amber-500/[0.06] hover:bg-amber-500/10'
+                : 'border-white/[0.08] text-white/40 bg-white/[0.03] hover:bg-white/[0.08] hover:text-white/60 hover:border-white/[0.15]'
+            }`}
+          >
+            {autoCombat ? '⏹ Ferma AI' : '▶ Attiva AI'}
+          </button>
+        </div>
+      )}
 
       {/* ── TARGETING HINT ── */}
       <AnimatePresence>
@@ -908,8 +933,6 @@ export default function CombatScreen() {
           <div className="flex-1 min-h-0 px-3 py-1.5 flex flex-col">
             {renderCombatLog()}
           </div>
-          {/* Auto-combat bar */}
-          {!isCombatEnd && renderAutoCombatBar()}
           {/* Bottom hint bars */}
           {renderBottomBars()}
         </div>
@@ -958,7 +981,6 @@ export default function CombatScreen() {
 
       {/* ── Bottom bars: only on mobile, below the split ── */}
       <div className="lg:hidden shrink-0">
-        {!isCombatEnd && renderAutoCombatBar()}
         {renderBottomBars()}
       </div>
     </div>

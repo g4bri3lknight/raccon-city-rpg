@@ -19,13 +19,13 @@ const THEMES = {
     shake: true,
   },
   victory: {
-    overlay: 'radial-gradient(ellipse at center, rgba(180,140,20,0.3) 0%, rgba(10,5,0,0.8) 100%)',
-    card: 'rgba(80,50,5,0.96)',
-    border: 'rgba(234,179,8,0.6)',
-    shadow: '0 0 60px rgba(234,179,8,0.4), 0 0 120px rgba(234,179,8,0.15), inset 0 0 25px rgba(234,179,8,0.1)',
-    scanline: 'linear-gradient(90deg, transparent, rgba(255,220,100,0.8), transparent)',
-    titleColor: '#fde68a',
-    titleGlow: '0 0 25px rgba(234,179,8,0.6), 0 0 50px rgba(234,179,8,0.2)',
+    overlay: 'radial-gradient(ellipse at center, rgba(60,40,30,0.35) 0%, rgba(5,0,0,0.85) 100%)',
+    card: 'rgba(25,12,8,0.96)',
+    border: 'rgba(120,80,40,0.5)',
+    shadow: '0 0 60px rgba(100,60,20,0.3), 0 0 120px rgba(60,30,10,0.15), inset 0 0 30px rgba(100,60,20,0.08)',
+    scanline: 'linear-gradient(90deg, transparent, rgba(180,140,80,0.5), transparent)',
+    titleColor: '#c9a06a',
+    titleGlow: '0 0 20px rgba(160,120,60,0.5), 0 0 40px rgba(100,60,20,0.2)',
     label: null,
     shake: false,
   },
@@ -159,31 +159,30 @@ export default function GameNotification() {
           style={{ background: theme.scanline }}
         />
 
-        {/* Victory: golden particle shower */}
+        {/* Victory: subtle ember particles instead of golden shower */}
         {isVictory && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {Array.from({ length: 20 }).map((_, i) => (
+            {Array.from({ length: 8 }).map((_, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: -20, x: `${15 + Math.random() * 70}%`, scale: 0.3 }}
+                initial={{ opacity: 0, y: '60%', x: `${20 + Math.random() * 60}%`, scale: 0.2 }}
                 animate={{
-                  opacity: [0, 1, 0.8, 0],
-                  y: '110vh',
-                  x: `${10 + Math.random() * 80}%`,
-                  rotate: [0, 180 + Math.random() * 360],
-                  scale: [0.3, 0.5 + Math.random() * 0.6, 0.4],
+                  opacity: [0, 0.5, 0.3, 0],
+                  y: `${20 + Math.random() * 30}%`,
+                  x: `${15 + Math.random() * 70}%`,
+                  scale: [0.2, 0.4 + Math.random() * 0.3, 0.1],
                 }}
-                transition={{ duration: 2.5 + Math.random() * 1.5, delay: Math.random() * 0.8, ease: 'easeIn' }}
+                transition={{ duration: 2.5 + Math.random() * 1.5, delay: Math.random() * 0.8, ease: 'easeOut' }}
                 className="absolute"
                 style={{
-                  width: `${5 + Math.random() * 10}px`,
-                  height: `${5 + Math.random() * 10}px`,
+                  width: `${3 + Math.random() * 5}px`,
+                  height: `${3 + Math.random() * 5}px`,
                   background: i % 3 === 0
-                    ? 'radial-gradient(circle, rgba(234,179,8,0.9), transparent)'
+                    ? 'radial-gradient(circle, rgba(160,120,60,0.7), transparent)'
                     : i % 3 === 1
-                    ? 'radial-gradient(circle, rgba(250,204,21,0.8), transparent)'
-                    : 'radial-gradient(circle, rgba(217,119,6,0.7), transparent)',
-                  borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+                    ? 'radial-gradient(circle, rgba(180,80,40,0.5), transparent)'
+                    : 'radial-gradient(circle, rgba(140,100,50,0.4), transparent)',
+                  borderRadius: '50%',
                 }}
               />
             ))}
@@ -236,13 +235,13 @@ export default function GameNotification() {
           />
         )}
 
-        {/* Victory: golden pulsing rim */}
+        {/* Victory: subtle warm rim */}
         {isVictory && (
           <motion.div
-            animate={{ opacity: [0.1, 0.35, 0.1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            animate={{ opacity: [0.05, 0.15, 0.05] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             className="absolute inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(234,179,8,0.12) 100%)' }}
+            style={{ background: 'radial-gradient(ellipse at center, transparent 45%, rgba(100,60,20,0.1) 100%)' }}
           />
         )}
 
@@ -358,7 +357,7 @@ export default function GameNotification() {
                 transition={{ delay: 0.5, duration: 0.4 }}
                 className="mt-2.5 pt-2.5 border-t border-amber-700/30"
               >
-                <div className="text-[10px] uppercase tracking-wider text-amber-400/70 mb-1">Bottino</div>
+                <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Bottino</div>
                 <div className="flex flex-wrap items-center justify-center gap-1">
                   {notification.lootNames.map((name, i) => (
                     <motion.span
@@ -366,7 +365,7 @@ export default function GameNotification() {
                       initial={{ opacity: 0, scale: 0 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.6 + i * 0.12, type: 'spring', damping: 12 }}
-                      className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-700/30 text-amber-200"
+                      className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-900/30 text-gray-400"
                     >
                       {name}
                     </motion.span>

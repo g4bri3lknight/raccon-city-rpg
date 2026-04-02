@@ -288,4 +288,5 @@ export interface GameState {
   mapOpen: boolean;
   debugOpen: boolean;
   godMode: boolean;
+  completedEvents: string[]; // locationIds whose storyEvent has been resolved
 }

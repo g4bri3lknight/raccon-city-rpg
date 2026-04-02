@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { ItemInstance } from '@/game/types';
+import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES } from '@/game/data/enemies';
 import { Button } from '@/components/ui/button';
@@ -76,13 +77,13 @@ export default function InventoryPanel() {
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
-        className="w-full max-w-lg max-h-[90vh] glass-dark rounded-xl flex flex-col overflow-hidden"
+        className="w-full max-w-lg md:max-w-3xl max-h-[90vh] md:max-h-[95vh] glass-dark rounded-xl flex flex-col overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-white">Inventario</h2>
-            <Badge className="bg-white/10 text-white/60 border-0 text-xs">
+            <h2 className="text-lg md:text-2xl font-bold text-white">Inventario</h2>
+            <Badge className="bg-white/10 text-white/60 border-0 text-xs md:text-sm">
               {items.length}/{totalSlots} (max 12)
             </Badge>
           </div>
@@ -97,7 +98,7 @@ export default function InventoryPanel() {
             <button
               key={char.id}
               onClick={() => { selectCharacter(char.id); setSelectedItem(null); }}
-              className={`flex-1 px-3 py-2.5 text-sm transition-all border-b-2 ${
+              className={`flex-1 px-3 md:px-5 py-2.5 md:py-3.5 text-sm md:text-base transition-all border-b-2 ${
                 char.id === selectedChar?.id
                   ? 'border-white/20 text-white bg-white/[0.08]'
                   : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.05]'
@@ -113,7 +114,7 @@ export default function InventoryPanel() {
 
         {/* Character Stats — full HP panel */}
         {selectedChar && (
-          <div className="shrink-0 px-2 py-2 border-b border-white/[0.06] bg-white/[0.03]">
+          <div className="shrink-0 px-2 md:px-4 py-2 md:py-3 border-b border-white/[0.06] bg-white/[0.03]">
             <CombatHpPanel
               current={selectedChar.currentHp}
               max={selectedChar.maxHp}
@@ -121,7 +122,7 @@ export default function InventoryPanel() {
               statusEffects={selectedChar.statusEffects}
               imageSrc={CHARACTER_IMAGES[selectedChar.archetype]}
             />
-            <div className="flex gap-2.5 text-[10px] mt-1.5">
+            <div className="flex gap-2.5 md:gap-4 text-[10px] md:text-xs mt-1.5 md:mt-2">
               <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + (selectedChar.weapon?.atkBonus || 0)}</span>
               <span className="text-white/40">🛡️ DEF {selectedChar.baseDef}</span>
               <span className="text-white/40">💨 SPD {selectedChar.baseSpd}</span>
@@ -131,8 +132,8 @@ export default function InventoryPanel() {
         )}
 
         {/* Icon Grid */}
-        <div className="flex-1 min-h-0 p-4">
-          <div className="grid grid-cols-6 gap-2">
+        <div className="flex-1 min-h-0 p-3 md:p-6">
+          <div className="grid grid-cols-6 gap-2 md:gap-3">
             {slots.map((item, index) => {
               const isSelected = item && selectedItem?.uid === item.uid;
               return (
@@ -142,23 +143,23 @@ export default function InventoryPanel() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.03 }}
                   onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
-                  className={`aspect-square rounded-lg border-2 flex items-center justify-center text-2xl transition-all duration-200 ${
+                  className={`aspect-square rounded-lg md:rounded-xl border-2 flex items-center justify-center text-2xl transition-all duration-200 ${
                     item
                       ? `${isSelected ? raritySelectedBg[item.rarity] : `${rarityColors[item.rarity]} ${rarityBg[item.rarity]}`} ${rarityGlow[item.rarity]} hover:scale-110 cursor-pointer`
                       : 'border-white/[0.04] bg-white/[0.02] cursor-default'
                   } ${item?.isEquipped ? 'ring-1 ring-amber-500/40' : ''}`}
                 >
                   {item ? (
-                    <span className="relative">
-                      {item.icon}
+                    <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
+                      <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
                       {item.quantity > 1 && (
-                        <span className="absolute -top-1.5 -right-1.5 text-[8px] bg-black/70 text-white/80 rounded-full w-4 h-4 flex items-center justify-center font-bold border border-white/[0.1]">
+                        <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
                           {item.quantity}
                         </span>
                       )}
                     </span>
                   ) : (
-                    <span className="text-white/10 text-lg">+</span>
+                    <span className="text-white/10 text-lg md:text-2xl">+</span>
                   )}
                 </motion.button>
               );
@@ -169,43 +170,43 @@ export default function InventoryPanel() {
         {/* Detail Panel - always visible, no animation */}
         <div className="shrink-0 border-t border-white/[0.06] bg-white/[0.03]">
           {selectedItem ? (
-            <div className="p-4">
+            <div className="p-4 md:p-6">
               <div className="flex items-start gap-3 mb-3">
-                <div className={`w-12 h-12 rounded-lg ${rarityBg[selectedItem.rarity]} ${rarityGlow[selectedItem.rarity]} border ${rarityColors[selectedItem.rarity]} flex items-center justify-center text-2xl shrink-0`}>
-                  {selectedItem.icon}
+                <div className={`w-12 h-12 md:w-20 md:h-20 rounded-lg md:rounded-xl ${rarityBg[selectedItem.rarity]} ${rarityGlow[selectedItem.rarity]} border ${rarityColors[selectedItem.rarity]} flex items-center justify-center shrink-0 p-1.5 md:p-2`}>
+                  <ItemIcon itemId={selectedItem.itemId} rarity={selectedItem.rarity} className="!w-full !h-full" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-bold text-white text-sm truncate">{selectedItem.name}</span>
+                    <span className="font-bold text-white text-sm md:text-lg truncate">{selectedItem.name}</span>
                     {selectedItem.quantity > 1 && (
-                      <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px]`}>x{selectedItem.quantity}</Badge>
+                      <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>x{selectedItem.quantity}</Badge>
                     )}
                   </div>
-                  <div className="flex gap-1.5">
-                    <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px]`}>
+                  <div className="flex gap-1.5 md:gap-2">
+                    <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>
                       {typeLabels[selectedItem.type] || selectedItem.type}
                     </Badge>
-                    <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px]`}>
+                    <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>
                       {selectedItem.rarity === 'common' ? 'Comune' : selectedItem.rarity === 'uncommon' ? 'Non Comune' : 'Raro'}
                     </Badge>
                     {selectedItem.isEquipped && (
-                      <Badge className="bg-amber-900/50 text-amber-300 border-0 text-[10px]">Equipaggiato</Badge>
+                      <Badge className="bg-amber-900/50 text-amber-300 border-0 text-[10px] md:text-xs">Equipaggiato</Badge>
                     )}
                   </div>
                 </div>
               </div>
 
-              <p className="text-xs text-white/60 mb-3 leading-relaxed">{selectedItem.description}</p>
+              <p className="text-xs md:text-sm text-white/60 mb-3 md:mb-4 leading-relaxed">{selectedItem.description}</p>
 
               {/* Item stats */}
               {selectedItem.weaponStats && (
-                <div className="flex gap-3 mb-3 text-xs">
+                <div className="flex gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm">
                   <span className="text-amber-400/80">⚔️ ATK +{selectedItem.weaponStats.atkBonus}</span>
                   <span className="text-white/40">{selectedItem.weaponStats.type === 'melee' ? 'Corpo a Corpo' : 'A Distanza'}</span>
                 </div>
               )}
               {selectedItem.effect && (
-                <div className="flex flex-wrap gap-3 mb-3 text-xs text-white/60">
+                <div className="flex flex-wrap gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm text-white/60">
                   {selectedItem.effect.type === 'heal' && (
                     <span className="text-green-400/80">❤️ Cura {selectedItem.effect.value} HP</span>
                   )}
@@ -227,13 +228,13 @@ export default function InventoryPanel() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 md:gap-3 flex-wrap">
                 {selectedItem.equippable && (
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => equipItem(selectedChar.id, selectedItem.uid)}
-                    className={`text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
+                    className={`text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
                       selectedItem.isEquipped
                         ? 'border-amber-500/30 text-amber-400/80'
                         : ''
@@ -249,7 +250,7 @@ export default function InventoryPanel() {
                     variant="outline"
                     onClick={() => { consumeItemOutsideCombat(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
                     disabled={selectedItem.type === 'bag' && selectedChar.maxInventorySlots >= 12}
-                    className={`text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 ${
+                    className={`text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 ${
                       selectedItem.type === 'bag'
                         ? ''
                         : ''
@@ -264,7 +265,7 @@ export default function InventoryPanel() {
                     variant="outline"
                     onClick={() => { combineHerbs(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
                     disabled={!selectedChar.inventory.some(i => i.itemId === 'herb_green')}
-                    className={`text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
+                    className={`text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
                       selectedChar.inventory.some(i => i.itemId === 'herb_green')
                         ? ''
                         : 'cursor-not-allowed'
@@ -279,7 +280,7 @@ export default function InventoryPanel() {
                     size="sm"
                     variant="outline"
                     onClick={() => setShowTransferPicker(true)}
-                    className="text-xs px-3 py-1.5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                    className="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" /> Dai a...
                   </Button>
@@ -287,8 +288,8 @@ export default function InventoryPanel() {
               </div>
             </div>
           ) : (
-            <div className="py-3 px-4 flex items-center gap-2 text-white/40 text-xs">
-              <Backpack className="w-3.5 h-3.5" />
+            <div className="py-3 md:py-4 px-4 md:px-6 flex items-center gap-2 text-white/40 text-xs md:text-sm">
+              <Backpack className="w-3.5 h-3.5 md:w-5 md:h-5" />
               Seleziona un oggetto per visualizzarne i dettagli
             </div>
           )}
@@ -296,7 +297,7 @@ export default function InventoryPanel() {
 
         {/* Footer */}
         <div className="p-3 border-t border-white/[0.04] text-center">
-          <Button variant="ghost" size="sm" onClick={() => { toggleInventory(); setSelectedItem(null); }} className="text-white/40 hover:text-white hover:bg-white/[0.05] text-xs">
+          <Button variant="ghost" size="sm" onClick={() => { toggleInventory(); setSelectedItem(null); }} className="text-white/40 hover:text-white hover:bg-white/[0.05] text-xs md:text-sm">
             Chiudi Inventario
           </Button>
         </div>
@@ -321,7 +322,9 @@ export default function InventoryPanel() {
             >
               <div className="p-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3">
-                  <div className="text-xl">{selectedItem.icon}</div>
+                  <div className="text-xl">
+                    <ItemIcon itemId={selectedItem.itemId} rarity={selectedItem.rarity} size={28} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-bold text-white">Dai a...</h3>
                     <p className="text-xs text-white/60 truncate">Scegli a chi passare <span className="text-cyan-400">{selectedItem.name}</span></p>

@@ -4,7 +4,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
   // Weapons
   pipe: {
     id: 'pipe', name: 'Tubo di Piombo', description: 'Un pesante tubo di piombo.',
-    type: 'weapon', rarity: 'common', icon: '🔧', usable: false, equippable: true,
+    type: 'weapon', rarity: 'common', icon: '⚒️', usable: false, equippable: true,
   },
   scalpel: {
     id: 'scalpel', name: 'Bisturi', description: 'Un bisturi da chirurgo.',
@@ -16,7 +16,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
   },
   shotgun: {
     id: 'shotgun', name: 'Fucile a Pompa', description: 'Un fucile a pompa devastante a distanza ravvicinata.',
-    type: 'weapon', rarity: 'rare', icon: '💥', usable: false, equippable: true,
+    type: 'weapon', rarity: 'rare', icon: '🔫', usable: false, equippable: true,
   },
   combat_knife: {
     id: 'combat_knife', name: 'Coltello da Combattimento', description: 'Un coltello militare affilato.',
@@ -35,21 +35,21 @@ export const ITEMS: Record<string, ItemDefinition> = {
   },
   herb_green: {
     id: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP. Può essere miscelata con un\'erba rossa.',
-    type: 'healing', rarity: 'common', icon: '🌿', usable: true, equippable: false,
+    type: 'healing', rarity: 'common', icon: '🍃', usable: true, equippable: false,
     effect: { type: 'heal', value: 30, target: 'self' },
   },
   herb_red: {
     id: 'herb_red', name: 'Erba Rossa', description: 'Un\'erba potente che da sola non ha effetto. Miscelala con un\'Erba Verde per potenziare la cura.',
-    type: 'utility', rarity: 'uncommon', icon: '🍅', usable: false, equippable: false,
+    type: 'utility', rarity: 'uncommon', icon: '🩸', usable: false, equippable: false,
   },
   herb_mixed: {
     id: 'herb_mixed', name: 'Erba Mista', description: 'Un miscuglio di erba verde e rossa. Ripristina 70 HP e cura status negativi.',
-    type: 'healing', rarity: 'uncommon', icon: '🌱', usable: true, equippable: false,
+    type: 'healing', rarity: 'uncommon', icon: '🌿', usable: true, equippable: false,
     effect: { type: 'heal', value: 70, target: 'self', statusCured: ['poison', 'bleeding'] },
   },
   first_aid: {
     id: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Ripristina tutti gli HP e cura veleno/sanguinamento a un alleato.',
-    type: 'healing', rarity: 'uncommon', icon: '🎒', usable: true, equippable: false,
+    type: 'healing', rarity: 'uncommon', icon: '✚️', usable: true, equippable: false,
     effect: { type: 'heal', value: 9999, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
   },
   spray: {
@@ -68,15 +68,15 @@ export const ITEMS: Record<string, ItemDefinition> = {
   // Ammo
   ammo_pistol: {
     id: 'ammo_pistol', name: 'Munizioni 9mm', description: 'Munizioni per pistola.',
-    type: 'ammo', rarity: 'common', icon: '📦', usable: false, equippable: false,
+    type: 'ammo', rarity: 'common', icon: '🔶', usable: false, equippable: false,
   },
   ammo_shotgun: {
     id: 'ammo_shotgun', name: 'Cartucce da Fucile', description: 'Cartucce per fucile a pompa.',
-    type: 'ammo', rarity: 'uncommon', icon: '📦', usable: false, equippable: false,
+    type: 'ammo', rarity: 'uncommon', icon: '🔷', usable: false, equippable: false,
   },
   ammo_magnum: {
     id: 'ammo_magnum', name: 'Munizioni .357', description: 'Munizioni per magnum.',
-    type: 'ammo', rarity: 'rare', icon: '📦', usable: false, equippable: false,
+    type: 'ammo', rarity: 'rare', icon: '🔴', usable: false, equippable: false,
   },
 
   // Bags
@@ -102,7 +102,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
   },
   ink_ribbon: {
     id: 'ink_ribbon', name: 'Nastro d\'Inchiostro', description: 'Un nastro per la macchina da scrivere... un salvataggio nella notte.',
-    type: 'utility', rarity: 'rare', icon: ' ribbon', usable: true, equippable: false,
+    type: 'utility', rarity: 'rare', icon: '🎀', usable: true, equippable: false,
   },
 
   // Keys — required for backtracking and puzzles
@@ -120,11 +120,11 @@ export const ITEMS: Record<string, ItemDefinition> = {
   },
   crank_handle: {
     id: 'crank_handle', name: 'Manovella', description: 'Una manovella metallica per aprire chiuse idrauliche.',
-    type: 'utility', rarity: 'uncommon', icon: '🔧', usable: false, equippable: false,
+    type: 'utility', rarity: 'uncommon', icon: '⚙️', usable: false, equippable: false,
   },
   fuse: {
     id: 'fuse', name: 'Fusibile', description: 'Un fusibile elettrico per ripristinare l\'energia.',
-    type: 'utility', rarity: 'uncommon', icon: '⚡', usable: false, equippable: false,
+    type: 'utility', rarity: 'uncommon', icon: '🔌', usable: false, equippable: false,
   },
 };
 
