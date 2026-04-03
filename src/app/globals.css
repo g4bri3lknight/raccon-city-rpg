@@ -51,6 +51,75 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -517,10 +586,8 @@
 
 /* ═══════════════════════════════════════════════════════════
    BATTLE ENTITY ANIMATION SYSTEM
-   Multi-layered CSS animations for arena characters/enemies
    ═══════════════════════════════════════════════════════════ */
 
-/* ── Player Idle: gentle breathing float ── */
 @keyframes entity-player-float {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-5px) scale(1.01); }
@@ -530,7 +597,6 @@
   animation: entity-player-float 3s ease-in-out infinite;
 }
 
-/* ── Enemy Idle: menacing sway ── */
 @keyframes entity-enemy-sway {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   25% { transform: translateY(-3px) rotate(1deg); }
@@ -541,7 +607,6 @@
   animation: entity-enemy-sway 2.2s ease-in-out infinite;
 }
 
-/* ── Inner highlight breathing ── */
 @keyframes entity-breathe-highlight {
   0%, 100% { opacity: 0; }
   50% { opacity: 0.08; }
@@ -552,7 +617,6 @@
   background: radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.3), transparent 60%);
 }
 
-/* ── Damage shake ── */
 @keyframes entity-shake {
   0%, 100% { transform: translateX(0); }
   10% { transform: translateX(-8px) rotate(-2deg); }
@@ -567,7 +631,6 @@
   animation: entity-shake 0.6s ease-out !important;
 }
 
-/* ── Damage flash overlay ── */
 @keyframes entity-damage-flash {
   0% { opacity: 0.6; }
   20% { opacity: 0; }
@@ -579,7 +642,6 @@
   animation: entity-damage-flash 0.7s ease-out forwards;
 }
 
-/* ── Dead state ── */
 @keyframes entity-death {
   0% { opacity: 0.3; transform: scale(1) rotate(0deg); }
   50% { opacity: 0.2; transform: scale(0.95) rotate(3deg); }
@@ -590,7 +652,6 @@
   animation: entity-death 2s ease-out forwards !important;
 }
 
-/* ── Defend pulse ── */
 @keyframes entity-defend {
   0%, 100% { box-shadow: 0 0 8px 2px rgba(34,211,238,0.2); }
   50% { box-shadow: 0 0 20px 6px rgba(34,211,238,0.4); }
@@ -600,7 +661,6 @@
   animation: entity-defend 1.5s ease-in-out infinite !important;
 }
 
-/* ── Defend ring ── */
 @keyframes defend-ring-anim {
   0% { opacity: 0; transform: scale(0.8); border-color: rgba(34,211,238,0.8); }
   30% { opacity: 0.6; transform: scale(1.1); }
@@ -614,7 +674,6 @@
   border-radius: 50%;
 }
 
-/* ── Boss menacing aura ── */
 @keyframes boss-aura-pulse {
   0%, 100% { box-shadow: 0 0 10px 2px rgba(220,38,38,0.15), inset 0 0 10px rgba(220,38,38,0.05); }
   50% { box-shadow: 0 0 25px 8px rgba(220,38,38,0.3), inset 0 0 15px rgba(220,38,38,0.1); }
@@ -624,7 +683,6 @@
   animation: boss-aura-pulse 2s ease-in-out infinite;
 }
 
-/* ── Ground shadows ── */
 @keyframes shadow-player-pulse {
   0%, 100% { opacity: 0.3; transform: translateX(-50%) scaleX(1); }
   50% { opacity: 0.45; transform: translateX(-50%) scaleX(1.1); }
@@ -645,7 +703,6 @@
   background: radial-gradient(ellipse, rgba(220,50,50,0.3), transparent 70%);
 }
 
-/* ── Ambient floating particles ── */
 @keyframes ambient-float {
   0% { opacity: 0; transform: translateY(0) translateX(0) scale(0); }
   15% { opacity: 0.6; transform: translateY(-8px) translateX(3px) scale(1); }
@@ -664,7 +721,6 @@
   background: radial-gradient(circle, rgba(255,80,80,0.5), transparent);
 }
 
-/* ── Burst particles (damage/heal) ── */
 @keyframes burst-fly {
   0% { opacity: 1; transform: translate(0, 0) scale(1); }
   100% { opacity: 0; transform: translate(var(--tx, 0), var(--ty, -20px)) scale(0); }
@@ -708,7 +764,6 @@
 
 /* ═══ Victory/Defeat Notification Animations ═══ */
 
-/* ── Defeat: heavier, more sustained screen shake ── */
 .defeat-shake {
   animation: defeat-shake 1.2s ease-out;
 }
@@ -729,7 +784,6 @@
   80% { transform: translate(1px, -1px); }
 }
 
-/* ── Victory: golden shimmer sweep ── */
 @keyframes victory-shimmer {
   0% { transform: translateX(-100%) skewX(-15deg); }
   100% { transform: translateX(200%) skewX(-15deg); }
@@ -751,7 +805,6 @@
    STATUS EFFECT ANIMATIONS (Bleeding & Poison)
    ═══════════════════════════════════════════════════════════ */
 
-/* ── Bleeding: pulsing dark crimson overlay ── */
 .bleeding-overlay {
   background:
     radial-gradient(ellipse at 10% 50%, rgba(127, 29, 29, 0.55), transparent 65%),
@@ -764,7 +817,6 @@
   50% { opacity: 1; }
 }
 
-/* ── Bleeding: blood streak flowing down on left side ── */
 .blood-streak {
   animation: blood-flow 2.5s ease-in-out infinite;
 }
@@ -776,7 +828,6 @@
   100% { opacity: 0.3; transform: scaleY(0.8); }
 }
 
-/* ── Bleeding: SVG blood drip drops falling ── */
 .blood-drip {
   top: 0;
   animation: blood-drip-fall linear infinite;
@@ -811,7 +862,6 @@
   }
 }
 
-/* ── Poison: strong violet/dark overlay with vignette ── */
 .poison-overlay {
   background:
     radial-gradient(ellipse at 50% 30%, rgba(88, 28, 135, 0.45), transparent 60%),
@@ -826,7 +876,6 @@
   70% { opacity: 0.75; }
 }
 
-/* ── Poison: edge glow ring ── */
 .poison-edge-glow {
   box-shadow: inset 0 0 12px 3px rgba(147, 51, 234, 0.5), inset 0 0 25px 6px rgba(88, 28, 135, 0.25);
   animation: poison-edge-pulse 2.8s ease-in-out infinite;
@@ -855,7 +904,6 @@
    ENHANCED DARK GLASSMORPHISM SYSTEM
    ═══════════════════════════════════════════════════════════ */
 
-/* ── Main glass panel: dark black with heavy blur ── */
 .glass-dark {
   background: rgba(0, 0, 0, 0.82);
   backdrop-filter: blur(24px) saturate(120%);
@@ -867,7 +915,6 @@
     inset 0 -1px 0 rgba(0, 0, 0, 0.3);
 }
 
-/* ── Glass panel with subtle red tint (horror accent) ── */
 .glass-dark-accent {
   background: rgba(10, 2, 2, 0.85);
   backdrop-filter: blur(24px) saturate(120%);
@@ -880,7 +927,6 @@
     inset 0 -1px 0 rgba(0, 0, 0, 0.3);
 }
 
-/* ── Inner glass section: slightly lighter for depth ── */
 .glass-dark-inner {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(12px);
@@ -888,14 +934,12 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* ── Glass overlay: full-screen dimmed background ── */
 .glass-overlay {
   background: rgba(0, 0, 0, 0.88);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* ── Glass button hover state ── */
 .glass-btn {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -908,7 +952,6 @@
   box-shadow: 0 0 15px rgba(255, 255, 255, 0.03);
 }
 
-/* ── Glass scrollbar enhancement ── */
 .glass-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.12) rgba(0, 0, 0, 0.4) !important;
@@ -932,7 +975,6 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* ── Animated border glow for active/focused panels ── */
 @keyframes glass-border-pulse {
   0%, 100% { border-color: rgba(255, 255, 255, 0.06); }
   50% { border-color: rgba(255, 255, 255, 0.12); }

@@ -2,15 +2,36 @@
 // RACCOON CITY ESCAPE - Game Types
 // ==========================================
 
-export type GamePhase = 'title' | 'character-select' | 'exploration' | 'combat' | 'event' | 'inventory' | 'game-over' | 'victory';
+export type GamePhase = 'title' | 'character-select' | 'character-creator' | 'exploration' | 'combat' | 'event' | 'inventory' | 'game-over' | 'victory';
 
-export type Archetype = 'tank' | 'healer' | 'dps';
+export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'custom';
 
 export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'none';
 
-export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag';
+export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible';
 
-export type Rarity = 'common' | 'uncommon' | 'rare';
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
+
+// ==========================================
+// SPECIAL ABILITIES
+// ==========================================
+
+export type SpecialTargetType = 'self' | 'enemy' | 'ally' | 'all_allies';
+export type SpecialCategory = 'offensive' | 'defensive' | 'support' | 'control';
+
+export interface SpecialAbilityDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  targetType: SpecialTargetType;
+  cooldown: number; // 2 or 3
+  category: SpecialCategory;
+  executionType: string; // maps to combat execution logic
+  powerMultiplier?: number; // for offensive abilities
+  healAmount?: number; // for healing abilities
+  statusToApply?: { type: StatusEffect; chance: number }; // for abilities that apply status
+}
 
 // ==========================================
 // CHARACTER
@@ -18,7 +39,8 @@ export type Rarity = 'common' | 'uncommon' | 'rare';
 
 export interface CharacterArchetype {
   id: Archetype;
-  name: string;
+  name: string;        // archetype role name (e.g. "Tank", "Medico")
+  displayName: string; // character name (e.g. "Marvin", "Rebecca")
   description: string;
   maxHp: number;
   atk: number;
@@ -39,6 +61,8 @@ export interface Character {
   id: string;
   archetype: Archetype;
   name: string;
+  biography?: string;
+  avatarUrl?: string; // custom avatar path or base64 data URL
   currentHp: number;
   maxHp: number;
   baseAtk: number;
@@ -52,6 +76,11 @@ export interface Character {
   inventory: ItemInstance[];
   maxInventorySlots: number;
   weapon: WeaponInstance | null;
+  // Custom character fields:
+  special1Id?: string;  // ID of first special ability (from ALL_SPECIAL_ABILITIES)
+  special2Id?: string;  // ID of second special ability
+  passiveDescription?: string;
+  statGrowth?: { hp: number; atk: number; def: number; spd: number }; // custom growth per level
 }
 
 export interface WeaponInstance {
@@ -61,6 +90,27 @@ export interface WeaponInstance {
   type: 'melee' | 'ranged';
   special?: string;
   ammoType?: string; // itemId of required ammo (e.g. 'ammo_pistol')
+}
+
+// ==========================================
+// CUSTOM CHARACTER CREATION
+// ==========================================
+
+export interface CustomCharacterConfig {
+  name: string;
+  biography: string;
+  avatarUrl: string; // predefined path or base64
+  isCustomAvatar: boolean;
+  baseArchetype: Archetype; // 'tank' | 'healer' | 'dps' as base, or 'custom' for fully custom
+  customStats?: {
+    hp: number;
+    atk: number;
+    def: number;
+    spd: number;
+  };
+  special1Id: string;
+  special2Id: string;
+  passiveDescription: string;
 }
 
 // ==========================================
@@ -80,9 +130,9 @@ export interface ItemDefinition {
 }
 
 export interface ItemEffect {
-  type: 'heal' | 'cure' | 'damage_boost' | 'defense_boost' | 'add_ammo' | 'add_slots';
+  type: 'heal' | 'cure' | 'damage_boost' | 'defense_boost' | 'add_ammo' | 'add_slots' | 'kill_all';
   value: number;
-  target: 'self' | 'one_ally' | 'all_allies';
+  target: 'self' | 'one_ally' | 'all_allies' | 'all_enemies';
   statusCured?: StatusEffect[];
 }
 
@@ -255,7 +305,7 @@ export interface CombatState {
 
 export interface GameNotification {
   id: string;
-  type: 'encounter' | 'item_found' | 'bag_expand' | 'victory' | 'defeat';
+  type: 'encounter' | 'item_found' | 'bag_expand' | 'victory' | 'defeat' | 'collectible_found';
   message: string;
   icon?: string;
   subMessage?: string;
@@ -289,4 +339,8 @@ export interface GameState {
   debugOpen: boolean;
   godMode: boolean;
   completedEvents: string[]; // locationIds whose storyEvent has been resolved
+  collectedRibbons: number; // ink ribbons collected this run (max 10)
+  persistentRibbons: number; // total ribbons collected across all playthroughs
+  isNewGamePlus: boolean; // whether current run is a New Game+
+  gameStartTime: number; // timestamp (ms) when the current adventure started
 }

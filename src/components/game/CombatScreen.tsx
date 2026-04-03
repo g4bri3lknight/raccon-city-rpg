@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CombatAction } from '@/game/types';
 import { ENEMY_IMAGES, CHARACTER_IMAGES } from '@/game/data/enemies';
+import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '@/game/data/specials';
 import ItemIcon from './ItemIcon';
-import { WEAPON_AMMO } from '@/game/engine/combat';
+import { WEAPON_AMMO, resolveSpecialId } from '@/game/engine/combat';
 import { audio } from '@/game/engine/sounds';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
 
@@ -91,18 +92,26 @@ export default function CombatScreen() {
         audio.playMiss();
       } else if (entry.isCritical && entry.damage && entry.damage > 0) {
         audio.playCritical();
-      } else if (entry.action === 'Difesa' || entry.action === 'Barricata' || entry.action === 'Immolazione') {
+      } else if (entry.action === 'Difesa' || entry.action === 'Barricata' || entry.action === 'Immolazione' || entry.action === 'Scudo Vitale' || entry.action === 'Recupero Tattico' || entry.action === 'Resistenza Attiva') {
         if (entry.action === 'Immolazione') audio.playTaunt();
         else audio.playDefend();
-      } else if (entry.action === 'Pronto Soccorso' || entry.action === 'Cura Gruppo') {
+      } else if (entry.action === 'Pronto Soccorso' || entry.action === 'Cura Gruppo' || entry.action === 'Adrenalina' || entry.action === 'Iniezione Stimolante' || entry.action === 'Disinfezione Totale') {
         audio.playHeal();
+      } else if (entry.action === 'Sparo Mirato') {
+        audio.playRangedAttack();
+      } else if (entry.action === 'Veleno Acido') {
+        audio.playPoisonTick();
+      } else if (entry.action === 'Attacco di Carica') {
+        audio.playAttack();
       } else if (entry.action === 'Avvelenamento') {
         audio.playPoisonTick();
       } else if (entry.action === 'Sanguinamento') {
         audio.playBleedTick();
       } else if (entry.action === 'Raffica') {
         audio.playExplosion();
-      } else if (entry.action === 'Colpo Mortale') {
+      } else if (entry.action === 'Granata Stordente') {
+        audio.playExplosion();
+      } else if (entry.action === 'Colpo Mortale' || entry.action === 'Sparo Mirato' || entry.action === 'Attacco di Carica' || entry.action === 'Siero Inibitore') {
         audio.playSpecial();
       } else if (entry.action === 'Attacco' || entry.action === 'Pistola M1911' || entry.action === 'Fucile a Pompa' || entry.action === 'Magnum' || entry.action === 'Tubo di Piombo' || entry.action === 'Bisturi' || entry.action === 'Colpo corpo a corpo') {
         // Ranged or melee player attack
@@ -220,20 +229,30 @@ export default function CombatScreen() {
     const ch = currentCharacter;
     const sCd = specialCd;
     const s2Cd = special2Cd;
-    if (ch.archetype === 'healer') {
+    // Resolve special abilities (supports custom characters)
+    const s1 = getSpecialById(resolveSpecialId(ch, 'special1Id') || '');
+    const s2 = getSpecialById(resolveSpecialId(ch, 'special2Id') || '');
+
+    if (ch.archetype === 'healer' || (s1?.category === 'support' && s1?.targetType === 'ally')) {
       const woundedCount = aliveParty.filter(p => p.currentHp < p.maxHp * 0.6).length;
-      if (woundedCount >= 2 && s2Cd === 0) return 'special2' as CombatAction;
+      if (woundedCount >= 2 && s2Cd === 0 && s2?.category === 'support') return 'special2' as CombatAction;
       if (aliveParty.some(p => p.currentHp < p.maxHp * 0.5) && sCd === 0) return 'special' as CombatAction;
       return 'attack' as CombatAction;
     }
-    if (ch.archetype === 'tank') {
+    if (ch.archetype === 'tank' || (s1?.category === 'defensive')) {
       if (s2Cd === 0 && aliveEnemies.length >= 2) return 'special2' as CombatAction;
       if (sCd === 0 && ch.currentHp < ch.maxHp * 0.7) return 'special' as CombatAction;
       if (ch.currentHp < ch.maxHp * 0.3) return 'defend' as CombatAction;
     }
-    if (ch.archetype === 'dps') {
+    if (ch.archetype === 'dps' || (s1?.category === 'offensive')) {
       if (s2Cd === 0 && aliveEnemies.length >= 2) return 'special2' as CombatAction;
       if (sCd === 0) return 'special' as CombatAction;
+    }
+    if (ch.archetype === 'custom') {
+      // Custom character AI logic based on first special
+      if (s1?.category === 'support' && aliveParty.some(p => p.currentHp < p.maxHp * 0.5) && sCd === 0) return 'special' as CombatAction;
+      if (s1?.category === 'defensive' && ch.currentHp < ch.maxHp * 0.5 && sCd === 0) return 'special' as CombatAction;
+      if (s1?.category === 'offensive' && sCd === 0) return 'special' as CombatAction;
     }
     if (ch.currentHp < ch.maxHp * 0.4 && ch.inventory.some(i => i.usable && i.effect?.type === 'heal')) return 'use_item' as CombatAction;
     return 'attack' as CombatAction;
@@ -267,10 +286,17 @@ export default function CombatScreen() {
       setPendingAction('attack');
       setTargetingMode('enemy');
     } else if (action === 'special') {
-      if (currentCharacter?.archetype === 'tank') {
-        selectCombatTarget(currentCharacter.id);
+      const sp1 = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special1Id') || '') : undefined;
+      if (!sp1) {
+        setPendingAction('special');
+        setTargetingMode('enemy');
+      } else if (sp1.targetType === 'self') {
+        selectCombatTarget(currentCharacter!.id);
         setTimeout(() => executeCombatTurn(), 300);
-      } else if (currentCharacter?.archetype === 'healer') {
+      } else if (sp1.targetType === 'all_allies') {
+        selectCombatTarget(currentCharacter!.id);
+        setTimeout(() => executeCombatTurn(), 300);
+      } else if (sp1.targetType === 'ally') {
         setPendingAction('special');
         setTargetingMode('ally');
       } else {
@@ -278,16 +304,20 @@ export default function CombatScreen() {
         setTargetingMode('enemy');
       }
     } else if (action === 'special2') {
-      if (currentCharacter?.archetype === 'tank') {
-        // Immolation = self-target
-        selectCombatTarget(currentCharacter.id);
+      const sp2 = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special2Id') || '') : undefined;
+      if (!sp2) {
+        setPendingAction('special2');
+        setTargetingMode('enemy');
+      } else if (sp2.targetType === 'self') {
+        selectCombatTarget(currentCharacter!.id);
         setTimeout(() => executeCombatTurn(), 300);
-      } else if (currentCharacter?.archetype === 'healer') {
-        // Cura Gruppo = self-target (affects all)
-        selectCombatTarget(currentCharacter.id);
+      } else if (sp2.targetType === 'all_allies') {
+        selectCombatTarget(currentCharacter!.id);
         setTimeout(() => executeCombatTurn(), 300);
+      } else if (sp2.targetType === 'ally') {
+        setPendingAction('special2');
+        setTargetingMode('ally');
       } else {
-        // DPS Raffica = target enemy
         setPendingAction('special2');
         setTargetingMode('enemy');
       }
@@ -497,7 +527,7 @@ export default function CombatScreen() {
                   </span>
                 )}
                 <div className={`w-20 h-24 sm:w-24 sm:h-28 lg:w-56 lg:h-64 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
-                  <img src={CHARACTER_IMAGES[char.archetype] || ''} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
+                  <img src={char.avatarUrl || CHARACTER_IMAGES[char.archetype] || ''} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
                   {/* ── BLEEDING VISUAL: blood drips on left + red pulse ── */}
                   {isBleeding && !isDead && (
                     <>
@@ -595,7 +625,7 @@ export default function CombatScreen() {
         </div>
       </div>
 
-      {/* ── CONTEXT MENU (action buttons) — floating in arena ── */}
+      {/* ── CONTEXT MENU (action buttons) — floating in arena (DESKTOP only) ── */}
       <AnimatePresence>
         {(showMenu || autoCombat) && isPlayerTurn && (
           <motion.div
@@ -603,7 +633,7 @@ export default function CombatScreen() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 8 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-40 right-2 sm:right-4 bottom-2 sm:bottom-3 glass-dark rounded-lg"
+            className="hidden lg:block absolute z-40 right-2 sm:right-4 bottom-2 sm:bottom-3 glass-dark rounded-lg"
             style={{ minWidth: '150px' }}
           >
             <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
@@ -645,7 +675,7 @@ export default function CombatScreen() {
                 }`}
               >
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
-                {arch === 'tank' ? 'Barricata' : arch === 'healer' ? 'Cura' : 'Mortale'}
+                {(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special1Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Barricata' : arch === 'healer' ? 'Cura' : 'Mortale'); })()}
                 {specialCd > 0 && (
                   <span className="ml-auto bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">{specialCd} turni</span>
                 )}
@@ -660,7 +690,7 @@ export default function CombatScreen() {
                 }`}
               >
                 <Zap className="w-3.5 h-3.5 text-orange-400" />
-                {arch === 'tank' ? 'Immolazione' : arch === 'healer' ? 'Cura Gruppo' : 'Raffica'}
+                {(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special2Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Immolazione' : arch === 'healer' ? 'Cura Gruppo' : 'Raffica'); })()}
                 {special2Cd > 0 && (
                   <span className="ml-auto bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">{special2Cd} turni</span>
                 )}
@@ -703,7 +733,7 @@ export default function CombatScreen() {
         )}
       </AnimatePresence>
 
-      {/* ── ITEM SELECT — floating in arena ── */}
+      {/* ── ITEM SELECT — floating in arena (DESKTOP only) ── */}
       <AnimatePresence>
         {showItemSelect && isPlayerTurn && (
           <motion.div
@@ -711,7 +741,7 @@ export default function CombatScreen() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 8 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-40 left-2 sm:left-4 right-2 sm:right-4 bottom-2 sm:bottom-3 glass-dark rounded-lg"
+            className="hidden lg:block absolute z-40 left-2 sm:left-4 right-2 sm:right-4 bottom-2 sm:bottom-3 glass-dark rounded-lg"
           >
             <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
               <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">Oggetti</span>
@@ -744,9 +774,9 @@ export default function CombatScreen() {
         )}
       </AnimatePresence>
 
-      {/* ── AI MODE PANEL — top-right in arena ── */}
+      {/* ── AI MODE PANEL — top-right in arena (DESKTOP only) ── */}
       {!isCombatEnd && (
-        <div className="absolute z-40 top-2 right-2 sm:top-3 sm:right-3 glass-dark rounded-lg px-4 py-2.5 flex items-center gap-3" style={{ minWidth: '240px' }}>
+        <div className="hidden lg:flex absolute z-40 top-2 right-2 sm:top-3 sm:right-3 glass-dark rounded-lg px-4 py-2.5 items-center gap-3" style={{ minWidth: '240px' }}>
           <div className="flex items-center gap-1.5">
             {autoCombat && <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />}
             <span className={`text-xs font-semibold ${autoCombat ? 'text-amber-300' : 'text-gray-500'}`}>
@@ -766,14 +796,14 @@ export default function CombatScreen() {
         </div>
       )}
 
-      {/* ── TARGETING HINT ── */}
+      {/* ── TARGETING HINT (DESKTOP only) ── */}
       <AnimatePresence>
         {targetingMode && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute z-30 left-2 sm:left-4 bottom-2 sm:bottom-3"
+            className="hidden lg:block absolute z-30 left-2 sm:left-4 bottom-2 sm:bottom-3"
           >
             <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border backdrop-blur-sm text-[10px] font-semibold ${
               targetingMode === 'enemy'
@@ -864,12 +894,24 @@ export default function CombatScreen() {
           </div>
         </div>
       )}
-      {/* Player turn hint */}
+      {/* Player turn hint + AI toggle (mobile) */}
       {isPlayerTurn && !showMenu && !targetingMode && !showItemSelect && !isCombatEnd && (
         <div className="shrink-0 border-t border-gray-800/50 bg-gray-950/80 px-4 py-1.5">
-          <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500">
-            <Hand className="w-3 h-3" />
-            <span>Clicca su <strong className="text-yellow-300">{currentCharacter?.name}</strong> nell&apos;arena per scegliere un&apos;azione</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[10px] text-gray-500">
+              <Hand className="w-3 h-3" />
+              <span>Clicca su <strong className="text-yellow-300">{currentCharacter?.name}</strong> per agire</span>
+            </div>
+            <button
+              onClick={toggleAutoCombat}
+              className={`lg:hidden text-[10px] px-2.5 py-1 rounded border font-semibold transition-all whitespace-nowrap ${
+                autoCombat
+                  ? 'border-amber-500/30 text-amber-300 bg-amber-500/[0.06]'
+                  : 'border-white/[0.08] text-white/40 bg-white/[0.03]'
+              }`}
+            >
+              {autoCombat ? '⏹ AI' : '▶ AI'}
+            </button>
           </div>
         </div>
       )}
@@ -978,6 +1020,181 @@ export default function CombatScreen() {
           </div>
         </div>
       </div>
+
+      {/* ── MOBILE ACTION BAR — below arena/log, never overlaps characters ── */}
+      <AnimatePresence>
+        {(showMenu || autoCombat) && isPlayerTurn && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.2 }}
+            className="lg:hidden shrink-0 px-2 pb-1.5"
+          >
+            <div className="glass-dark rounded-xl">
+              <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">
+                  {autoCombat ? '🤖 AI' : '⚔️ Azioni'}
+                </span>
+                {!autoCombat && (
+                  <button onClick={cancelAll} className="text-white/40 hover:text-white transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-1 p-1.5">
+                <button
+                  onClick={() => !autoCombat && handleMenuAction('attack')}
+                  disabled={autoCombat}
+                  className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                    aiPredictedAction === 'attack'
+                      ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
+                      : 'text-gray-300 active:bg-red-950/50 active:text-red-200 border border-transparent'
+                  }`}
+                >
+                  <Swords className="w-5 h-5 text-red-400" />
+                  <span className="truncate max-w-full">{currentCharacter?.weapon?.type === 'ranged' ? currentCharacter.weapon.name : 'Attacca'}</span>
+                  {currentWeaponAmmoCount !== null && (
+                    <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${currentWeaponAmmoCount === 0 ? 'bg-red-900/60 text-red-400' : 'bg-gray-800/80 text-gray-400'}`}>
+                      🔫{currentWeaponAmmoCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => !autoCombat && handleMenuAction('special')}
+                  disabled={specialCd > 0 || autoCombat}
+                  className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed relative ${
+                    aiPredictedAction === 'special'
+                      ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.3)] animate-pulse'
+                      : 'text-gray-300 active:bg-amber-950/50 active:text-amber-200 border border-transparent'
+                  }`}
+                >
+                  <Zap className="w-5 h-5 text-amber-400" />
+                  <span className="truncate max-w-full">{(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special1Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Barricata' : arch === 'healer' ? 'Cura' : 'Mortale'); })()}</span>
+                  {specialCd > 0 && (
+                    <span className="bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded">{specialCd}t</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => !autoCombat && handleMenuAction('special2')}
+                  disabled={special2Cd > 0 || autoCombat}
+                  className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed relative ${
+                    aiPredictedAction === 'special2'
+                      ? 'bg-orange-500/20 border border-orange-500/40 text-orange-200 shadow-[0_0_10px_rgba(249,115,22,0.3)] animate-pulse'
+                      : 'text-gray-300 active:bg-orange-950/50 active:text-orange-200 border border-transparent'
+                  }`}
+                >
+                  <Zap className="w-5 h-5 text-orange-400" />
+                  <span className="truncate max-w-full">{(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special2Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Immolazione' : arch === 'healer' ? 'Cura Gruppo' : 'Raffica'); })()}</span>
+                  {special2Cd > 0 && (
+                    <span className="bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded">{special2Cd}t</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => !autoCombat && handleMenuAction('use_item')}
+                  disabled={usableItems.length === 0 || autoCombat}
+                  className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                    aiPredictedAction === 'use_item'
+                      ? 'bg-green-500/20 border border-green-500/40 text-green-200 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
+                      : 'text-gray-300 active:bg-green-950/50 active:text-green-200 border border-transparent'
+                  }`}
+                >
+                  <Package className="w-5 h-5 text-green-400" />
+                  <span>Oggetto</span>
+                  <span className="text-[8px] text-gray-500">{usableItems.length}</span>
+                </button>
+                <button
+                  onClick={() => !autoCombat && handleMenuAction('defend')}
+                  disabled={autoCombat}
+                  className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                    aiPredictedAction === 'defend'
+                      ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse'
+                      : 'text-gray-300 active:bg-cyan-950/50 active:text-cyan-200 border border-transparent'
+                  }`}
+                >
+                  <Shield className="w-5 h-5 text-cyan-400" />
+                  <span>Difesa</span>
+                </button>
+                <button
+                  onClick={() => handleMenuAction('flee')}
+                  disabled={enemies.some(e => e.isBoss)}
+                  className="flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium text-gray-500 active:bg-gray-800/60 active:text-gray-200 border border-transparent transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <Footprints className="w-5 h-5" />
+                  <span>Fuga</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MOBILE ITEM SELECT — below arena, never overlaps characters ── */}
+      <AnimatePresence>
+        {showItemSelect && isPlayerTurn && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.2 }}
+            className="lg:hidden shrink-0 px-2 pb-1.5"
+          >
+            <div className="glass-dark rounded-xl">
+              <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">🎒 Oggetti</span>
+                <button onClick={cancelAll} className="text-white/40 hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {usableItems.length === 0 ? (
+                <p className="text-gray-500 text-xs px-3 py-3">Nessun oggetto utilizzabile.</p>
+              ) : (
+                <div className="p-1.5 max-h-40 overflow-y-auto inventory-scrollbar space-y-0.5">
+                  {usableItems.map(item => (
+                    <button
+                      key={item.uid}
+                      onClick={() => handleItemSelect(item.uid)}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs text-gray-200 active:bg-amber-950/30 active:text-amber-200 border border-transparent transition-all text-left"
+                    >
+                      <span className="text-base flex items-center">
+                        <ItemIcon itemId={item.itemId} rarity={item.rarity} size={20} />
+                      </span>
+                      <span className="flex-1 truncate">{item.name}</span>
+                      {item.quantity && item.quantity > 1 && (
+                        <span className="text-[9px] text-gray-500">x{item.quantity}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Targeting hint (mobile only) ── */}
+      <AnimatePresence>
+        {targetingMode && isPlayerTurn && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="lg:hidden shrink-0 px-2 pb-1.5"
+          >
+            <div className="glass-dark rounded-xl px-3 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Crosshair className="w-4 h-4 text-red-400 animate-pulse" />
+                <span className="text-xs text-gray-200">
+                  {targetingMode === 'enemy' ? 'Scegli un nemico da attaccare' : 'Scegli un alleato da curare'}
+                </span>
+              </div>
+              <button onClick={cancelAll} className="text-white/40 hover:text-white transition-colors px-2 py-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Bottom bars: only on mobile, below the split ── */}
       <div className="lg:hidden shrink-0">

@@ -120,7 +120,7 @@ export default function InventoryPanel() {
               max={selectedChar.maxHp}
               name={selectedChar.name}
               statusEffects={selectedChar.statusEffects}
-              imageSrc={CHARACTER_IMAGES[selectedChar.archetype]}
+              imageSrc={selectedChar.avatarUrl || CHARACTER_IMAGES[selectedChar.archetype]}
             />
             <div className="flex gap-2.5 md:gap-4 text-[10px] md:text-xs mt-1.5 md:mt-2">
               <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + (selectedChar.weapon?.atkBonus || 0)}</span>

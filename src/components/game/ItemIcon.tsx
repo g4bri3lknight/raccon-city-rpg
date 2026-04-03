@@ -9,12 +9,14 @@ const RARITY_BORDER: Record<Rarity, string> = {
   common: 'rgba(160,160,160,0.25)',
   uncommon: 'rgba(124,179,212,0.35)',
   rare: 'rgba(196,149,106,0.4)',
+  legendary: 'rgba(245,158,11,0.5)',
 };
 
 const RARITY_GLOW: Record<Rarity, string> = {
   common: 'drop-shadow(0 0 2px rgba(160,160,160,0.2))',
   uncommon: 'drop-shadow(0 0 4px rgba(124,179,212,0.3))',
   rare: 'drop-shadow(0 0 6px rgba(196,149,106,0.35))',
+  legendary: 'drop-shadow(0 0 8px rgba(245,158,11,0.45))',
 };
 
 // Fallback emoji map (only used if PNG is missing)
@@ -25,6 +27,9 @@ const FALLBACK_ICONS: Record<string, string> = {
   shotgun: '🔫',
   combat_knife: '🗡️',
   magnum: '🔫',
+  machinegun: '🔫',
+  grenade_launcher: '💣',
+  rocket_launcher: '🚀',
   bandage: '🩹',
   herb_green: '🍃',
   herb_red: '🩸',
@@ -35,6 +40,8 @@ const FALLBACK_ICONS: Record<string, string> = {
   ammo_pistol: '🔶',
   ammo_shotgun: '🔷',
   ammo_magnum: '🔴',
+  ammo_machinegun: '🟡',
+  ammo_grenade: '🟠',
   bag_small: '👝',
   bag_medium: '🎒',
   flashlight: '🔦',

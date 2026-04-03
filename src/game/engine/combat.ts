@@ -8,6 +8,7 @@ import {
   StatusEffect,
 } from '../types';
 import { ENEMIES } from '../data/enemies';
+import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '../data/specials';
 
 // ==========================================
 // UTILITY
@@ -19,6 +20,14 @@ function random(min: number, max: number): number {
 
 function chance(percent: number): boolean {
   return Math.random() * 100 < percent;
+}
+
+// Control archetype passive: +20% chance to apply status effects
+function getStatusChance(baseChance: number, archetype?: Archetype): number {
+  if (archetype === 'control') {
+    return Math.min(baseChance + 20, 100);
+  }
+  return baseChance;
 }
 
 // ==========================================
@@ -61,6 +70,33 @@ export function calculateDamage(
   return { damage, isCritical, isMiss: false };
 }
 
+export function calculateDamageNoMiss(
+  attackerAtk: number,
+  defenderDef: number,
+  isDefending: boolean,
+  attackerArchetype?: Archetype,
+): { damage: number; isCritical: boolean; isMiss: false } {
+  // Guaranteed hit (for Sparo Mirato)
+  let baseDamage = attackerAtk * random(90, 110) / 100;
+  
+  let defMultiplier = defenderDef / (defenderDef + 50);
+  
+  if (isDefending) {
+    defMultiplier = Math.min(defMultiplier * 1.8, 0.9);
+  }
+
+  let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
+
+  let critChance = 10;
+  if (attackerArchetype === 'dps') critChance = 25;
+  const isCritical = chance(critChance);
+  if (isCritical) {
+    damage = Math.floor(damage * 1.8);
+  }
+
+  return { damage, isCritical, isMiss: false };
+}
+
 export function calculateHeal(
   baseHeal: number,
   healerArchetype?: Archetype,
@@ -81,6 +117,8 @@ export const WEAPON_AMMO: Record<string, string> = {
   pistol: 'ammo_pistol',
   shotgun: 'ammo_shotgun',
   magnum: 'ammo_magnum',
+  machinegun: 'ammo_machinegun',
+  grenade_launcher: 'ammo_grenade',
 };
 
 export interface ActionResult {
@@ -168,7 +206,558 @@ export function executePlayerAttack(
   };
 }
 
+// ==========================================
+// SPECIAL ABILITIES - GENERIC EXECUTION
+// Handles both predefined archetype specials and custom specials
+// ==========================================
+
+export function resolveSpecialId(character: Character, slot: 'special1Id' | 'special2Id'): string | undefined {
+  // Custom characters store their special IDs directly
+  if (character.archetype === 'custom') {
+    return slot === 'special1Id' ? character.special1Id : character.special2Id;
+  }
+  // Predefined archetypes use the mapping
+  const map = ARCHETYPE_SPECIAL_MAP[character.archetype];
+  if (!map) return undefined;
+  return slot === 'special1Id' ? map.special1 : map.special2;
+}
+
 export function executePlayerSpecial(
+  character: Character,
+  target: EnemyInstance | Character,
+  turn: number,
+  party: Character[],
+): ActionResult {
+  const specialId = resolveSpecialId(character, 'special1Id');
+  const special = specialId ? getSpecialById(specialId) : undefined;
+
+  // Fallback: use archetype switch for predefined characters without special IDs
+  if (!special && character.archetype !== 'custom') {
+    return executePlayerSpecialLegacy(character, target, turn, party);
+  }
+
+  if (!special) {
+    return {
+      log: { turn, actorName: character.name, actorType: 'player', action: 'Speciale', message: `${character.name} non ha abilità speciale.` },
+    };
+  }
+
+  return executeSpecialAbility(character, target, turn, party, [], special);
+}
+
+export function executePlayerSpecial2(
+  character: Character,
+  target: EnemyInstance | Character,
+  turn: number,
+  party: Character[],
+  enemies: EnemyInstance[],
+): ActionResult {
+  const specialId = resolveSpecialId(character, 'special2Id');
+  const special = specialId ? getSpecialById(specialId) : undefined;
+
+  // Fallback: use archetype switch for predefined characters without special IDs
+  if (!special && character.archetype !== 'custom') {
+    return executePlayerSpecial2Legacy(character, target, turn, party, enemies);
+  }
+
+  if (!special) {
+    return {
+      log: { turn, actorName: character.name, actorType: 'player', action: 'Speciale2', message: `${character.name} non ha abilità speciale secondaria.` },
+    };
+  }
+
+  return executeSpecialAbility(character, target, turn, party, enemies, special);
+}
+
+// Generic special ability execution
+function executeSpecialAbility(
+  character: Character,
+  target: EnemyInstance | Character,
+  turn: number,
+  party: Character[],
+  enemies: EnemyInstance[],
+  special: ReturnType<typeof getSpecialById>,
+): ActionResult {
+  if (!special) {
+    return {
+      log: { turn, actorName: character.name, actorType: 'player', action: 'Speciale', message: `${character.name} non ha abilità speciale.` },
+    };
+  }
+
+  const result: ActionResult = {
+    log: { turn, actorName: character.name, actorType: 'player', action: special.name, message: '' },
+  };
+
+  switch (special.executionType) {
+    // ── OFFENSIVE ──
+    case 'colpo_mortale': {
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 1.6;
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const newHp = Math.max(0, enemyTarget.currentHp - damage);
+      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Colpo Mortale',
+        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical: true,
+        message: `${character.name} esegue un COLPO MORTALE su ${enemyTarget.name} per ${damage} danni!`,
+      };
+      result.updatedEnemy = updated;
+      break;
+    }
+
+    case 'raffica': {
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 1.3;
+
+      const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const primaryHp = Math.max(0, enemyTarget.currentHp - primary.damage);
+      let updatedEnemies = enemies.map(e =>
+        e.id === enemyTarget.id ? { ...e, currentHp: primaryHp, isDefending: false } : e
+      );
+
+      const splashLog: string[] = [];
+      const splashAtk = (character.baseAtk + weaponBonus) * 0.6;
+      updatedEnemies = updatedEnemies.map(e => {
+        if (e.id !== enemyTarget.id && e.currentHp > 0) {
+          const splash = calculateDamage(splashAtk, e.def, e.isDefending);
+          const newHp = Math.max(0, e.currentHp - splash.damage);
+          if (!splash.isMiss) {
+            splashLog.push(`${e.name}: -${splash.damage}`);
+          }
+          return { ...e, currentHp: newHp, isDefending: false };
+        }
+        return e;
+      });
+
+      let message = `${character.name} esegue una RAFFICA su ${enemyTarget.name} per ${primary.damage} danni!`;
+      if (primary.isCritical) message = `${character.name} esegue una RAFFICA CRITICA su ${enemyTarget.name} per ${primary.damage} danni!`;
+      if (primary.isMiss) message = `${character.name} spara una raffica ma manca ${enemyTarget.name}!`;
+      if (splashLog.length > 0) {
+        message += ` Danni collaterali: ${splashLog.join(', ')}.`;
+      }
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Raffica',
+        targetName: enemyTarget.name, targetId: enemyTarget.id,
+        damage: primary.damage, isCritical: primary.isCritical, isMiss: primary.isMiss,
+        message,
+      };
+      result.updatedEnemies = updatedEnemies;
+      break;
+    }
+
+    case 'sparo_mirato': {
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 2.0;
+      // Guaranteed hit - no miss
+      const { damage, isCritical } = calculateDamageNoMiss(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const newHp = Math.max(0, enemyTarget.currentHp - damage);
+      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
+      let message = `${character.name} esegue uno SPARO MIRATO su ${enemyTarget.name} per ${damage} danni!`;
+      if (isCritical) message = `${character.name} esegue uno SPARO MIRATO CRITICO su ${enemyTarget.name} per ${damage} danni!`;
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Sparo Mirato',
+        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical,
+        message,
+      };
+      result.updatedEnemy = updated;
+      break;
+    }
+
+    case 'veleno_acido': {
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 0.9;
+      const { damage, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending);
+      const newHp = Math.max(0, enemyTarget.currentHp - damage);
+      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
+      
+      let message = `${character.name} lancia VELENO ACIDO su ${enemyTarget.name} per ${damage} danni!`;
+      if (isMiss) message = `${character.name} lancia veleno ma ${enemyTarget.name} schiva!`;
+      
+      // Apply poison
+      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
+        if (!updated.statusEffects.includes('poison')) {
+          updated.statusEffects = [...updated.statusEffects, 'poison'];
+          message += ` ${enemyTarget.name} è avvelenato!`;
+        }
+      }
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Veleno Acido',
+        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isMiss,
+        message, statusEffect: 'poison',
+      };
+      result.updatedEnemy = updated;
+      break;
+    }
+
+    case 'attacco_carica': {
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 1.4;
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const newHp = Math.max(0, enemyTarget.currentHp - damage);
+      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
+      
+      let message = `${character.name} esegue un ATTACCO DI CARICA su ${enemyTarget.name} per ${damage} danni!`;
+      
+      // Apply stun
+      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
+        if (!updated.statusEffects.includes('stunned')) {
+          updated.statusEffects = [...updated.statusEffects, 'stunned'];
+          message += ` ${enemyTarget.name} è stordito!`;
+        }
+      }
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Attacco di Carica',
+        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
+        message, statusEffect: 'stunned',
+      };
+      result.updatedEnemy = updated;
+      break;
+    }
+
+    case 'gas_venefico': {
+      // AOE poison - damages ALL living enemies
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 0.7;
+      const livingEnemies = enemies.filter(e => e.currentHp > 0);
+      let totalDmg = 0;
+      const updatedEnemies = livingEnemies.map(e => {
+        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending);
+        if (isMiss) return { ...e, isDefending: false };
+        totalDmg += damage;
+        const newHp = Math.max(0, e.currentHp - damage);
+        const updated = { ...e, currentHp: newHp, isDefending: false };
+        if (special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
+          if (!updated.statusEffects.includes('poison')) {
+            updated.statusEffects = [...updated.statusEffects, 'poison'];
+          }
+        }
+        return updated;
+      });
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Gas Venefico',
+        damage: totalDmg,
+        message: `${character.name} lancia Gas Venefico! Tutti i nemici sono avvelenati e subiscono ${totalDmg} danni!`,
+        statusEffect: 'poison',
+      };
+      result.updatedEnemies = updatedEnemies;
+      break;
+    }
+
+    case 'cristalli_sonici': {
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 1.1;
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const newHp = Math.max(0, enemyTarget.currentHp - damage);
+      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
+
+      let message = `${character.name} attiva Cristalli Sonici! ${enemyTarget.name} è stordito e subisce ${damage} danni!`;
+
+      // Apply stun
+      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
+        if (!updated.statusEffects.includes('stunned')) {
+          updated.statusEffects = [...updated.statusEffects, 'stunned'];
+          message += ` ${enemyTarget.name} è stordito!`;
+        }
+      }
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Cristalli Sonici',
+        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
+        message, statusEffect: 'stunned',
+      };
+      result.updatedEnemy = updated;
+      break;
+    }
+
+    case 'frecce_etiche': {
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * 0.9;
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const newHp = Math.max(0, enemyTarget.currentHp - damage);
+      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
+
+      let message = `${character.name} spara Frecce Elettriche! ${enemyTarget.name} è stordito e subisce ${damage} danni!`;
+
+      // Apply stun
+      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
+        if (!updated.statusEffects.includes('stunned')) {
+          updated.statusEffects = [...updated.statusEffects, 'stunned'];
+          message += ` ${enemyTarget.name} è stordito!`;
+        }
+      }
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Frecce Elettriche',
+        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
+        message, statusEffect: 'stunned',
+      };
+      result.updatedEnemy = updated;
+      break;
+    }
+
+    // ── DEFENSIVE ──
+    case 'barricata': {
+      character.isDefending = true;
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Barricata',
+        message: `${character.name} erige una barricata! Danni ridotti fino al prossimo turno.`,
+      };
+      result.updatedCharacter = character;
+      break;
+    }
+
+    case 'immolazione': {
+      character.isDefending = true;
+      result.tauntTargetId = character.id;
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Immolazione',
+        message: `${character.name} si espone con IMMOLAZIONE! Tutti i nemici dovranno attaccarlo. Danni ridotti.`,
+      };
+      result.updatedCharacter = character;
+      break;
+    }
+
+    case 'scudo_vitale': {
+      // Heal 30 HP and set defending
+      const healAmount = 30;
+      const newHp = Math.min(character.maxHp, character.currentHp + healAmount);
+      character.isDefending = true;
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Scudo Vitale',
+        heal: healAmount,
+        message: `${character.name} attiva lo SCUDO VITALE! Recupera ${healAmount} HP e riduce i danni subiti.`,
+      };
+      result.updatedCharacter = { ...character, currentHp: newHp, isDefending: true };
+      break;
+    }
+
+    // ── SUPPORT ──
+    case 'pronto_soccorso': {
+      if (target.id === character.id || party.some(p => p.id === target.id)) {
+        const healTarget = target as Character;
+        const healAmount = calculateHeal(70, character.archetype);
+        const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
+        const curedEffects: string[] = [];
+        let cleanedStatus = [...healTarget.statusEffects];
+        if (cleanedStatus.includes('poison')) {
+          cleanedStatus = cleanedStatus.filter(s => s !== 'poison');
+          curedEffects.push('avvelenamento');
+        }
+        if (cleanedStatus.includes('bleeding')) {
+          cleanedStatus = cleanedStatus.filter(s => s !== 'bleeding');
+          curedEffects.push('sanguinamento');
+        }
+        const updated = { ...healTarget, currentHp: newHp, statusEffects: cleanedStatus };
+        const cureText = curedEffects.length > 0 ? ` e cura ${curedEffects.join(' e ')}` : '';
+        result.log = {
+          turn, actorName: character.name, actorType: 'player', action: 'Pronto Soccorso',
+          targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
+          message: `${character.name} usa Pronto Soccorso su ${healTarget.name} ripristinando ${healAmount} HP${cureText}!`,
+        };
+        result.updatedCharacter = updated;
+      }
+      break;
+    }
+
+    case 'cura_gruppo': {
+      const healAmount = calculateHeal(35, character.archetype);
+      const updatedParty = party.map(p => {
+        if (p.currentHp > 0) {
+          return { ...p, currentHp: Math.min(p.maxHp, p.currentHp + healAmount) };
+        }
+        return p;
+      });
+      const aliveCount = party.filter(p => p.currentHp > 0).length;
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Cura Gruppo',
+        heal: healAmount,
+        message: `${character.name} usa Cura Gruppo! ${aliveCount} alleati guariti di ${healAmount} HP ciascuno.`,
+      };
+      result.updatedParty = updatedParty;
+      break;
+    }
+
+    case 'adrenalina': {
+      const healTarget = target as Character;
+      // Adrenalina: heal 25 HP and boost speed temporarily (simulated by setting defending for turn advantage)
+      const healAmount = 25;
+      const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Adrenalina',
+        targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
+        message: `${character.name} inietta ADRENALINA a ${healTarget.name}! +${healAmount} HP e potenziamento temporaneo!`,
+      };
+      result.updatedCharacter = { ...healTarget, currentHp: newHp };
+      break;
+    }
+
+    case 'iniezione_stimolante': {
+      const healTarget = target as Character;
+      const healAmount = calculateHeal(special.healAmount || 45, character.archetype);
+      const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
+      const curedEffects: string[] = [];
+      let cleanedStatus = [...healTarget.statusEffects];
+      if (cleanedStatus.includes('poison')) { cleanedStatus = cleanedStatus.filter(s => s !== 'poison'); curedEffects.push('avvelenamento'); }
+      if (cleanedStatus.includes('bleeding')) { cleanedStatus = cleanedStatus.filter(s => s !== 'bleeding'); curedEffects.push('sanguinamento'); }
+      if (cleanedStatus.includes('stunned')) { cleanedStatus = cleanedStatus.filter(s => s !== 'stunned'); curedEffects.push('stordimento'); }
+      const updated = { ...healTarget, currentHp: newHp, statusEffects: cleanedStatus };
+      const cureText = curedEffects.length > 0 ? ` e rimuove ${curedEffects.join(' e ')}` : '';
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Iniezione Stimolante',
+        targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
+        message: `${character.name} usa INIEZIONE STIMOLANTE su ${healTarget.name}! +${healAmount} HP${cureText}!`,
+      };
+      result.updatedCharacter = updated;
+      break;
+    }
+
+    case 'disinfezione_totale': {
+      const healAmount = calculateHeal(special.healAmount || 20, character.archetype);
+      const cleanedParty = party.map(p => {
+        if (p.currentHp <= 0) return p;
+        const newHp = Math.min(p.maxHp, p.currentHp + healAmount);
+        const cleanedStatus: typeof p.statusEffects = [];
+        return { ...p, currentHp: newHp, statusEffects: cleanedStatus };
+      });
+      const aliveCount = party.filter(p => p.currentHp > 0).length;
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Disinfezione Totale',
+        heal: healAmount,
+        message: `${character.name} usa DISINFEZIONE TOTALE! ${aliveCount} alleati curati di ${healAmount} HP e tutti gli status negativi rimossi!`,
+      };
+      result.updatedParty = cleanedParty;
+      break;
+    }
+
+    case 'recupero_tattico': {
+      const healAmount = calculateHeal(special.healAmount || 50, character.archetype);
+      const newHp = Math.min(character.maxHp, character.currentHp + healAmount);
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Recupero Tattico',
+        heal: healAmount,
+        message: `${character.name} usa RECUPERO TATTICO! Recupera ${healAmount} HP!`,
+      };
+      result.updatedCharacter = { ...character, currentHp: newHp };
+      break;
+    }
+
+    case 'resistenza_attiva': {
+      const healAmount = calculateHeal(special.healAmount || 25, character.archetype);
+      const newHp = Math.min(character.maxHp, character.currentHp + healAmount);
+      const hadStatus = character.statusEffects.length > 0;
+      const cleanedStatus: typeof character.statusEffects = [];
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Resistenza Attiva',
+        heal: healAmount,
+        message: `${character.name} attiva RESISTENZA ATTIVA! +${healAmount} HP${hadStatus ? '. Tutti gli effetti negativi rimossi!' : '!'}`,
+      };
+      result.updatedCharacter = { ...character, currentHp: newHp, statusEffects: cleanedStatus };
+      break;
+    }
+
+    case 'granata_stordente': {
+      // AOE stun - damages ALL living enemies + high stun chance
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 0.8);
+      const livingEnemies = enemies.filter(e => e.currentHp > 0);
+      let totalDmg = 0;
+      let stunnedCount = 0;
+      const updatedEnemies = livingEnemies.map(e => {
+        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending);
+        if (isMiss) return { ...e, isDefending: false };
+        totalDmg += damage;
+        const newHp = Math.max(0, e.currentHp - damage);
+        const updated = { ...e, currentHp: newHp, isDefending: false };
+        if (special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
+          if (!updated.statusEffects.includes('stunned')) {
+            updated.statusEffects = [...updated.statusEffects, 'stunned'];
+            stunnedCount++;
+          }
+        }
+        return updated;
+      });
+
+      let message = `${character.name} lancia una GRANATA STORDENTE! ${totalDmg} danni totali ai nemici!`;
+      if (stunnedCount > 0) message += ` ${stunnedCount} nemici storditi!`;
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Granata Stordente',
+        damage: totalDmg,
+        message,
+        statusEffect: 'stunned',
+      };
+      result.updatedEnemies = updatedEnemies;
+      break;
+    }
+
+    case 'siero_inibitore': {
+      // Single target: moderate damage + poison AND stun
+      if (target.id === character.id) break;
+      const enemyTarget = target as EnemyInstance;
+      const weaponBonus = character.weapon?.atkBonus || 0;
+      const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 1.0);
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const newHp = Math.max(0, enemyTarget.currentHp - damage);
+      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
+
+      let message = `${character.name} inietta SIERO INIBITORE a ${enemyTarget.name} per ${damage} danni!`;
+      const appliedEffects: string[] = [];
+
+      // Apply poison
+      if (!isMiss && chance(getStatusChance(65, character.archetype))) {
+        if (!updated.statusEffects.includes('poison')) {
+          updated.statusEffects = [...updated.statusEffects, 'poison'];
+          appliedEffects.push('avvelenato');
+        }
+      }
+      // Apply stun
+      if (!isMiss && chance(getStatusChance(40, character.archetype))) {
+        if (!updated.statusEffects.includes('stunned')) {
+          updated.statusEffects = [...updated.statusEffects, 'stunned'];
+          appliedEffects.push('stordito');
+        }
+      }
+      if (appliedEffects.length > 0) message += ` ${enemyTarget.name} è ${appliedEffects.join(' e ')}!`;
+
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Siero Inibitore',
+        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
+        message,
+      };
+      result.updatedEnemy = updated;
+      break;
+    }
+
+    default:
+      result.log = {
+        turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+        message: `${character.name} usa un'abilità sconosciuta.`,
+      };
+  }
+
+  return result;
+}
+
+// Legacy special execution for predefined archetypes (fallback)
+function executePlayerSpecialLegacy(
   character: Character,
   target: EnemyInstance | Character,
   turn: number,
@@ -178,7 +767,6 @@ export function executePlayerSpecial(
 
   switch (character.archetype) {
     case 'tank': {
-      // Barricata - defend all allies
       character.isDefending = true;
       result.log = {
         turn, actorName: character.name, actorType: 'player', action: 'Barricata',
@@ -188,12 +776,10 @@ export function executePlayerSpecial(
       break;
     }
     case 'healer': {
-      // Pronto Soccorso - heal one ally significantly + cure poison and bleeding
       if (target.id === character.id || party.some(p => p.id === target.id)) {
         const healTarget = target as Character;
         const healAmount = calculateHeal(70, character.archetype);
         const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
-        // Cure poison and bleeding
         const curedEffects: string[] = [];
         let cleanedStatus = [...healTarget.statusEffects];
         if (cleanedStatus.includes('poison')) {
@@ -216,7 +802,6 @@ export function executePlayerSpecial(
       break;
     }
     case 'dps': {
-      // Colpo Mortale - massive critical attack
       if (target.id !== character.id) {
         const enemyTarget = target as EnemyInstance;
         const weaponBonus = character.weapon?.atkBonus || 0;
@@ -235,12 +820,46 @@ export function executePlayerSpecial(
       }
       break;
     }
+    case 'control': {
+      if (target.id !== character.id) {
+        const enemyTarget = target as EnemyInstance;
+        const weaponBonus = character.weapon?.atkBonus || 0;
+        const totalAtk = (character.baseAtk + weaponBonus) * 0.7;
+
+        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+        let newHp = Math.max(0, enemyTarget.currentHp - calc.damage);
+        const statusLog: string[] = [];
+
+        if (!calc.isMiss && Math.random() * 100 < 75) {
+          enemyTarget.statusEffects.push('poison');
+          statusLog.push('(avvelenato)');
+        }
+
+        let message = `${character.name} lancia GAS VENEFICO!`;
+        if (calc.isMiss) {
+          message += ' Mancato!';
+        } else {
+          message += ` ${calc.damage} danni a ${enemyTarget.name}!`;
+          if (statusLog.length > 0) message += ` ${statusLog.join(' ')}`;
+          if (calc.isCritical) message += ' 💥 CRITICO!';
+        }
+
+        result.log = {
+          turn, actorName: character.name, actorType: 'player', action: 'Gas Venefico',
+          targetName: enemyTarget.name, targetId: enemyTarget.id,
+          damage: calc.damage, isCritical: calc.isCritical, isMiss: calc.isMiss,
+          message,
+        };
+        result.updatedEnemy = { ...enemyTarget, currentHp: newHp, isDefending: false };
+      }
+      break;
+    }
   }
 
   return result;
 }
 
-export function executePlayerSpecial2(
+function executePlayerSpecial2Legacy(
   character: Character,
   target: EnemyInstance | Character,
   turn: number,
@@ -251,7 +870,6 @@ export function executePlayerSpecial2(
 
   switch (character.archetype) {
     case 'tank': {
-      // Immolation — taunt: all enemy attacks target tank this turn
       character.isDefending = true;
       result.tauntTargetId = character.id;
       result.log = {
@@ -262,7 +880,6 @@ export function executePlayerSpecial2(
       break;
     }
     case 'healer': {
-      // Cura Gruppo — heal all party members moderately
       const healAmount = calculateHeal(35, character.archetype);
       const updatedParty = party.map(p => {
         if (p.currentHp > 0) {
@@ -280,20 +897,17 @@ export function executePlayerSpecial2(
       break;
     }
     case 'dps': {
-      // Raffica — primary target + splash damage to other alive enemies
       if (target.id !== character.id) {
         const enemyTarget = target as EnemyInstance;
         const weaponBonus = character.weapon?.atkBonus || 0;
         const totalAtk = (character.baseAtk + weaponBonus) * 1.3;
 
-        // Primary target — full damage
         const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
         const primaryHp = Math.max(0, enemyTarget.currentHp - primary.damage);
         let updatedEnemies = enemies.map(e =>
           e.id === enemyTarget.id ? { ...e, currentHp: primaryHp, isDefending: false } : e
         );
 
-        // Splash to other alive enemies — 40% damage
         const splashLog: string[] = [];
         const splashAtk = (character.baseAtk + weaponBonus) * 0.6;
         updatedEnemies = updatedEnemies.map(e => {
@@ -325,10 +939,50 @@ export function executePlayerSpecial2(
       }
       break;
     }
+    case 'control': {
+      if (target.id !== character.id) {
+        const enemyTarget = target as EnemyInstance;
+        const weaponBonus = character.weapon?.atkBonus || 0;
+        const totalAtk = (character.baseAtk + weaponBonus) * 1.1;
+
+        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+        let newHp = Math.max(0, enemyTarget.currentHp - calc.damage);
+        const statusLog: string[] = [];
+
+        if (!calc.isMiss && Math.random() * 100 < 65) {
+          enemyTarget.statusEffects.push('stunned');
+          statusLog.push('(stordito)');
+        }
+
+        let message = `${character.name} lancia CRISTALLI SONICI su ${enemyTarget.name}!`;
+        if (calc.isMiss) {
+          message += ' Mancato!';
+        } else {
+          message += ` ${calc.damage} danni!`;
+          if (statusLog.length > 0) message += ` ${statusLog.join(' ')}`;
+          if (calc.isCritical) message += ' 💥 CRITICO!';
+        }
+
+        result.log = {
+          turn, actorName: character.name, actorType: 'player', action: 'Cristalli Sonici',
+          targetName: enemyTarget.name, targetId: enemyTarget.id,
+          damage: calc.damage, isCritical: calc.isCritical, isMiss: calc.isMiss,
+          message,
+        };
+        result.updatedEnemies = enemies.map(e =>
+          e.id === enemyTarget.id ? { ...e, currentHp: newHp, isDefending: false } : e
+        );
+      }
+      break;
+    }
   }
 
   return result;
 }
+
+// ==========================================
+// DEFEND
+// ==========================================
 
 export function executePlayerDefend(character: Character, turn: number): ActionResult {
   return {
@@ -435,6 +1089,16 @@ export function executeUseItem(
         log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', message: `${character.name} usa ${item.name}.` },
         consumeItem: true,
       };
+    case 'kill_all': {
+      // Rocket launcher: kills all enemies — handled by the store after this returns
+      return {
+        log: {
+          turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto',
+          message: `🚀 ${character.name} spara il Lanciarazzi RPG! UN\'ESPLOSIONE DEVASTANTE colpisce tutti i nemici! 💥💥💥`,
+        },
+        consumeItem: true,
+      };
+    }
   }
 }
 
@@ -567,10 +1231,23 @@ export function addExp(character: Character, amount: number): { updated: Charact
     leveledUp = true;
   }
 
-  const hpIncrease = { tank: 12, healer: 8, dps: 9 }[character.archetype];
-  const atkIncrease = { tank: 2, healer: 1, dps: 3 }[character.archetype];
-  const defIncrease = { tank: 2, healer: 1, dps: 1 }[character.archetype];
-  const spdIncrease = { tank: 0, healer: 1, dps: 1 }[character.archetype];
+  // Use custom growth if available, otherwise use archetype-based growth
+  let hpIncrease: number;
+  let atkIncrease: number;
+  let defIncrease: number;
+  let spdIncrease: number;
+
+  if (character.archetype === 'custom' && character.statGrowth) {
+    hpIncrease = character.statGrowth.hp;
+    atkIncrease = character.statGrowth.atk;
+    defIncrease = character.statGrowth.def;
+    spdIncrease = character.statGrowth.spd;
+  } else {
+    hpIncrease = { tank: 12, healer: 8, dps: 9, control: 9 }[character.archetype] || 10;
+    atkIncrease = { tank: 2, healer: 1, dps: 3, control: 2 }[character.archetype] || 2;
+    defIncrease = { tank: 2, healer: 1, dps: 1, control: 1 }[character.archetype] || 1;
+    spdIncrease = { tank: 0, healer: 1, dps: 1, control: 2 }[character.archetype] || 1;
+  }
 
   return {
     updated: {

@@ -26,6 +26,19 @@ export const ITEMS: Record<string, ItemDefinition> = {
     id: 'magnum', name: 'Magnum .357', description: 'Un revolver potentissimo. Causa danni devastanti.',
     type: 'weapon', rarity: 'rare', icon: '🔫', usable: false, equippable: true,
   },
+  machinegun: {
+    id: 'machinegun', name: 'Mitragliatrice MP5', description: 'Un\'arma automatica militare. Fuoco rapido e danni costanti. Consuma munizioni 5.56mm.',
+    type: 'weapon', rarity: 'rare', icon: '🔫', usable: false, equippable: true,
+  },
+  grenade_launcher: {
+    id: 'grenade_launcher', name: 'Lanciagranate M79', description: 'Un lanciagranate militare. Ogni colpo infligge danni esplosivi devastanti contro un singolo bersaglio.',
+    type: 'weapon', rarity: 'rare', icon: '💣', usable: false, equippable: true,
+  },
+  rocket_launcher: {
+    id: 'rocket_launcher', name: 'Lanciarazzi RPG', description: 'Un lanciarazzi con un solo colpo già caricato. Usalo in combattimento per eliminare istantaneamente tutti i nemici.',
+    type: 'utility', rarity: 'legendary', icon: '🚀', usable: true, equippable: false,
+    effect: { type: 'kill_all', value: 99999, target: 'all_enemies' },
+  },
 
   // Healing
   bandage: {
@@ -78,6 +91,14 @@ export const ITEMS: Record<string, ItemDefinition> = {
     id: 'ammo_magnum', name: 'Munizioni .357', description: 'Munizioni per magnum.',
     type: 'ammo', rarity: 'rare', icon: '🔴', usable: false, equippable: false,
   },
+  ammo_machinegun: {
+    id: 'ammo_machinegun', name: 'Munizioni 5.56mm', description: 'Munizioni per mitragliatrice.',
+    type: 'ammo', rarity: 'uncommon', icon: '🟡', usable: false, equippable: false,
+  },
+  ammo_grenade: {
+    id: 'ammo_grenade', name: 'Granate 40mm', description: 'Granate esplosive per lanciagranate.',
+    type: 'ammo', rarity: 'rare', icon: '🟠', usable: false, equippable: false,
+  },
 
   // Bags
   bag_small: {
@@ -101,8 +122,8 @@ export const ITEMS: Record<string, ItemDefinition> = {
     type: 'utility', rarity: 'uncommon', icon: '🗝️', usable: true, equippable: false,
   },
   ink_ribbon: {
-    id: 'ink_ribbon', name: 'Nastro d\'Inchiostro', description: 'Un nastro per la macchina da scrivere... un salvataggio nella notte.',
-    type: 'utility', rarity: 'rare', icon: '🎀', usable: true, equippable: false,
+    id: 'ink_ribbon', name: 'Nastro d\'Inchiostro', description: 'Un oggetto raro da collezione. Raccogline 10 per un obiettivo segreto.',
+    type: 'collectible', rarity: 'legendary', icon: '🎀', usable: false, equippable: false,
   },
 
   // Keys — required for backtracking and puzzles

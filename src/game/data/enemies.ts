@@ -19,6 +19,7 @@ export const CHARACTER_IMAGES: Record<string, string> = {
   tank: '/images/characters/tank.png',
   healer: '/images/characters/healer.png',
   dps: '/images/characters/dps.png',
+  control: '/images/characters/control.png',
 };
 
 
@@ -85,6 +86,7 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
     lootTable: [
       { itemId: 'ammo_pistol', chance: 35, quantity: 5 },
       { itemId: 'ammo_shotgun', chance: 15, quantity: 2 },
+      { itemId: 'ammo_machinegun', chance: 12, quantity: 3 },
       { itemId: 'bandage', chance: 30, quantity: 1 },
       { itemId: 'combat_knife', chance: 5, quantity: 1 },
     ],
@@ -253,6 +255,8 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
     lootTable: [
       { itemId: 'herb_red', chance: 35, quantity: 1 },
       { itemId: 'shotgun', chance: 8, quantity: 1 },
+      { itemId: 'grenade_launcher', chance: 7, quantity: 1 },
+      { itemId: 'ammo_grenade', chance: 10, quantity: 1 },
       { itemId: 'spray', chance: 15, quantity: 1 },
       { itemId: 'antidote', chance: 30, quantity: 1 },
     ],
@@ -277,8 +281,8 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
     isBoss: true,
     lootTable: [
       { itemId: 'magnum', chance: 40, quantity: 1 },
+      { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'spray', chance: 60, quantity: 2 },
-      { itemId: 'ink_ribbon', chance: 30, quantity: 1 },
     ],
     abilities: [
       { name: 'Pugno Devastante', description: 'Un pugno che squarcia l\'aria.', power: 1.5, chance: 35 },
@@ -302,9 +306,10 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
     isBoss: true,
     lootTable: [
       { itemId: 'magnum', chance: 50, quantity: 1 },
+      { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'spray', chance: 80, quantity: 3 },
-      { itemId: 'ink_ribbon', chance: 50, quantity: 2 },
       { itemId: 'ammo_magnum', chance: 60, quantity: 8 },
+      { itemId: 'ammo_grenade', chance: 15, quantity: 2 },
     ],
     abilities: [
       { name: 'Razzo', description: 'Lancia un razzo esplosivo.', power: 2.5, chance: 15 },

@@ -62,6 +62,17 @@ const THEMES = {
     label: null,
     shake: false,
   },
+  collectible_found: {
+    overlay: 'radial-gradient(ellipse at center, rgba(100,60,120,0.4) 0%, rgba(5,0,10,0.85) 100%)',
+    card: 'rgba(30,15,40,0.96)',
+    border: 'rgba(168,85,247,0.5)',
+    shadow: '0 0 50px rgba(168,85,247,0.4), 0 0 100px rgba(126,34,206,0.2), inset 0 0 25px rgba(168,85,247,0.1)',
+    scanline: 'linear-gradient(90deg, transparent, rgba(192,132,252,0.7), transparent)',
+    titleColor: '#d8b4fe',
+    titleGlow: '0 0 25px rgba(168,85,247,0.6), 0 0 50px rgba(126,34,206,0.3)',
+    label: '🎀 COLLEZIONABILE',
+    shake: false,
+  },
 } as const;
 
 type NotifType = keyof typeof THEMES;
@@ -77,6 +88,7 @@ function getDuration(type: string): number {
     case 'victory': return 3200;
     case 'defeat': return 3200;
     case 'item_found': return 2000;
+    case 'collectible_found': return 2500;
     default: return 2500;
   }
 }
@@ -94,6 +106,7 @@ export default function GameNotification() {
         case 'defeat': audio.playDefeat(); break;
         case 'item_found': audio.playItemPickup(); break;
         case 'bag_expand': audio.playItemPickup(); break;
+        case 'collectible_found': audio.playItemPickup(); break;
       }
     } catch { /* audio not available */ }
   }, []);

@@ -21,7 +21,7 @@ export default function ExplorationScreen() {
   const state = useGameStore();
   const {
     party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
-    activeEvent, inventoryOpen, selectedCharacterId,
+    activeEvent, inventoryOpen, selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
   } = state;
@@ -59,8 +59,23 @@ export default function ExplorationScreen() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/30" />
         
-        {/* Save/Load — top right */}
-        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20">
+        {/* Save/Load + Collectibles — top right */}
+        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 flex items-center gap-2">
+          {isNewGamePlus && (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 backdrop-blur-sm">
+              <span className="text-[10px] font-bold text-amber-300">✨ NG+</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 backdrop-blur-sm">
+            <span className="text-sm">🎀</span>
+            <span className="text-xs font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/10</span></span>
+            {(persistentRibbons || 0) > 0 && (
+              <span className="text-purple-400/40">|</span>
+            )}
+            {(persistentRibbons || 0) > 0 && (
+              <span className="text-[10px] text-purple-400/70">✨{persistentRibbons}</span>
+            )}
+          </div>
           <SaveLoadPanel mode="both" compact />
         </div>
 
@@ -108,8 +123,8 @@ export default function ExplorationScreen() {
                   <div className="flex items-center gap-2 mb-1.5">
                     {/* Portrait — small, fixed size */}
                     <div className={`w-10 h-12 sm:w-12 sm:h-14 rounded-md overflow-hidden border shrink-0 relative ${char.currentHp <= 0 ? 'grayscale opacity-40' : 'border-gray-600/40'}`}>
-                      {CHARACTER_IMAGES[char.archetype] ? (
-                        <img src={CHARACTER_IMAGES[char.archetype]} alt={char.name} className="w-full h-full object-cover object-[center_15%]" />
+                      {char.avatarUrl || CHARACTER_IMAGES[char.archetype] ? (
+                        <img src={char.avatarUrl || CHARACTER_IMAGES[char.archetype]} alt={char.name} className="w-full h-full object-cover object-[center_15%]" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-lg bg-white/[0.04]">
                           {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}

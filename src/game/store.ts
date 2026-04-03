@@ -13,8 +13,9 @@ import {
   StoryEvent,
   EventOutcome,
   GameNotification,
+  CustomCharacterConfig,
 } from './types';
-import { CHARACTER_ARCHETYPES, getCharacterStats } from './data/characters';
+import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems } from './data/characters';
 import { ENEMIES } from './data/enemies';
 import { ITEMS } from './data/items';
 import { LOCATIONS } from './data/locations';
@@ -62,6 +63,8 @@ const WEAPON_STATS: Record<string, WeaponInstance> = {
   shotgun: { itemId: 'shotgun', name: 'Fucile a Pompa', atkBonus: 14, type: 'ranged', ammoType: 'ammo_shotgun' },
   combat_knife: { itemId: 'combat_knife', name: 'Coltello da Combattimento', atkBonus: 7, type: 'melee' },
   magnum: { itemId: 'magnum', name: 'Magnum .357', atkBonus: 18, type: 'ranged', ammoType: 'ammo_magnum' },
+  machinegun: { itemId: 'machinegun', name: 'Mitragliatrice MP5', atkBonus: 13, type: 'ranged', ammoType: 'ammo_machinegun' },
+  grenade_launcher: { itemId: 'grenade_launcher', name: 'Lanciagranate M79', atkBonus: 24, type: 'ranged', ammoType: 'ammo_grenade' },
 };
 
 // ── Difficulty scaling based on party size ──
@@ -85,12 +88,13 @@ function getDifficultyConfig(partySize: number): DifficultyConfig {
 }
 
 function createCharacter(archetypeId: Archetype): Character {
-  const archetype = CHARACTER_ARCHETYPES.find(a => a.id === archetypeId)!;
+  const archetype = CHARACTER_ARCHETYPES.find(a => a.id === archetypeId);
+  if (!archetype) throw new Error(`Archetype ${archetypeId} not found`);
   const stats = getCharacterStats(archetype, 1);
   return {
     id: newCharId(),
     archetype: archetype.id,
-    name: archetype.name,
+    name: archetype.displayName,
     currentHp: stats.maxHp,
     maxHp: stats.maxHp,
     baseAtk: stats.atk,
@@ -104,6 +108,53 @@ function createCharacter(archetypeId: Archetype): Character {
     inventory: archetype.startingItems.map(item => ({ ...item, uid: `${item.uid}_${Date.now()}` })),
     maxInventorySlots: 6,
     weapon: archetype.startingItems.find(i => i.weaponStats)?.weaponStats || null,
+  };
+}
+
+function createCustomCharacter(config: CustomCharacterConfig): Character {
+  const startingItems = getCustomStartingItems();
+  const hp = config.customStats ? config.customStats.hp * 10 : 100;
+  const atk = config.customStats ? config.customStats.atk : 15;
+  const def = config.customStats ? config.customStats.def : 10;
+  const spd = config.customStats ? config.customStats.spd : 8;
+
+  // Determine growth based on stat distribution
+  const totalStats = hp + atk + def + spd;
+  const hpRatio = hp / totalStats;
+  const atkRatio = atk / totalStats;
+  const defRatio = def / totalStats;
+  const spdRatio = spd / totalStats;
+  const growthBudget = 12; // total growth points per level
+  const statGrowth = {
+    hp: Math.max(4, Math.round(hpRatio * growthBudget)),
+    atk: Math.max(1, Math.round(atkRatio * growthBudget)),
+    def: Math.max(1, Math.round(defRatio * growthBudget)),
+    spd: Math.max(0, Math.round(spdRatio * growthBudget)),
+  };
+
+  return {
+    id: newCharId(),
+    archetype: 'custom',
+    name: config.name,
+    biography: config.biography,
+    avatarUrl: config.avatarUrl,
+    currentHp: hp,
+    maxHp: hp,
+    baseAtk: atk,
+    baseDef: def,
+    baseSpd: spd,
+    level: 1,
+    exp: 0,
+    expToNext: 50,
+    statusEffects: [],
+    isDefending: false,
+    inventory: startingItems.map(item => ({ ...item, uid: `${item.uid}_${Date.now()}` })),
+    maxInventorySlots: 6,
+    weapon: startingItems.find(i => i.weaponStats)?.weaponStats || null,
+    special1Id: config.special1Id,
+    special2Id: config.special2Id,
+    passiveDescription: config.passiveDescription,
+    statGrowth,
   };
 }
 
@@ -159,7 +210,9 @@ interface GameStore extends GameState {
   // Phase transitions
   startGame: () => void;
   goToCharacterSelect: () => void;
+  goToCharacterCreator: () => void;
   startAdventure: (selectedArchetypes: Archetype[]) => void;
+  startAdventureWithCustom: (presetArchetypes: Archetype[], customCharacters: CustomCharacterConfig[]) => void;
   gameOver: () => void;
   victory: () => void;
   restartGame: () => void;
@@ -194,6 +247,8 @@ interface GameStore extends GameState {
   loadGame: (slot: number) => boolean;
   getSaveInfo: (slot: number) => SaveSlotInfo | null;
   deleteSave: (slot: number) => void;
+  saveGameVictory: (slot: number) => number;
+  startNewGamePlus: (persistentRibbons: number) => void;
 
   // Debug
   debugHealAll: () => void;
@@ -207,6 +262,8 @@ interface GameStore extends GameState {
   debugTeleport: (locationId: string) => void;
   debugKillAllEnemies: () => void;
   debugToggleGodMode: () => void;
+  debugSpawnCollectible: () => void;
+  debugGiveAllRibbons: () => void;
 }
 
 // ==========================================
@@ -220,6 +277,9 @@ export interface SaveSlotInfo {
   locationName: string;
   partySummary: string;
   phase: string;
+  isNewGamePlus?: boolean;
+  persistentRibbons?: number;
+  collectedRibbons?: number;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -246,6 +306,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   godMode: false,
   skipNextEncounter: false,
   completedEvents: [],
+  collectedRibbons: 0,
+  persistentRibbons: 0,
+  isNewGamePlus: false,
+  gameStartTime: 0,
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -255,11 +319,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [] });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0 });
+  },
+
+  goToCharacterCreator: () => {
+    set({ phase: 'character-creator' });
   },
 
   startAdventure: (selectedArchetypes: Archetype[]) => {
-    const party = selectedArchetypes.map(id => createCharacter(id));
+    const party = selectedArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
     const startLocation = LOCATIONS['city_outskirts'];
     set({
       phase: 'exploration',
@@ -275,12 +343,48 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedCharacterId: party[0]?.id || null,
       searchCounts: {},
       searchMaxes: {},
-      partySize: selectedArchetypes.length,
+      partySize: party.length,
       unlockedPaths: [],
       visitedLocations: ['city_outskirts'],
       mapOpen: false,
       skipNextEncounter: false,
       completedEvents: [],
+      collectedRibbons: 0,
+      gameStartTime: Date.now(),
+      // persistentRibbons is preserved (set externally for New Game+)
+    });
+  },
+
+  startAdventureWithCustom: (presetArchetypes: Archetype[], customCharacters: CustomCharacterConfig[]) => {
+    const presetParty = presetArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
+    const customParty = customCharacters.map(config => createCustomCharacter(config));
+    const party = [...presetParty, ...customParty];
+    const pSize = party.length;
+    const startLocation = LOCATIONS['city_outskirts'];
+    const diffLabel = pSize === 1 ? 'Sopravvivenza (1 giocatore — nemici più deboli, più bottino)' : pSize === 2 ? 'Normale (2 giocatori — bilanciato)' : 'Sfida (3 giocatori — nemici più forti, meno bottino)';
+    set({
+      phase: 'exploration',
+      party,
+      currentLocationId: 'city_outskirts',
+      enemies: [],
+      combat: null,
+      activeEvent: startLocation.storyEvent || null,
+      eventOutcome: null,
+      messageLog: ['Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffLabel}`],
+      turnCount: 0,
+      inventoryOpen: false,
+      selectedCharacterId: party[0]?.id || null,
+      searchCounts: {},
+      searchMaxes: {},
+      partySize: pSize,
+      unlockedPaths: [],
+      visitedLocations: ['city_outskirts'],
+      mapOpen: false,
+      skipNextEncounter: false,
+      completedEvents: [],
+      collectedRibbons: 0,
+      gameStartTime: Date.now(),
+      // persistentRibbons is preserved (set externally for New Game+)
     });
   },
 
@@ -312,6 +416,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       mapOpen: false,
       skipNextEncounter: false,
       completedEvents: [],
+      collectedRibbons: 0,
+      persistentRibbons: 0,
+      isNewGamePlus: false,
+      gameStartTime: 0,
     });
   },
 
@@ -409,6 +517,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const foundEntry = availableItems[Math.floor(Math.random() * availableItems.length)];
         const itemDef = ITEMS[foundEntry.itemId];
         if (itemDef) {
+          // ── COLLECTIBLE: don't add to inventory, track separately ──
+          if (itemDef.type === 'collectible') {
+            if (state.collectedRibbons >= 10) {
+              // Already found all ribbons
+              set({ messageLog: newLog, turnCount: state.turnCount + 1 });
+              return;
+            }
+            const newCount = state.collectedRibbons + 1;
+            set({
+              messageLog: [...newLog, `[${state.turnCount}] 🎀 Nastro d'Inchiostro trovato! (${newCount}/10)`],
+              turnCount: state.turnCount + 1,
+              collectedRibbons: newCount,
+              notification: {
+                id: `notif_${++notifId}`,
+                type: 'collectible_found' as const,
+                message: `Nastro d'Inchiostro`,
+                icon: '🎀',
+                subMessage: `Collezionabili: ${newCount}/10`,
+              },
+            });
+            return;
+          }
+
           // ── BAG: auto-equip only if inventory full, otherwise add as item ──
           if (itemDef.type === 'bag' && itemDef.effect?.type === 'add_slots') {
             const targetId = state.selectedCharacterId || state.party[0]?.id;
@@ -729,10 +860,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let updatedParty = [...state.party];
     const foundNames: string[] = [];
     let lastNotif: GameNotification | null = null;
+    let newRibbonCount = state.collectedRibbons;
 
     for (const itemId of foundItems) {
       const itemDef = ITEMS[itemId];
       if (!itemDef) continue;
+
+      // ── COLLECTIBLE: don't add to inventory, track separately ──
+      if (itemDef.type === 'collectible') {
+        if (newRibbonCount < 10) {
+          newRibbonCount += 1;
+          foundNames.push(`🎀 ${itemDef.name} (${newRibbonCount}/10)`);
+          lastNotif = {
+            id: `notif_${++notifId}`,
+            type: 'collectible_found' as const,
+            message: itemDef.name,
+            icon: itemDef.icon,
+            subMessage: `Collezionabili: ${newRibbonCount}/10`,
+          };
+        }
+        continue;
+      }
 
       const targetChar = updatedParty.find(p => p.id === targetId);
 
@@ -845,6 +993,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       searchCounts: newSearchCounts,
       searchMaxes: newSearchMaxes,
       notification: lastNotif,
+      collectedRibbons: newRibbonCount,
     });
   },
 
@@ -1472,6 +1621,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const item = character.inventory.find(i => i.uid === state.combat!.selectedItemUid);
         if (!item) return;
         
+        // Rocket launcher: kill_all targets all enemies
+        if (item.effect?.type === 'kill_all') {
+          const result = executeUseItem(character, item, character, updatedParty, state.combat.turn);
+          newLog.push(result.log);
+          // Kill ALL enemies instantly
+          updatedEnemies = updatedEnemies.map(e => ({ ...e, currentHp: 0, isDefending: false }));
+          // Consume the item
+          if (result.consumeItem) {
+            const consumedUid = state.combat!.selectedItemUid;
+            updatedParty = updatedParty.map(p => {
+              if (p.id === character.id) {
+                return {
+                  ...p,
+                  inventory: p.inventory
+                    .map(i => {
+                      if (i.uid !== consumedUid) return { ...i };
+                      const newQty = i.quantity - 1;
+                      if (newQty <= 0) return null;
+                      return { ...i, quantity: newQty };
+                    })
+                    .filter((i): i is NonNullable<typeof i> => i !== null),
+                };
+              }
+              return p;
+            });
+          }
+          break;
+        }
+        
         let healTarget: Character;
         if (item.effect?.target === 'one_ally') {
           healTarget = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
@@ -1525,9 +1703,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         allLoot.push(...generateLoot(enemy.definitionId, lootDiff.lootMult));
       }
 
+      // Filter out collectibles from combat loot (they are exploration-only)
+      const combatLoot = allLoot.filter(id => {
+        const def = ITEMS[id];
+        return !def || def.type !== 'collectible';
+      });
+
       // Distribute loot (auto-merge stacks of same item)
       const lostLoot: string[] = [];
-      for (const itemId of allLoot) {
+      for (const itemId of combatLoot) {
         const itemDef = ITEMS[itemId];
         if (!itemDef) continue;
         let added = false;
@@ -1580,7 +1764,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
 
-      const lootNames = allLoot.map(id => ITEMS[id]?.name).filter(Boolean);
+      const lootNames = combatLoot.map(id => ITEMS[id]?.name).filter(Boolean);
       let victoryMsg = `⚔️ Sei sopravvissuto allo scontro. +${totalExp} EXP.`;
       if (lostLoot.length > 0) {
         victoryMsg += ` ⚠️ Inventario pieno! Persi: ${lostLoot.join(', ')}`;
@@ -1603,7 +1787,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             message: 'EVASIONE COMPLETATA',
             icon: '🚪',
             subMessage: `Boss eliminato. +${totalExp} EXP`,
-            lootNames: allLoot.map(id => ITEMS[id]?.name).filter(Boolean),
+            lootNames: combatLoot.map(id => ITEMS[id]?.name).filter(Boolean),
             levelUps: levelUpMessages,
           },
           combat: { ...state.combat, log: newLog, isVictory: true, isProcessing: true },
@@ -1628,7 +1812,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           message: 'SOPRAVVVISSUTO',
           icon: '⚔️',
           subMessage: `Sei sopravvissuto allo scontro. +${totalExp} EXP`,
-          lootNames: allLoot.map(id => ITEMS[id]?.name).filter(Boolean),
+          lootNames: combatLoot.map(id => ITEMS[id]?.name).filter(Boolean),
           levelUps: levelUpMessages,
         },
         combat: { ...state.combat, log: newLog, isVictory: true, isProcessing: true },
@@ -2059,6 +2243,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unlockedPaths: state.unlockedPaths,
       visitedLocations: state.visitedLocations,
       completedEvents: state.completedEvents || [],
+      collectedRibbons: state.collectedRibbons || 0,
+      persistentRibbons: state.persistentRibbons || 0,
+      isNewGamePlus: state.isNewGamePlus || false,
+      gameStartTime: state.gameStartTime || Date.now(),
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -2073,6 +2261,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       locationName: location?.name || 'Sconosciuto',
       partySummary: state.party.map(p => `${p.name} (Lv.${p.level})`).join(', '),
       phase: state.phase,
+      isNewGamePlus: state.isNewGamePlus || false,
+      persistentRibbons: state.persistentRibbons || 0,
+      collectedRibbons: state.collectedRibbons || 0,
     };
 
     try {
@@ -2097,8 +2288,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const data = JSON.parse(raw);
       if (!data || data.version !== 1) return false;
 
+      // Check if this is a New Game+ save (saved after victory)
+      const isNGP = data.isNewGamePlus || false;
+      const persistentRibs = data.persistentRibbons || 0;
+
       set({
-        phase: 'exploration',
+        phase: isNGP && data.phase === 'victory' ? 'victory' : 'exploration',
         party: data.party,
         currentLocationId: data.currentLocationId,
         combat: data.combat,
@@ -2107,7 +2302,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         eventOutcome: data.eventOutcome,
         messageLog: [
           ...data.messageLog,
-          `[Turno ${data.turnCount}] 💾 Partita caricata dallo Slot ${slot}.`,
+          `[Turno ${data.turnCount}] 💾 Partita caricata dallo Slot ${slot}.${isNGP ? ' 🎀 Nastri persistenti: ' + persistentRibs + '/10' : ''}`,
         ],
         turnCount: data.turnCount,
         difficulty: data.difficulty,
@@ -2120,6 +2315,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         visitedLocations: data.visitedLocations || [],
         completedEvents: data.completedEvents || [],
         mapOpen: false,
+        collectedRibbons: data.collectedRibbons || 0,
+        persistentRibbons: persistentRibs,
+        isNewGamePlus: isNGP,
+        gameStartTime: data.gameStartTime || Date.now(),
       });
       return true;
     } catch {
@@ -2151,6 +2350,91 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } catch {
       // silently fail
     }
+  },
+
+  // Save at victory (New Game+ save): merges run ribbons into persistent, flags as NG+
+  saveGameVictory: (slot: number) => {
+    const state = get();
+    const totalPersistent = Math.min((state.persistentRibbons || 0) + (state.collectedRibbons || 0), 10);
+
+    const saveData = {
+      version: 1,
+      timestamp: new Date().toISOString(),
+      party: state.party,
+      currentLocationId: state.currentLocationId,
+      combat: null,
+      enemies: [],
+      activeEvent: null,
+      eventOutcome: null,
+      messageLog: state.messageLog.slice(-50),
+      turnCount: state.turnCount,
+      difficulty: state.difficulty,
+      selectedCharacterId: state.selectedCharacterId,
+      searchCounts: state.searchCounts,
+      searchMaxes: state.searchMaxes,
+      partySize: state.partySize,
+      unlockedPaths: state.unlockedPaths,
+      visitedLocations: state.visitedLocations,
+      completedEvents: state.completedEvents || [],
+      collectedRibbons: 0, // reset for next run
+      persistentRibbons: totalPersistent,
+      isNewGamePlus: true,
+      gameStartTime: state.gameStartTime || Date.now(),
+    };
+
+    const saveKey = `raccoon_city_save_${slot}`;
+    const saveMetaKey = `raccoon_city_save_meta_${slot}`;
+    const location = LOCATIONS[state.currentLocationId];
+
+    const meta: SaveSlotInfo = {
+      slot,
+      timestamp: saveData.timestamp,
+      turnCount: state.turnCount,
+      locationName: location?.name || 'Vittoria',
+      partySummary: state.party.map(p => `${p.name} (Lv.${p.level})`).join(', '),
+      phase: 'victory',
+      isNewGamePlus: true,
+      persistentRibbons: totalPersistent,
+      collectedRibbons: 0,
+    };
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(saveKey, JSON.stringify(saveData));
+        localStorage.setItem(saveMetaKey, JSON.stringify(meta));
+      }
+    } catch {
+      // silently fail
+    }
+
+    return totalPersistent;
+  },
+
+  // Start a New Game+ from a victory save
+  startNewGamePlus: (persistentRibbons: number) => {
+    set({
+      phase: 'character-select',
+      party: [],
+      messageLog: ['🎀 Nuovo Gioco+ attivato! Nastri persistenti: ' + persistentRibbons + '/10', '\nScegli i tuoi personaggi per la nuova avventura...'],
+      turnCount: 0,
+      searchCounts: {},
+      searchMaxes: {},
+      partySize: 2,
+      unlockedPaths: [],
+      visitedLocations: [],
+      mapOpen: false,
+      completedEvents: [],
+      collectedRibbons: 0,
+      persistentRibbons: Math.min(persistentRibbons, 10),
+      isNewGamePlus: true,
+      gameStartTime: 0,
+      inventoryOpen: false,
+      selectedCharacterId: null,
+      enemies: [],
+      combat: null,
+      activeEvent: null,
+      eventOutcome: null,
+    });
   },
 
   // ==========================================
@@ -2238,7 +2522,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   debugGiveAmmo: () => {
-    const ammoIds = ['ammo_pistol', 'ammo_shotgun', 'ammo_magnum'];
+    const ammoIds = ['ammo_pistol', 'ammo_shotgun', 'ammo_magnum', 'ammo_machinegun', 'ammo_grenade'];
     set(state => {
       const newItems: ItemInstance[] = ammoIds.map(id => {
         const def = ITEMS[id];
@@ -2365,7 +2649,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(state => {
       const updatedParty = state.party.map(char => {
         if (char.currentHp <= 0) return char;
-        const growth = { tank: { hp: 12, atk: 2, def: 2, spd: 0 }, healer: { hp: 8, atk: 1, def: 1, spd: 1 }, dps: { hp: 9, atk: 3, def: 1, spd: 1 } }[char.archetype] || { hp: 8, atk: 1, def: 1, spd: 1 };
+        const growth = { tank: { hp: 12, atk: 2, def: 2, spd: 0 }, healer: { hp: 8, atk: 1, def: 1, spd: 1 }, dps: { hp: 9, atk: 3, def: 1, spd: 1 }, control: { hp: 9, atk: 2, def: 1, spd: 2 } }[char.archetype] || { hp: 8, atk: 1, def: 1, spd: 1 };
         let newMaxHp = char.maxHp;
         let newAtk = char.baseAtk;
         let newDef = char.baseDef;
@@ -2425,6 +2709,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(state => ({
       godMode: !state.godMode,
       messageLog: [...state.messageLog, `[DEBUG] ${!state.godMode ? '🛡️ GOD MODE ON — danni nemici ridotti a 0' : '🔓 GOD MODE OFF — danni normali'}`],
+    }));
+  },
+
+  debugSpawnCollectible: () => {
+    set(state => {
+      if (state.collectedRibbons >= 10) {
+        return { messageLog: [...state.messageLog, '[DEBUG] 🎀 Hai già trovato tutti e 10 i nastri in questa run!'] };
+      }
+      const newCount = state.collectedRibbons + 1;
+      return {
+        collectedRibbons: newCount,
+        messageLog: [...state.messageLog, `[DEBUG] 🎀 Nastro d'Inchiostro spawnato! (${newCount}/10)`],
+        notification: {
+          id: `notif_debug_${Date.now()}`,
+          type: 'collectible_found' as const,
+          message: "Nastro d'Inchiostro",
+          icon: '🎀',
+          subMessage: `Collezionabili: ${newCount}/10`,
+        },
+      };
+    });
+  },
+
+  debugGiveAllRibbons: () => {
+    set(state => ({
+      collectedRibbons: 10,
+      persistentRibbons: 10,
+      messageLog: [...state.messageLog, '[DEBUG] 🎀 Tutti e 10 i nastri sbloccati (run + persistenti)!'],
     }));
   },
 }));

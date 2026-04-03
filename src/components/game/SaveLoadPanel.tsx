@@ -198,6 +198,11 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
                           <Badge className="text-[10px] bg-white/10 text-white/60 border-0">
                             Turno {info.turnCount}
                           </Badge>
+                          {info.isNewGamePlus && (
+                            <Badge className="text-[9px] bg-purple-500/20 text-purple-300 border-purple-500/30">
+                              🎀 {info.persistentRibbons}/10
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-white/40 mb-1.5">
                           <span className="flex items-center gap-1 truncate">

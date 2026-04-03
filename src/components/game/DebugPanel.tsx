@@ -103,6 +103,8 @@ export default function DebugPanel() {
     debugTeleport,
     debugKillAllEnemies,
     debugToggleGodMode,
+    debugSpawnCollectible,
+    debugGiveAllRibbons,
   } = useGameStore();
 
   const close = () => useGameStore.setState({ debugOpen: false });
@@ -159,6 +161,16 @@ export default function DebugPanel() {
             <DebugButton label="Tutti gli Oggetti (x5)" icon={<Package className="w-3.5 h-3.5" />} onClick={debugGiveAllItems} />
             <DebugButton label="Tutte le Chiavi + Strumenti" icon={<Key className="w-3.5 h-3.5" />} onClick={debugGiveAllKeys} />
             <DebugButton label="50 Munizioni per Arma" icon={<Crosshair className="w-3.5 h-3.5" />} onClick={debugGiveAmmo} />
+          </Section>
+
+          {/* ── Collectibles ── */}
+          <Section title="Collezionabili" icon={<span className="text-sm">🎀</span>}>
+            <div className="flex items-center justify-between px-1 mb-1">
+              <span className="text-[10px] text-white/40">Run: {useGameStore.getState().collectedRibbons}/10</span>
+              <span className="text-[10px] text-white/40">Totale: {useGameStore.getState().persistentRibbons}/10</span>
+            </div>
+            <DebugButton label="Spawn Nastro (+1)" icon={<span className="text-sm">🎀</span>} onClick={debugSpawnCollectible} />
+            <DebugButton label="Sblocca Tutti i Nastri (10)" icon={<span className="text-sm">✨</span>} onClick={debugGiveAllRibbons} variant="success" />
           </Section>
 
           {/* ── Status Effects ── */}
@@ -264,6 +276,9 @@ export default function DebugPanel() {
               <div className="flex justify-between"><span>Party:</span><span className="text-white/70 font-mono">{party.length}</span></div>
               <div className="flex justify-between"><span>Turn:</span><span className="text-white/70 font-mono">{useGameStore.getState().turnCount}</span></div>
               <div className="flex justify-between"><span>Location:</span><span className="text-white/70 font-mono">{useGameStore.getState().currentLocationId}</span></div>
+              <div className="flex justify-between"><span>Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().collectedRibbons}/10</span></div>
+              <div className="flex justify-between"><span>Persist Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().persistentRibbons}/10</span></div>
+              <div className="flex justify-between"><span>New Game+:</span><span className="text-white/70 font-mono">{useGameStore.getState().isNewGamePlus ? 'YES' : 'NO'}</span></div>
             </div>
           </Section>
         </div>

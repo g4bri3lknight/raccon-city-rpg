@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/game/store';
 import TitleScreen from '@/components/game/TitleScreen';
 import CharacterSelect from '@/components/game/CharacterSelect';
+import CharacterCreator from '@/components/game/CharacterCreator';
 import ExplorationScreen from '@/components/game/ExplorationScreen';
 import CombatScreen from '@/components/game/CombatScreen';
 import InventoryPanel from '@/components/game/InventoryPanel';
@@ -37,19 +38,14 @@ export default function GamePage() {
     const prevPhase = prevPhaseRef.current;
     prevPhaseRef.current = phase;
 
-    // Initialize audio context on first user interaction (browser policy)
-    const initAudio = () => {
-      try { playBgm('title'); } catch { /* retry on next interaction */ }
-    };
-
     switch (phase) {
       case 'title':
       case 'character-select':
+      case 'character-creator':
         playBgm('title');
         break;
       case 'exploration':
       case 'event':
-        // Map location IDs to BGM types for cinematic location-specific ambient
         const locationBgmMap: Record<string, string> = {
           city_outskirts: 'city_outskirts',
           rpd_station: 'rpd_station',
@@ -73,11 +69,10 @@ export default function GamePage() {
         stopBgm();
     }
 
-    // Resume audio context on first user interaction
     const handleInteraction = () => {
       try {
         if (phase === 'combat') playBgm('combat');
-        else if (phase === 'title' || phase === 'character-select') playBgm('title');
+        else if (phase === 'title' || phase === 'character-select' || phase === 'character-creator') playBgm('title');
         else if (phase === 'exploration' || phase === 'event') {
           const locationBgmMap: Record<string, string> = {
             city_outskirts: 'city_outskirts',
@@ -102,6 +97,7 @@ export default function GamePage() {
     <div className="game-root">
       {phase === 'title' && <TitleScreen />}
       {phase === 'character-select' && <CharacterSelect />}
+      {phase === 'character-creator' && <CharacterCreator onComplete={() => useGameStore.getState().goToCharacterSelect()} onCancel={() => useGameStore.getState().goToCharacterSelect()} />}
       {phase === 'exploration' && <ExplorationScreen />}
       {phase === 'combat' && <CombatScreen />}
       {phase === 'event' && <ExplorationScreen />}
