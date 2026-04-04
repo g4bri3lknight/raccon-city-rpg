@@ -1,20 +1,44 @@
 'use client';
 
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, lazy, Suspense, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { CHARACTER_ARCHETYPES } from '@/game/data/characters';
+import { CHARACTER_ARCHETYPES, getCustomPassiveDescription, getCustomStartingItems, ARCHETYPE_STAT_POINTS } from '@/game/data/characters';
 import { CustomCharacterConfig, Archetype } from '@/game/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Shield, Swords, Heart, Zap, ChevronRight, Check, Users, UserPlus, X, User, Crosshair } from 'lucide-react';
+import { ArrowLeft, Shield, Swords, Heart, Zap, ChevronRight, Check, Users, UserPlus, X, User, Crosshair, Settings2, Sparkles, Trash2 } from 'lucide-react';
 import { CHARACTER_IMAGES } from '@/game/data/enemies';
 import { getSpecialById } from '@/game/data/specials';
 import ItemIcon from './ItemIcon';
 
 const LazyCharacterCreator = lazy(() => import('./CharacterCreator'));
+
+// ── Unified carousel item that can be either a preset archetype or a custom character ──
+interface CarouselItem {
+  id: string;          // unique key: archetype id or 'custom-0', 'custom-1', etc.
+  kind: 'preset' | 'custom';
+  displayName: string;
+  roleName: string;    // archetype label (e.g. "Tank", "Custom")
+  description: string;
+  avatarUrl: string;
+  maxHp: number;
+  atk: number;
+  def: number;
+  spd: number;
+  special1Name: string;
+  special1Desc: string;
+  special1Cd: number;
+  special2Name: string;
+  special2Desc: string;
+  special2Cd: number;
+  passiveDescription: string;
+  startingItems: { uid: string; itemId: string; name: string; rarity: string; icon?: string; quantity: number }[];
+  archetypeId?: Archetype;  // for preset, the archetype id; for custom, undefined
+  config?: CustomCharacterConfig; // for custom, the full config
+}
 
 function StatBar({ label, value, maxValue, color = 'red' }: { label: string; value: number; maxValue: number; color?: string }) {
   const pct = Math.min(100, (value / maxValue) * 100);
@@ -57,34 +81,173 @@ const slideVariants = {
   }),
 };
 
+// ── Get color config based on archetype id ──
+function getArchetypeColor(id: string | undefined) {
+  const map: Record<string, string> = {
+    tank: 'border-red-800/50 hover:border-red-600',
+    healer: 'border-green-800/50 hover:border-green-600',
+    dps: 'border-amber-800/50 hover:border-amber-600',
+    control: 'border-purple-800/50 hover:border-purple-600',
+  };
+  return map[id || ''] || 'border-purple-800/50 hover:border-purple-600';
+}
+
+function getArchetypeBorderColor(id: string | undefined) {
+  const map: Record<string, string> = {
+    tank: 'border-red-600',
+    healer: 'border-green-600',
+    dps: 'border-amber-600',
+    control: 'border-purple-600',
+  };
+  return map[id || ''] || 'border-purple-600';
+}
+
+function getArchetypeLabelColor(id: string | undefined) {
+  const map: Record<string, string> = {
+    tank: 'bg-red-900/60 text-red-300',
+    healer: 'bg-green-900/60 text-green-300',
+    dps: 'bg-amber-900/60 text-amber-300',
+    control: 'bg-purple-900/60 text-purple-300',
+  };
+  return map[id || ''] || 'bg-purple-900/60 text-purple-300';
+}
+
+function getArchetypeGlow(id: string | undefined) {
+  const map: Record<string, string> = {
+    tank: 'shadow-[0_0_30px_rgba(220,38,38,0.2)]',
+    healer: 'shadow-[0_0_30px_rgba(34,197,94,0.2)]',
+    dps: 'shadow-[0_0_30px_rgba(245,158,11,0.2)]',
+    control: 'shadow-[0_0_30px_rgba(168,85,247,0.2)]',
+  };
+  return map[id || ''] || 'shadow-[0_0_30px_rgba(168,85,247,0.2)]';
+}
+
+function getArchetypeIcon(id: string | undefined) {
+  const map: Record<string, typeof Shield> = {
+    tank: Shield,
+    healer: Heart,
+    dps: Swords,
+    control: Crosshair,
+  };
+  return map[id || ''] || Settings2;
+}
+
+function getArchetypeIconColor(id: string | undefined) {
+  const map: Record<string, string> = {
+    tank: 'text-red-400',
+    healer: 'text-green-400',
+    dps: 'text-amber-400',
+    control: 'text-purple-400',
+  };
+  return map[id || ''] || 'text-purple-400';
+}
+
+// ── Build a CarouselItem from a preset archetype ──
+function presetToCarouselItem(arch: typeof CHARACTER_ARCHETYPES[number]): CarouselItem {
+  const points = ARCHETYPE_STAT_POINTS[arch.id] || ARCHETYPE_STAT_POINTS.custom;
+  return {
+    id: arch.id,
+    kind: 'preset',
+    displayName: arch.displayName,
+    roleName: arch.name,
+    description: arch.description,
+    avatarUrl: CHARACTER_IMAGES[arch.id] || '/images/characters/avatar_civilian.png',
+    maxHp: points.hp * 10,
+    atk: points.atk,
+    def: points.def,
+    spd: points.spd,
+    special1Name: arch.specialName,
+    special1Desc: arch.specialDescription,
+    special1Cd: 2,
+    special2Name: arch.special2Name,
+    special2Desc: arch.special2Description,
+    special2Cd: 3,
+    passiveDescription: arch.passiveDescription,
+    startingItems: arch.startingItems,
+    archetypeId: arch.id,
+  };
+}
+
+// ── Build a CarouselItem from a CustomCharacterConfig ──
+function customToCarouselItem(config: CustomCharacterConfig, index: number): CarouselItem {
+  const sp1 = getSpecialById(config.special1Id);
+  const sp2 = getSpecialById(config.special2Id);
+  const basePoints = config.baseArchetype && config.baseArchetype !== 'custom'
+    ? ARCHETYPE_STAT_POINTS[config.baseArchetype]
+    : null;
+  const statPoints = config.customStats || basePoints || ARCHETYPE_STAT_POINTS.custom;
+  const hp = statPoints.hp * 10;
+  const atk = statPoints.atk;
+  const def = statPoints.def;
+  const spd = statPoints.spd;
+  const passive = config.passiveDescription || getCustomPassiveDescription(statPoints);
+  const baseArch = config.baseArchetype && config.baseArchetype !== 'custom' ? config.baseArchetype : undefined;
+  const startingItems = getCustomStartingItems(baseArch);
+
+  return {
+    id: `custom-${index}`,
+    kind: 'custom',
+    displayName: config.name,
+    roleName: config.baseArchetype === 'custom' ? 'Custom' : config.baseArchetype.charAt(0).toUpperCase() + config.baseArchetype.slice(1),
+    description: config.biography || 'Un sopravvissuto dai tratti unici.',
+    avatarUrl: config.avatarUrl || '/images/characters/avatar_civilian.png',
+    maxHp: hp,
+    atk,
+    def,
+    spd,
+    special1Name: sp1?.name || 'Speciale 1',
+    special1Desc: sp1?.description || '',
+    special1Cd: sp1?.cooldown || 2,
+    special2Name: sp2?.name || 'Speciale 2',
+    special2Desc: sp2?.description || '',
+    special2Cd: sp2?.cooldown || 3,
+    passiveDescription: passive,
+    startingItems,
+    archetypeId: config.baseArchetype,
+    config,
+  };
+}
+
 export default function CharacterSelect() {
   const startAdventure = useGameStore(s => s.startAdventure);
   const startAdventureWithCustom = useGameStore(s => s.startAdventureWithCustom);
   const goToCharacterCreator = useGameStore(s => s.goToCharacterCreator);
   const startGame = useGameStore(s => s.startGame);
   
-  const [selected, setSelected] = useState<Set<Archetype>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set()); // set of carousel item ids
   const [customCharacters, setCustomCharacters] = useState<CustomCharacterConfig[]>([]);
   const [[currentIndex, direction], setCurrentIndex] = useState([0, 0]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showCreator, setShowCreator] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
 
-  const archetypes = CHARACTER_ARCHETYPES;
-  const current = archetypes[currentIndex];
+  // ── Build unified carousel items list: presets first, then customs ──
+  const allItems = useMemo(() => {
+    const presets = CHARACTER_ARCHETYPES.map(presetToCarouselItem);
+    const customs = customCharacters.map((cc, i) => customToCarouselItem(cc, i));
+    return [...presets, ...customs];
+  }, [customCharacters]);
 
-  const totalSelected = selected.size + customCharacters.length;
-  const maxStat = Math.max(...archetypes.map(a => Math.max(a.maxHp, a.atk * 5, a.def * 5, a.spd * 8)));
+  const current = allItems[currentIndex] || allItems[0];
+  const totalSelected = selected.size;
+  const maxStat = Math.max(
+    ...allItems.map(item => Math.max(item.maxHp, item.atk * 5, item.def * 5, item.spd * 8))
+  );
 
-  const toggleSelect = useCallback((id: Archetype) => {
-    const next = new Set(selected);
-    if (next.size + customCharacters.length >= 3) return;
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setSelected(next);
-  }, [selected, customCharacters]);
+  // ── Toggle selection/deselection ──
+  const toggleSelect = useCallback((itemId: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        if (next.size >= 3) return prev; // full, can't add
+        next.add(itemId);
+      }
+      return next;
+    });
+  }, []);
 
   const goTo = useCallback((idx: number) => {
     if (isAnimating || idx === currentIndex) return;
@@ -94,49 +257,58 @@ export default function CharacterSelect() {
   }, [currentIndex, isAnimating]);
 
   const handleStart = () => {
-    if (customCharacters.length > 0) {
-      startAdventureWithCustom(Array.from(selected), customCharacters);
-    } else if (selected.size > 0) {
-      startAdventure(Array.from(selected));
+    // Separate selected presets and selected customs
+    const selectedPresetArchetypes: Archetype[] = [];
+    const selectedCustomConfigs: CustomCharacterConfig[] = [];
+
+    for (const itemId of selected) {
+      const item = allItems.find(it => it.id === itemId);
+      if (!item) continue;
+      if (item.kind === 'preset' && item.archetypeId) {
+        selectedPresetArchetypes.push(item.archetypeId);
+      } else if (item.kind === 'custom' && item.config) {
+        selectedCustomConfigs.push(item.config);
+      }
+    }
+
+    if (selectedCustomConfigs.length > 0) {
+      startAdventureWithCustom(selectedPresetArchetypes, selectedCustomConfigs);
+    } else if (selectedPresetArchetypes.length > 0) {
+      startAdventure(selectedPresetArchetypes);
     }
   };
 
   const handleCustomCreated = (config: CustomCharacterConfig) => {
-    if (totalSelected >= 3) return;
     setCustomCharacters(prev => [...prev, config]);
     setShowCreator(false);
+    // Auto-select the new custom character
+    const newId = `custom-${customCharacters.length}`;
+    setSelected(prev => {
+      if (prev.size >= 3) return prev;
+      const next = new Set(prev);
+      next.add(newId);
+      return next;
+    });
+    // Navigate to the new custom character
+    setTimeout(() => {
+      const newIdx = CHARACTER_ARCHETYPES.length + customCharacters.length; // index after all presets
+      goTo(newIdx);
+    }, 100);
   };
 
   const removeCustom = (index: number) => {
+    const itemId = `custom-${index}`;
     setCustomCharacters(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const archetypeIcons: Record<string, typeof Shield> = {
-    tank: Shield,
-    healer: Heart,
-    dps: Swords,
-    control: Crosshair,
-  };
-
-  const archetypeColors: Record<string, string> = {
-    tank: 'border-red-800/50 hover:border-red-600',
-    healer: 'border-green-800/50 hover:border-green-600',
-    dps: 'border-amber-800/50 hover:border-amber-600',
-    control: 'border-purple-800/50 hover:border-purple-600',
-  };
-
-  const archetypeLabelColors: Record<string, string> = {
-    tank: 'bg-red-900/60 text-red-300',
-    healer: 'bg-green-900/60 text-green-300',
-    dps: 'bg-amber-900/60 text-amber-300',
-    control: 'bg-purple-900/60 text-purple-300',
-  };
-
-  const archetypeGlowColors: Record<string, string> = {
-    tank: 'shadow-[0_0_30px_rgba(220,38,38,0.2)]',
-    healer: 'shadow-[0_0_30px_rgba(34,197,94,0.2)]',
-    dps: 'shadow-[0_0_30px_rgba(245,158,11,0.2)]',
-    control: 'shadow-[0_0_30px_rgba(168,85,247,0.2)]',
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.delete(itemId);
+      return next;
+    });
+    setShowDeleteConfirm(false);
+    // Adjust current index if needed
+    if (currentIndex >= allItems.length - 1) {
+      goTo(Math.max(0, allItems.length - 2));
+    }
   };
 
   // If character creator is active, show it
@@ -150,6 +322,8 @@ export default function CharacterSelect() {
       </Suspense>
     );
   }
+
+  const isItemSelected = selected.has(current.id);
 
   return (
     <div className="min-h-screen game-horror flex flex-col">
@@ -166,37 +340,37 @@ export default function CharacterSelect() {
           Scegli i Sopravvissuti
         </motion.h1>
         <p className="text-gray-400 text-sm mt-1">
-          Seleziona da 1 a 3 personaggi per il tuo gruppo. Puoi creare personaggi personalizzati!
+          Seleziona da 1 a 3 personaggi per il tuo gruppo. Clicca sulla card per selezionare o deselezionare.
         </p>
       </div>
 
       {/* Carousel Area */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-6 overflow-hidden">
-        {/* Carousel Dots + Create Button */}
-        <div className="flex items-center gap-3 mb-6 flex-wrap justify-center">
-          {archetypes.map((arch, idx) => {
+        {/* Carousel Tabs + Create Button */}
+        <div className="flex items-center gap-2 sm:gap-3 mb-6 flex-wrap justify-center">
+          {allItems.map((item, idx) => {
             const isActive = idx === currentIndex;
-            const isSel = selected.has(arch.id);
-            const Icon = archetypeIcons[arch.id];
+            const isSel = selected.has(item.id);
+            const Icon = item.kind === 'preset' ? getArchetypeIcon(item.archetypeId) : User;
             return (
               <button
-                key={arch.id}
+                key={item.id}
                 onClick={() => goTo(idx)}
-                className={`relative flex items-center gap-2 sm:gap-2.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl border transition-all duration-300 ${
+                className={`relative flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border transition-all duration-300 ${
                   isActive
-                    ? `${archetypeColors[arch.id].replace('hover:border-', 'border-')} bg-white/[0.06] text-white shadow-lg scale-105`
+                    ? `${getArchetypeBorderColor(item.archetypeId)} bg-white/[0.06] text-white shadow-lg scale-105`
                     : isSel
                       ? 'border-white/20 bg-white/5 text-gray-300'
                       : 'border-white/[0.06] bg-white/[0.02] text-gray-500 hover:text-gray-300 hover:border-white/15 hover:bg-white/[0.04]'
                 }`}
               >
                 {isSel && !isActive && (
-                  <Check className="w-4 h-4 text-green-400" />
+                  <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-400" />
                 )}
-                <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isActive ? (arch.id === 'tank' ? 'text-red-400' : arch.id === 'healer' ? 'text-green-400' : arch.id === 'control' ? 'text-purple-400' : 'text-amber-400') : 'text-gray-500'}`} />
-                <span className="text-sm sm:text-base font-semibold">{arch.displayName}</span>
+                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isActive ? (item.kind === 'preset' ? getArchetypeIconColor(item.archetypeId) : 'text-purple-400') : 'text-gray-500'}`} />
+                <span className="text-xs sm:text-sm font-semibold">{item.displayName}</span>
                 {isActive && (
-                  <span className="hidden sm:inline text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded-md ml-1">VISUALIZZAZIONE</span>
+                  <span className="hidden sm:inline text-[10px] text-gray-400 bg-white/5 px-1.5 py-0.5 rounded-md ml-1">VISUALIZZAZIONE</span>
                 )}
               </button>
             );
@@ -206,57 +380,22 @@ export default function CharacterSelect() {
           <button
             onClick={() => totalSelected < 3 && setShowCreator(true)}
             disabled={totalSelected >= 3}
-            className={`flex items-center gap-2 sm:gap-2.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl border transition-all duration-300 ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border transition-all duration-300 ${
               totalSelected >= 3
                 ? 'border-white/[0.04] bg-white/[0.01] text-gray-600 cursor-not-allowed opacity-50'
                 : 'border-purple-700/50 bg-purple-900/20 text-purple-300 hover:border-purple-500 hover:bg-purple-900/30 hover:text-purple-200 shadow-[0_0_20px_rgba(168,85,247,0.15)]'
             }`}
           >
-            <UserPlus className="w-5 h-5 sm:w-6 sm:h-6" />
-            <span className="text-sm sm:text-base font-semibold">Crea Personaggio</span>
+            <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-xs sm:text-sm font-semibold">Crea</span>
           </button>
         </div>
-
-        {/* Custom Characters Created */}
-        {customCharacters.length > 0 && (
-          <div className="w-full max-w-5xl mx-auto mb-4">
-            <div className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Personaggi Personalizzati</div>
-            <div className="flex gap-2 flex-wrap">
-              {customCharacters.map((cc, idx) => {
-                const sp1 = getSpecialById(cc.special1Id);
-                const sp2 = getSpecialById(cc.special2Id);
-                return (
-                  <motion.div
-                    key={`custom-${idx}`}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="relative flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-900/30 border border-purple-700/40 text-gray-200"
-                  >
-                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-purple-500/50">
-                      <img src={cc.avatarUrl} alt={cc.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold">{cc.name}</div>
-                      <div className="text-[10px] text-gray-400">{sp1?.name} · {sp2?.name}</div>
-                    </div>
-                    <button
-                      onClick={() => removeCustom(idx)}
-                      className="ml-2 w-5 h-5 rounded-full bg-red-900/50 hover:bg-red-700 flex items-center justify-center transition-colors"
-                    >
-                      <X className="w-3 h-3 text-red-300" />
-                    </button>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Card Slider */}
         <div className="w-full max-w-5xl mx-auto">
           {/* Card Container */}
           <div className="w-full overflow-hidden">
-            <AnimatePresence initial={false} custom={direction} mode="wait">
+            <AnimatePresence initial={false} custom={direction} mode="popLayout">
               <motion.div
                 key={current.id}
                 custom={direction}
@@ -269,30 +408,119 @@ export default function CharacterSelect() {
               >
                 <Card
                   className={`relative cursor-pointer transition-all duration-300 overflow-hidden flex flex-col lg:flex-row
-                    ${archetypeColors[current.id]}
-                    ${selected.has(current.id) ? 'ring-2 ring-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : archetypeGlowColors[current.id]}
+                    ${getArchetypeColor(current.archetypeId)}
+                    ${isItemSelected ? 'ring-2 ring-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : getArchetypeGlow(current.archetypeId)}
                     glass-dark`}
                   onClick={() => toggleSelect(current.id)}
                 >
-                  {/* Selection indicator */}
-                  {selected.has(current.id) && (
+                  {/* Selection indicator — top-right (same position for all characters) */}
+                  {isItemSelected && (
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="absolute top-3 right-3 lg:top-3 lg:left-3 z-10 w-9 h-9 rounded-full bg-red-600 flex items-center justify-center shadow-lg"
+                      className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-red-600 flex items-center justify-center shadow-lg pointer-events-none"
                     >
                       <Check className="w-5 h-5 text-white" />
                     </motion.div>
                   )}
 
+                  {/* Delete button for custom characters */}
+                  {current.kind === 'custom' && (
+                    <>
+                      {/* Mobile: X icon bottom-right */}
+                      <motion.button
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const customIdx = customCharacters.findIndex(cc => cc === current.config);
+                          if (customIdx >= 0) {
+                            setPendingDeleteIdx(customIdx);
+                            setShowDeleteConfirm(true);
+                          }
+                        }}
+                        className="absolute bottom-3 right-3 lg:hidden z-10 w-8 h-8 rounded-full bg-red-900/60 hover:bg-red-700 flex items-center justify-center transition-colors border border-red-700/40"
+                      >
+                        <X className="w-4 h-4 text-red-300" />
+                      </motion.button>
+                      {/* Desktop: full "Elimina personaggio" button */}
+                      <motion.button
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const customIdx = customCharacters.findIndex(cc => cc === current.config);
+                          if (customIdx >= 0) {
+                            setPendingDeleteIdx(customIdx);
+                            setShowDeleteConfirm(true);
+                          }
+                        }}
+                        className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/50 hover:bg-red-900/40 text-red-400 hover:text-red-300 text-xs font-medium transition-colors border border-red-900/40 self-start"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Elimina personaggio
+                      </motion.button>
+                    </>
+                  )}
+
+                  {/* Delete confirmation dialog */}
+                  <AnimatePresence>
+                    {showDeleteConfirm && pendingDeleteIdx !== null && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm rounded-2xl"
+                        onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); setPendingDeleteIdx(null); }}
+                      >
+                        <motion.div
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.9, opacity: 0 }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="glass-dark rounded-xl p-5 max-w-xs w-full border border-red-900/40 shadow-[0_0_24px_rgba(127,29,29,0.2)]"
+                        >
+                          <p className="text-white text-sm mb-4 leading-relaxed">
+                            Sei sicuro di voler eliminare <span className="text-red-400 font-semibold">{customCharacters[pendingDeleteIdx]?.name || 'questo personaggio'}</span>? L&apos;azione non pu&ograve; essere annullata.
+                          </p>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setShowDeleteConfirm(false); setPendingDeleteIdx(null); }}
+                              className="bg-transparent text-white/60 hover:text-white hover:bg-white/[0.08] border border-white/[0.1] text-xs px-3 py-1.5 rounded-lg"
+                            >
+                              Annulla
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { if (pendingDeleteIdx !== null) removeCustom(pendingDeleteIdx); }}
+                              className="bg-transparent text-red-400 hover:text-red-300 hover:bg-red-900/30 border border-red-800/40 text-xs px-3 py-1.5 rounded-lg"
+                            >
+                              Elimina
+                            </Button>
+                          </div>
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {/* Portrait Image */}
                   <div className="relative h-44 sm:h-52 lg:h-auto lg:w-[340px] xl:w-[400px] shrink-0 lg:self-stretch overflow-hidden">
                     <img
-                      src={CHARACTER_IMAGES[current.id]}
+                      src={current.avatarUrl}
                       alt={current.displayName}
                       className="w-full h-full object-cover object-[center_20%]"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-black/40" />
+                    {/* Custom badge overlay */}
+                    {current.kind === 'custom' && (
+                      <div className="absolute bottom-3 left-3 lg:bottom-3 lg:left-3 flex items-center gap-1.5 px-2 py-1 rounded-md bg-purple-900/70 border border-purple-500/30 backdrop-blur-sm">
+                        <Sparkles className="w-3 h-3 text-purple-300" />
+                        <span className="text-[10px] uppercase tracking-wider text-purple-200 font-semibold">Custom</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Details Panel */}
@@ -300,8 +528,8 @@ export default function CharacterSelect() {
                     {/* Name & Role Header */}
                     <div className="mb-3">
                       <h3 className="text-xl sm:text-2xl font-bold text-gray-100">{current.displayName}</h3>
-                      <Badge className={`${archetypeLabelColors[current.id]} border-0 text-[10px] mt-0.5`}>
-                        {current.name}
+                      <Badge className={`${getArchetypeLabelColor(current.archetypeId)} border-0 text-[10px] mt-0.5`}>
+                        {current.roleName}
                       </Badge>
                     </div>
 
@@ -323,7 +551,7 @@ export default function CharacterSelect() {
                               'bg-gray-800 text-gray-300 border border-gray-700/30'
                             }`}
                           >
-                            <span className="flex items-center gap-1"><ItemIcon itemId={item.itemId} rarity={item.rarity} size={14} /> {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}</span>
+                            <span className="flex items-center gap-1"><ItemIcon itemId={item.itemId} rarity={item.rarity as any} size={14} /> {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}</span>
                           </span>
                         ))}
                       </div>
@@ -337,24 +565,24 @@ export default function CharacterSelect() {
                       <StatBar label="SPD" value={current.spd * 8} maxValue={maxStat} color="purple" />
                     </div>
 
-                    {/* Special Ability */}
+                    {/* Special Ability 1 */}
                     <div className="glass-dark-inner rounded-lg p-3 mb-1.5">
                       <div className="flex items-center gap-2 mb-1">
                         <Zap className="w-3.5 h-3.5 text-yellow-500" />
-                        <span className="text-sm font-semibold text-yellow-400">{current.specialName}</span>
-                        <span className="text-xs text-gray-500 ml-auto">CD: 2 turni</span>
+                        <span className="text-sm font-semibold text-yellow-400">{current.special1Name}</span>
+                        <span className="text-xs text-gray-500 ml-auto">CD: {current.special1Cd} turni</span>
                       </div>
-                      <p className="text-xs text-gray-400">{current.specialDescription}</p>
+                      <p className="text-xs text-gray-400">{current.special1Desc}</p>
                     </div>
 
-                    {/* Second Special Ability */}
+                    {/* Special Ability 2 */}
                     <div className="glass-dark-inner rounded-lg p-3 mb-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Zap className="w-3.5 h-3.5 text-orange-500" />
                         <span className="text-sm font-semibold text-orange-400">{current.special2Name}</span>
-                        <span className="text-xs text-gray-500 ml-auto">CD: 3 turni</span>
+                        <span className="text-xs text-gray-500 ml-auto">CD: {current.special2Cd} turni</span>
                       </div>
-                      <p className="text-xs text-gray-400">{current.special2Description}</p>
+                      <p className="text-xs text-gray-400">{current.special2Desc}</p>
                     </div>
 
                     {/* Passive */}
@@ -372,9 +600,9 @@ export default function CharacterSelect() {
         {/* Counter hint */}
         <div className="mt-4 text-xs text-gray-600 flex items-center gap-1.5">
           <Users className="w-3.5 h-3.5" />
-          {currentIndex + 1} / {archetypes.length}
+          {currentIndex + 1} / {allItems.length}
           <span className="mx-1">·</span>
-          Premi sulla card per selezionare
+          {isItemSelected ? 'Clicca per deselezionare' : 'Clicca sulla card per selezionare'}
         </div>
       </div>
 
@@ -395,30 +623,29 @@ export default function CharacterSelect() {
             )}
             {totalSelected > 0 && (
               <div className="flex gap-2 flex-wrap">
-                {Array.from(selected).map(id => {
-                  const arch = archetypes.find(a => a.id === id);
-                  if (!arch) return null;
-                  const Icon = archetypeIcons[id];
+                {Array.from(selected).map(itemId => {
+                  const item = allItems.find(it => it.id === itemId);
+                  if (!item) return null;
+                  const Icon = item.kind === 'preset' ? getArchetypeIcon(item.archetypeId) : User;
                   return (
                     <button
-                      key={id}
-                      onClick={() => goTo(archetypes.indexOf(arch))}
-                      className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-200 hover:border-red-600/50 hover:text-white transition-all"
+                      key={itemId}
+                      onClick={() => {
+                        // Navigate to this item in carousel
+                        const idx = allItems.findIndex(it => it.id === itemId);
+                        if (idx >= 0) goTo(idx);
+                      }}
+                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all ${
+                        item.kind === 'custom'
+                          ? 'bg-purple-900/30 border-purple-700/40 text-purple-200 hover:border-purple-500'
+                          : 'bg-white/5 border-white/10 text-gray-200 hover:border-red-600/50 hover:text-white'
+                      }`}
                     >
                       <Icon className="w-4 h-4" />
-                      {arch.displayName}
+                      {item.displayName}
                     </button>
                   );
                 })}
-                {customCharacters.map((cc, idx) => (
-                  <button
-                    key={`custom-sel-${idx}`}
-                    className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-purple-900/30 border border-purple-700/40 text-purple-200 hover:border-purple-500 transition-all"
-                  >
-                    <User className="w-4 h-4" />
-                    {cc.name}
-                  </button>
-                ))}
               </div>
             )}
           </div>

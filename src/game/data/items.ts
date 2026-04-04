@@ -61,9 +61,9 @@ export const ITEMS: Record<string, ItemDefinition> = {
     effect: { type: 'heal', value: 70, target: 'self', statusCured: ['poison', 'bleeding'] },
   },
   first_aid: {
-    id: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Ripristina tutti gli HP e cura veleno/sanguinamento a un alleato.',
+    id: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Un kit medico completo. Ripristina tutti gli HP e cura veleno/sanguinamento a un alleato.',
     type: 'healing', rarity: 'uncommon', icon: '✚️', usable: true, equippable: false,
-    effect: { type: 'heal', value: 9999, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
+    effect: { type: 'heal_full', value: 0, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
   },
   spray: {
     id: 'spray', name: 'Spray Medicale', description: 'Uno spray curativo. Ripristina 80 HP a un alleato.',

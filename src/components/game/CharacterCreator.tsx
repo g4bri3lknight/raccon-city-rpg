@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -26,8 +26,8 @@ import {
   Sparkles,
   Check,
 } from 'lucide-react';
-import { ALL_SPECIAL_ABILITIES, PREDEFINED_AVATARS, CUSTOM_STAT_BUDGET, getCustomPassiveDescription } from '@/game/data/specials';
-import { CHARACTER_ARCHETYPES } from '@/game/data/characters';
+import { ALL_SPECIAL_ABILITIES, PREDEFINED_AVATARS, CUSTOM_STAT_BUDGET, getCustomPassiveDescription, ARCHETYPE_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP } from '@/game/data/specials';
+import { CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS } from '@/game/data/characters';
 import type { CustomCharacterConfig, Archetype, SpecialCategory } from '@/game/types';
 
 // ==========================================
@@ -180,13 +180,18 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
 
   // ── Derived stats for preview ──
   const derivedStats = useMemo(() => {
-    if (selectedArchetype === 'custom') {
+    if (selectedArchetype === 'custom' || !selectedArchetype) {
       return {
         maxHp: customStats.hp * 10,
         atk: customStats.atk,
         def: customStats.def,
         spd: customStats.spd,
       };
+    }
+    // Preset archetype: use point-based system (same as custom)
+    const points = ARCHETYPE_STAT_POINTS[selectedArchetype];
+    if (points) {
+      return { maxHp: points.hp * 10, atk: points.atk, def: points.def, spd: points.spd };
     }
     const arch = CHARACTER_ARCHETYPES.find(a => a.id === selectedArchetype);
     if (arch) {
@@ -239,6 +244,18 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
     }
   }, [currentStep]);
 
+  // Reset stats to archetype defaults when base archetype changes
+  useEffect(() => {
+    if (selectedArchetype && selectedArchetype !== 'custom') {
+      const points = ARCHETYPE_STAT_POINTS[selectedArchetype];
+      if (points) {
+        setCustomStats({ hp: points.hp, atk: points.atk, def: points.def, spd: points.spd });
+      }
+    } else if (selectedArchetype === 'custom') {
+      setCustomStats({ hp: CUSTOM_STAT_BUDGET.defaults.hp, atk: CUSTOM_STAT_BUDGET.defaults.atk, def: CUSTOM_STAT_BUDGET.defaults.def, spd: CUSTOM_STAT_BUDGET.defaults.spd });
+    }
+  }, [selectedArchetype]);
+
   // ── File upload handler ──
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -281,6 +298,14 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
     });
   }, []);
 
+  // ── Clear ability selection when switching archetype ──
+  useEffect(() => {
+    setSelectedAbilities([]);
+    setAbilityFilter('all');
+  }, [selectedArchetype]);
+
+  const isPresetArchetype = selectedArchetype !== null && selectedArchetype !== 'custom';
+
   // ── Completion handler ──
   const handleComplete = useCallback(() => {
     if (!step1Valid || !step2Valid || !step3Valid || !step4Valid) return;
@@ -296,8 +321,8 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
       biography: biography.trim(),
       avatarUrl,
       isCustomAvatar,
-      baseArchetype: selectedArchetype === 'custom' ? 'custom' : selectedArchetype!,
-      ...(selectedArchetype === 'custom' ? { customStats: { ...customStats } } : {}),
+      baseArchetype: selectedArchetype || 'custom',
+      customStats: { ...customStats },
       special1Id: selectedAbilities[0],
       special2Id: selectedAbilities[1],
       passiveDescription: passive,
@@ -310,10 +335,18 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
   }, [step1Valid, step2Valid, step3Valid, step4Valid, name, biography, avatarUrl, isCustomAvatar, selectedArchetype, customStats, selectedAbilities, onComplete]);
 
   // ── Filtered abilities ──
+  // Preset: show the 5 specials of the archetype's category. Custom: show all with optional filter.
   const filteredAbilities = useMemo(() => {
+    if (isPresetArchetype && selectedArchetype) {
+      const category = ARCHETYPE_CATEGORY_MAP[selectedArchetype];
+      if (category) {
+        return ALL_SPECIAL_ABILITIES.filter(a => a.category === category);
+      }
+    }
+    // Custom archetype: show all with optional category filter
     if (abilityFilter === 'all') return ALL_SPECIAL_ABILITIES;
     return ALL_SPECIAL_ABILITIES.filter(a => a.category === abilityFilter);
-  }, [abilityFilter]);
+  }, [abilityFilter, selectedArchetype, isPresetArchetype]);
 
   // ==========================================
   // Render
@@ -425,7 +458,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
 
         {/* ── Content Area ── */}
         <div className="flex-1 overflow-hidden relative">
-          <AnimatePresence mode="wait" custom={direction}>
+          <AnimatePresence mode="popLayout" custom={direction}>
             {/* ═══════════════════════════════════════════
                 STEP 1: INFO BASE
                 ═══════════════════════════════════════════ */}
@@ -772,7 +805,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                   </motion.div>
 
                   {/* Predefined Archetype Info */}
-                  <AnimatePresence mode="wait">
+                  <AnimatePresence>
                     {selectedArchetype && selectedArchetype !== 'custom' && (
                       <motion.div
                         key="arch-info"
@@ -807,7 +840,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                   </AnimatePresence>
 
                   {/* Custom Stat Allocation */}
-                  <AnimatePresence mode="wait">
+                  <AnimatePresence>
                     {selectedArchetype === 'custom' && (
                       <motion.div
                         key="custom-stats"
@@ -968,7 +1001,9 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                       <h2 className="text-lg font-bold text-zinc-100">Abilità Speciali</h2>
                     </div>
                     <p className="text-zinc-500 text-xs font-mono">
-                      Seleziona esattamente 2 abilità speciali per il tuo sopravvissuto.
+                      {isPresetArchetype
+                        ? 'Le abilità speciali dell\'archetipo sono predefinite.'
+                        : 'Seleziona esattamente 2 abilità speciali per il tuo sopravvissuto.'}
                     </p>
                   </motion.div>
 
@@ -983,11 +1018,12 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                             : 'border-zinc-700/50 text-zinc-400 bg-zinc-800/50'
                         }`}
                       >
-                        {selectedAbilities.length}/2 selezionate
+                        {`${selectedAbilities.length}/2 selezionate`}
                       </Badge>
                     </div>
 
-                    {/* Category filters */}
+                    {/* Category filters — only for custom archetype */}
+                    {!isPresetArchetype && (
                     <div className="flex items-center gap-1 flex-wrap">
                       {(['all', 'offensive', 'defensive', 'support', 'control'] as const).map((cat) => (
                         <button
@@ -1003,6 +1039,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                         </button>
                       ))}
                     </div>
+                    )}
                   </motion.div>
 
                   {/* Abilities grid */}

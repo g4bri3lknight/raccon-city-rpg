@@ -195,11 +195,11 @@ export function CombatHpPanel({
         {/* Row 1: Portrait + Name + Condition */}
         <div className="flex items-center gap-1.5 mb-1">
           {imageSrc ? (
-            <div className={`w-6 h-7 rounded overflow-hidden border shrink-0 ${isActive ? 'border-red-500/60' : 'border-gray-600/40'} ${isDead ? 'grayscale opacity-30' : ''}`}>
+            <div className={`w-7 h-7 rounded overflow-hidden border shrink-0 ${isActive ? 'border-red-500/60' : 'border-gray-600/40'} ${isDead ? 'grayscale opacity-30' : ''}`}>
               <img src={imageSrc} alt={name} className="w-full h-full object-cover object-[center_15%]" />
             </div>
           ) : (
-            <div className={`w-6 h-7 rounded flex items-center justify-center text-xs shrink-0 border ${isDead ? 'grayscale opacity-30 border-gray-800/30' : isActive ? 'border-red-500/60 bg-red-950/30' : 'border-gray-600/40 bg-gray-900/50'}`}>
+            <div className={`w-7 h-7 rounded flex items-center justify-center text-xs shrink-0 border ${isDead ? 'grayscale opacity-30 border-gray-800/30' : isActive ? 'border-red-500/60 bg-red-950/30' : 'border-gray-600/40 bg-gray-900/50'}`}>
               ?
             </div>
           )}
@@ -292,11 +292,11 @@ export function EnemyHpBar({ current, max, name, icon, isBoss, imageSrc }: {
       />
       <div className="relative z-10 flex items-center gap-2">
         {imageSrc ? (
-          <div className={`w-10 h-12 rounded overflow-hidden border shrink-0 ${isBoss ? 'border-red-600/40' : 'border-gray-600/30'} ${isDead ? 'grayscale opacity-30' : ''}`}>
+          <div className={`w-10 h-10 rounded overflow-hidden border shrink-0 ${isBoss ? 'border-red-600/40' : 'border-gray-600/30'} ${isDead ? 'grayscale opacity-30' : ''}`}>
             <img src={imageSrc} alt={name} className="w-full h-full object-cover object-[center_15%]" />
           </div>
         ) : (
-          <div className={`text-xl w-10 h-12 flex items-center justify-center rounded shrink-0 ${isBoss ? 'bg-red-950/30' : 'bg-gray-900/40'} ${isDead ? 'grayscale opacity-30' : ''}`}>
+          <div className={`text-xl w-10 h-10 flex items-center justify-center rounded shrink-0 ${isBoss ? 'bg-red-950/30' : 'bg-gray-900/40'} ${isDead ? 'grayscale opacity-30' : ''}`}>
             {icon}
           </div>
         )}

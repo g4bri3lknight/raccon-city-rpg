@@ -21,34 +21,25 @@ export default function InventoryPanel() {
 
   const selectedChar = party.find(p => p.id === selectedCharacterId) || party[0];
 
-  const rarityColors: Record<string, string> = {
-    common: 'border-white/[0.08]',
-    uncommon: 'border-cyan-400/30',
-    rare: 'border-purple-400/30',
-  };
-
-  const rarityGlow: Record<string, string> = {
-    common: '',
-    uncommon: 'shadow-[0_0_8px_rgba(34,211,238,0.1)]',
-    rare: 'shadow-[0_0_8px_rgba(168,85,247,0.1)]',
-  };
-
-  const rarityBg: Record<string, string> = {
-    common: 'bg-white/[0.04]',
-    uncommon: 'bg-white/[0.04]',
-    rare: 'bg-white/[0.04]',
-  };
-
-  const raritySelectedBg: Record<string, string> = {
-    common: 'bg-white/[0.1] border-white/20',
-    uncommon: 'bg-white/[0.1] border-cyan-400/40',
-    rare: 'bg-white/[0.1] border-purple-400/40',
+  const rarityDotColor: Record<string, string> = {
+    common: 'bg-gray-400',
+    uncommon: 'bg-cyan-400',
+    rare: 'bg-purple-400',
+    legendary: 'bg-amber-400',
   };
 
   const rarityBadge: Record<string, string> = {
     common: 'bg-white/10 text-white/70 border-0',
     uncommon: 'bg-white/10 text-cyan-300/80 border-0',
     rare: 'bg-white/10 text-purple-300/80 border-0',
+    legendary: 'bg-white/10 text-amber-300/80 border-0',
+  };
+
+  const rarityLabel: Record<string, string> = {
+    common: 'Comune',
+    uncommon: 'Non Comune',
+    rare: 'Raro',
+    legendary: 'Leggendario',
   };
 
   const typeLabels: Record<string, string> = {
@@ -136,6 +127,20 @@ export default function InventoryPanel() {
           <div className="grid grid-cols-6 gap-2 md:gap-3">
             {slots.map((item, index) => {
               const isSelected = item && selectedItem?.uid === item.uid;
+              let slotClass = 'aspect-square rounded-lg md:rounded-xl border-2 flex items-center justify-center text-2xl transition-all duration-200 relative ';
+              if (item) {
+                slotClass += 'bg-white/[0.04] cursor-pointer ';
+                if (isSelected) {
+                  slotClass += 'border-red-800 bg-red-950/30 shadow-[0_0_12px_rgba(153,27,27,0.3)] scale-105';
+                } else {
+                  slotClass += 'border-white/[0.08] hover:border-red-800 hover:bg-white/[0.06] hover:shadow-[0_0_8px_rgba(153,27,27,0.15)] hover:scale-105';
+                }
+                if (item.isEquipped) {
+                  slotClass += ' ring-1 ring-amber-500/40';
+                }
+              } else {
+                slotClass += 'border-white/[0.04] bg-white/[0.02] cursor-default';
+              }
               return (
                 <motion.button
                   key={item?.uid || `empty_${index}`}
@@ -143,11 +148,7 @@ export default function InventoryPanel() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.03 }}
                   onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
-                  className={`aspect-square rounded-lg md:rounded-xl border-2 flex items-center justify-center text-2xl transition-all duration-200 ${
-                    item
-                      ? `${isSelected ? raritySelectedBg[item.rarity] : `${rarityColors[item.rarity]} ${rarityBg[item.rarity]}`} ${rarityGlow[item.rarity]} hover:scale-110 cursor-pointer`
-                      : 'border-white/[0.04] bg-white/[0.02] cursor-default'
-                  } ${item?.isEquipped ? 'ring-1 ring-amber-500/40' : ''}`}
+                  className={slotClass}
                 >
                   {item ? (
                     <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
@@ -157,6 +158,7 @@ export default function InventoryPanel() {
                           {item.quantity}
                         </span>
                       )}
+                      <span className={`absolute bottom-1 right-1 md:bottom-1.5 md:right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${rarityDotColor[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
                     </span>
                   ) : (
                     <span className="text-white/10 text-lg md:text-2xl">+</span>
@@ -172,7 +174,7 @@ export default function InventoryPanel() {
           {selectedItem ? (
             <div className="p-4 md:p-6">
               <div className="flex items-start gap-3 mb-3">
-                <div className={`w-12 h-12 md:w-20 md:h-20 rounded-lg md:rounded-xl ${rarityBg[selectedItem.rarity]} ${rarityGlow[selectedItem.rarity]} border ${rarityColors[selectedItem.rarity]} flex items-center justify-center shrink-0 p-1.5 md:p-2`}>
+                <div className="w-12 h-12 md:w-20 md:h-20 rounded-lg md:rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0 p-1.5 md:p-2">
                   <ItemIcon itemId={selectedItem.itemId} rarity={selectedItem.rarity} className="!w-full !h-full" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -187,7 +189,7 @@ export default function InventoryPanel() {
                       {typeLabels[selectedItem.type] || selectedItem.type}
                     </Badge>
                     <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>
-                      {selectedItem.rarity === 'common' ? 'Comune' : selectedItem.rarity === 'uncommon' ? 'Non Comune' : 'Raro'}
+                      {rarityLabel[selectedItem.rarity] || selectedItem.rarity}
                     </Badge>
                     {selectedItem.isEquipped && (
                       <Badge className="bg-amber-900/50 text-amber-300 border-0 text-[10px] md:text-xs">Equipaggiato</Badge>
@@ -209,6 +211,9 @@ export default function InventoryPanel() {
                 <div className="flex flex-wrap gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm text-white/60">
                   {selectedItem.effect.type === 'heal' && (
                     <span className="text-green-400/80">❤️ Cura {selectedItem.effect.value} HP</span>
+                  )}
+                  {selectedItem.effect.type === 'heal_full' && (
+                    <span className="text-green-400/80">❤️ Ripristina tutti gli HP</span>
                   )}
                   {selectedItem.effect.type === 'add_slots' && (
                     <span className="text-amber-400/80">🧳 +{selectedItem.effect.value} slot inventario</span>
@@ -232,11 +237,11 @@ export default function InventoryPanel() {
                 {selectedItem.equippable && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => equipItem(selectedChar.id, selectedItem.uid)}
-                    className={`text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
+                    className={`bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all ${
                       selectedItem.isEquipped
-                        ? 'border-amber-500/30 text-amber-400/80'
+                        ? 'border-amber-500/20 text-amber-400/60 hover:bg-amber-900/20 hover:text-amber-300 hover:border-amber-500/30'
                         : ''
                     }`}
                   >
@@ -247,14 +252,10 @@ export default function InventoryPanel() {
                 {selectedItem.usable && !selectedItem.equippable && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => { consumeItemOutsideCombat(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
                     disabled={selectedItem.type === 'bag' && selectedChar.maxInventorySlots >= 12}
-                    className={`text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 ${
-                      selectedItem.type === 'bag'
-                        ? ''
-                        : ''
-                    }`}
+                    className="bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all disabled:opacity-30"
                   >
                     <FlaskConical className="w-3.5 h-3.5 mr-1.5" /> {selectedItem.type === 'bag' ? 'Equipaggia' : 'Usa'}
                   </Button>
@@ -262,13 +263,13 @@ export default function InventoryPanel() {
                 {selectedItem.itemId === 'herb_red' && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => { combineHerbs(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
                     disabled={!selectedChar.inventory.some(i => i.itemId === 'herb_green')}
-                    className={`text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white ${
+                    className={`bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all ${
                       selectedChar.inventory.some(i => i.itemId === 'herb_green')
                         ? ''
-                        : 'cursor-not-allowed'
+                        : 'cursor-not-allowed opacity-50'
                     }`}
                   >
                     <Blend className="w-3.5 h-3.5 mr-1.5" /> Combina con Erba Verde
@@ -278,9 +279,9 @@ export default function InventoryPanel() {
                 {party.length > 1 && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => setShowTransferPicker(true)}
-                    className="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                    className="bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all"
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" /> Dai a...
                   </Button>

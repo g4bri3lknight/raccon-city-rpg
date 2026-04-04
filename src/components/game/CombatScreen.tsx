@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CombatAction } from '@/game/types';
+import LogText from '@/components/game/LogText';
 import { ENEMY_IMAGES, CHARACTER_IMAGES } from '@/game/data/enemies';
 import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '@/game/data/specials';
 import ItemIcon from './ItemIcon';
@@ -439,7 +440,7 @@ export default function CombatScreen() {
                     {idx + 1}
                   </span>
                 )}
-                <div className={`w-20 h-24 sm:w-24 sm:h-28 lg:w-56 lg:h-64 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
+                <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
                   <img src={ENEMY_IMAGES[enemy.definitionId] || ''} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
                 </div>
                 <span className={`text-[9px] sm:text-[10px] font-bold ${isDead ? 'text-gray-700' : enemy.isBoss ? 'text-red-300' : 'text-gray-300'}`}>
@@ -526,7 +527,7 @@ export default function CombatScreen() {
                     {idx + 1}
                   </span>
                 )}
-                <div className={`w-20 h-24 sm:w-24 sm:h-28 lg:w-56 lg:h-64 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
+                <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
                   <img src={char.avatarUrl || CHARACTER_IMAGES[char.archetype] || ''} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
                   {/* ── BLEEDING VISUAL: blood drips on left + red pulse ── */}
                   {isBleeding && !isDead && (
@@ -834,7 +835,7 @@ export default function CombatScreen() {
               key={i}
               initial={isNew ? { opacity: 0, x: -10 } : false}
               animate={{ opacity: 1, x: 0 }}
-              className={`text-[11px] sm:text-xs leading-relaxed ${
+              className={`text-sm sm:text-base leading-relaxed ${
                 entry.isCritical
                   ? 'text-yellow-400 font-bold'
                   : entry.isMiss
@@ -850,7 +851,7 @@ export default function CombatScreen() {
             >
               {entry.isCritical && '💥 '}
               {entry.isMiss && '💨 '}
-              {entry.message}
+              <LogText text={entry.message} party={party.map(p => ({ name: p.name, avatarSrc: p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '' }))} />
             </motion.p>
           );
         })}

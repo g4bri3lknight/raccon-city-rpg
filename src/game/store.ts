@@ -15,7 +15,7 @@ import {
   GameNotification,
   CustomCharacterConfig,
 } from './types';
-import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems } from './data/characters';
+import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems, ARCHETYPE_STAT_POINTS, computeGrowthRates } from './data/characters';
 import { ENEMIES } from './data/enemies';
 import { ITEMS } from './data/items';
 import { LOCATIONS } from './data/locations';
@@ -90,16 +90,18 @@ function getDifficultyConfig(partySize: number): DifficultyConfig {
 function createCharacter(archetypeId: Archetype): Character {
   const archetype = CHARACTER_ARCHETYPES.find(a => a.id === archetypeId);
   if (!archetype) throw new Error(`Archetype ${archetypeId} not found`);
-  const stats = getCharacterStats(archetype, 1);
+  const points = ARCHETYPE_STAT_POINTS[archetype.id] || ARCHETYPE_STAT_POINTS.custom;
+  const growth = computeGrowthRates(points);
+  const maxHp = points.hp * 10;
   return {
     id: newCharId(),
     archetype: archetype.id,
     name: archetype.displayName,
-    currentHp: stats.maxHp,
-    maxHp: stats.maxHp,
-    baseAtk: stats.atk,
-    baseDef: stats.def,
-    baseSpd: stats.spd,
+    currentHp: maxHp,
+    maxHp: maxHp,
+    baseAtk: points.atk,
+    baseDef: points.def,
+    baseSpd: points.spd,
     level: 1,
     exp: 0,
     expToNext: 50,
@@ -108,33 +110,29 @@ function createCharacter(archetypeId: Archetype): Character {
     inventory: archetype.startingItems.map(item => ({ ...item, uid: `${item.uid}_${Date.now()}` })),
     maxInventorySlots: 6,
     weapon: archetype.startingItems.find(i => i.weaponStats)?.weaponStats || null,
+    statGrowth: growth,
   };
 }
 
 function createCustomCharacter(config: CustomCharacterConfig): Character {
-  const startingItems = getCustomStartingItems();
-  const hp = config.customStats ? config.customStats.hp * 10 : 100;
-  const atk = config.customStats ? config.customStats.atk : 15;
-  const def = config.customStats ? config.customStats.def : 10;
-  const spd = config.customStats ? config.customStats.spd : 8;
+  const baseArchetype = config.baseArchetype && config.baseArchetype !== 'custom' ? config.baseArchetype : undefined;
+  const startingItems = getCustomStartingItems(baseArchetype);
+  const basePoints = baseArchetype ? ARCHETYPE_STAT_POINTS[baseArchetype] : null;
 
-  // Determine growth based on stat distribution
-  const totalStats = hp + atk + def + spd;
-  const hpRatio = hp / totalStats;
-  const atkRatio = atk / totalStats;
-  const defRatio = def / totalStats;
-  const spdRatio = spd / totalStats;
-  const growthBudget = 12; // total growth points per level
-  const statGrowth = {
-    hp: Math.max(4, Math.round(hpRatio * growthBudget)),
-    atk: Math.max(1, Math.round(atkRatio * growthBudget)),
-    def: Math.max(1, Math.round(defRatio * growthBudget)),
-    spd: Math.max(0, Math.round(spdRatio * growthBudget)),
-  };
+  // Use custom stats if provided, otherwise inherit from base archetype
+  const statPoints = config.customStats
+    ? config.customStats
+    : basePoints || ARCHETYPE_STAT_POINTS.custom;
+
+  const hp = statPoints.hp * 10;
+  const atk = statPoints.atk;
+  const def = statPoints.def;
+  const spd = statPoints.spd;
+  const growth = computeGrowthRates(statPoints);
 
   return {
     id: newCharId(),
-    archetype: 'custom',
+    archetype: baseArchetype || 'custom',
     name: config.name,
     biography: config.biography,
     avatarUrl: config.avatarUrl,
@@ -154,7 +152,7 @@ function createCustomCharacter(config: CustomCharacterConfig): Character {
     special1Id: config.special1Id,
     special2Id: config.special2Id,
     passiveDescription: config.passiveDescription,
-    statGrowth,
+    statGrowth: growth,
   };
 }
 
@@ -534,6 +532,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 type: 'collectible_found' as const,
                 message: `Nastro d'Inchiostro`,
                 icon: '🎀',
+                itemId: 'ink_ribbon',
                 subMessage: `Collezionabili: ${newCount}/10`,
               },
             });
@@ -567,6 +566,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                   type: 'bag_expand',
                   message: `Inventario espanso!`,
                   icon: '🧳',
+                  itemId: foundEntry.itemId,
                   subMessage: `${targetChar.name}: ${oldSlots} → ${newSlots} slot`,
                   characterId: targetId,
                 } : null,
@@ -598,6 +598,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                   type: 'item_found',
                   message: itemDef.name,
                   icon: itemDef.icon,
+                  itemId: foundEntry.itemId,
                   subMessage: `Ricevuto da ${targetChar?.name || 'qualcuno'}`,
                   characterId: targetId,
                 },
@@ -674,6 +675,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 type: 'item_found',
                 message: itemDef.name,
                 icon: itemDef.icon,
+                itemId: foundEntry.itemId,
                 subMessage: `Ricevuto da ${finder.name}`,
                 characterId: finder.id,
               } : null,
@@ -688,6 +690,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 type: 'item_found',
                 message: itemDef.name,
                 icon: itemDef.icon,
+                itemId: foundEntry.itemId,
                 subMessage: `Ricevuto da ${finder.name}`,
                 characterId: finder.id,
               },
@@ -859,6 +862,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const targetId = state.selectedCharacterId || state.party[0]?.id;
     let updatedParty = [...state.party];
     const foundNames: string[] = [];
+    const foundNotifItems: { name: string; itemId: string; icon?: string }[] = [];
     let lastNotif: GameNotification | null = null;
     let newRibbonCount = state.collectedRibbons;
 
@@ -876,6 +880,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             type: 'collectible_found' as const,
             message: itemDef.name,
             icon: itemDef.icon,
+            itemId: 'ink_ribbon',
             subMessage: `Collezionabili: ${newRibbonCount}/10`,
           };
         }
@@ -899,6 +904,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             type: 'bag_expand' as const,
             message: `Inventario espanso!`,
             icon: '🧳',
+            itemId,
             subMessage: `${targetChar.name}: ${oldSlots} → ${newSlots} slot`,
             characterId: targetId,
           };
@@ -920,14 +926,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             p.id === targetId ? { ...p, inventory: [...p.inventory, bagItem] } : p
           );
           foundNames.push(itemDef.name);
-          lastNotif = {
-            id: `notif_${++notifId}`,
-            type: 'item_found' as const,
-            message: itemDef.name,
-            icon: itemDef.icon,
-            subMessage: `Ricevuto da ${targetChar?.name || 'qualcuno'}`,
-            characterId: targetId,
-          };
+          foundNotifItems.push({ name: itemDef.name, itemId, icon: itemDef.icon });
         }
         continue;
       }
@@ -944,14 +943,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           return { ...p, inventory: updatedInv };
         });
         foundNames.push(itemDef.name);
-        lastNotif = {
-          id: `notif_${++notifId}`,
-          type: 'item_found' as const,
-          message: itemDef.name,
-          icon: itemDef.icon,
-          subMessage: `Ricevuto da ${finderChar?.name || 'qualcuno'}`,
-          characterId: targetId,
-        };
+        foundNotifItems.push({ name: itemDef.name, itemId, icon: itemDef.icon });
       } else {
         const hasSpace = finderChar && finderChar.inventory.length < finderChar.maxInventorySlots;
         if (hasSpace) {
@@ -972,17 +964,39 @@ export const useGameStore = create<GameStore>((set, get) => ({
             p.id === targetId ? { ...p, inventory: [...p.inventory, newItem] } : p
           );
           foundNames.push(itemDef.name);
-          lastNotif = {
-            id: `notif_${++notifId}`,
-            type: 'item_found' as const,
-            message: itemDef.name,
-            icon: itemDef.icon,
-            subMessage: `Ricevuto da ${finderChar?.name || 'qualcuno'}`,
-            characterId: targetId,
-          };
+          foundNotifItems.push({ name: itemDef.name, itemId, icon: itemDef.icon });
         } else {
           foundNames.push(`${itemDef.name} (inventario pieno!)`);
         }
+      }
+    }
+
+    // Build bundled notification for multiple items found, or single item notification
+    const finderChar = updatedParty.find(p => p.id === targetId);
+    if (!lastNotif && foundNotifItems.length > 0) {
+      if (foundNotifItems.length === 1) {
+        // Single item — show standard single-item notification
+        const item = foundNotifItems[0];
+        lastNotif = {
+          id: `notif_${++notifId}`,
+          type: 'item_found' as const,
+          message: item.name,
+          icon: item.icon,
+          itemId: item.itemId,
+          subMessage: `Ricevuto da ${finderChar?.name || 'qualcuno'}`,
+          characterId: targetId,
+        };
+      } else {
+        // Multiple items — bundled notification showing all items
+        lastNotif = {
+          id: `notif_${++notifId}`,
+          type: 'item_found' as const,
+          message: `${foundNotifItems.length} oggetti trovati!`,
+          icon: '🎒',
+          subMessage: `Ricevuti da ${finderChar?.name || 'qualcuno'}`,
+          characterId: targetId,
+          items: foundNotifItems,
+        };
       }
     }
 
@@ -1201,7 +1215,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         switch (item.effect.type) {
           case 'heal': {
             const healAmount = item.effect.value;
-            // Also cure status if the item supports it
             const statusCured = item.effect.statusCured || [];
             const actualHeal = Math.min(updatedCharacter.maxHp, updatedCharacter.currentHp + healAmount) - updatedCharacter.currentHp;
             updatedCharacter.currentHp = Math.min(updatedCharacter.maxHp, updatedCharacter.currentHp + healAmount);
@@ -1218,6 +1231,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
               }
             } else {
               log.push(`${p.name} usa ${item.name}. +${actualHeal} HP!`);
+              logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP!`;
+            }
+            break;
+          }
+          case 'heal_full': {
+            const actualHeal = updatedCharacter.maxHp - updatedCharacter.currentHp;
+            const statusCured = item.effect.statusCured || [];
+            updatedCharacter.currentHp = updatedCharacter.maxHp;
+            if (statusCured.length > 0) {
+              const hadStatus = statusCured.some(s => updatedCharacter.statusEffects.includes(s));
+              updatedCharacter.statusEffects = updatedCharacter.statusEffects.filter(s => !statusCured.includes(s));
+              if (hadStatus) {
+                log.push(`${p.name} usa ${item.name}. HP completamente ripristinati (+${actualHeal})! ✨ Status negativi curati!`);
+                logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP! Status curati!`;
+              } else {
+                log.push(`${p.name} usa ${item.name}. HP completamente ripristinati (+${actualHeal})!`);
+                logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP!`;
+              }
+            } else {
+              log.push(`${p.name} usa ${item.name}. HP completamente ripristinati (+${actualHeal})!`);
               logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP!`;
             }
             break;
@@ -1531,6 +1564,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let updatedCooldowns: Record<string, number> = { ...(state.combat.specialCooldowns || {}) };
     let updatedCooldowns2: Record<string, number> = { ...(state.combat.special2Cooldowns || {}) };
     let tauntTargetId: string | null = state.combat.tauntTargetId || null;
+    let updatedCombatStatusDurations: Record<string, StatusDuration[]> = { ...(state.combat.statusDurations || {}) };
 
     switch (state.combat.selectedAction) {
       case 'attack': {
@@ -1685,6 +1719,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
             }
             return p;
           });
+        }
+        // Clean statusDurations for cured statuses
+        if (result.curedStatuses && result.curedStatuses.length > 0) {
+          const curedSet = new Set(result.curedStatuses);
+          const targetId = healTarget?.id || character.id;
+          if (result.updatedParty) {
+            // all_allies cure: clean all party members
+            for (const charId of Object.keys(updatedCombatStatusDurations)) {
+              const filtered = updatedCombatStatusDurations[charId].filter(d => !curedSet.has(d.effect));
+              if (filtered.length > 0) {
+                updatedCombatStatusDurations[charId] = filtered;
+              } else {
+                delete updatedCombatStatusDurations[charId];
+              }
+            }
+          } else if (updatedCombatStatusDurations[targetId]) {
+            const filtered = updatedCombatStatusDurations[targetId].filter(d => !curedSet.has(d.effect));
+            if (filtered.length > 0) {
+              updatedCombatStatusDurations[targetId] = filtered;
+            } else {
+              delete updatedCombatStatusDurations[targetId];
+            }
+          }
         }
         break;
       }
@@ -1859,6 +1916,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       specialCooldowns: updatedCooldowns,
       special2Cooldowns: updatedCooldowns2,
       tauntTargetId,
+      statusDurations: updatedCombatStatusDurations,
     });
   },
 
@@ -2726,6 +2784,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           type: 'collectible_found' as const,
           message: "Nastro d'Inchiostro",
           icon: '🎀',
+          itemId: 'ink_ribbon',
           subMessage: `Collezionabili: ${newCount}/10`,
         },
       };

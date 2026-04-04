@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { audio } from '@/game/engine/sounds';
+import ItemIcon from '@/components/game/ItemIcon';
 
 // ── Theme config per notification type ──
 const THEMES = {
@@ -70,10 +71,15 @@ const THEMES = {
     scanline: 'linear-gradient(90deg, transparent, rgba(192,132,252,0.7), transparent)',
     titleColor: '#d8b4fe',
     titleGlow: '0 0 25px rgba(168,85,247,0.6), 0 0 50px rgba(126,34,206,0.3)',
-    label: '🎀 COLLEZIONABILE',
+    label: 'COLLEZIONABILE',
     shake: false,
   },
 } as const;
+
+// Extra label icon for notification types that need a PNG instead of emoji in label
+const LABEL_ITEM_ICONS: Record<string, string> = {
+  collectible_found: 'ink_ribbon',
+};
 
 type NotifType = keyof typeof THEMES;
 const defaultTheme = THEMES.bag_expand;
@@ -319,7 +325,11 @@ export default function GameNotification() {
               transition={{ delay: 0.15, type: isVictory ? 'spring' : 'tween', damping: isVictory ? 8 : undefined, duration: isVictory ? undefined : 0.5 }}
               className="text-3xl sm:text-5xl mb-1"
             >
-              {notification.icon || '✨'}
+              {notification.itemId ? (
+                <ItemIcon itemId={notification.itemId} size={48} />
+              ) : (
+                notification.icon || '✨'
+              )}
             </motion.div>
 
             {/* Category label (e.g. "TROVATO" for items) */}
@@ -328,9 +338,10 @@ export default function GameNotification() {
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] mb-1"
+                className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] mb-1 flex items-center justify-center gap-1.5"
                 style={{ color: theme.titleColor, opacity: 0.7 }}
               >
+                {LABEL_ITEM_ICONS[notification.type] && <ItemIcon itemId={LABEL_ITEM_ICONS[notification.type]} size={14} />}
                 {theme.label}
               </motion.div>
             )}
@@ -406,6 +417,35 @@ export default function GameNotification() {
                     {msg}
                   </motion.div>
                 ))}
+              </motion.div>
+            )}
+
+            {/* ── Item found: multiple items list ── */}
+            {isItem && notification.items && notification.items.length > 1 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                transition={{ delay: 0.4, duration: 0.4 }}
+                className="mt-2.5 pt-2.5 border-t border-green-700/30"
+              >
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {notification.items.map((item, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.5 + i * 0.12, type: 'spring', damping: 12 }}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-green-950/40 border border-green-900/30"
+                    >
+                      {item.itemId ? (
+                        <ItemIcon itemId={item.itemId} size={16} />
+                      ) : (
+                        <span className="text-sm">{item.icon || '✨'}</span>
+                      )}
+                      <span className="text-[11px] sm:text-xs text-green-300/80 font-mono">{item.name}</span>
+                    </motion.div>
+                  ))}
+                </div>
               </motion.div>
             )}
 

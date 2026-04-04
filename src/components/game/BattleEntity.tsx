@@ -28,9 +28,9 @@ export default function BattleEntity({
   statusEffects = [],
 }: BattleEntityProps) {
   const sizeClasses = {
-    sm: 'w-14 h-[70px] sm:w-16 sm:h-[80px]',
-    md: 'w-16 h-[82px] sm:w-[76px] sm:h-[95px] lg:w-[90px] lg:h-[112px]',
-    lg: 'w-20 h-[100px] sm:w-[92px] sm:h-[115px] lg:w-[106px] lg:h-[132px]',
+    sm: 'w-16 h-16 sm:w-20 sm:h-20',
+    md: 'w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28',
+    lg: 'w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32',
   };
 
   const isDead = state === 'dead';

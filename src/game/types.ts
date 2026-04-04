@@ -130,7 +130,7 @@ export interface ItemDefinition {
 }
 
 export interface ItemEffect {
-  type: 'heal' | 'cure' | 'damage_boost' | 'defense_boost' | 'add_ammo' | 'add_slots' | 'kill_all';
+  type: 'heal' | 'heal_full' | 'cure' | 'damage_boost' | 'defense_boost' | 'add_ammo' | 'add_slots' | 'kill_all';
   value: number;
   target: 'self' | 'one_ally' | 'all_allies' | 'all_enemies';
   statusCured?: StatusEffect[];
@@ -308,11 +308,14 @@ export interface GameNotification {
   type: 'encounter' | 'item_found' | 'bag_expand' | 'victory' | 'defeat' | 'collectible_found';
   message: string;
   icon?: string;
+  itemId?: string;
   subMessage?: string;
   characterId?: string;
   // Victory-specific
   lootNames?: string[];
   levelUps?: string[];
+  // Multiple items found in a single search
+  items?: { name: string; itemId: string; icon?: string }[];
 }
 
 export interface GameState {

@@ -1,4 +1,4 @@
-import { SpecialAbilityDefinition } from '../types';
+import { SpecialAbilityDefinition, SpecialCategory } from '../types';
 
 // ==========================================
 // SPECIAL ABILITIES POOL
@@ -249,6 +249,14 @@ export const ARCHETYPE_SPECIAL_MAP: Record<string, { special1: string; special2:
   healer: { special1: 'pronto_soccorso', special2: 'cura_gruppo' },
   dps: { special1: 'colpo_mortale', special2: 'raffica' },
   control: { special1: 'gas_venefico', special2: 'cristalli_sonici' },
+};
+
+// Maps each preset archetype to the special ability category it draws from
+export const ARCHETYPE_CATEGORY_MAP: Record<string, SpecialCategory> = {
+  tank: 'defensive',
+  healer: 'support',
+  dps: 'offensive',
+  control: 'control',
 };
 
 // Generate a passive description based on the highest custom stat

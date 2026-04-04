@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { LOCATIONS } from '@/game/data/locations';
+import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
 import { CompactHpPanel } from './HpBar';
 import { CHARACTER_IMAGES } from '@/game/data/enemies';
@@ -122,7 +123,7 @@ export default function ExplorationScreen() {
                   {/* Top row: Portrait + Name/Role */}
                   <div className="flex items-center gap-2 mb-1.5">
                     {/* Portrait — small, fixed size */}
-                    <div className={`w-10 h-12 sm:w-12 sm:h-14 rounded-md overflow-hidden border shrink-0 relative ${char.currentHp <= 0 ? 'grayscale opacity-40' : 'border-gray-600/40'}`}>
+                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden border shrink-0 relative ${char.currentHp <= 0 ? 'grayscale opacity-40' : 'border-gray-600/40'}`}>
                       {char.avatarUrl || CHARACTER_IMAGES[char.archetype] ? (
                         <img src={char.avatarUrl || CHARACTER_IMAGES[char.archetype]} alt={char.name} className="w-full h-full object-cover object-[center_15%]" />
                       ) : (
@@ -223,7 +224,7 @@ export default function ExplorationScreen() {
                 {messageLog.map((msg, i) => (
                   <p
                     key={i}
-                    className={`text-xs sm:text-sm leading-relaxed ${
+                    className={`text-sm sm:text-base leading-relaxed ${
                       msg.includes('⚔️') || msg.includes('💀') ? 'text-red-400' :
                       msg.includes('🎒') ? 'text-amber-400' :
                       msg.includes('❤️') || msg.includes('🎉') ? 'text-green-400' :
@@ -235,11 +236,11 @@ export default function ExplorationScreen() {
                       'text-gray-400'
                     }`}
                   >
-                    {msg}
+                    <LogText text={msg} party={party.map(p => ({ name: p.name, avatarSrc: p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '' }))} />
                   </p>
                 ))}
                 {messageLog.length === 0 && !activeEvent && (
-                  <p className="text-gray-600 italic text-sm">L&apos;avventura ha inizio...</p>
+                  <p className="text-gray-600 italic text-base">L&apos;avventura ha inizio...</p>
                 )}
 
                 {/* ── Evento con scelta — integrato nel Registro Eventi ── */}
@@ -257,8 +258,8 @@ export default function ExplorationScreen() {
                         <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
                         <span className="text-xs font-semibold uppercase tracking-wider text-red-300">Evento</span>
                       </div>
-                      <h4 className="text-sm sm:text-base font-bold text-white leading-snug">{activeEvent.title}</h4>
-                      <p className="text-xs sm:text-sm text-white/70 leading-relaxed">{activeEvent.description}</p>
+                      <h4 className="text-base sm:text-lg font-bold text-white leading-snug">{activeEvent.title}</h4>
+                      <p className="text-sm sm:text-base text-white/70 leading-relaxed">{activeEvent.description}</p>
                       <div className="space-y-1.5 pt-1">
                         {activeEvent.choices.map((choice, i) => (
                           <motion.button
@@ -271,7 +272,7 @@ export default function ExplorationScreen() {
                             onClick={() => handleEventChoice(i)}
                             className="w-full text-left p-2 sm:p-2.5 rounded-lg border border-white/[0.08] hover:border-white/20
                               bg-white/[0.03] hover:bg-white/[0.08] text-white/70 hover:text-white
-                              transition-all duration-200 text-xs sm:text-sm flex items-center gap-2"
+                              transition-all duration-200 text-sm sm:text-base flex items-center gap-2"
                           >
                             <ChevronRight className="w-3.5 h-3.5 text-red-400/60 shrink-0" />
                             {choice.text}

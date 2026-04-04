@@ -62,9 +62,9 @@ export const CHARACTER_ARCHETYPES: CharacterArchetype[] = [
         weaponStats: { itemId: 'scalpel', name: 'Bisturi', atkBonus: 4, type: 'melee' },
       },
       {
-        uid: genUid(), itemId: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Un kit medico completo. Ripristina 50 HP a un bersaglio.',
-        type: 'healing', rarity: 'uncommon', icon: '🎒', usable: true, equippable: false, quantity: 2,
-        effect: { type: 'heal', value: 50, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
+        uid: genUid(), itemId: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Un kit medico completo. Ripristina tutti gli HP e cura veleno/sanguinamento a un alleato.',
+        type: 'healing', rarity: 'uncommon', icon: '✚️', usable: true, equippable: false, quantity: 2,
+        effect: { type: 'heal_full', value: 0, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
       },
       {
         uid: genUid(), itemId: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP.',
@@ -143,32 +143,45 @@ export const CHARACTER_ARCHETYPES: CharacterArchetype[] = [
   },
 ];
 
-export function getCharacterStats(archetype: CharacterArchetype, level: number) {
-  const hpGrowth = { tank: 12, healer: 8, dps: 9, control: 9 };
-  const atkGrowth = { tank: 2, healer: 1, dps: 3, control: 2 };
-  const defGrowth = { tank: 2, healer: 1, dps: 1, control: 1 };
-  const spdGrowth = { tank: 0, healer: 1, dps: 1, control: 2 };
+// Unified stat point system: all characters (preset + custom) use point allocation
+// HP = statPoints × 10, ATK/DEF/SPD = statPoints directly, total budget = 50
+export const ARCHETYPE_STAT_POINTS: Record<string, { hp: number; atk: number; def: number; spd: number }> = {
+  tank:    { hp: 16, atk: 8, def: 18, spd: 8 },   // HP=160, ATK=8,  DEF=18, SPD=8  (sum=50)
+  healer:  { hp: 14, atk: 8, def: 12, spd: 16 },   // HP=140, ATK=8,  DEF=12, SPD=16 (sum=50)
+  dps:     { hp: 12, atk: 18, def: 8, spd: 12 },   // HP=120, ATK=18, DEF=8,  SPD=12 (sum=50)
+  control: { hp: 12, atk: 12, def: 12, spd: 14 },   // HP=120, ATK=12, DEF=12, SPD=14 (sum=50)
+  custom:  { hp: 10, atk: 12, def: 10, spd: 8 },    // fallback defaults (sum=40)
+};
 
+// Compute proportional growth rates from stat point distribution
+export function computeGrowthRates(stats: { hp: number; atk: number; def: number; spd: number }): { hp: number; atk: number; def: number; spd: number } {
+  const total = stats.hp + stats.atk + stats.def + stats.spd;
+  const budget = 12;
   return {
-    maxHp: archetype.maxHp + hpGrowth[archetype.id as 'tank' | 'healer' | 'dps' | 'control'] * (level - 1),
-    atk: archetype.atk + atkGrowth[archetype.id as 'tank' | 'healer' | 'dps' | 'control'] * (level - 1),
-    def: archetype.def + defGrowth[archetype.id as 'tank' | 'healer' | 'dps' | 'control'] * (level - 1),
-    spd: archetype.spd + spdGrowth[archetype.id as 'tank' | 'healer' | 'dps' | 'control'] * (level - 1),
+    hp: Math.max(4, Math.round((stats.hp / total) * budget)),
+    atk: Math.max(1, Math.round((stats.atk / total) * budget)),
+    def: Math.max(1, Math.round((stats.def / total) * budget)),
+    spd: Math.max(0, Math.round((stats.spd / total) * budget)),
   };
 }
 
-// Get growth rates for a given archetype (including 'custom')
-export function getGrowthRates(archetype: Archetype, customGrowth?: { hp: number; atk: number; def: number; spd: number }) {
-  if (archetype === 'custom' && customGrowth) {
-    return customGrowth;
-  }
-  const growthMap: Record<string, { hp: number; atk: number; def: number; spd: number }> = {
-    tank: { hp: 12, atk: 2, def: 2, spd: 0 },
-    healer: { hp: 8, atk: 1, def: 1, spd: 1 },
-    dps: { hp: 9, atk: 3, def: 1, spd: 1 },
-    control: { hp: 9, atk: 2, def: 1, spd: 2 },
+export function getCharacterStats(archetype: CharacterArchetype, level: number) {
+  const points = ARCHETYPE_STAT_POINTS[archetype.id] || ARCHETYPE_STAT_POINTS.custom;
+  const growth = computeGrowthRates(points);
+  return {
+    maxHp: points.hp * 10 + growth.hp * (level - 1),
+    atk: points.atk + growth.atk * (level - 1),
+    def: points.def + growth.def * (level - 1),
+    spd: points.spd + growth.spd * (level - 1),
   };
-  return growthMap[archetype] || { hp: 10, atk: 2, def: 1, spd: 1 };
+}
+
+// Get growth rates for a given archetype (unified proportional system)
+export function getGrowthRates(archetype: Archetype, customGrowth?: { hp: number; atk: number; def: number; spd: number }) {
+  if (customGrowth) return customGrowth;
+  const points = ARCHETYPE_STAT_POINTS[archetype];
+  if (points) return computeGrowthRates(points);
+  return { hp: 10, atk: 2, def: 1, spd: 1 };
 }
 
 // Get passive description for custom characters based on their stat distribution
@@ -182,8 +195,14 @@ export function getCustomPassiveDescription(stats: { hp: number; atk: number; de
   return 'Riflessi Felini: La sua velocità naturale gli conferisce +10% probabilità di schivare.';
 }
 
-// Default starting items for custom characters
-export function getCustomStartingItems() {
+// Starting items: inherit from base archetype if available, otherwise generic kit
+export function getCustomStartingItems(baseArchetype?: Archetype) {
+  if (baseArchetype && baseArchetype !== 'custom') {
+    const archetype = CHARACTER_ARCHETYPES.find(a => a.id === baseArchetype);
+    if (archetype) {
+      return archetype.startingItems.map(item => ({ ...item, uid: genUid() }));
+    }
+  }
   return [
     {
       uid: genUid(), itemId: 'pipe', name: 'Tubo di Piombo', description: 'Un pesante tubo di piombo, affidabile come mazza.',

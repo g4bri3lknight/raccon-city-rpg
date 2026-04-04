@@ -1069,6 +1069,47 @@ export function executeUseItem(
         curedStatuses: actuallyCured,
       };
     }
+    case 'heal_full': {
+      const statusCured = effect.statusCured || [];
+      const actuallyCured = target.statusEffects.filter(s => statusCured.includes(s));
+      curedStatuses.push(...actuallyCured);
+      const newStatus = target.statusEffects.filter(s => !statusCured.includes(s));
+
+      if (effect.target === 'all_allies') {
+        const updatedParty = party.map(p => {
+          if (p.currentHp > 0) {
+            const partyCured = p.statusEffects.filter(s => statusCured.includes(s));
+            const partyNewStatus = p.statusEffects.filter(s => !statusCured.includes(s));
+            return { ...p, currentHp: p.maxHp, statusEffects: partyNewStatus as typeof p.statusEffects };
+          }
+          return p;
+        });
+        let message = `${character.name} usa ${item.name}. HP di tutti gli alleati completamente ripristinati!`;
+        if (statusCured.length > 0) {
+          const names = statusCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s);
+          message += ` Effetti rimossi: ${names.join(', ')}.`;
+        }
+        return {
+          log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', message, heal: 0 },
+          updatedParty: updatedParty,
+          consumeItem: true,
+          curedStatuses: actuallyCured,
+        };
+      }
+
+      const healAmount = target.maxHp - target.currentHp;
+      let message = `${character.name} usa ${item.name} su ${target.name}. HP completamente ripristinati (+${healAmount})!`;
+      if (actuallyCured.length > 0) {
+        const names = actuallyCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s);
+        message += ` ✨ ${names.join(', ')} curato/i!`;
+      }
+      return {
+        log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', targetName: target.name, targetId: target.id, heal: healAmount, message },
+        updatedCharacter: { ...target, currentHp: target.maxHp, statusEffects: newStatus as typeof target.statusEffects },
+        consumeItem: true,
+        curedStatuses: actuallyCured,
+      };
+    }
     case 'cure': {
       const cured = effect.statusCured || [];
       const cureTarget = target;
@@ -1231,22 +1272,19 @@ export function addExp(character: Character, amount: number): { updated: Charact
     leveledUp = true;
   }
 
-  // Use custom growth if available, otherwise use archetype-based growth
+  // Use statGrowth if available (unified for all characters), otherwise proportional fallback
   let hpIncrease: number;
   let atkIncrease: number;
   let defIncrease: number;
   let spdIncrease: number;
 
-  if (character.archetype === 'custom' && character.statGrowth) {
+  if (character.statGrowth) {
     hpIncrease = character.statGrowth.hp;
     atkIncrease = character.statGrowth.atk;
     defIncrease = character.statGrowth.def;
     spdIncrease = character.statGrowth.spd;
   } else {
-    hpIncrease = { tank: 12, healer: 8, dps: 9, control: 9 }[character.archetype] || 10;
-    atkIncrease = { tank: 2, healer: 1, dps: 3, control: 2 }[character.archetype] || 2;
-    defIncrease = { tank: 2, healer: 1, dps: 1, control: 1 }[character.archetype] || 1;
-    spdIncrease = { tank: 0, healer: 1, dps: 1, control: 2 }[character.archetype] || 1;
+    hpIncrease = 10; atkIncrease = 2; defIncrease = 1; spdIncrease = 1;
   }
 
   return {
