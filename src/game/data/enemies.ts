@@ -1,4 +1,4 @@
-import { EnemyDefinition } from './types';
+import { EnemyDefinition, BossPhase } from './types';
 
 export const ENEMY_IMAGES: Record<string, string> = {
   zombie: '/images/enemies/zombie.png',
@@ -319,4 +319,117 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { name: 'Devastazione', description: 'Distrugge tutto ciò che lo circonda.', power: 3.0, chance: 10 },
     ],
   },
+  // #24 - BOSS SEGRETO: B.O.W. Proto Tyrant (sperimentale, found in secret lab)
+  proto_tyrant: {
+    id: 'proto_tyrant',
+    name: 'B.O.W. Proto-Tyrant',
+    description: 'Un esemplare sperimentale di Tyrant mai completato. Il corpo è deforme e coperto di tubi. Trovato nel laboratorio segreto della Umbrella.',
+    variantGroup: 'tyrant',
+    maxHp: 450,
+    atk: 38,
+    def: 12,
+    spd: 8,
+    icon: '🧪',
+    expReward: 250,
+    isBoss: true,
+    lootTable: [
+      { itemId: 'magnum', chance: 60, quantity: 1 },
+      { itemId: 'rocket_launcher', chance: 15, quantity: 1 },
+      { itemId: 'spray', chance: 90, quantity: 3 },
+      { itemId: 'ammo_magnum', chance: 70, quantity: 10 },
+      { itemId: 'ammo_grenade', chance: 20, quantity: 3 },
+      { itemId: 'bag_medium', chance: 25, quantity: 1 },
+    ],
+    abilities: [
+      { name: 'Sbatacio Anomalo', description: 'Un attacco con arti innaturali.', power: 1.6, chance: 30, statusEffect: { type: 'bleeding', chance: 55 } },
+      { name: 'Tentacolo Infetto', description: 'Un tentacolo coperto di bolline.', power: 2.0, chance: 25, statusEffect: { type: 'poison', chance: 50 } },
+      { name: 'Urlo Agonizzante', description: 'Un urlo che incrina il cervello.', power: 0.6, chance: 15, statusEffect: { type: 'stunned', chance: 55 } },
+      { name: 'Scarica Brutale', description: 'Una carica che spacca il pavimento.', power: 2.2, chance: 20 },
+      { name: 'Mutazione Rapida', description: 'Si rigenera e diventa più forte.', power: 1.0, chance: 10 },
+    ],
+  },
+};
+
+// ==========================================
+// #14 - BOSS MULTI-PHASE DEFINITIONS
+// ==========================================
+
+export const BOSS_PHASES: Record<string, BossPhase[]> = {
+  tyrant_boss: [
+    {
+      name: 'Terminus',
+      hpThreshold: 0.6,
+      hpMultiplier: 1.0,
+      atkMultiplier: 1.0,
+      defMultiplier: 1.0,
+      spdMultiplier: 1.0,
+      message: '⚠️ Il T-103 emette un gemito metallico e la sua pelle inizia a spaccarsi. ENRAGE FASE 1!',
+    },
+    {
+      name: 'Cortus',
+      hpThreshold: 0.3,
+      hpMultiplier: 1.2,
+      atkMultiplier: 1.3,
+      defMultiplier: 0.7,
+      spdMultiplier: 1.3,
+      newAbilities: [
+        { name: 'Impatto Sismico', description: 'Un pugno che incrina il suolo.', power: 2.2, chance: 25, statusEffect: { type: 'stunned', chance: 40 } },
+        { name: 'Rantolo Mortale', description: 'Un rantolo che paralizza.', power: 0.8, chance: 15, statusEffect: { type: 'stunned', chance: 60 } },
+      ],
+      message: '⚠️ Il Tyrant rivela i tentacoli! Le sue ferite si rigenerano. ENRAGE FASE 2 — Più veloce e letale!',
+    },
+  ],
+  nemesis_boss: [
+    {
+      name: 'Pursuer',
+      hpThreshold: 0.65,
+      hpMultiplier: 1.0,
+      atkMultiplier: 1.0,
+      defMultiplier: 1.0,
+      spdMultiplier: 1.0,
+      newAbilities: [
+        { name: 'Barrage Razzo', description: 'Spara una salva di razzi.', power: 1.8, chance: 20 },
+      ],
+      message: '💀 "S.T.A.R.S..." — NEMESIS si toglie il cappotto! Le armi sono esposte! FASE 2!',
+    },
+    {
+      name: 'Avenger',
+      hpThreshold: 0.35,
+      hpMultiplier: 1.3,
+      atkMultiplier: 1.4,
+      defMultiplier: 0.8,
+      spdMultiplier: 1.2,
+      newAbilities: [
+        { name: 'Presa Letale', description: 'Afferra e stritza.', power: 2.8, chance: 15 },
+        { name: 'S.T.A.R.S!!!', description: 'Un urlo devastante.', power: 0.6, chance: 20, statusEffect: { type: 'stunned', chance: 60 } },
+      ],
+      message: '💀 NEMESIS è furioso! I tentacoli esplodono! FASE 3 — ULTIMA FORMA!',
+    },
+  ],
+  proto_tyrant: [
+    {
+      name: 'Instabile',
+      hpThreshold: 0.55,
+      hpMultiplier: 1.0,
+      atkMultiplier: 1.0,
+      defMultiplier: 1.0,
+      spdMultiplier: 1.0,
+      newAbilities: [
+        { name: 'Rigenerazione', description: 'Si rigenera parzialmente.', power: 0.5, chance: 15 },
+      ],
+      message: '🧪 Il Proto-Tyrant si contorce! La mutazione si accelera! FASE 1!',
+    },
+    {
+      name: 'Completo',
+      hpThreshold: 0.25,
+      hpMultiplier: 1.5,
+      atkMultiplier: 1.5,
+      defMultiplier: 0.5,
+      spdMultiplier: 1.4,
+      newAbilities: [
+        { name: 'Attacco Self-Destruct', description: 'Si autodistrugge causando danni enormi.', power: 3.0, chance: 10 },
+      ],
+      message: '🧪 Il Proto-Tyrant raggiunge la forma finale! È ora o mai! FASE 2 — MAX POTENZA!',
+    },
+  ],
 };

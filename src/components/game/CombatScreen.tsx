@@ -30,6 +30,13 @@ export default function CombatScreen() {
   const [targetingMode, setTargetingMode] = useState<'enemy' | 'ally' | null>(null);
   const [pendingAction, setPendingAction] = useState<CombatAction | null>(null);
   const [showItemSelect, setShowItemSelect] = useState(false);
+  const [screenShake, setScreenShake] = useState<string | null>(null);
+  const [killFlash, setKillFlash] = useState(false);
+  // ── #41 Animation state ──
+  const [hitTargetId, setHitTargetId] = useState<string | null>(null);
+  const [hitIsCritical, setHitIsCritical] = useState(false);
+  const [deathTargetId, setDeathTargetId] = useState<string | null>(null);
+  const [bossPhaseId, setBossPhaseId] = useState<string | null>(null);
 
   const { percent: desktopPercent, containerRef: desktopContainerRef, handleMouseDown: desktopMouseDown, handleTouchStart: desktopTouchStart } = useResizableSplit({ initialPercent: 80, minPercent: 55, maxPercent: 88, direction: 'horizontal' });
   const { percent: mobilePercent, containerRef: mobileContainerRef, handleMouseDown: mobileMouseDown, handleTouchStart: mobileTouchStart } = useResizableSplit({ initialPercent: 65, minPercent: 40, maxPercent: 80, direction: 'vertical' });
@@ -54,24 +61,43 @@ export default function CombatScreen() {
     alivePartyRef.current = party;
   });
 
-  // ── Enemy death detection: play death sound when an enemy's HP drops to 0 ──
+  // ── Enemy death detection: play death sound + trigger screen shake & kill flash + #41 death anim ──
   const prevEnemyHpRef = useRef<Record<string, number>>({});
   useEffect(() => {
     if (!combat) return;
     const newDeaths: string[] = [];
+    const deathIds: string[] = [];
     for (const enemy of enemies) {
       const prevHp = prevEnemyHpRef.current[enemy.id] ?? enemy.currentHp;
       if (prevHp > 0 && enemy.currentHp <= 0) {
         newDeaths.push(enemy.name);
+        deathIds.push(enemy.id);
       }
     }
     // Update HP ref
     const hpMap: Record<string, number> = {};
     for (const enemy of enemies) hpMap[enemy.id] = enemy.currentHp;
     prevEnemyHpRef.current = hpMap;
-    // Play death sound for each newly dead enemy (skip on victory to avoid overlap)
+    // Play death sound + screen shake + kill flash for each newly dead enemy
     if (newDeaths.length > 0 && !combat.isVictory) {
       try { playEnemyDeath(); } catch {}
+      // Heavy screen shake on enemy death
+      queueMicrotask(() => {
+        setScreenShake('heavy');
+        setTimeout(() => setScreenShake(null), 800);
+      });
+      // Kill flash
+      queueMicrotask(() => {
+        setKillFlash(true);
+        setTimeout(() => setKillFlash(false), 800);
+      });
+      // #41: Trigger death animation on each dead enemy
+      queueMicrotask(() => {
+        for (const did of deathIds) {
+          setDeathTargetId(did);
+          setTimeout(() => setDeathTargetId(null), 800);
+        }
+      });
     }
   }, [enemies, combat?.isVictory]);
 
@@ -102,13 +128,45 @@ export default function CombatScreen() {
     for (const entry of lastEntries) {
       // Use targetId for precise matching; fall back to name for defend/legacy
       if (entry.targetId && entry.targetId === id) {
-        if (entry.damage && entry.damage > 0) return { type: 'damage' as const, value: entry.damage };
-        if (entry.heal) return { type: 'heal' as const, value: entry.heal };
+        if (entry.isMiss) return { type: 'miss' as const, isMiss: true, isCritical: false };
+        if (entry.damage && entry.damage > 0) return { type: 'damage' as const, value: entry.damage, isCritical: !!entry.isCritical, isMiss: false };
+        if (entry.heal) return { type: 'heal' as const, value: entry.heal, isCritical: false, isMiss: false };
       }
-      if (entry.action === 'Difesa' && entry.actorName === name) return { type: 'defend' as const };
+      if (entry.action === 'Difesa' && entry.actorName === name) return { type: 'defend' as const, isCritical: false, isMiss: false };
     }
     return null;
   };
+
+  // ── Screen shake + #41 hit animations on critical/damage hits (detected from log) ──
+  const prevLogLenForShakeRef = useRef(0);
+  useEffect(() => {
+    if (!combat?.log) return;
+    const prevLen = prevLogLenForShakeRef.current;
+    const newEntries = combat.log.slice(prevLen);
+    prevLogLenForShakeRef.current = combat.log.length;
+    if (newEntries.length === 0) return;
+    const lastEntry = newEntries[newEntries.length - 1];
+    if (lastEntry.isCritical && lastEntry.damage && lastEntry.damage > 0) {
+      queueMicrotask(() => {
+        setScreenShake('normal');
+        setTimeout(() => setScreenShake(null), 500);
+      });
+    }
+    // ── #41: Trigger hit animation on target ──
+    if (lastEntry.targetId && lastEntry.damage && lastEntry.damage > 0) {
+      setHitTargetId(lastEntry.targetId);
+      setHitIsCritical(!!lastEntry.isCritical);
+      setTimeout(() => { setHitTargetId(null); setHitIsCritical(false); }, 400);
+    }
+    // ── #41: Trigger boss phase animation ──
+    if (lastEntry.action === 'Cambio Fase') {
+      const bossEnemy = enemies.find(e => e.isBoss && e.currentHp > 0);
+      if (bossEnemy) {
+        setBossPhaseId(bossEnemy.id);
+        setTimeout(() => setBossPhaseId(null), 2000);
+      }
+    }
+  }, [combat?.log?.length, enemies]);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -442,8 +500,14 @@ export default function CombatScreen() {
     </div>
   );
 
+  const arenaShakeClass = screenShake === 'heavy'
+    ? 'animate-screen-shake-heavy'
+    : screenShake === 'normal'
+      ? 'animate-screen-shake-improved'
+      : '';
+
   const renderArenaEntities = () => (
-    <div ref={arenaRef} className="relative z-10 flex-1 min-h-0 overflow-hidden px-2 sm:px-4 pb-1.5">
+    <div ref={arenaRef} className={`relative z-10 flex-1 min-h-0 overflow-hidden px-2 sm:px-4 pb-1.5 ${arenaShakeClass}`}>
       <div className="relative mx-2 sm:mx-auto max-w-2xl lg:max-w-none h-full flex flex-col overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, rgba(20,10,10,0.35) 0%, rgba(30,15,15,0.5) 100%)',
@@ -456,11 +520,18 @@ export default function CombatScreen() {
           {enemies.map((enemy, idx) => {
             const anim = getAnimForTarget(enemy.id, enemy.name);
             const isHurt = anim?.type === 'damage';
+            const isMissAnim = anim?.type === 'miss';
+            const isCrit = !!anim?.isCritical;
             const isDead = enemy.currentHp <= 0;
             const isActive = enemy.id === combat.currentActorId && !isPlayerTurn;
             const isTargetable = targetingMode === 'enemy' && !isDead;
             const pct = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
-            const animClass = isHurt ? 'entity-shake' : !isDead ? 'entity-enemy-idle' : 'entity-dead';
+            const animClass = isMissAnim ? 'animate-dodge' : isHurt ? (isCrit ? 'animate-critical-impact' : 'entity-shake') : !isDead ? 'entity-enemy-idle' : 'entity-dead';
+            // ── #41 animation classes ──
+            const hitAnimClass = hitTargetId === enemy.id ? (hitIsCritical ? 'animate-flash-red' : 'animate-shake') : '';
+            const deathAnimClass = deathTargetId === enemy.id ? 'animate-enemy-death' : '';
+            const bossPhaseClass = bossPhaseId === enemy.id ? 'animate-boss-phase' : '';
+            const bossGlowClass = enemy.isBoss && !isDead ? 'animate-pulse-glow' : '';
             const borderColor = isTargetable
               ? 'border-red-400 shadow-[0_0_18px_rgba(239,68,68,0.6)] ring-1 ring-red-400/40'
               : isHurt
@@ -471,7 +542,7 @@ export default function CombatScreen() {
               <div
                 key={enemy.id}
                 onClick={() => handleArenaEnemyClick(enemy.id)}
-                className={`relative flex flex-col items-center gap-0.5 ${animClass} ${isDead ? 'grayscale opacity-30' : ''} transition-all duration-150 ${isTargetable ? 'cursor-crosshair scale-105 hover:scale-110 hover:shadow-[0_0_24px_rgba(239,68,68,0.7)]' : ''}`}
+                className={`relative flex flex-col items-center gap-0.5 ${animClass} ${hitAnimClass} ${deathAnimClass} ${bossPhaseClass} ${isDead ? 'grayscale opacity-30' : ''} transition-all duration-150 ${isTargetable ? 'cursor-crosshair scale-105 hover:scale-110 hover:shadow-[0_0_24px_rgba(239,68,68,0.7)]' : ''}`}
               >
                 {/* Active turn indicator */}
                 {isActive && (
@@ -479,14 +550,16 @@ export default function CombatScreen() {
                     <Swords className="w-3 h-3" /> Attacca
                   </span>
                 )}
-                {isHurt && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
+                {isHurt && !isCrit && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
+                {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-white/30 damage-flash pointer-events-none" />}
+                {isMissAnim && <div className="absolute -inset-1 rounded-lg bg-yellow-500/15 pointer-events-none animate-dodge" />}
                 {/* Keyboard shortcut badge */}
                 {isTargetable && (
                   <span className="absolute -top-2 -left-1 z-30 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow animate-pulse">
                     {idx + 1}
                   </span>
                 )}
-                <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
+                <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor} ${bossGlowClass}`}>
                   <img src={ENEMY_IMAGES[enemy.definitionId] || ''} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
                 </div>
                 <span className={`text-[9px] sm:text-[10px] font-bold ${isDead ? 'text-gray-700' : enemy.isBoss ? 'text-red-300' : 'text-gray-300'}`}>
@@ -501,6 +574,16 @@ export default function CombatScreen() {
                   }} />
                 </div>
                 {enemy.isBoss && !isDead && <span className="absolute -top-1.5 -right-0.5 text-[6px] bg-red-700 text-white px-1 rounded font-bold">BOSS</span>}
+                {/* ── #41 Critical slash overlay ── */}
+                {hitIsCritical && hitTargetId === enemy.id && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+                    <div className="animate-critical-slash text-red-400 text-3xl font-black" style={{ textShadow: '0 0 10px rgba(239,68,68,0.8)' }}>✕</div>
+                  </div>
+                )}
+                {/* ── #41 Flash overlay on critical ── */}
+                {hitIsCritical && hitTargetId === enemy.id && (
+                  <div className="absolute inset-0 rounded-lg animate-flash-white pointer-events-none z-30" />
+                )}
                 {isHurt && anim.value && (
                   <div className="absolute -top-2 right-0 z-30">
                     <div className="damage-number"><span className="text-xs font-black text-red-400">-{anim.value}</span></div>
@@ -530,13 +613,15 @@ export default function CombatScreen() {
             const isActive = char.id === combat.currentActorId && isPlayerTurn;
             const anim = getAnimForTarget(char.id, char.name);
             const isHurt = anim?.type === 'damage';
+            const isMissAnim = anim?.type === 'miss';
+            const isCrit = !!anim?.isCritical;
             const isHealing = anim?.type === 'heal';
             const isDead = char.currentHp <= 0;
             const isTargetable = targetingMode === 'ally' && !isDead;
             const pct = char.maxHp > 0 ? (char.currentHp / char.maxHp) * 100 : 0;
             const isPoisoned = char.statusEffects?.includes('poison') || false;
             const isBleeding = char.statusEffects?.includes('bleeding') || false;
-            const animClass = isHurt ? 'entity-shake' : !isDead ? 'entity-player-idle' : 'entity-dead';
+            const animClass = isMissAnim ? 'animate-dodge' : isHurt ? (isCrit ? 'animate-critical-impact' : 'entity-shake') : !isDead ? 'entity-player-idle' : 'entity-dead';
             const borderColor = isTargetable
               ? 'border-green-400 shadow-[0_0_18px_rgba(74,222,128,0.5)] ring-1 ring-green-400/40'
               : isHurt
@@ -565,7 +650,9 @@ export default function CombatScreen() {
                     </span>
                   </>
                 )}
-                {isHurt && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
+                {isHurt && !isCrit && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
+                {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-white/30 damage-flash pointer-events-none" />}
+                {isMissAnim && <div className="absolute -inset-1 rounded-lg bg-yellow-500/15 pointer-events-none animate-dodge" />}
                 {isHealing && <div className="absolute -inset-1 rounded-lg bg-green-500/20 heal-effect pointer-events-none" />}
                 {/* Keyboard shortcut badge for ally targeting */}
                 {isTargetable && (
@@ -966,7 +1053,7 @@ export default function CombatScreen() {
   );
 
   return (
-    <div className="h-screen game-horror flex flex-col overflow-hidden relative">
+    <div className={`h-screen game-horror flex flex-col overflow-hidden relative ${killFlash ? 'animate-kill-flash' : ''}`}>
 
       {/* ── Combat end overlay: dim arena during victory/defeat ── */}
       {isCombatEnd && (

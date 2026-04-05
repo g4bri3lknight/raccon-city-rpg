@@ -30,6 +30,7 @@ import {
 } from './types';
 import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems, ARCHETYPE_STAT_POINTS, computeGrowthRates } from './data/characters';
 import { ENEMIES } from './data/enemies';
+import { BOSS_PHASES } from './data/enemies';
 import { ITEMS } from './data/items';
 import { LOCATIONS } from './data/locations';
 import {
@@ -47,6 +48,23 @@ import {
 import { WeaponInstance } from './types';
 import { ACHIEVEMENTS } from './data/achievements';
 import { DOCUMENTS } from './data/documents';
+import {
+  playLocationAmbient,
+  playTravel,
+  playSearch,
+  playLevelUp,
+  playEncounter,
+  playVictory,
+  playDefeat,
+  playDocumentFound,
+  playNPCEncounter,
+  playPuzzleFail,
+  playPuzzleSuccess,
+  playAchievement,
+  playItemPickup,
+  playMenuOpen,
+  playMenuClose,
+} from './engine/sounds';
 import { NPCS } from './data/npcs';
 import { DYNAMIC_EVENTS } from './data/dynamic-events';
 import { SECRET_ROOMS } from './data/secrets';
@@ -259,6 +277,9 @@ function createEnemyInstance(enemyId: string, statMult: number = 1): EnemyInstan
     isDefending: false,
     abilities: [...def.abilities],
     isBoss: def.isBoss,
+    currentPhase: 0,
+    phaseNames: def.isBoss && BOSS_PHASES[def.id] ? BOSS_PHASES[def.id].map(p => p.name) : [],
+    isPhaseTransitioning: false,
   };
 }
 
@@ -637,6 +658,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       discoveredSecretRooms: [],
       endingType: null,
       exploredSubAreas: {},
+      bossPhases: {},
+      nemesisPursuitLevel: 0,
+      nemesisLastSeenLocation: null,
+      nemesisLastSeenTurn: 0,
     });
   },
 
@@ -646,7 +671,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   explore: () => {
     const state = get();
     const location = LOCATIONS[state.currentLocationId];
-    
+
+    // Play location ambient sound (#33)
+    try { playLocationAmbient(state.currentLocationId); } catch {}
+
     // Random ambient text
     const ambient = location.ambientText[Math.floor(Math.random() * location.ambientText.length)];
     const newLog = [...state.messageLog, `[${state.turnCount}] ${ambient}`];
@@ -659,6 +687,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (Math.random() * 100 < location.encounterRate) {
+      // Play encounter sound (#36)
+      try { playEncounter(); } catch {}
+
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Spawn enemies scaled by party size
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
@@ -670,13 +701,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       const enemyNames = enemies.map(e => e.name).join(', ');
 
+      // ── SECRET BOSS CHECK (proto_tyrant) ──
+      // After defeating tyrant_boss AND being in laboratory_entrance, 15% chance to encounter proto_tyrant
+      const defeatedTyrant = state.bestiary.some(b => b.enemyId === 'tyrant_boss' && b.defeated);
+      if (defeatedTyrant && state.currentLocationId === 'laboratory_entrance' && Math.random() < 0.15) {
+        const protoBoss = createEnemyInstance('proto_tyrant', diff.statMult);
+        enemies.length = 0;
+        enemies.push(protoBoss);
+      }
+
+      const secretEnemyNames = enemies.map(e => e.name).join(', ');
+
       // Show encounter notification first, then transition to combat
       set({
-        messageLog: [...newLog, `[${state.turnCount}] ⚔️ Combattimento iniziato contro ${enemyNames}!`],
+        messageLog: [...newLog, `[${state.turnCount}] ⚔️ Combattimento iniziato contro ${secretEnemyNames}!`],
         notification: {
           id: `notif_${++notifId}`,
           type: 'encounter',
-          message: `Incontro: ${enemyNames}`,
+          message: `Incontro: ${secretEnemyNames}`,
           icon: '⚔️',
           subMessage: 'Preparati al combattimento!',
         },
@@ -718,7 +760,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             selectedTarget: null,
             selectedItemUid: null,
             isProcessing: false,
-            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Combattimento', message: `Incontro con ${enemyNames}!` }],
+            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Combattimento', message: `Incontro con ${secretEnemyNames}!` }],
             isVictory: false,
             isDefeat: false,
             fled: false,
@@ -739,23 +781,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    // ── NEMESIS INVASION CHECK ──
-    // 8% chance per explore, only after turn 15, only if Nemesis not already encountered in bestiary
-    const nemesisAlreadyFound = state.bestiary.some(b => b.enemyId === 'nemesis_boss' && b.encountered);
-    if (!nemesisAlreadyFound && state.turnCount >= 15 && Math.random() < 0.08) {
+    // ── NEMESIS INVASION CHECK (Persistent Pursuit) ──
+    // Nemesis pursues the player persistently (pursuit level 0-5)
+    // Level 5 = permanently defeated. Each escape increases pursuit level.
+    const nemesisPursuitLevel = state.nemesisPursuitLevel;
+    const nemesisPermanentlyDefeated = nemesisPursuitLevel >= 5;
+    const turnsSinceLastSeen = state.nemesisLastSeenTurn > 0 ? state.turnCount - state.nemesisLastSeenTurn : 999;
+    const canNemesisAppear = state.turnCount >= 15 && !nemesisPermanentlyDefeated && turnsSinceLastSeen >= 10;
+
+    // Invasion chance scales with pursuit level (8% base + 3% per level)
+    if (canNemesisAppear && Math.random() < (0.08 + nemesisPursuitLevel * 0.03)) {
+      // Play encounter sound for Nemesis invasion (#36)
+      try { playEncounter(); } catch {}
+
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
-      const nemesis = createEnemyInstance('nemesis_boss', diff.statMult * 0.8);
+      // Stronger Nemesis based on pursuit level
+      const nemesisStatMult = diff.statMult * (0.8 + 0.1 * nemesisPursuitLevel);
+      const nemesis = createEnemyInstance('nemesis_boss', nemesisStatMult);
+
+      const pursuitLabel = nemesisPursuitLevel === 0 ? 'Primo Incontro' :
+        nemesisPursuitLevel === 1 ? 'Inseguimento' :
+        nemesisPursuitLevel === 2 ? 'Caccia Spietata' :
+        nemesisPursuitLevel === 3 ? 'Furia' :
+        'Rabbia Estrema';
 
       set({
-        messageLog: [...newLog, `[${state.turnCount}] 💀 "S.T.A.R.S...." Un suono terrificante riecheggia... NEMESIS appare!`],
+        messageLog: [...newLog, `[${state.turnCount}] 💀 "S.T.A.R.S...." Un suono terrificante riecheggia... NEMESIS appare! [Livello Inseguimento: ${nemesisPursuitLevel + 1}/5 — ${pursuitLabel}]`],
         turnCount: state.turnCount + 1,
         notification: {
           id: `notif_${++notifId}`,
           type: 'encounter',
-          message: '💀 NEMESIS INVASIONE!',
+          message: `💀 NEMESIS INVASIONE! [Lv.${nemesisPursuitLevel + 1}]`,
           icon: '💀',
-          subMessage: 'S.T.A.R.S... preparatevi!',
+          subMessage: `S.T.A.R.S... ${pursuitLabel}!`,
         },
+        nemesisLastSeenLocation: state.currentLocationId,
+        nemesisLastSeenTurn: state.turnCount,
       });
 
       setTimeout(() => {
@@ -789,7 +850,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             selectedTarget: null,
             selectedItemUid: null,
             isProcessing: false,
-            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Invasione', message: 'NEMESIS è apparso! "S.T.A.R.S.!"' }],
+            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Invasione', message: `NEMESIS è apparso! "S.T.A.R.S.!" [Livello ${nemesisPursuitLevel + 1}/5]` }],
             isVictory: false,
             isDefeat: false,
             fled: true,
@@ -889,7 +950,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const foundEntry = availableItems[Math.floor(Math.random() * availableItems.length)];
         const itemDef = ITEMS[foundEntry.itemId];
         if (itemDef) {
-          // ── COLLECTIBLE: don't add to inventory, track separately ──
+          // ── Play item pickup sound (#36) ──
+          if (itemDef.type !== 'collectible') {
+            try { playItemPickup(); } catch {}
+          }
           if (itemDef.type === 'collectible') {
             if (state.collectedRibbons >= 10) {
               // Already found all ribbons
@@ -1098,6 +1162,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({ messageLog: newLog, turnCount: state.turnCount + 1 });
         return;
       }
+      // Play document found sound (#36)
+      try { playDocumentFound(); } catch {}
       const newDocs = [...state.collectedDocuments, doc.id];
       set({
         messageLog: [...newLog, `[${state.turnCount}] 📖 Documento trovato: "${doc.title}"`],
@@ -1122,6 +1188,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const currentLocation = LOCATIONS[state.currentLocationId];
     const destination = LOCATIONS[locationId];
     if (!destination) return;
+
+    // Play travel sound (#36) and ambient (#33)
+    try { playTravel(); } catch {}
+    try { playLocationAmbient(locationId); } catch {}
 
     // Check if destination is locked from current location
     const lockedEntry = currentLocation.lockedLocations?.find(l => l.locationId === locationId);
@@ -1192,14 +1262,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   toggleMap: () => {
+    try {
+      const isOpen = get().mapOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
     set(state => ({ mapOpen: !state.mapOpen }));
   },
 
   toggleAchievements: () => {
+    try {
+      const isOpen = get().achievementsOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
     set(state => ({ achievementsOpen: !state.achievementsOpen }));
   },
 
   toggleBestiary: () => {
+    try {
+      const isOpen = get().bestiaryOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
     set(state => ({ bestiaryOpen: !state.bestiaryOpen }));
   },
 
@@ -1208,6 +1290,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.achievements.unlockedIds.includes(id)) return;
     const ach = ACHIEVEMENTS[id];
     const name = ach?.name || id;
+    // Play achievement sound (#36)
+    try { playAchievement(); } catch {}
     set({
       achievements: {
         unlockedIds: [...state.achievements.unlockedIds, id],
@@ -1319,6 +1403,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const location = LOCATIONS[state.currentLocationId];
     const locId = state.currentLocationId;
     const searchCount = state.searchCounts[locId] || 0;
+
+    // Play search sound (#36)
+    try { playSearch(); } catch {}
 
     // Determine max searches for this location (random 1-3, set once on first search)
     const maxSearches = state.searchMaxes[locId] || (Math.floor(Math.random() * 3) + 1);
@@ -1518,6 +1605,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // Build bundled notification for multiple items found, or single item notification
+    // Play item pickup sound if any items were found (#36)
+    if (foundNotifItems.length > 0) {
+      try { playItemPickup(); } catch {}
+    }
     const finderChar = updatedParty.find(p => p.id === targetId);
     if (!lastNotif && foundNotifItems.length > 0) {
       if (foundNotifItems.length === 1) {
@@ -1555,6 +1646,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (searchDocs.length > 0 && Math.random() < 0.35) {
       const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
       const newDocs = [...state.collectedDocuments, doc.id];
+      // Play document found sound (#36)
+      try { playDocumentFound(); } catch {}
       set({
         messageLog: [...newLog, `[${state.turnCount}] 🎒 ${flavourText}`, `[${state.turnCount}] 📖 ${searcherName} trova un documento: "${doc.title}"`],
         collectedDocuments: newDocs,
@@ -1776,6 +1869,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   toggleInventory: () => {
+    // Play menu open/close sound (#36)
+    try {
+      const isOpen = get().inventoryOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
     set(state => ({ inventoryOpen: !state.inventoryOpen }));
   },
 
@@ -2429,6 +2527,51 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
+    // ── BOSS PHASE TRANSITION CHECK ──
+    for (let i = 0; i < updatedEnemies.length; i++) {
+      const enemy = updatedEnemies[i];
+      if (!enemy.isBoss || enemy.currentHp <= 0) continue;
+      const phases = BOSS_PHASES[enemy.definitionId];
+      if (!phases || enemy.currentPhase >= phases.length) continue;
+
+      const phaseDef = phases[enemy.currentPhase];
+      const hpPercent = enemy.currentHp / enemy.maxHp;
+
+      if (hpPercent <= phaseDef.hpThreshold) {
+        // Transition to next phase!
+        const newPhase = enemy.currentPhase + 1;
+        enemy.currentPhase = newPhase;
+        enemy.isPhaseTransitioning = true;
+
+        // Apply stat multipliers from this phase
+        enemy.maxHp = Math.round(enemy.maxHp * phaseDef.hpMultiplier);
+        enemy.currentHp = Math.max(enemy.currentHp, Math.round(enemy.maxHp * phaseDef.hpThreshold * 0.5));
+        enemy.atk = Math.round(enemy.atk * phaseDef.atkMultiplier);
+        enemy.def = Math.round(enemy.def * phaseDef.defMultiplier);
+        enemy.spd = Math.round(enemy.spd * phaseDef.spdMultiplier);
+
+        // Add new abilities if phase defines them
+        if (phaseDef.newAbilities) {
+          enemy.abilities = [...enemy.abilities, ...phaseDef.newAbilities];
+        }
+
+        newLog.push({
+          turn: state.combat.turn,
+          actorName: enemy.name,
+          actorType: 'enemy',
+          action: `Fase ${newPhase}: ${phaseDef.name}`,
+          message: phaseDef.message,
+        });
+
+        // Reset phase transitioning flag after visual delay (handled in UI)
+        setTimeout(() => {
+          set(state => ({
+            enemies: state.enemies.map(e => e.id === enemy.id ? { ...e, isPhaseTransitioning: false } : e),
+          }));
+        }, 2000);
+      }
+    }
+
     // Check if all enemies are dead
     if (updatedEnemies.every(e => e.currentHp <= 0)) {
       newPhase = 'exploration';
@@ -2498,6 +2641,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           const result = addExp(char, totalExp);
           updatedParty = updatedParty.map(p => p.id === result.updated.id ? result.updated : p);
           if (result.leveledUp) {
+            // Play level up sound (#36)
+            try { playLevelUp(); } catch {}
             levelUpMessages.push(`⬆️ ${result.updated.name} sale al livello ${result.updated.level}!`);
           }
         }
@@ -2538,6 +2683,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       // Update NPC kill quest progress
       let updatedNpcQuestProgress = { ...state.npcQuestProgress };
       const questLogMsgs: string[] = [];
+
+      // ── NEMESIS PERSISTENT: if Nemesis is defeated, set pursuit level to 5 ──
+      let newNemesisPursuitLevel = state.nemesisPursuitLevel;
+      if (defeatedEnemyIds.includes('nemesis_boss') && state.nemesisPursuitLevel < 5) {
+        newNemesisPursuitLevel = 5;
+        questLogMsgs.push(`[${state.turnCount}] 💀 NEMESIS è stato eliminato definitivamente! L'inseguimento è finito.`);
+      }
+
       for (const enemyId of defeatedEnemyIds) {
         for (const npc of Object.values(NPCS)) {
           if (npc.quest?.type === 'kill' && npc.quest.targetId === enemyId) {
@@ -2564,6 +2717,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       if (updatedEnemies.some(e => e.isBoss)) {
+        // Play victory sound for boss kill (#36)
+        try { playVictory(); } catch {}
+
         set({
           notification: {
             id: `notif_${++notifId}`,
@@ -2585,6 +2741,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ],
           bestiary: victoryBestiary,
           npcQuestProgress: updatedNpcQuestProgress,
+          nemesisPursuitLevel: newNemesisPursuitLevel,
         });
         setTimeout(() => {
           set({ phase: 'victory', combat: null, enemies: [], notification: null });
@@ -2592,6 +2749,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }, 3500);
         return;
       }
+
+      // Play victory sound for regular combat (#36)
+      try { playVictory(); } catch {}
 
       set({
         notification: {
@@ -2614,6 +2774,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ],
         bestiary: victoryBestiary,
         npcQuestProgress: updatedNpcQuestProgress,
+        nemesisPursuitLevel: newNemesisPursuitLevel,
       });
       setTimeout(() => {
         set({ phase: 'exploration', combat: null, enemies: [], notification: null });
@@ -2624,6 +2785,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Check if all party members are dead
     if (updatedParty.every(p => p.currentHp <= 0)) {
+      // Play defeat sound (#36)
+      try { playDefeat(); } catch {}
+
       set({
         notification: {
           id: `notif_${++notifId}`,
@@ -3130,6 +3294,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       // Check game over after enemy attack
       if (afterEnemyAttack.every(p => p.currentHp <= 0)) {
+        // Play defeat sound (#36)
+        try { playDefeat(); } catch {}
+
         set({
           phase: 'game-over',
           party: afterEnemyAttack,
@@ -3307,6 +3474,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ? state.completedEvents
         : [...state.completedEvents, state.puzzleSourceLocationId || ''];
 
+      // Play puzzle success sound (#36)
+      try { playPuzzleSuccess(); } catch {}
+
       set({
         phase: 'exploration',
         puzzleState: { ...ps, isSolved: true, feedback: newFeedback, attemptsLeft },
@@ -3320,6 +3490,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (isFailed) {
+      // Play puzzle fail sound (#36)
+      try { playPuzzleFail(); } catch {}
+
       set({
         puzzleState: { ...ps, isFailed: true, feedback: newFeedback, attemptsLeft: 0 },
         messageLog: [...state.messageLog, `[${state.turnCount}] 🧩 ${ps.failMessage}`],
@@ -3404,6 +3577,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const completedEvents = state.completedEvents.includes(state.puzzleSourceLocationId || '')
         ? state.completedEvents
         : [...state.completedEvents, state.puzzleSourceLocationId || ''];
+
+      // Play puzzle success sound for sequence puzzle (#36)
+      try { playPuzzleSuccess(); } catch {}
 
       set({
         phase: 'exploration',
@@ -3600,6 +3776,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           if (added) logMessages.push(`[${state.turnCount}] 🎒 Ottenuto: ${itemDef.name} x${itemEntry.quantity}`);
         }
       }
+
+      // Successful escape from Nemesis increases pursuit level
+      if (qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5) {
+        const newPursuitLevel = state.nemesisPursuitLevel + 1;
+        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevel}/5`);
+      }
     } else if (qs.result === 'partial') {
       logMessages.push(`[${state.turnCount}] ⚠️ ${qs.postFailureMessage} (parziale)`);
       // Deal some damage
@@ -3609,6 +3791,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
         currentHp: Math.max(1, p.currentHp - dmg),
       }));
       logMessages.push(`[${state.turnCount}] 💔-${dmg} HP a tutti!`);
+
+      // Partial escape still increases Nemesis pursuit level
+      if (qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5) {
+        const newPursuitLevel = state.nemesisPursuitLevel + 1;
+        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevel}/5`);
+        set({
+          phase: 'exploration' as const,
+          party: updatedParty,
+          qteState: null,
+          messageLog: [...state.messageLog, ...logMessages],
+          nemesisPursuitLevel: newPursuitLevel,
+          turnCount: state.turnCount + 1,
+        });
+        return;
+      }
     } else {
       logMessages.push(`[${state.turnCount}] 💀 ${qs.postFailureMessage}`);
       // Deal heavy damage
@@ -3953,6 +4150,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   encounterNpc: (npcId: string) => {
     const npc = NPCS[npcId];
     if (!npc) return;
+    // Play NPC encounter sound (#36)
+    try { playNPCEncounter(); } catch {}
     set(state => ({
       activeNpc: npc,
       npcsEncountered: [...state.npcsEncountered, npcId],
@@ -4143,6 +4342,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     const secret = SECRET_ROOMS[roomId];
     if (!secret || state.discoveredSecretRooms.includes(roomId)) return;
+    // Play item pickup sound for secret room discovery (#36)
+    try { playItemPickup(); } catch {}
     const newDiscovered = [...state.discoveredSecretRooms, roomId];
     const logMsgs = [
       `[${state.turnCount}] 🚪 Stanza segreta trovata: ${secret.name}!`,
@@ -4212,6 +4413,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   toggleDocuments: () => {
+    try {
+      const isOpen = get().documentsOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
     set(state => ({ documentsOpen: !state.documentsOpen }));
   },
 

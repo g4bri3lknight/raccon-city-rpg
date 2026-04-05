@@ -3,8 +3,9 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { ENEMIES, ENEMY_IMAGES } from '@/game/data/enemies';
+import { ENEMIES, ENEMY_IMAGES, BOSS_PHASES } from '@/game/data/enemies';
 import { ITEMS } from '@/game/data/items';
+import { LOCATIONS } from '@/game/data/locations';
 import { EnemyDefinition } from '@/game/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,8 @@ import {
   ChevronUp,
   Sparkles,
   Eye,
+  Brain,
+  MapPin,
 } from 'lucide-react';
 
 const ALL_ENEMY_IDS = Object.keys(ENEMIES);
@@ -57,6 +60,82 @@ function getRarityColor(chance: number): string {
   if (chance >= 15) return 'text-blue-400/70';
   if (chance >= 8) return 'text-purple-400/70';
   return 'text-amber-400/80';
+}
+
+const STRATEGY_TIPS: Record<string, string> = {
+  zombie: 'Colpisci alla testa con armi da fuoco per danni extra. Le erbe curano il veleno della loro morsicatura.',
+  cerberus: 'Lateralizza per evitare le cariche. Le armi esplosive sono molto efficaci.',
+  licker: 'Non sparare alla cieca — si muovono sulle pareti. Usa armi ad area o granate.',
+  hunter: 'Evita i colpi diretti. Difenditi e contrattacca dopo il Salto Mortale.',
+  tyrant: 'Spara alla testa quando carica. Le granate sono l\'unica arma efficace.',
+  nemesis: 'Spara al tentacolo per stordirlo. Usa il lanciarazzi nella fase finale.',
+};
+
+const ENEMY_STRATEGY_TIPS: Record<string, string> = {
+  zombie: 'Colpisci alla testa con armi da fuoco per danni extra. Le erbe curano il veleno della loro morsicatura.',
+  zombie_female: 'Simile allo zombie normale ma più veloce. Attenta al suo urlo che può stordire.',
+  zombie_soldier: 'Il giubbotto antiproiettile lo rende resistente. Usa il coltello o esplosivi per aggirare la difesa.',
+  zombie_doctor: 'Le sue siringhe infette hanno alta probabilità di avvelenare. Porta sempre antidoti.',
+  zombie_dog: 'Molto veloce ma poco resistente. Le armi ad area sono efficaci contro di lui.',
+  cerberus_alpha: 'Versione potenziata del Cerbero. Molto più pericoloso — usa la difesa dopo il suo ringhio.',
+  licker: 'Non ha vista ma sente i suoni. Le armi da fuoco sono meno efficaci — usa il coltello o esplosivi.',
+  licker_smasher: 'Lento ma devastante. Difenditi contro il Pugno Terra e contrattacca quando è vulnerabile.',
+  licker_crawler: 'Velocissimo ma meno resistente. Colpiscilo quando cala dal soffitto prima che attacchi.',
+  hunter: 'B.O.W. mortale. Difenditi dal Salto Mortale e contrattacca subito. Le granate sono molto efficaci.',
+  tyrant_boss: 'Boss: Gestisci le fasi! Nella fase 2 usa munizioni pesanti. Nella fase 3 è vulnerabile dopo gli attacchi speciali.',
+  nemesis_boss: 'Boss: 3 fasi! Spara al tentacolo per stordirlo. Il lanciarazzi è efficace nella fase finale. Fuggi se la salute è bassa.',
+  proto_tyrant: 'Boss segreto: Trovato nel lab nascosto. 2 fasi pericolose. Attacca durante la transizione di fase per infliggere più danni.',
+};
+
+function getDangerRating(enemy: EnemyDefinition): { level: string; color: string; dots: number; glow: string } {
+  const total = enemy.maxHp + enemy.atk * 5 + enemy.def * 5 + enemy.spd * 3;
+  if (enemy.isBoss) return { level: 'BOSS', color: 'bg-red-500', dots: 5, glow: 'shadow-[0_0_4px_rgba(239,68,68,0.6)]' };
+  if (total >= 400) return { level: 'Estrema', color: 'bg-red-400', dots: 4, glow: '' };
+  if (total >= 250) return { level: 'Alta', color: 'bg-orange-400', dots: 3, glow: '' };
+  if (total >= 150) return { level: 'Media', color: 'bg-yellow-400', dots: 2, glow: '' };
+  return { level: 'Bassa', color: 'bg-green-400', dots: 1, glow: '' };
+}
+
+function getEnemyLocations(enemyId: string): string[] {
+  const locations: string[] = [];
+  for (const [, loc] of Object.entries(LOCATIONS)) {
+    if (loc.enemyPool.includes(enemyId)) {
+      locations.push(loc.name);
+    }
+  }
+  return locations;
+}
+
+type WeaknessType = 'weakness' | 'resistance' | 'info';
+
+function getWeaknesses(enemy: EnemyDefinition): Array<{ text: string; type: WeaknessType }> {
+  const result: Array<{ text: string; type: WeaknessType }> = [];
+
+  if (enemy.def >= 15) result.push({ text: 'Resistente ai danni fisici', type: 'resistance' });
+  if (enemy.def <= 3) result.push({ text: 'Vulnerabile ad armi da fuoco', type: 'weakness' });
+  if (enemy.spd <= 4) result.push({ text: 'Lento — facile da colpire', type: 'info' });
+  if (enemy.spd >= 11) result.push({ text: 'Molto veloce — difficile da centrare', type: 'info' });
+
+  if (enemy.isBoss) result.push({ text: 'Immune allo stordimento', type: 'resistance' });
+
+  const vg = enemy.variantGroup;
+  if (vg === 'zombie') result.push({ text: 'Vulnerabile al veleno', type: 'weakness' });
+  if (vg === 'licker') result.push({ text: 'Vulnerabile al fuoco', type: 'weakness' });
+  if (vg === 'hunter') result.push({ text: 'Resistente al veleno, debole agli esplosivi', type: 'info' });
+  if (vg === 'cerberus') result.push({ text: 'Vulnerabile ai colpi di area', type: 'weakness' });
+
+  return result;
+}
+
+function getWeaknessBadgeStyle(type: WeaknessType): string {
+  switch (type) {
+    case 'weakness':
+      return 'bg-red-500/12 text-red-400/80 border-red-500/20';
+    case 'resistance':
+      return 'bg-cyan-500/12 text-cyan-400/80 border-cyan-500/20';
+    case 'info':
+      return 'bg-amber-500/12 text-amber-400/70 border-amber-500/20';
+  }
 }
 
 function StatBar({ value, config }: { value: number; config: (typeof STAT_CONFIG)[number] }) {
@@ -174,6 +253,173 @@ function LootTable({ lootTable }: { lootTable: EnemyDefinition['lootTable'] }) {
   );
 }
 
+function WeaknessesSection({ enemy }: { enemy: EnemyDefinition }) {
+  const [open, setOpen] = useState(false);
+  const weaknesses = getWeaknesses(enemy);
+  if (weaknesses.length === 0) return null;
+
+  return (
+    <div className="mt-1.5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/50 transition-colors w-full"
+      >
+        <Shield className="w-2.5 h-2.5" />
+        <span>Debolezze &amp; Resistenze ({weaknesses.length})</span>
+        {open ? <ChevronUp className="w-2.5 h-2.5 ml-auto" /> : <ChevronDown className="w-2.5 h-2.5 ml-auto" />}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="pl-3 border-l border-white/[0.06] mt-1 flex flex-wrap gap-1">
+              {weaknesses.map((w, i) => (
+                <Badge
+                  key={i}
+                  className={`text-[9px] border px-1.5 py-0 h-4 ${getWeaknessBadgeStyle(w.type)}`}
+                >
+                  {w.type === 'weakness' && '⚠ '}{w.type === 'resistance' && '🛡 '}{w.text}
+                </Badge>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function BossPhasesSection({ enemyId }: { enemyId: string }) {
+  const [open, setOpen] = useState(false);
+  const phases = BOSS_PHASES[enemyId];
+  if (!phases || phases.length === 0) return null;
+
+  return (
+    <div className="mt-1.5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 text-[10px] text-red-400/50 hover:text-red-400/80 transition-colors w-full"
+      >
+        <Crown className="w-2.5 h-2.5" />
+        <span>Fasi del Boss ({phases.length + 1})</span>
+        {open ? <ChevronUp className="w-2.5 h-2.5 ml-auto" /> : <ChevronDown className="w-2.5 h-2.5 ml-auto" />}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="pl-3 border-l border-red-500/20 mt-1 space-y-1.5">
+              {/* Phase 1: Initial */}
+              <div className="p-2 rounded bg-red-950/20 border border-red-500/10">
+                <span className="text-[9px] text-white/40">Fase 1 — Forma Base</span>
+                <span className="text-[8px] text-white/20 ml-2">100% HP</span>
+              </div>
+              {phases.map((phase, i) => (
+                <div key={i} className="p-2 rounded bg-red-950/20 border border-red-500/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] text-red-400/70 font-medium">Fase {i + 2} — {phase.name}</span>
+                    <span className="text-[8px] text-white/30">≤{Math.round(phase.hpThreshold * 100)}% HP</span>
+                  </div>
+                  <div className="flex gap-2 mt-1">
+                    {phase.atkMultiplier !== 1.0 && <span className="text-[8px] text-orange-400/60">ATK ×{phase.atkMultiplier}</span>}
+                    {phase.defMultiplier !== 1.0 && <span className="text-[8px] text-cyan-400/60">DEF ×{phase.defMultiplier}</span>}
+                    {phase.spdMultiplier !== 1.0 && <span className="text-[8px] text-yellow-400/60">SPD ×{phase.spdMultiplier}</span>}
+                  </div>
+                  {phase.newAbilities && phase.newAbilities.length > 0 && (
+                    <div className="mt-1">
+                      <span className="text-[8px] text-red-400/40">Nuove abilità:</span>
+                      {phase.newAbilities.map((ab) => (
+                        <div key={ab.name} className="text-[8px] text-white/30 ml-2">• {ab.name}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function DangerRatingDots({ enemy }: { enemy: EnemyDefinition }) {
+  const rating = getDangerRating(enemy);
+  const labelColor = enemy.isBoss
+    ? 'text-red-400'
+    : rating.dots >= 4
+      ? 'text-red-400'
+      : rating.dots >= 3
+        ? 'text-orange-400'
+        : rating.dots >= 2
+          ? 'text-yellow-400'
+          : 'text-green-400';
+
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex items-center gap-px">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className={`w-1.5 h-1.5 rounded-full transition-all ${
+              i < rating.dots
+                ? `${rating.color} ${i < rating.dots ? rating.glow : ''}`
+                : 'bg-white/10'
+            }`}
+          />
+        ))}
+      </div>
+      <span className={`text-[8px] font-medium ${labelColor}`}>{rating.level}</span>
+    </div>
+  );
+}
+
+function StrategySection({ enemy }: { enemy: EnemyDefinition }) {
+  const [open, setOpen] = useState(false);
+  const specificTip = ENEMY_STRATEGY_TIPS[enemy.id];
+  const vgTip = enemy.variantGroup ? STRATEGY_TIPS[enemy.variantGroup] : null;
+  const tip = specificTip || vgTip;
+  if (!tip) return null;
+
+  return (
+    <div className="mt-1.5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/50 transition-colors w-full"
+      >
+        <Brain className="w-2.5 h-2.5" />
+        <span>Strategia</span>
+        {open ? <ChevronUp className="w-2.5 h-2.5 ml-auto" /> : <ChevronDown className="w-2.5 h-2.5 ml-auto" />}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="pl-3 border-l border-white/[0.06] mt-1">
+              <p className="text-[10px] text-white/40 leading-relaxed italic">💡 {tip}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function DiscoveredCard({
   enemy,
   isDefeated,
@@ -226,6 +472,12 @@ function DiscoveredCard({
               <Crown className="w-4 h-4 text-red-400 drop-shadow-[0_0_4px_rgba(239,68,68,0.6)]" />
             </div>
           )}
+          {isDefeated && timesDefeated > 0 && (
+            <div className="absolute -bottom-1.5 -right-1 flex items-center gap-0.5 bg-emerald-600/80 rounded-full px-1 py-px border border-emerald-400/40 shadow-[0_0_6px_rgba(16,185,129,0.3)]">
+              <Skull className="w-2.5 h-2.5 text-white" />
+              <span className="text-[8px] font-bold text-white leading-none">{timesDefeated}</span>
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
@@ -244,10 +496,12 @@ function DiscoveredCard({
           <p className="text-[10px] text-white/40 mt-1 leading-relaxed line-clamp-2">
             {enemy.description}
           </p>
+          {/* Encounter locations */}
+          <EnemyLocationBadges enemyId={enemy.id} />
         </div>
       </div>
 
-      {/* Status badge */}
+      {/* Status badge + Danger rating */}
       <div className="flex items-center gap-2 mb-2">
         {isDefeated ? (
           <Badge className="text-[10px] bg-emerald-500/12 text-emerald-400 border-emerald-500/20 border px-1.5 py-0 h-4">
@@ -260,10 +514,13 @@ function DiscoveredCard({
             Incontrato
           </Badge>
         )}
-        <Badge className="text-[10px] bg-white/[0.05] text-white/50 border-0 px-1.5 py-0 h-4">
+        <Badge className="text-[10px] bg-amber-500/10 text-amber-300/70 border-amber-500/15 border px-1.5 py-0 h-4">
           <Star className="w-2.5 h-2.5 mr-1" />
           {enemy.expReward} EXP
         </Badge>
+        <div className="ml-auto">
+          <DangerRatingDots enemy={enemy} />
+        </div>
       </div>
 
       {/* Stats bars */}
@@ -275,8 +532,30 @@ function DiscoveredCard({
 
       {/* Expandable sections */}
       <AbilitiesList abilities={enemy.abilities} />
+      {enemy.isBoss && <BossPhasesSection enemyId={enemy.id} />}
       <LootTable lootTable={enemy.lootTable} />
+      <WeaknessesSection enemy={enemy} />
+      <StrategySection enemy={enemy} />
     </motion.div>
+  );
+}
+
+function EnemyLocationBadges({ enemyId }: { enemyId: string }) {
+  const locations = getEnemyLocations(enemyId);
+  if (locations.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {locations.map((locName) => (
+        <span
+          key={locName}
+          className="inline-flex items-center gap-0.5 text-[8px] text-white/25 bg-white/[0.04] border border-white/[0.06] rounded px-1 py-px"
+        >
+          <MapPin className="w-2 h-2" />
+          {locName}
+        </span>
+      ))}
+    </div>
   );
 }
 

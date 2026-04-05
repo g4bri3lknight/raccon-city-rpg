@@ -14,6 +14,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'ammo_pistol', chance: 25, quantity: 4 },
       { itemId: 'bag_small', chance: 15, quantity: 1 },
       { itemId: 'key_sewers', chance: 15, quantity: 1 },
+      { itemId: 'crank_handle', chance: 12, quantity: 1 },
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
     ],
@@ -64,6 +65,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'ammo_machinegun', chance: 15, quantity: 5 },
       { itemId: 'lockpick', chance: 15, quantity: 1 },
       { itemId: 'bag_small', chance: 20, quantity: 1 },
+      { itemId: 'fuse', chance: 12, quantity: 1 },
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
     ],
@@ -131,6 +133,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     isBossArea: false,
     lockedLocations: [
       { locationId: 'laboratory_entrance', requiredItemId: 'key_lab', lockedMessage: '🔒 La porta della cantina è blindata. Serve una tessera magnetica Umbrella.' },
+      { locationId: 'laboratory_entrance', requiredItemId: 'fuse', lockedMessage: '🔒 L\'alimentazione elettrica è interrotta. Serve un fusibile per ripristinare l\'energia e aprire la porta.' },
     ],
     ambientText: [
       'Un monitor cardiaco lampeggia nel buio... un battito irregolare...',
@@ -185,6 +188,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     isBossArea: false,
     lockedLocations: [
       { locationId: 'laboratory_entrance', requiredItemId: 'key_lab', lockedMessage: '🔒 La porta del laboratorio è protetta da un lettore biometrico. Serve una tessera magnetica Umbrella.' },
+      { locationId: 'laboratory_entrance', requiredItemId: 'crank_handle', lockedMessage: '🔒 Una chiusa idraulica blocca il passaggio verso il laboratorio. Serve una manovella per aprirla.' },
     ],
     ambientText: [
       'Il gocciolio dell\'acqua è l\'unico suono... finora.',

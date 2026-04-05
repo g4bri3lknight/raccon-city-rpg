@@ -209,20 +209,35 @@ export interface EnemyAbility {
   };
 }
 
+export interface BossPhase {
+  name: string;
+  hpThreshold: number; // % of maxHp (e.g. 0.5 for 50%)
+  hpMultiplier: number;
+  atkMultiplier: number;
+  defMultiplier: number;
+  spdMultiplier: number;
+  newAbilities?: EnemyAbility[];
+  message: string;
+}
+
 export interface EnemyInstance {
   id: string;
   definitionId: string;
   name: string;
-  currentHp: number;
+ currentHp: number;
   maxHp: number;
-  atk: number;
-  def: number;
+ atk: number;
+ def: number;
   spd: number;
-  icon: string;
+ icon: string;
   statusEffects: StatusEffect[];
   isDefending: boolean;
-  abilities: EnemyAbility[];
+ abilities: EnemyAbility[];
   isBoss: boolean;
+ // #14 Boss multi-fase
+  currentPhase: number;
+ phaseNames: string[];
+ isPhaseTransitioning: boolean;
 }
 
 // ==========================================
@@ -453,6 +468,12 @@ export interface GameState {
   endingType: EndingType | null;
   // Mini-map
   exploredSubAreas: Record<string, string[]>; // locationId → sub-area IDs
+  // #14 Boss multi-fase
+  bossPhases: Record<string, BossPhase[]>; // enemyId → phases
+  // #27 Nemesis persistente
+  nemesisPursuitLevel: number; // 0-5, increases each invasion
+  nemesisLastSeenLocation: string | null;
+  nemesisLastSeenTurn: number;
 }
 
 // ==========================================

@@ -14,6 +14,9 @@ interface BattleEntityProps {
   damageValue?: number;
   healValue?: number;
   statusEffects?: string[];
+  isCritical?: boolean;
+  isMiss?: boolean;
+  isPhaseTransition?: boolean;
 }
 
 export default function BattleEntity({
@@ -26,6 +29,9 @@ export default function BattleEntity({
   damageValue,
   healValue,
   statusEffects = [],
+  isCritical = false,
+  isMiss = false,
+  isPhaseTransition = false,
 }: BattleEntityProps) {
   const sizeClasses = {
     sm: 'w-16 h-16 sm:w-20 sm:h-20',
@@ -38,6 +44,15 @@ export default function BattleEntity({
   const isHealing = state === 'heal';
   const isDefending = state === 'defend';
   const isActive = state === 'active';
+
+  // Determine additional animation class for special states
+  const specialAnimClass = isPhaseTransition
+    ? 'animate-boss-enrage'
+    : isCritical && isHurt
+      ? 'animate-critical-impact'
+      : isMiss
+        ? 'animate-dodge'
+        : '';
 
   const hasBleeding = statusEffects.includes('bleeding');
   const hasPoison = statusEffects.includes('poison');
@@ -171,8 +186,9 @@ export default function BattleEntity({
             ${borderClass}
             ${idleClass}
             ${isDead ? 'entity-dead grayscale opacity-30' : ''}
-            ${isHurt ? 'entity-shake' : ''}
+            ${isHurt && !isCritical ? 'entity-shake' : ''}
             ${isDefending ? 'defend-pulse' : ''}
+            ${specialAnimClass}
           `}
         >
           <img
