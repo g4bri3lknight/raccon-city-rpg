@@ -208,11 +208,15 @@ function customToCarouselItem(config: CustomCharacterConfig, index: number): Car
   };
 }
 
+
+
 export default function CharacterSelect() {
   const startAdventure = useGameStore(s => s.startAdventure);
   const startAdventureWithCustom = useGameStore(s => s.startAdventureWithCustom);
   const goToCharacterCreator = useGameStore(s => s.goToCharacterCreator);
   const startGame = useGameStore(s => s.startGame);
+  const selectedDifficulty = useGameStore(s => s.selectedDifficulty);
+  const selectDifficulty = useGameStore(s => s.selectDifficulty);
   
   const [selected, setSelected] = useState<Set<string>>(new Set()); // set of carousel item ids
   const [customCharacters, setCustomCharacters] = useState<CustomCharacterConfig[]>([]);
@@ -551,7 +555,7 @@ export default function CharacterSelect() {
                               'bg-gray-800 text-gray-300 border border-gray-700/30'
                             }`}
                           >
-                            <span className="flex items-center gap-1"><ItemIcon itemId={item.itemId} rarity={item.rarity as any} size={14} /> {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}</span>
+                            <span className="flex items-center gap-1"><ItemIcon itemId={item.itemId} rarity={item.rarity} size={14} /> {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}</span>
                           </span>
                         ))}
                       </div>
@@ -648,10 +652,41 @@ export default function CharacterSelect() {
                 })}
               </div>
             )}
+
+            {/* Difficulty Selection */}
+            <div className="mt-2">
+              <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5">{'Difficolt\u00E0'}</div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => selectDifficulty('sopravvissuto')}
+                  className={"flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all " + (selectedDifficulty === 'sopravvissuto' ? 'border-green-500 bg-green-900/40 text-green-300 shadow-[0_0_12px_rgba(34,197,94,0.2)]' : 'border-green-700/50 bg-green-950/30 text-green-400 opacity-50 hover:opacity-80')}
+                >
+                  <span>{'\u{1F3C3}'}</span>
+                  <span className="hidden sm:inline">Sopravvissuto</span>
+                  <span className="sm:hidden text-[10px]">Sopr</span>
+                </button>
+                <button
+                  onClick={() => selectDifficulty('normale')}
+                  className={"flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all " + (selectedDifficulty === 'normale' ? 'border-yellow-500 bg-yellow-900/40 text-yellow-300 shadow-[0_0_12px_rgba(234,179,8,0.2)]' : 'border-yellow-700/50 bg-yellow-950/30 text-yellow-400 opacity-50 hover:opacity-80')}
+                >
+                  <span>{'\u2694\uFE0F'}</span>
+                  <span className="hidden sm:inline">Normale</span>
+                  <span className="sm:hidden text-[10px]">Norm</span>
+                </button>
+                <button
+                  onClick={() => selectDifficulty('incubo')}
+                  className={"flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all " + (selectedDifficulty === 'incubo' ? 'border-red-500 bg-red-900/40 text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.2)]' : 'border-red-700/50 bg-red-950/30 text-red-400 opacity-50 hover:opacity-80')}
+                >
+                  <span>{'\u{1F480}'}</span>
+                  <span className="hidden sm:inline">Incubo</span>
+                  <span className="sm:hidden text-[10px]">Incu</span>
+                </button>
+              </div>
+            </div>
           </div>
           <Button
             onClick={handleStart}
-            disabled={totalSelected === 0}
+            disabled={totalSelected === 0 || !selectedDifficulty}
             className="horror-btn px-6 sm:px-10 py-3 sm:py-4 text-sm sm:text-base tracking-wider uppercase
               bg-red-900/40 hover:bg-red-800/50 border-2 border-red-700/60 hover:border-red-500
               text-red-100 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed

@@ -86,7 +86,6 @@ export default function ItemIcon({
         ...(showBorder ? { outline: `1px solid ${border}` } : {}),
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={itemId}

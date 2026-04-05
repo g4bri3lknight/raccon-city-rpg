@@ -14,6 +14,19 @@ import {
   EventOutcome,
   GameNotification,
   CustomCharacterConfig,
+  DifficultyLevel,
+  DifficultyConfig,
+  PuzzleState,
+  QTEState,
+  QTESequence,
+  GameDocument,
+  GameNPC,
+  DynamicEvent,
+  SecretRoom,
+  EndingDefinition,
+  StoryChoiceTag,
+  NPCQuest,
+  DynamicEventChoice,
 } from './types';
 import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems, ARCHETYPE_STAT_POINTS, computeGrowthRates } from './data/characters';
 import { ENEMIES } from './data/enemies';
@@ -32,6 +45,12 @@ import {
   WEAPON_AMMO,
 } from './engine/combat';
 import { WeaponInstance } from './types';
+import { ACHIEVEMENTS } from './data/achievements';
+import { DOCUMENTS } from './data/documents';
+import { NPCS } from './data/npcs';
+import { DYNAMIC_EVENTS } from './data/dynamic-events';
+import { SECRET_ROOMS } from './data/secrets';
+import { ENDINGS } from './data/endings';
 
 const MAX_INVENTORY_SLOTS = 12;
 
@@ -47,6 +66,73 @@ function mergeInventoryStacks(inventory: ItemInstance[]): ItemInstance[] {
     }
   }
   return Array.from(stackMap.values());
+}
+
+// ── Helper: add item to any party member's inventory with stacking ──
+// Tries preferred character first, then falls back to any alive member with space.
+// Stackable items (ammo, healing, antidote) merge into existing stacks.
+function addItemToParty(
+  party: Character[],
+  itemId: string,
+  quantity: number,
+  preferCharacterId?: string | null,
+): { party: Character[]; added: boolean; characterName: string; characterId: string } {
+  const itemDef = ITEMS[itemId];
+  if (!itemDef) return { party, added: false, characterName: '', characterId: '' };
+
+  const isStackable = itemDef.type === 'ammo' || itemDef.type === 'healing' || itemDef.type === 'antidote';
+  const uid = `${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const newItem: ItemInstance = {
+    uid,
+    itemId,
+    name: itemDef.name,
+    description: itemDef.description,
+    type: itemDef.type,
+    rarity: itemDef.rarity,
+    icon: itemDef.icon,
+    usable: itemDef.usable,
+    equippable: itemDef.equippable,
+    effect: itemDef.effect,
+    quantity,
+  };
+
+  let updatedParty = [...party];
+  let added = false;
+  let charName = '';
+  let charId = '';
+
+  // Build ordered list: preferred character first, then everyone else
+  const pref = preferCharacterId ? updatedParty.find(p => p.id === preferCharacterId) : null;
+  const rest = preferCharacterId ? updatedParty.filter(p => p.id !== preferCharacterId) : updatedParty;
+  const charOrder = pref ? [pref, ...rest] : rest;
+
+  for (const char of charOrder) {
+    if (!char || added || char.currentHp <= 0) continue;
+
+    if (isStackable) {
+      // Try to merge into existing stack
+      const existingIdx = char.inventory.findIndex(i => i.itemId === itemId);
+      if (existingIdx >= 0) {
+        added = true;
+        charName = char.name;
+        charId = char.id;
+        const updatedInv = [...char.inventory];
+        updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + quantity };
+        updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: updatedInv } : p);
+        break;
+      }
+    }
+    // No existing stack (or non-stackable), add as new entry if space
+    if (char.inventory.length < char.maxInventorySlots) {
+      added = true;
+      charName = char.name;
+      charId = char.id;
+      updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: [...p.inventory, newItem] } : p);
+      break;
+    }
+  }
+
+  return { party: updatedParty, added, characterName: charName, characterId: charId };
 }
 
 let notifId = 0;
@@ -67,25 +153,24 @@ const WEAPON_STATS: Record<string, WeaponInstance> = {
   grenade_launcher: { itemId: 'grenade_launcher', name: 'Lanciagranate M79', atkBonus: 24, type: 'ranged', ammoType: 'ammo_grenade' },
 };
 
-// ── Difficulty scaling based on party size ──
-interface DifficultyConfig {
-  label: string;
-  color: string;
-  icon: string;
-  statMult: number;     // enemy HP/ATK/DEF/SPD multiplier
-  lootMult: number;     // loot chance multiplier
-  maxEnemies: number;   // max enemies per encounter
-  minEnemies: number;
-  expMult: number;      // EXP reward multiplier
-}
-function getDifficultyConfig(partySize: number): DifficultyConfig {
-  switch (partySize) {
-    case 1: return { label: 'Sopravvivenza', color: '#22c55e', icon: '🏃', statMult: 0.7, lootMult: 1.4, minEnemies: 1, maxEnemies: 2, expMult: 1.3 };
-    case 2: return { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 1.0, lootMult: 1.0, minEnemies: 1, maxEnemies: 3, expMult: 1.0 };
-    case 3: return { label: 'Sfida', color: '#ef4444', icon: '💀', statMult: 1.3, lootMult: 0.7, minEnemies: 2, maxEnemies: 3, expMult: 0.9 };
-    default: return getDifficultyConfig(2);
+// ── Difficulty configuration ──
+const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
+  sopravvissuto: { label: 'Sopravvissuto', color: '#22c55e', icon: '🏃', statMult: 0.6, lootMult: 1.5, minEnemies: 1, maxEnemies: 2, expMult: 1.4, enemyCritChance: 5, description: 'Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia.' },
+  normale: { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 0.85, lootMult: 1.1, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 10, description: 'Bilanciato. La vera esperienza di Raccoon City.' },
+  incubo: { label: 'Incubo', color: '#ef4444', icon: '💀', statMult: 1.4, lootMult: 0.6, minEnemies: 2, maxEnemies: 4, expMult: 0.8, enemyCritChance: 20, description: 'Nemici potenti, poco bottino. Solo per i più coraggiosi.' },
+};
+
+function getDifficultyConfig(difficulty: DifficultyLevel, partySize?: number): DifficultyConfig {
+  const config = DIFFICULTY_CONFIGS[difficulty] || DIFFICULTY_CONFIGS.normale;
+  // Optional party-size secondary scaling (slight adjustment)
+  if (partySize) {
+    const partyMult = partySize === 1 ? 0.9 : partySize === 2 ? 1.0 : 1.1;
+    return { ...config, statMult: config.statMult * partyMult };
   }
+  return config;
 }
+
+export { DIFFICULTY_CONFIGS, getDifficultyConfig };
 
 function createCharacter(archetypeId: Archetype): Character {
   const archetype = CHARACTER_ARCHETYPES.find(a => a.id === archetypeId);
@@ -231,6 +316,12 @@ interface GameStore extends GameState {
   // Map
   toggleMap: () => void;
 
+  // Achievements & Bestiary
+  toggleAchievements: () => void;
+  toggleBestiary: () => void;
+  unlockAchievement: (id: string) => void;
+  checkAchievements: () => void;
+
   // Combat
   selectCombatAction: (action: CombatAction) => void;
   selectCombatTarget: (targetId: string) => void;
@@ -247,6 +338,47 @@ interface GameStore extends GameState {
   deleteSave: (slot: number) => void;
   saveGameVictory: (slot: number) => number;
   startNewGamePlus: (persistentRibbons: number) => void;
+
+  // Difficulty
+  selectDifficulty: (difficulty: DifficultyLevel) => void;
+
+  // Puzzle
+  startPuzzle: (puzzle: NonNullable<StoryEvent['puzzle']>, title: string, description: string) => void;
+  submitCombination: (input: string[]) => void;
+  addDigitToCombination: (digit: string) => void;
+  removeDigitFromCombination: () => void;
+  resetCombination: () => void;
+  handleSequenceInput: (direction: string) => void;
+  closePuzzle: () => void;
+
+  // QTE
+  startQTE: (triggerSource: 'nemesis' | 'event' | 'boss') => void;
+  handleQTEInput: (direction: string) => void;
+  completeQTE: () => void;
+
+  // #16 Documents
+  toggleDocuments: () => void;
+
+  // #18 NPCs
+  encounterNpc: (npcId: string) => void;
+  talkToNpc: () => void;
+  acceptNpcQuest: () => void;
+  tradeWithNpc: (tradeIndex: number) => boolean;
+  closeNpcDialog: () => void;
+
+  // #20 Dynamic Events
+  triggerDynamicEvent: (eventId: string) => void;
+  handleDynamicEventChoice: (choiceIndex: number) => void;
+  tickDynamicEvent: () => void;
+
+  // #22 Secret Rooms
+  discoverSecretRoom: (roomId: string) => void;
+
+  // #23 Endings
+  determineEnding: () => EndingDefinition;
+
+  // Mini-map
+  exploreSubArea: (subAreaId: string) => void;
 
   // Debug
   debugHealAll: () => void;
@@ -290,7 +422,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   eventOutcome: null,
   messageLog: [],
   turnCount: 0,
-  difficulty: 'normal',
+  difficulty: 'normale' as DifficultyLevel,
+  selectedDifficulty: null,
+  puzzleState: null,
+  puzzleSourceLocationId: null,
+  qteState: null,
   inventoryOpen: false,
   selectedCharacterId: null,
   searchCounts: {},
@@ -308,6 +444,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
   persistentRibbons: 0,
   isNewGamePlus: false,
   gameStartTime: 0,
+  achievements: { unlockedIds: [], unlockTimestamps: {} },
+  achievementsOpen: false,
+  bestiary: [],
+  bestiaryOpen: false,
+  newAchievementNotification: null,
+  collectedDocuments: [],
+  documentsOpen: false,
+  activeNpc: null,
+  npcQuestProgress: {},
+  npcsEncountered: [],
+  npcsOpen: false,
+  activeDynamicEvent: null,
+  dynamicEventTurnsLeft: 0,
+  storyChoices: [],
+  discoveredSecretRooms: [],
+  endingType: null,
+  exploredSubAreas: {},
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -317,7 +470,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0 });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], documentsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {} });
   },
 
   goToCharacterCreator: () => {
@@ -325,7 +478,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   startAdventure: (selectedArchetypes: Archetype[]) => {
+    const state = get();
     const party = selectedArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
+    const activeDifficulty = state.selectedDifficulty || state.difficulty;
+    const diffConfig = getDifficultyConfig(activeDifficulty, party.length);
     const startLocation = LOCATIONS['city_outskirts'];
     set({
       phase: 'exploration',
@@ -335,7 +491,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combat: null,
       activeEvent: startLocation.storyEvent || null,
       eventOutcome: null,
-      messageLog: ['Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...', `\n🎮 Difficoltà: ${selectedArchetypes.length === 1 ? 'Sopravvivenza (1 giocatore — nemici più deboli, più bottino)' : selectedArchetypes.length === 2 ? 'Normale (2 giocatori — bilanciato)' : 'Sfida (3 giocatori — nemici più forti, meno bottino)'}`],
+      messageLog: ['Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
       turnCount: 0,
       inventoryOpen: false,
       selectedCharacterId: party[0]?.id || null,
@@ -349,17 +505,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
       completedEvents: [],
       collectedRibbons: 0,
       gameStartTime: Date.now(),
+      achievements: { unlockedIds: [], unlockTimestamps: {} },
+      achievementsOpen: false,
+      bestiary: [],
+      bestiaryOpen: false,
+      newAchievementNotification: null,
+      difficulty: activeDifficulty,
+      collectedDocuments: [],
+      documentsOpen: false,
+      activeNpc: null,
+      npcQuestProgress: {},
+      npcsEncountered: [],
+      npcsOpen: false,
+      activeDynamicEvent: null,
+      dynamicEventTurnsLeft: 0,
+      storyChoices: [],
+      discoveredSecretRooms: [],
+      endingType: null,
+      exploredSubAreas: {},
       // persistentRibbons is preserved (set externally for New Game+)
     });
   },
 
   startAdventureWithCustom: (presetArchetypes: Archetype[], customCharacters: CustomCharacterConfig[]) => {
+    const state = get();
     const presetParty = presetArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
     const customParty = customCharacters.map(config => createCustomCharacter(config));
     const party = [...presetParty, ...customParty];
     const pSize = party.length;
+    const activeDifficulty = state.selectedDifficulty || state.difficulty;
+    const diffConfig = getDifficultyConfig(activeDifficulty, pSize);
     const startLocation = LOCATIONS['city_outskirts'];
-    const diffLabel = pSize === 1 ? 'Sopravvivenza (1 giocatore — nemici più deboli, più bottino)' : pSize === 2 ? 'Normale (2 giocatori — bilanciato)' : 'Sfida (3 giocatori — nemici più forti, meno bottino)';
     set({
       phase: 'exploration',
       party,
@@ -368,7 +544,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combat: null,
       activeEvent: startLocation.storyEvent || null,
       eventOutcome: null,
-      messageLog: ['Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffLabel}`],
+      messageLog: ['Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
       turnCount: 0,
       inventoryOpen: false,
       selectedCharacterId: party[0]?.id || null,
@@ -382,6 +558,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
       completedEvents: [],
       collectedRibbons: 0,
       gameStartTime: Date.now(),
+      achievements: { unlockedIds: [], unlockTimestamps: {} },
+      achievementsOpen: false,
+      bestiary: [],
+      bestiaryOpen: false,
+      newAchievementNotification: null,
+      difficulty: activeDifficulty,
+      collectedDocuments: [],
+      documentsOpen: false,
+      activeNpc: null,
+      npcQuestProgress: {},
+      npcsEncountered: [],
+      npcsOpen: false,
+      activeDynamicEvent: null,
+      dynamicEventTurnsLeft: 0,
+      storyChoices: [],
+      discoveredSecretRooms: [],
+      endingType: null,
+      exploredSubAreas: {},
       // persistentRibbons is preserved (set externally for New Game+)
     });
   },
@@ -391,7 +585,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   victory: () => {
-    set({ phase: 'victory' });
+    const state = get();
+    const ending = get().determineEnding();
+    set({ phase: 'victory', endingType: ending.id });
+    setTimeout(() => get().checkAchievements(), 100);
   },
 
   restartGame: () => {
@@ -418,6 +615,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
       persistentRibbons: 0,
       isNewGamePlus: false,
       gameStartTime: 0,
+      achievements: { unlockedIds: [], unlockTimestamps: {} },
+      achievementsOpen: false,
+      bestiary: [],
+      bestiaryOpen: false,
+      newAchievementNotification: null,
+      difficulty: 'normale',
+      selectedDifficulty: null,
+      puzzleState: null,
+      puzzleSourceLocationId: null,
+      qteState: null,
+      collectedDocuments: [],
+      documentsOpen: false,
+      activeNpc: null,
+      npcQuestProgress: {},
+      npcsEncountered: [],
+      npcsOpen: false,
+      activeDynamicEvent: null,
+      dynamicEventTurnsLeft: 0,
+      storyChoices: [],
+      discoveredSecretRooms: [],
+      endingType: null,
+      exploredSubAreas: {},
     });
   },
 
@@ -440,7 +659,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (Math.random() * 100 < location.encounterRate) {
-      const diff = getDifficultyConfig(state.partySize);
+      const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Spawn enemies scaled by party size
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
       const enemies: EnemyInstance[] = [];
@@ -473,6 +692,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ].sort((a, b) => b.spd - a.spd + (Math.random() - 0.5) * 4);
         const firstActor = allActors[0];
 
+        // Update bestiary - mark enemies as encountered
+        const currentBestiary = [...currentState.bestiary];
+        for (const enemy of enemies) {
+          const existing = currentBestiary.find(b => b.enemyId === enemy.definitionId);
+          if (!existing) {
+            currentBestiary.push({ enemyId: enemy.definitionId, encountered: true, defeated: false, timesDefeated: 0 });
+          } else if (!existing.encountered) {
+            existing.encountered = true;
+          }
+        }
+
         set({
           phase: 'combat',
           enemies,
@@ -498,6 +728,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             tauntTargetId: null,
           },
           notification: null,
+          bestiary: currentBestiary,
         });
 
         // If enemy goes first, trigger their action after a short delay
@@ -508,9 +739,152 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    // ── NEMESIS INVASION CHECK ──
+    // 8% chance per explore, only after turn 15, only if Nemesis not already encountered in bestiary
+    const nemesisAlreadyFound = state.bestiary.some(b => b.enemyId === 'nemesis_boss' && b.encountered);
+    if (!nemesisAlreadyFound && state.turnCount >= 15 && Math.random() < 0.08) {
+      const diff = getDifficultyConfig(state.difficulty, state.partySize);
+      const nemesis = createEnemyInstance('nemesis_boss', diff.statMult * 0.8);
+
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] 💀 "S.T.A.R.S...." Un suono terrificante riecheggia... NEMESIS appare!`],
+        turnCount: state.turnCount + 1,
+        notification: {
+          id: `notif_${++notifId}`,
+          type: 'encounter',
+          message: '💀 NEMESIS INVASIONE!',
+          icon: '💀',
+          subMessage: 'S.T.A.R.S... preparatevi!',
+        },
+      });
+
+      setTimeout(() => {
+        const currentState = get();
+        const allActors = [
+          ...currentState.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
+          ...[nemesis].map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
+        ].sort((a, b) => b.spd - a.spd + (Math.random() - 0.5) * 4);
+        const firstActor = allActors[0];
+
+        const nemesisBestiary = [...currentState.bestiary];
+        const existingNem = nemesisBestiary.find(b => b.enemyId === 'nemesis_boss');
+        if (!existingNem) {
+          nemesisBestiary.push({ enemyId: 'nemesis_boss', encountered: true, defeated: false, timesDefeated: 0 });
+        } else {
+          existingNem.encountered = true;
+        }
+
+        set({
+          phase: 'combat',
+          enemies: [nemesis],
+          autoCombat: false,
+          combat: {
+            turn: 1,
+            playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
+            enemyOrder: allActors.filter(a => a.type === 'enemy').map(a => a.id),
+            fullTurnOrder: allActors.map(a => ({ id: a.id, type: a.type })),
+            currentActorId: firstActor.id,
+            currentActorType: firstActor.type,
+            selectedAction: null,
+            selectedTarget: null,
+            selectedItemUid: null,
+            isProcessing: false,
+            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Invasione', message: 'NEMESIS è apparso! "S.T.A.R.S.!"' }],
+            isVictory: false,
+            isDefeat: false,
+            fled: true,
+            statusDurations: {},
+            specialCooldowns: {},
+            special2Cooldowns: {},
+            tauntTargetId: null,
+          },
+          bestiary: nemesisBestiary,
+          notification: null,
+        });
+
+        if (firstActor.type === 'enemy') {
+          setTimeout(() => get().advanceToNextActor(), 1400);
+        }
+      }, 1500);
+      return;
+    }
+
+    // ── DYNAMIC EVENT CHECK ──
+    if (!state.activeDynamicEvent) {
+      const eligibleEvents = Object.values(DYNAMIC_EVENTS).filter(e => {
+        if (state.turnCount < e.minTurn) return false;
+        if (e.locationIds.length > 0 && !e.locationIds.includes(state.currentLocationId)) return false;
+        return Math.random() * 100 < e.triggerChance;
+      });
+      if (eligibleEvents.length > 0) {
+        const event = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
+        set({
+          messageLog: [...newLog, `[${state.turnCount}] ${event.icon} ${event.onTriggerMessage}`],
+          turnCount: state.turnCount + 1,
+          activeDynamicEvent: event,
+          dynamicEventTurnsLeft: event.duration,
+          notification: {
+            id: `notif_${++notifId}`,
+            type: 'encounter',
+            message: `${event.icon} ${event.title}`,
+            icon: event.icon,
+            subMessage: event.onTriggerMessage,
+          },
+        });
+        return;
+      }
+    }
+    // ── DYNAMIC EVENT TICK ──
+    else {
+      const evt = state.activeDynamicEvent;
+      const dmg = evt?.effect.damagePerTurn || 0;
+      let tickLog: string[] = [];
+      let updatedParty = [...state.party];
+      if (dmg > 0) {
+        updatedParty = updatedParty.map(p => ({
+          ...p,
+          currentHp: Math.max(1, p.currentHp - dmg),
+        }));
+        tickLog.push(`[${state.turnCount}] 💔 ${evt!.icon} ${dmg} danni a tutti (${state.dynamicEventTurnsLeft - 1} turni rimasti)`);
+      }
+      const newTurnsLeft = state.dynamicEventTurnsLeft - 1;
+      if (newTurnsLeft <= 0) {
+        tickLog.push(`[${state.turnCount}] ✅ ${evt!.onEndMessage}`);
+        set({
+          activeDynamicEvent: null,
+          dynamicEventTurnsLeft: 0,
+          party: updatedParty,
+          messageLog: [...newLog, ...tickLog],
+          turnCount: state.turnCount + 1,
+        });
+      } else {
+        set({
+          dynamicEventTurnsLeft: newTurnsLeft,
+          party: updatedParty,
+          messageLog: [...newLog, ...tickLog],
+          turnCount: state.turnCount + 1,
+        });
+      }
+      return;
+    }
+
+    // ── NPC ENCOUNTER CHECK ──
+    const locationNpcs = Object.values(NPCS).filter(n => n.locationId === state.currentLocationId);
+    const newNpcs = locationNpcs.filter(n => !state.npcsEncountered.includes(n.id));
+    if (newNpcs.length > 0 && Math.random() < 0.15) {
+      const npc = newNpcs[Math.floor(Math.random() * newNpcs.length)];
+      get().encounterNpc(npc.id);
+      return;
+    }
+
     // Check for random item find
     if (Math.random() < 0.3 && location.itemPool.length > 0) {
-      const availableItems = location.itemPool.filter(() => Math.random() * 100 < 50);
+      // Filter out key items already in party inventory BEFORE selection
+      const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
+      const eligibleItems = location.itemPool.filter(entry =>
+        !(KEY_ITEM_IDS.has(entry.itemId) && partyItemIds.has(entry.itemId))
+      );
+      const availableItems = eligibleItems.filter(() => Math.random() * 100 < 50);
       if (availableItems.length > 0) {
         const foundEntry = availableItems[Math.floor(Math.random() * availableItems.length)];
         const itemDef = ITEMS[foundEntry.itemId];
@@ -536,6 +910,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 subMessage: `Collezionabili: ${newCount}/10`,
               },
             });
+            setTimeout(() => get().checkAchievements(), 100);
             return;
           }
 
@@ -605,6 +980,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
               });
             }
             return;
+          }
+
+          // ── KEY ITEM CHECK: prevent duplicate keys (safety net, should not trigger due to pre-filter) ──
+          if (KEY_ITEM_IDS.has(foundEntry.itemId)) {
+            const partyAlreadyHasKey = state.party.some(p =>
+              p.inventory.some(i => i.itemId === foundEntry.itemId)
+            );
+            if (partyAlreadyHasKey) {
+              set({ messageLog: [...newLog, `[${state.turnCount}] 🎒 Avete trovato ${itemDef.name}, ma ne avete già una copia.`], turnCount: state.turnCount + 1 });
+              return;
+            }
           }
 
           // ── NORMAL ITEM: add to inventory ──
@@ -701,6 +1087,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
+    // ── DOCUMENT DISCOVERY IN EXPLORE ──
+    const locationDocs = Object.values(DOCUMENTS).filter(d =>
+      d.locationId === state.currentLocationId &&
+      !state.collectedDocuments.includes(d.id)
+    );
+    if (locationDocs.length > 0 && Math.random() < 0.25) {
+      const doc = locationDocs[Math.floor(Math.random() * locationDocs.length)];
+      if (doc.hintRequired && !state.collectedDocuments.includes(doc.hintRequired)) {
+        set({ messageLog: newLog, turnCount: state.turnCount + 1 });
+        return;
+      }
+      const newDocs = [...state.collectedDocuments, doc.id];
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] 📖 Documento trovato: "${doc.title}"`],
+        collectedDocuments: newDocs,
+        turnCount: state.turnCount + 1,
+        notification: {
+          id: `notif_${++notifId}`,
+          type: 'item_found',
+          message: doc.title,
+          icon: doc.icon,
+          subMessage: doc.type === 'umbrella_file' ? '📄 File Umbrella' : `📝 ${doc.type}`,
+        },
+      });
+      return;
+    }
+
     set({ messageLog: newLog, turnCount: state.turnCount + 1 });
   },
 
@@ -775,10 +1188,130 @@ export const useGameStore = create<GameStore>((set, get) => ({
       party: updatedParty,
       skipNextEncounter: true, // Prevent immediate combat after traveling
     });
+    setTimeout(() => get().checkAchievements(), 100);
   },
 
   toggleMap: () => {
     set(state => ({ mapOpen: !state.mapOpen }));
+  },
+
+  toggleAchievements: () => {
+    set(state => ({ achievementsOpen: !state.achievementsOpen }));
+  },
+
+  toggleBestiary: () => {
+    set(state => ({ bestiaryOpen: !state.bestiaryOpen }));
+  },
+
+  unlockAchievement: (id: string) => {
+    const state = get();
+    if (state.achievements.unlockedIds.includes(id)) return;
+    const ach = ACHIEVEMENTS[id];
+    const name = ach?.name || id;
+    set({
+      achievements: {
+        unlockedIds: [...state.achievements.unlockedIds, id],
+        unlockTimestamps: { ...state.achievements.unlockTimestamps, [id]: Date.now() },
+      },
+      newAchievementNotification: `🏆 Traguardo sbloccato: ${name}`,
+    });
+    // Clear notification after 4 seconds
+    setTimeout(() => {
+      set({ newAchievementNotification: null });
+    }, 4000);
+  },
+
+  checkAchievements: () => {
+    const state = get();
+    const alreadyUnlocked = new Set(state.achievements.unlockedIds);
+
+    const checkAndUnlock = (conditionId: string) => {
+      if (alreadyUnlocked.has(conditionId)) return;
+      get().unlockAchievement(conditionId);
+      alreadyUnlocked.add(conditionId);
+    };
+
+    // first_kill: Any enemy defeated (bestiary has any defeated entry)
+    if (state.bestiary.some(b => b.defeated && b.timesDefeated > 0)) {
+      checkAndUnlock('first_blood');
+    }
+
+    // kill_100: Sum of all bestiary timesDefeated >= 100
+    const totalKills = state.bestiary.reduce((sum, b) => sum + b.timesDefeated, 0);
+    if (totalKills >= 100) {
+      checkAndUnlock('centurion');
+    }
+
+    // defeat_tyrant: bestiary has tyrant_boss with defeated=true
+    if (state.bestiary.some(b => b.enemyId === 'tyrant_boss' && b.defeated)) {
+      checkAndUnlock('boss_slayer');
+    }
+
+    // defeat_nemesis_invasion: bestiary has nemesis_boss with defeated=true
+    if (state.bestiary.some(b => b.enemyId === 'nemesis_boss' && b.defeated)) {
+      checkAndUnlock('nemesis_defeated');
+    }
+
+    // reach_level_10: Any party member has level >= 10
+    if (state.party.some(p => p.level >= 10)) {
+      checkAndUnlock('level_10');
+    }
+
+    // visit_all_locations: visitedLocations.length >= 6
+    if (state.visitedLocations.length >= 6) {
+      checkAndUnlock('explorer');
+    }
+
+    // survive_50_turns: turnCount >= 50
+    if (state.turnCount >= 50) {
+      checkAndUnlock('survivor_50_turns');
+    }
+
+    // victory_under_60_turns: phase is 'victory' and turnCount < 60
+    if (state.phase === 'victory' && state.turnCount < 60) {
+      checkAndUnlock('speedrunner');
+    }
+
+    // find_all_keys: Any party member has all 3 keys simultaneously
+    const allKeys = ['key_rpd', 'key_sewers', 'key_lab'];
+    if (state.party.some(p => allKeys.every(k => p.inventory.some(i => i.itemId === k)))) {
+      checkAndUnlock('all_keys_found');
+    }
+
+    // collect_ribbon_1: collectedRibbons >= 1
+    if (state.collectedRibbons >= 1) {
+      checkAndUnlock('ribbon_1');
+    }
+
+    // collect_ribbon_5: collectedRibbons >= 5
+    if (state.collectedRibbons >= 5) {
+      checkAndUnlock('ribbon_5');
+    }
+
+    // collect_all_ribbons: collectedRibbons >= 10
+    if (state.collectedRibbons >= 10) {
+      checkAndUnlock('ribbon_all');
+    }
+
+    // bestiary_5: bestiary entries with encountered=true >= 5
+    if (state.bestiary.filter(b => b.encountered).length >= 5) {
+      checkAndUnlock('bestiary_5');
+    }
+
+    // bestiary_all: bestiary entries with defeated=true >= 12
+    if (state.bestiary.filter(b => b.defeated).length >= 12) {
+      checkAndUnlock('bestiary_all');
+    }
+
+    // help_survivors: completedEvents includes city_outskirts
+    if (state.completedEvents.includes('city_outskirts')) {
+      checkAndUnlock('savior');
+    }
+
+    // game_victory: phase is 'victory'
+    if (state.phase === 'victory') {
+      checkAndUnlock('victory');
+    }
   },
 
   searchArea: () => {
@@ -841,9 +1374,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    // Find items from pool
+    // Find items from pool (exclude key items already in party inventory)
+    const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
     const foundItems: string[] = [];
     for (const entry of location.itemPool) {
+      // Skip key items already owned by the party
+      if (KEY_ITEM_IDS.has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
       if (Math.random() * 100 < entry.chance) {
         foundItems.push(entry.itemId);
       }
@@ -931,6 +1467,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         continue;
       }
 
+      // ── KEY ITEM CHECK: prevent duplicate keys (safety net, should not trigger due to pre-filter) ──
+      if (KEY_ITEM_IDS.has(itemId)) {
+        const partyAlreadyHasKey = updatedParty.some(p =>
+          p.inventory.some(i => i.itemId === itemId)
+        );
+        if (partyAlreadyHasKey) {
+          continue; // Skip silently — already filtered above, this is just a safety net
+        }
+      }
+
       // ── NORMAL ITEM (auto-stack if same item exists) ──
       const finderChar = updatedParty.find(p => p.id === targetId);
       // Try to add to existing stack first
@@ -1000,6 +1546,58 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
+    // ── DOCUMENT DISCOVERY IN SEARCH ──
+    const searchDocs = Object.values(DOCUMENTS).filter(d =>
+      d.locationId === locId &&
+      !state.collectedDocuments.includes(d.id) &&
+      (!d.hintRequired || state.collectedDocuments.includes(d.hintRequired))
+    );
+    if (searchDocs.length > 0 && Math.random() < 0.35) {
+      const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
+      const newDocs = [...state.collectedDocuments, doc.id];
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] 🎒 ${flavourText}`, `[${state.turnCount}] 📖 ${searcherName} trova un documento: "${doc.title}"`],
+        collectedDocuments: newDocs,
+        turnCount: state.turnCount + 1,
+        searchCounts: newSearchCounts,
+        searchMaxes: newSearchMaxes,
+        notification: {
+          id: `notif_${++notifId}`,
+          type: 'item_found',
+          message: doc.title,
+          icon: doc.icon,
+          subMessage: doc.type === 'umbrella_file' ? '📄 File Umbrella' : `📝 ${doc.type}`,
+        },
+      });
+      setTimeout(() => get().checkAchievements(), 100);
+      return;
+    }
+
+    // ── SECRET ROOM DISCOVERY ──
+    const locationSecrets = Object.values(SECRET_ROOMS).filter(s =>
+      s.locationId === locId &&
+      !state.discoveredSecretRooms.includes(s.id)
+    );
+    for (const secret of locationSecrets) {
+      let canDiscover = false;
+      if (secret.discoveryMethod === 'search' && Math.random() * 100 < secret.searchChance) {
+        canDiscover = true;
+      }
+      if (secret.discoveryMethod === 'document' && secret.requiredDocumentId && state.collectedDocuments.includes(secret.requiredDocumentId)) {
+        canDiscover = Math.random() * 100 < 50;
+      }
+      if (secret.discoveryMethod === 'npc_hint' && secret.requiredNpcQuestId) {
+        const questProgress = state.npcQuestProgress[secret.requiredNpcQuestId];
+        if (questProgress?.completed && Math.random() * 100 < secret.searchChance) {
+          canDiscover = true;
+        }
+      }
+      if (canDiscover) {
+        get().discoverSecretRoom(secret.id);
+        return;
+      }
+    }
+
     set({
       messageLog: [...newLog, `[${state.turnCount}] 🎒 ${flavourText} Trovati: ${foundNames.join(', ')}.`],
       party: updatedParty,
@@ -1009,6 +1607,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       notification: lastNotif,
       collectedRibbons: newRibbonCount,
     });
+    // Check achievements after search (may have found ribbons)
+    setTimeout(() => get().checkAchievements(), 100);
   },
 
   handleEventChoice: (choiceIndex: number) => {
@@ -1018,6 +1618,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const choice = event.choices[choiceIndex];
     if (!choice) return;
+
+    // ── PUZZLE CHECK: If event has a puzzle and this is the first choice, start puzzle instead ──
+    if (event.puzzle && choiceIndex === 0) {
+      get().startPuzzle(event.puzzle, event.title, event.description);
+      return;
+    }
 
     const outcome = choice.outcome;
     let updatedParty = [...state.party];
@@ -1037,36 +1643,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       logMessages.push(`[${state.turnCount}] ${outcome.hpChange > 0 ? '❤️' : '💔'} ${Math.abs(outcome.hpChange)} HP ${outcome.hpChange > 0 ? 'recuperati' : 'persi'}.`);
     }
 
-    // Receive items
+    // Receive items (with stacking)
     if (outcome.receiveItems) {
       const lootSummary: string[] = [];
       for (const itemEntry of outcome.receiveItems) {
-        const itemDef = ITEMS[itemEntry.itemId];
-        if (!itemDef) continue;
-        const newItem: ItemInstance = {
-          uid: `${itemEntry.itemId}_${Date.now()}_${Math.random()}`,
-          itemId: itemEntry.itemId,
-          name: itemDef.name,
-          description: itemDef.description,
-          type: itemDef.type,
-          rarity: itemDef.rarity,
-          icon: itemDef.icon,
-          usable: itemDef.usable,
-          equippable: itemDef.equippable,
-          effect: itemDef.effect,
-          quantity: itemEntry.quantity,
-        };
-        let added = false;
-        updatedParty = updatedParty.map(p => {
-          if (!added && p.inventory.length < p.maxInventorySlots) {
-            added = true;
-            lootSummary.push(`${itemDef.name} x${itemEntry.quantity} → ${p.name}`);
-            return { ...p, inventory: [...p.inventory, newItem] };
-          }
-          return p;
-        });
-        if (!added) {
-          lootSummary.push(`${itemDef.name} x${itemEntry.quantity} → perso (inventario pieno)`);
+        const result = addItemToParty(updatedParty, itemEntry.itemId, itemEntry.quantity);
+        updatedParty = result.party;
+        if (result.added) {
+          lootSummary.push(`${ITEMS[itemEntry.itemId]?.name} x${itemEntry.quantity} → ${result.characterName}`);
+        } else {
+          lootSummary.push(`${ITEMS[itemEntry.itemId]?.name} x${itemEntry.quantity} → perso (inventario pieno)`);
         }
       }
       if (lootSummary.length > 0) {
@@ -1079,7 +1665,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Trigger combat
     if (outcome.triggerCombat && outcome.combatEnemyIds) {
-      const eventDiff = getDifficultyConfig(state.partySize);
+      const eventDiff = getDifficultyConfig(state.difficulty, state.partySize);
       const enemies = outcome.combatEnemyIds.map(id => createEnemyInstance(id, eventDiff.statMult));
       const allActors = [
         ...updatedParty.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
@@ -1118,6 +1704,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           fled: false,
           statusDurations: {},
           specialCooldowns: {},
+          special2Cooldowns: {},
+          tauntTargetId: null,
         },
         messageLog: [...state.messageLog, ...logMessages],
       });
@@ -1150,6 +1738,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ? state.completedEvents
       : [...state.completedEvents, state.currentLocationId];
 
+    // Track story choices for multiple endings
+    const newStoryChoices = [...state.storyChoices];
+    if (state.currentLocationId === 'city_outskirts') {
+      if (choiceIndex === 0 && !newStoryChoices.includes('help_survivors')) newStoryChoices.push('help_survivors');
+      if (choiceIndex === 1 && !newStoryChoices.includes('ignore_survivors')) newStoryChoices.push('ignore_survivors');
+    }
+    if (state.currentLocationId === 'hospital_district') {
+      if (choiceIndex === 0 && !newStoryChoices.includes('enter_lab')) newStoryChoices.push('enter_lab');
+      if (choiceIndex === 1 && !newStoryChoices.includes('skip_lab')) newStoryChoices.push('skip_lab');
+    }
+    if (state.currentLocationId === 'sewers') {
+      if (choiceIndex === 0 && !newStoryChoices.includes('go_back_sewers')) newStoryChoices.push('go_back_sewers');
+      if (choiceIndex === 1 && !newStoryChoices.includes('proceed_sewers')) newStoryChoices.push('proceed_sewers');
+    }
+    if (state.currentLocationId === 'laboratory_entrance') {
+      if (choiceIndex === 0 && !newStoryChoices.includes('hack_computer')) newStoryChoices.push('hack_computer');
+      if (choiceIndex === 1 && !newStoryChoices.includes('skip_computer')) newStoryChoices.push('skip_computer');
+    }
+
     set({
       activeEvent: null,
       eventOutcome: outcome,
@@ -1158,7 +1765,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       turnCount: state.turnCount + 1,
       skipNextEncounter: true,
       completedEvents: newCompleted,
+      storyChoices: newStoryChoices,
     });
+    // Check achievements after event completion (help_survivors, etc.)
+    setTimeout(() => get().checkAchievements(), 100);
   },
 
   closeEvent: () => {
@@ -1371,12 +1981,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const item = fromChar.inventory.find(i => i.uid === itemUid);
       if (!item) return state;
 
-      // Check if target has space (skip check for bags — they consume themselves)
-      if (toChar.inventory.length >= toChar.maxInventorySlots && item.type !== 'bag') {
-        logMsg = `[Turno ${state.turnCount}] 🚫 Inventario di ${toChar.name} pieno!`;
-        return state;
-      }
-
       // If transferring an equipped weapon, unequip it first
       let updatedFromChar = { ...fromChar };
       let updatedToChar = { ...toChar };
@@ -1386,17 +1990,39 @@ export const useGameStore = create<GameStore>((set, get) => ({
         updatedFromChar = { ...updatedFromChar, weapon: null };
       }
 
-      // Move item
+      // Remove item from source
       updatedFromChar = {
         ...updatedFromChar,
         inventory: updatedFromChar.inventory.map(i =>
           i.uid === itemUid ? { ...i, isEquipped: false } : i
         ).filter(i => i.uid !== itemUid),
       };
-      updatedToChar = {
-        ...updatedToChar,
-        inventory: [...updatedToChar.inventory, { ...item, isEquipped: false }],
-      };
+
+      // ── Stack with existing same-item on target if possible (ammo, healing, antidote) ──
+      const isStackable = item.type === 'ammo' || item.type === 'healing' || item.type === 'antidote';
+      const existingTargetIdx = updatedToChar.inventory.findIndex(i => i.itemId === item.itemId);
+      if (isStackable && existingTargetIdx >= 0) {
+        // Merge into existing stack — no extra slot needed
+        const updatedInv = [...updatedToChar.inventory];
+        updatedInv[existingTargetIdx] = { ...updatedInv[existingTargetIdx], quantity: updatedInv[existingTargetIdx].quantity + item.quantity };
+        updatedToChar = { ...updatedToChar, inventory: updatedInv };
+      } else if (updatedToChar.inventory.length < updatedToChar.maxInventorySlots || item.type === 'bag') {
+        // Add as new entry
+        updatedToChar = {
+          ...updatedToChar,
+          inventory: [...updatedToChar.inventory, { ...item, isEquipped: false }],
+        };
+      } else {
+        // Target inventory full and can't stack
+        logMsg = `[Turno ${state.turnCount}] 🚫 Inventario di ${toChar.name} pieno!`;
+        return {
+          party: state.party.map(p => {
+            if (p.id === fromCharacterId) return updatedFromChar;
+            return p;
+          }),
+          messageLog: [...state.messageLog, logMsg],
+        };
+      }
 
       // Update party
       updatedParty = state.party.map(p => {
@@ -1438,7 +2064,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const location = LOCATIONS[state.currentLocationId];
     if (!location.bossId) return;
 
-    const diff = getDifficultyConfig(state.partySize);
+    const diff = getDifficultyConfig(state.difficulty, state.partySize);
     const boss = createEnemyInstance(location.bossId, diff.statMult);
     const allActors = [
       ...state.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
@@ -1469,6 +2095,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isDefeat: false,
         fled: false,
         statusDurations: {},
+        specialCooldowns: {},
+        special2Cooldowns: {},
+        tauntTargetId: null,
       },
       messageLog: [...state.messageLog, `[${state.turnCount}] ⭐ BOSS: ${boss.name} blocca la via!`],
     });
@@ -1605,13 +2234,41 @@ export const useGameStore = create<GameStore>((set, get) => ({
         } else {
           target = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
         }
-        const result = executePlayerSpecial(character, target, state.combat.turn, updatedParty);
+        const result = executePlayerSpecial(character, target, state.combat.turn, updatedParty, updatedEnemies);
         newLog.push(result.log);
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
         }
+        if (result.updatedEnemies) {
+          updatedEnemies = result.updatedEnemies;
+        }
+        // Track status durations on enemies after applying specials (poison, bleed, stun)
+        for (const e of updatedEnemies) {
+          const prevEnemy = state.enemies.find(pe => pe.id === e.id);
+          if (!prevEnemy) continue;
+          const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
+          for (const effect of newEffects) {
+            if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+              const existing = updatedCombatStatusDurations[e.id] || [];
+              updatedCombatStatusDurations[e.id] = [
+                ...existing,
+                { effect: effect as StatusEffect, turnsLeft: 3 },
+              ];
+            }
+          }
+        }
         if (result.updatedCharacter) {
           updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
+        }
+        // Handle applied buff (e.g., Adrenalina)
+        if (result.appliedBuff) {
+          const existing = updatedCombatStatusDurations[result.appliedBuff.targetId] || [];
+          if (!existing.some(d => d.effect === result.appliedBuff!.effect)) {
+            updatedCombatStatusDurations[result.appliedBuff.targetId] = [
+              ...existing,
+              { effect: result.appliedBuff.effect, turnsLeft: result.appliedBuff.duration },
+            ];
+          }
         }
         // Set 2-turn cooldown for special
         updatedCooldowns[character.id] = 2;
@@ -1636,6 +2293,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (result.updatedEnemies) {
           updatedEnemies = result.updatedEnemies;
         }
+        // Track status durations on enemies after applying specials (poison, bleed, stun)
+        for (const e of updatedEnemies) {
+          const prevEnemy = state.enemies.find(pe => pe.id === e.id);
+          if (!prevEnemy) continue;
+          const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
+          for (const effect of newEffects) {
+            if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+              const existing = updatedCombatStatusDurations[e.id] || [];
+              updatedCombatStatusDurations[e.id] = [
+                ...existing,
+                { effect: effect as StatusEffect, turnsLeft: 3 },
+              ];
+            }
+          }
+        }
         if (result.updatedCharacter) {
           updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
         }
@@ -1645,6 +2317,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         // Set taunt if tank used Immolation
         if (result.tauntTargetId) {
           tauntTargetId = result.tauntTargetId;
+        }
+        // Handle applied buff (e.g., Adrenalina)
+        if (result.appliedBuff) {
+          const existing = updatedCombatStatusDurations[result.appliedBuff.targetId] || [];
+          if (!existing.some(d => d.effect === result.appliedBuff!.effect)) {
+            updatedCombatStatusDurations[result.appliedBuff.targetId] = [
+              ...existing,
+              { effect: result.appliedBuff.effect, turnsLeft: result.appliedBuff.duration },
+            ];
+          }
         }
         // Set 3-turn cooldown for special2
         updatedCooldowns2[character.id] = 3;
@@ -1752,7 +2434,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       newPhase = 'exploration';
       
       // Get difficulty config for loot/EXP multipliers
-      const lootDiff = getDifficultyConfig(state.partySize);
+      const lootDiff = getDifficultyConfig(state.difficulty, state.partySize);
 
       // Generate loot (with difficulty multiplier)
       const allLoot: string[] = [];
@@ -1836,6 +2518,51 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
 
       // Check if this was a boss fight (victory condition)
+      // Update bestiary - mark defeated enemies
+      const victoryBestiary = [...state.bestiary];
+      const defeatedEnemyIds: string[] = [];
+      for (const enemy of updatedEnemies) {
+        if (enemy.currentHp <= 0) {
+          defeatedEnemyIds.push(enemy.definitionId);
+          const existing = victoryBestiary.find(b => b.enemyId === enemy.definitionId);
+          if (!existing) {
+            victoryBestiary.push({ enemyId: enemy.definitionId, encountered: true, defeated: true, timesDefeated: 1, firstDefeatTimestamp: Date.now() });
+          } else {
+            existing.defeated = true;
+            existing.timesDefeated += 1;
+            if (!existing.firstDefeatTimestamp) existing.firstDefeatTimestamp = Date.now();
+          }
+        }
+      }
+
+      // Update NPC kill quest progress
+      let updatedNpcQuestProgress = { ...state.npcQuestProgress };
+      const questLogMsgs: string[] = [];
+      for (const enemyId of defeatedEnemyIds) {
+        for (const npc of Object.values(NPCS)) {
+          if (npc.quest?.type === 'kill' && npc.quest.targetId === enemyId) {
+            const qp = { ...(updatedNpcQuestProgress[npc.quest.id] || { currentCount: 0, completed: false }) };
+            if (!qp.completed) {
+              qp.currentCount += 1;
+              if (qp.currentCount >= npc.quest.targetCount) {
+                qp.completed = true;
+                questLogMsgs.push(`[${state.turnCount}] 📋 Missione completata: ${npc.quest.name}!`);
+                if (npc.quest.rewardItems) {
+                  for (const reward of npc.quest.rewardItems) {
+                    const rewardDef = ITEMS[reward.itemId];
+                    if (!rewardDef) continue;
+                    const result = addItemToParty(updatedParty, reward.itemId, reward.quantity);
+                    updatedParty = result.party;
+                    if (result.added) questLogMsgs.push(`[${state.turnCount}] 🎁 Ricompensa: ${rewardDef.name} x${reward.quantity} → ${result.characterName}`);
+                  }
+                }
+              }
+              updatedNpcQuestProgress[npc.quest.id] = qp;
+            }
+          }
+        }
+      }
+
       if (updatedEnemies.some(e => e.isBoss)) {
         set({
           notification: {
@@ -1854,10 +2581,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ...state.messageLog,
             `[${state.turnCount}] ⚔️ Boss eliminato. Sei sopravvissuto. +${totalExp} EXP`,
             ...levelUpMessages,
+            ...questLogMsgs,
           ],
+          bestiary: victoryBestiary,
+          npcQuestProgress: updatedNpcQuestProgress,
         });
         setTimeout(() => {
           set({ phase: 'victory', combat: null, enemies: [], notification: null });
+          setTimeout(() => get().checkAchievements(), 100);
         }, 3500);
         return;
       }
@@ -1879,10 +2610,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ...state.messageLog,
           `[${state.turnCount}] ⚔️ Sei sopravvissuto allo scontro. +${totalExp} EXP`,
           ...levelUpMessages,
+          ...questLogMsgs,
         ],
+        bestiary: victoryBestiary,
+        npcQuestProgress: updatedNpcQuestProgress,
       });
       setTimeout(() => {
         set({ phase: 'exploration', combat: null, enemies: [], notification: null });
+        setTimeout(() => get().checkAchievements(), 100);
       }, 3500);
       return;
     }
@@ -1987,7 +2722,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
-    // 3. DPS: use Raffica (special2) if multiple enemies alive + available
+    // 3. Control: use Gas Venefico (special2) if multiple enemies alive, Cristalli Sonici (special) if available
+    if (character.archetype === 'control') {
+      if (special2Cd === 0 && aliveEnemies.length >= 2) {
+        const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
+        get().selectCombatAction('special2');
+        get().selectCombatTarget(weakest.id);
+        setTimeout(() => get().executeCombatTurn(), 600);
+        return;
+      }
+      if (specialCd === 0) {
+        const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
+        get().selectCombatAction('special');
+        get().selectCombatTarget(weakest.id);
+        setTimeout(() => get().executeCombatTurn(), 600);
+        return;
+      }
+    }
+
+    // 4. DPS: use Raffica (special2) if multiple enemies alive + available
     if (character.archetype === 'dps' && special2Cd === 0 && aliveEnemies.length >= 2) {
       const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
       get().selectCombatAction('special2');
@@ -2145,18 +2898,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
               message: `🩸 ${p.name} perde sangue! -${bleedDmg} HP (${sd.turnsLeft - 1} turni rimasti)`,
             });
           }
+          if (sd.effect === 'adrenaline') {
+            statusLogEntries.push({
+              turn: newTurn,
+              actorName: p.name,
+              actorType: 'player',
+              action: 'Adrenalina',
+              message: `💉 ${p.name} è sotto adrenalina! +25% danni (${sd.turnsLeft - 1} turni rimasti)`,
+            });
+          }
           // Decrement turns; keep only effects that still have turns left
           const newTurnsLeft = sd.turnsLeft - 1;
           if (newTurnsLeft > 0) {
             remainingDurations.push({ effect: sd.effect, turnsLeft: newTurnsLeft });
           } else {
             // Effect expired — remove from character's statusEffects
+            const effectLabel = sd.effect === 'poison' ? 'avvelenamento' : sd.effect === 'bleeding' ? 'sanguinamento' : sd.effect === 'adrenaline' ? 'adrenalina' : sd.effect;
+            const emoji = sd.effect === 'adrenaline' ? '💉' : '✨';
+            const verb = sd.effect === 'adrenaline' ? "L'effetto di" : 'si è ripreso da';
             statusLogEntries.push({
               turn: newTurn,
               actorName: 'Sistema',
               actorType: 'player',
               action: 'Recupero',
-              message: `✨ ${p.name} si è ripreso da ${sd.effect === 'poison' ? "avvelenamento" : sd.effect === 'bleeding' ? "sanguinamento" : sd.effect}!`,
+              message: `${emoji} ${verb} ${effectLabel} è terminato per ${p.name}!`,
             });
           }
         }
@@ -2179,6 +2944,95 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
+    // Process status effects on ENEMIES at new turn start (DOT for poison/bleeding)
+    let updatedEnemiesForStatus = [...enemies];
+    if (isNewTurn) {
+      for (const enemy of updatedEnemiesForStatus) {
+        if (enemy.currentHp <= 0) continue;
+        const enemyDurations = updatedStatusDurations[enemy.id] || [];
+        if (enemyDurations.length === 0 && !enemy.statusEffects.includes('poison') && !enemy.statusEffects.includes('bleeding')) continue;
+
+        let hp = enemy.currentHp;
+        const remainingDurations: StatusDuration[] = [];
+
+        for (const sd of enemyDurations) {
+          if (sd.effect === 'poison') {
+            const poisonDmg = Math.max(1, Math.floor(enemy.maxHp * 0.06));
+            hp = Math.max(0, hp - poisonDmg);
+            statusLogEntries.push({
+              turn: newTurn,
+              actorName: enemy.name,
+              actorType: 'enemy',
+              action: 'Avvelenamento',
+              damage: poisonDmg,
+              message: `🟢 ${enemy.name} è avvelenato! -${poisonDmg} HP (${sd.turnsLeft - 1} turni rimasti)`,
+            });
+          }
+          if (sd.effect === 'bleeding') {
+            const bleedDmg = Math.max(1, Math.floor(enemy.maxHp * 0.04));
+            hp = Math.max(0, hp - bleedDmg);
+            statusLogEntries.push({
+              turn: newTurn,
+              actorName: enemy.name,
+              actorType: 'enemy',
+              action: 'Sanguinamento',
+              damage: bleedDmg,
+              message: `🩸 ${enemy.name} sanguina! -${bleedDmg} HP (${sd.turnsLeft - 1} turni rimasti)`,
+            });
+          }
+          if (sd.effect === 'stunned') {
+            // Stun tick message (actual skip is handled when enemy's turn arrives)
+            statusLogEntries.push({
+              turn: newTurn,
+              actorName: enemy.name,
+              actorType: 'enemy',
+              action: 'Stordito',
+              message: `💫 ${enemy.name} è stordito! (${sd.turnsLeft - 1} turni rimasti)`,
+            });
+          }
+          // Decrement turns; keep only effects that still have turns left
+          const newTurnsLeft = sd.turnsLeft - 1;
+          if (newTurnsLeft > 0) {
+            remainingDurations.push({ effect: sd.effect, turnsLeft: newTurnsLeft });
+          } else {
+            // Effect expired — remove from enemy's statusEffects
+            const effectLabel = sd.effect === 'poison' ? 'avvelenamento' : sd.effect === 'bleeding' ? 'sanguinamento' : sd.effect === 'stunned' ? 'stordimento' : sd.effect;
+            statusLogEntries.push({
+              turn: newTurn,
+              actorName: 'Sistema',
+              actorType: 'enemy',
+              action: 'Recupero',
+              message: `✨ ${enemy.name} si è ripreso da ${effectLabel}!`,
+            });
+          }
+        }
+
+        updatedEnemiesForStatus = updatedEnemiesForStatus.map(e =>
+          e.id === enemy.id
+            ? {
+                ...e,
+                currentHp: hp,
+                statusEffects: remainingDurations.map(rd => rd.effect),
+              }
+            : e
+        );
+
+        if (remainingDurations.length > 0) {
+          updatedStatusDurations[enemy.id] = remainingDurations;
+        } else {
+          delete updatedStatusDurations[enemy.id];
+        }
+      }
+
+      // Check if any enemy died from DOT — log victory
+      if (updatedEnemiesForStatus.some(e => e.currentHp <= 0)) {
+        // Update aliveEnemyIds for the turn order check below
+        for (const e of updatedEnemiesForStatus) {
+          if (e.currentHp <= 0) aliveEnemyIds.delete(e.id);
+        }
+      }
+    }
+
     const newLog = isNewTurn
       ? [
           ...combat.log,
@@ -2189,7 +3043,78 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // If next actor is enemy, execute AI
     if (nextActor.type === 'enemy') {
-      const enemy = enemies.find(e => e.id === nextActor.id)!;
+      const enemy = updatedEnemiesForStatus.find(e => e.id === nextActor.id)!;
+
+      // Check if enemy is stunned — skip turn and decrement stun duration
+      if (enemy.statusEffects.includes('stunned')) {
+        const enemyStunDurations = updatedStatusDurations[enemy.id] || [];
+        const stunEntry = enemyStunDurations.find(d => d.effect === 'stunned');
+
+        // Decrement stun duration; remove only when fully expired
+        let newEnemyStatusEffects = [...enemy.statusEffects];
+        if (!stunEntry || stunEntry.turnsLeft <= 1) {
+          // Stun expired — remove it
+          newEnemyStatusEffects = newEnemyStatusEffects.filter(s => s !== 'stunned');
+          if (updatedStatusDurations[enemy.id]) {
+            updatedStatusDurations[enemy.id] = updatedStatusDurations[enemy.id].filter(d => d.effect !== 'stunned');
+            if (updatedStatusDurations[enemy.id].length === 0) delete updatedStatusDurations[enemy.id];
+          }
+        } else {
+          // Decrement stun turns left
+          updatedStatusDurations[enemy.id] = enemyStunDurations.map(d =>
+            d.effect === 'stunned' ? { ...d, turnsLeft: d.turnsLeft - 1 } : d
+          );
+        }
+
+        const stunUpdatedEnemies = updatedEnemiesForStatus.map(e =>
+          e.id === enemy.id ? { ...e, statusEffects: newEnemyStatusEffects } : e
+        );
+        const stunLog: CombatLogEntry = {
+          turn: newTurn,
+          actorName: enemy.name,
+          actorType: 'enemy',
+          action: 'Stordito',
+          message: `💫 ${enemy.name} è stordito e salta il turno!`,
+        };
+
+        // Find next actor after this stunned enemy
+        let stunNextIdx = nextIdx + 1;
+        while (stunNextIdx < allActors.length) {
+          const candidate = allActors[stunNextIdx];
+          if (candidate.type === 'enemy' && !aliveEnemyIds.has(candidate.id)) { stunNextIdx++; continue; }
+          if (candidate.type === 'player' && !alivePartyIds.has(candidate.id)) { stunNextIdx++; continue; }
+          break;
+        }
+        if (stunNextIdx >= allActors.length) stunNextIdx = 0;
+        const stunNextActor = allActors[stunNextIdx];
+        let stunNextTurn = newTurn;
+        if (stunNextIdx === 0) stunNextTurn = newTurn + 1;
+
+        set({
+          enemies: stunUpdatedEnemies,
+          combat: {
+            ...combat,
+            turn: stunNextTurn,
+            currentActorId: stunNextActor.id,
+            currentActorType: stunNextActor.type,
+            selectedAction: null,
+            selectedTarget: null,
+            selectedItemUid: null,
+            log: [...newLog, stunLog],
+            statusDurations: updatedStatusDurations,
+            specialCooldowns: updatedCooldowns,
+            special2Cooldowns: updatedCooldowns2,
+            tauntTargetId,
+          },
+        });
+
+        // If next is also enemy, chain
+        if (stunNextActor.type === 'enemy') {
+          setTimeout(() => get().advanceToNextActor(), 900);
+        }
+        return;
+      }
+
       const { log, updatedParty: afterEnemyAttack, appliedStatus } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId);
 
       // Record applied status duration
@@ -2208,6 +3133,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({
           phase: 'game-over',
           party: afterEnemyAttack,
+          enemies: updatedEnemiesForStatus,
           messageLog: [...state.messageLog, `[${state.turnCount}] 💀 Tutti i membri del gruppo sono caduti...`],
         });
         return;
@@ -2229,7 +3155,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       set({
         party: afterEnemyAttack,
-        enemies,
+        enemies: updatedEnemiesForStatus,
         combat: {
           ...combat,
           turn: nextNextTurn,
@@ -2255,7 +3181,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       party: updatedParty,
-      enemies,
+      enemies: updatedEnemiesForStatus,
       combat: {
         ...combat,
         turn: newTurn,
@@ -2270,6 +3196,479 @@ export const useGameStore = create<GameStore>((set, get) => ({
         special2Cooldowns: updatedCooldowns2,
         tauntTargetId,
       },
+    });
+  },
+
+  // ==========================================
+  // DIFFICULTY SELECTION
+  // ==========================================
+  selectDifficulty: (difficulty: DifficultyLevel) => {
+    set({ selectedDifficulty: difficulty });
+  },
+
+  // ==========================================
+  // PUZZLE SYSTEM
+  // ==========================================
+  startPuzzle: (puzzle, title, description) => {
+    const state = get();
+    const puzzleState: PuzzleState = {
+      type: puzzle.type,
+      title,
+      description,
+      codeLength: puzzle.combinationCode?.length || 4,
+      currentInput: [],
+      targetCode: puzzle.combinationCode || '',
+      attemptsLeft: 5,
+      maxAttempts: 5,
+      feedback: [],
+      sequencePattern: puzzle.sequencePattern || [],
+      playerSequence: [],
+      isShowingPattern: true,
+      currentPatternIndex: 0,
+      showPhaseStep: 0,
+      requiredItemIds: puzzle.requiredItemIds || (puzzle.requiredItemId ? [puzzle.requiredItemId] : []),
+      successOutcome: puzzle.successOutcome,
+      failMessage: puzzle.failMessage,
+      isSolved: false,
+      isFailed: false,
+    };
+    set({
+      phase: 'puzzle',
+      puzzleState,
+      puzzleSourceLocationId: state.currentLocationId,
+    });
+  },
+
+  submitCombination: (input: string[]) => {
+    const state = get();
+    const ps = state.puzzleState;
+    if (!ps || ps.type !== 'combination') return;
+
+    // Validate: check each position
+    const feedback: ('correct' | 'misplaced' | 'wrong')[] = [];
+    const targetArr = ps.targetCode.split('');
+    const inputArr = [...input];
+    const targetUsed = new Set<number>();
+    const inputUsed = new Set<number>();
+
+    // First pass: correct positions
+    for (let i = 0; i < inputArr.length; i++) {
+      if (inputArr[i] === targetArr[i]) {
+        feedback.push('correct');
+        targetUsed.add(i);
+        inputUsed.add(i);
+      } else {
+        feedback.push('wrong');
+      }
+    }
+    // Second pass: misplaced
+    for (let i = 0; i < inputArr.length; i++) {
+      if (inputUsed.has(i)) continue;
+      for (let j = 0; j < targetArr.length; j++) {
+        if (targetUsed.has(j)) continue;
+        if (inputArr[i] === targetArr[j]) {
+          feedback[i] = 'misplaced';
+          targetUsed.add(j);
+          break;
+        }
+      }
+    }
+
+    const newFeedback = [...ps.feedback, feedback];
+    const isSolved = feedback.every(f => f === 'correct');
+    const attemptsLeft = ps.attemptsLeft - 1;
+    const isFailed = attemptsLeft <= 0 && !isSolved;
+
+    if (isSolved) {
+      // Puzzle solved! Apply success outcome
+      const outcome = ps.successOutcome;
+      let updatedParty = [...state.party];
+      const logMessages: string[] = [
+        `[${state.turnCount}] 🧩 Puzzle risolto! ${ps.title}`,
+        `[${state.turnCount}] 📖 ${outcome.description}`,
+      ];
+
+      if (outcome.hpChange) {
+        updatedParty = updatedParty.map(p => ({
+          ...p,
+          currentHp: Math.max(0, Math.min(p.maxHp, p.currentHp + outcome.hpChange)),
+        }));
+      }
+
+      if (outcome.receiveItems) {
+        for (const itemEntry of outcome.receiveItems) {
+          const result = addItemToParty(updatedParty, itemEntry.itemId, itemEntry.quantity);
+          updatedParty = result.party;
+          if (result.added) logMessages.push(`[${state.turnCount}] 🎒 Ottenuto: ${ITEMS[itemEntry.itemId]?.name} x${itemEntry.quantity} → ${result.characterName}`);
+        }
+      }
+
+      const completedEvents = state.completedEvents.includes(state.puzzleSourceLocationId || '')
+        ? state.completedEvents
+        : [...state.completedEvents, state.puzzleSourceLocationId || ''];
+
+      set({
+        phase: 'exploration',
+        puzzleState: { ...ps, isSolved: true, feedback: newFeedback, attemptsLeft },
+        party: updatedParty,
+        messageLog: [...state.messageLog, ...logMessages],
+        completedEvents,
+        activeEvent: null,
+      });
+      setTimeout(() => get().checkAchievements(), 100);
+      return;
+    }
+
+    if (isFailed) {
+      set({
+        puzzleState: { ...ps, isFailed: true, feedback: newFeedback, attemptsLeft: 0 },
+        messageLog: [...state.messageLog, `[${state.turnCount}] 🧩 ${ps.failMessage}`],
+      });
+      return;
+    }
+
+    set({
+      puzzleState: { ...ps, feedback: newFeedback, attemptsLeft, currentInput: [] },
+    });
+  },
+
+  addDigitToCombination: (digit: string) => {
+    const state = get();
+    const ps = state.puzzleState;
+    if (!ps || ps.type !== 'combination' || ps.isSolved || ps.isFailed) return;
+    if (ps.currentInput.length >= ps.codeLength) return;
+    const newInput = [...ps.currentInput, digit];
+    if (newInput.length === ps.codeLength) {
+      // Auto-submit when full
+      get().submitCombination(newInput);
+    } else {
+      set({ puzzleState: { ...ps, currentInput: newInput } });
+    }
+  },
+
+  removeDigitFromCombination: () => {
+    const state = get();
+    const ps = state.puzzleState;
+    if (!ps || ps.type !== 'combination' || ps.currentInput.length === 0) return;
+    set({ puzzleState: { ...ps, currentInput: ps.currentInput.slice(0, -1) } });
+  },
+
+  resetCombination: () => {
+    const state = get();
+    const ps = state.puzzleState;
+    if (!ps || ps.type !== 'combination') return;
+    set({ puzzleState: { ...ps, currentInput: [] } });
+  },
+
+  handleSequenceInput: (direction: string) => {
+    const state = get();
+    const ps = state.puzzleState;
+    if (!ps || ps.type !== 'sequence' || ps.isShowingPattern || ps.isSolved || ps.isFailed) return;
+
+    const newSequence = [...ps.playerSequence, direction];
+    const currentIdx = newSequence.length - 1;
+
+    if (direction !== ps.sequencePattern[currentIdx]) {
+      // Wrong input — fail
+      set({
+        puzzleState: { ...ps, playerSequence: newSequence, isFailed: true },
+        messageLog: [...state.messageLog, `[${state.turnCount}] 🧩 ${ps.failMessage}`],
+      });
+      return;
+    }
+
+    if (newSequence.length === ps.sequencePattern.length) {
+      // All correct! Solve puzzle
+      const outcome = ps.successOutcome;
+      let updatedParty = [...state.party];
+      const logMessages: string[] = [
+        `[${state.turnCount}] 🧩 Sequenza corretta! ${ps.title}`,
+        `[${state.turnCount}] 📖 ${outcome.description}`,
+      ];
+
+      if (outcome.hpChange) {
+        updatedParty = updatedParty.map(p => ({
+          ...p,
+          currentHp: Math.max(0, Math.min(p.maxHp, p.currentHp + outcome.hpChange)),
+        }));
+      }
+
+      if (outcome.receiveItems) {
+        for (const itemEntry of outcome.receiveItems) {
+          const result = addItemToParty(updatedParty, itemEntry.itemId, itemEntry.quantity);
+          updatedParty = result.party;
+          if (result.added) logMessages.push(`[${state.turnCount}] 🎒 Ottenuto: ${ITEMS[itemEntry.itemId]?.name} x${itemEntry.quantity} → ${result.characterName}`);
+        }
+      }
+
+      const completedEvents = state.completedEvents.includes(state.puzzleSourceLocationId || '')
+        ? state.completedEvents
+        : [...state.completedEvents, state.puzzleSourceLocationId || ''];
+
+      set({
+        phase: 'exploration',
+        puzzleState: { ...ps, isSolved: true, playerSequence: newSequence },
+        party: updatedParty,
+        messageLog: [...state.messageLog, ...logMessages],
+        completedEvents,
+        activeEvent: null,
+      });
+      setTimeout(() => get().checkAchievements(), 100);
+      return;
+    }
+
+    set({ puzzleState: { ...ps, playerSequence: newSequence } });
+  },
+
+  closePuzzle: () => {
+    const state = get();
+    const locId = state.puzzleSourceLocationId;
+    const completedEvents = locId
+      ? state.completedEvents.includes(locId)
+        ? state.completedEvents
+        : [...state.completedEvents, locId]
+      : state.completedEvents;
+    set({
+      phase: 'exploration',
+      puzzleState: null,
+      puzzleSourceLocationId: null,
+      completedEvents,
+      activeEvent: null,
+      skipNextEncounter: true,
+    });
+  },
+
+  // ==========================================
+  // QTE SYSTEM
+  // ==========================================
+  startQTE: (triggerSource: 'nemesis' | 'event' | 'boss') => {
+    const state = get();
+    const difficulty = state.difficulty;
+    const sequenceCount = difficulty === 'sopravvissuto' ? 3 : difficulty === 'normale' ? 4 : 5;
+    const baseTime = difficulty === 'sopravvissuto' ? 2500 : difficulty === 'normale' ? 2000 : 1400;
+
+    const directions: Array<'up' | 'down' | 'left' | 'right' | 'space'> = ['up', 'down', 'left', 'right', 'space'];
+    const sequences: Array<QTESequence> = [];
+    for (let i = 0; i < sequenceCount; i++) {
+      sequences.push({
+        direction: directions[Math.floor(Math.random() * directions.length)],
+        timeLimit: baseTime - (i * 100),
+      });
+    }
+
+    const hpSave = difficulty === 'sopravvissuto' ? 30 : difficulty === 'normale' ? 20 : 10;
+
+    let postSuccessMessage = '📊 Riesci a schivare!';
+    let postFailureMessage = '💀 Non sei riuscito a schivare!';
+    let postSuccessItems: { itemId: string; quantity: number }[] | undefined;
+    let postFailureCombat: string[] | undefined;
+
+    if (triggerSource === 'nemesis') {
+      postSuccessMessage = '🏃 Sei riuscito a fuggire da NEMESIS! Trovi un nascondiglio sicuro.';
+      postFailureMessage = '💀 NEMESIS ti colpisce! Sei ferito ma sei sopravvissuto... per ora.';
+      postSuccessItems = [{ itemId: 'first_aid', quantity: 1 }];
+    } else if (triggerSource === 'event') {
+      postSuccessMessage = '🏃 Sei scappato appena in tempo!';
+      postFailureMessage = '💥 Sei caduto e ti sei ferito!';
+    }
+
+    set({
+      phase: 'qte',
+      qteState: {
+        sequences,
+        currentStep: 0,
+        isProcessing: false,
+        isComplete: false,
+        successes: 0,
+        failures: 0,
+        timeRemaining: sequences[0]?.timeLimit || 2000,
+        result: 'pending',
+        rewardHpSave: hpSave,
+        triggerSource,
+        postSuccessMessage,
+        postFailureMessage,
+        postSuccessItems,
+        postFailureCombat,
+      },
+    });
+  },
+
+  handleQTEInput: (direction: string) => {
+    const state = get();
+    const qs = state.qteState;
+    if (!qs || qs.isProcessing || qs.isComplete) return;
+
+    const current = qs.sequences[qs.currentStep];
+    if (!current) return;
+
+    qs.isProcessing = true;
+
+    if (direction === current.direction) {
+      // Success!
+      const newSuccesses = qs.successes + 1;
+      const nextStep = qs.currentStep + 1;
+
+      if (nextStep >= qs.sequences.length) {
+        // All sequences done — determine result
+        const ratio = newSuccesses / qs.sequences.length;
+        const result = ratio >= 0.8 ? 'success' : ratio >= 0.5 ? 'partial' : 'failure';
+
+        setTimeout(() => {
+          get().completeQTE();
+        }, 500);
+
+        set({
+          qteState: { ...qs, successes: newSuccesses, currentStep: nextStep, isProcessing: true, isComplete: true, result },
+        });
+      } else {
+        setTimeout(() => {
+          set(state => ({
+            qteState: state.qteState ? {
+              ...state.qteState,
+              currentStep: nextStep,
+              isProcessing: false,
+              timeRemaining: state.qteState.sequences[nextStep]?.timeLimit || 2000,
+            } : null,
+          }));
+        }, 400);
+
+        set({ qteState: { ...qs, successes: newSuccesses, currentStep: nextStep, isProcessing: true } });
+      }
+    } else {
+      // Failure!
+      const newFailures = qs.failures + 1;
+      const nextStep = qs.currentStep + 1;
+
+      if (nextStep >= qs.sequences.length) {
+        const ratio = qs.successes / qs.sequences.length;
+        const result = ratio >= 0.8 ? 'success' : ratio >= 0.5 ? 'partial' : 'failure';
+
+        setTimeout(() => {
+          get().completeQTE();
+        }, 500);
+
+        set({
+          qteState: { ...qs, failures: newFailures, currentStep: nextStep, isProcessing: true, isComplete: true, result },
+        });
+      } else {
+        setTimeout(() => {
+          set(state => ({
+            qteState: state.qteState ? {
+              ...state.qteState,
+              currentStep: nextStep,
+              isProcessing: false,
+              timeRemaining: state.qteState.sequences[nextStep]?.timeLimit || 2000,
+            } : null,
+          }));
+        }, 400);
+
+        set({ qteState: { ...qs, failures: newFailures, currentStep: nextStep, isProcessing: true } });
+      }
+    }
+  },
+
+  completeQTE: () => {
+    const state = get();
+    const qs = state.qteState;
+    if (!qs) return;
+
+    let updatedParty = [...state.party];
+    const logMessages: string[] = [];
+
+    if (qs.result === 'success') {
+      logMessages.push(`[${state.turnCount}] ✅ ${qs.postSuccessMessage}`);
+      // Heal party by rewardHpSave
+      updatedParty = updatedParty.map(p => ({
+        ...p,
+        currentHp: Math.min(p.maxHp, p.currentHp + qs.rewardHpSave),
+      }));
+      logMessages.push(`[${state.turnCount}] ❤️ +${qs.rewardHpSave} HP a tutto il gruppo!`);
+
+      // Give items if any
+      if (qs.postSuccessItems) {
+        for (const itemEntry of qs.postSuccessItems) {
+          const itemDef = ITEMS[itemEntry.itemId];
+          if (!itemDef) continue;
+          let added = false;
+          updatedParty = updatedParty.map(p => {
+            if (!added && p.inventory.length < p.maxInventorySlots) {
+              added = true;
+              return { ...p, inventory: [...p.inventory, { uid: `${itemEntry.itemId}_${Date.now()}_${Math.random()}`, itemId: itemEntry.itemId, name: itemDef.name, description: itemDef.description, type: itemDef.type, rarity: itemDef.rarity, icon: itemDef.icon, usable: itemDef.usable, equippable: itemDef.equippable, effect: itemDef.effect, quantity: itemEntry.quantity }] };
+            }
+            return p;
+          });
+          if (added) logMessages.push(`[${state.turnCount}] 🎒 Ottenuto: ${itemDef.name} x${itemEntry.quantity}`);
+        }
+      }
+    } else if (qs.result === 'partial') {
+      logMessages.push(`[${state.turnCount}] ⚠️ ${qs.postFailureMessage} (parziale)`);
+      // Deal some damage
+      const dmg = Math.floor(10 * (state.difficulty === 'incubo' ? 1.5 : 1));
+      updatedParty = updatedParty.map(p => ({
+        ...p,
+        currentHp: Math.max(1, p.currentHp - dmg),
+      }));
+      logMessages.push(`[${state.turnCount}] 💔-${dmg} HP a tutti!`);
+    } else {
+      logMessages.push(`[${state.turnCount}] 💀 ${qs.postFailureMessage}`);
+      // Deal heavy damage
+      const dmg = Math.floor(25 * (state.difficulty === 'incubo' ? 2 : 1));
+      updatedParty = updatedParty.map(p => ({
+        ...p,
+        currentHp: Math.max(1, p.currentHp - dmg),
+      }));
+      logMessages.push(`[${state.turnCount}] 💔-${dmg} HP a tutti!`);
+
+      // If nemesis QTE failed, trigger combat
+      if (qs.triggerSource === 'nemesis' && qs.postFailureCombat) {
+        const diff = getDifficultyConfig(state.difficulty, state.partySize);
+        const enemies = qs.postFailureCombat.map(id => createEnemyInstance(id, diff.statMult));
+        const allActors = [
+          ...updatedParty.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
+          ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
+        ].sort((a, b) => b.spd - a.spd + (Math.random() - 0.5) * 4);
+        const firstActor = allActors[0];
+
+        set({
+          phase: 'combat',
+          party: updatedParty,
+          enemies,
+          qteState: null,
+          combat: {
+            turn: 1,
+            playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
+            enemyOrder: allActors.filter(a => a.type === 'enemy').map(a => a.id),
+            fullTurnOrder: allActors.map(a => ({ id: a.id, type: a.type })),
+            currentActorId: firstActor.id,
+            currentActorType: firstActor.type,
+            selectedAction: null,
+            selectedTarget: null,
+            selectedItemUid: null,
+            isProcessing: false,
+            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player' as const, action: 'QTE Fallito', message: `NEMESIS vi ha raggiunto!` }],
+            isVictory: false,
+            isDefeat: false,
+            fled: true,
+            statusDurations: {},
+            specialCooldowns: {},
+            special2Cooldowns: {},
+            tauntTargetId: null,
+          },
+          messageLog: [...state.messageLog, ...logMessages],
+        });
+        if (firstActor.type === 'enemy') {
+          setTimeout(() => get().advanceToNextActor(), 1400);
+        }
+        return;
+      }
+    }
+
+    set({
+      phase: 'exploration',
+      qteState: null,
+      party: updatedParty,
+      messageLog: [...state.messageLog, ...logMessages],
+      skipNextEncounter: true,
     });
   },
 
@@ -2294,6 +3693,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       messageLog: state.messageLog.slice(-50), // Keep last 50 messages
       turnCount: state.turnCount,
       difficulty: state.difficulty,
+      selectedDifficulty: state.selectedDifficulty,
       selectedCharacterId: state.selectedCharacterId,
       searchCounts: state.searchCounts,
       searchMaxes: state.searchMaxes,
@@ -2305,6 +3705,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       persistentRibbons: state.persistentRibbons || 0,
       isNewGamePlus: state.isNewGamePlus || false,
       gameStartTime: state.gameStartTime || Date.now(),
+      collectedDocuments: state.collectedDocuments,
+      activeNpc: null,
+      npcQuestProgress: state.npcQuestProgress,
+      npcsEncountered: state.npcsEncountered,
+      activeDynamicEvent: null,
+      dynamicEventTurnsLeft: 0,
+      storyChoices: state.storyChoices,
+      discoveredSecretRooms: state.discoveredSecretRooms,
+      endingType: null,
+      exploredSubAreas: state.exploredSubAreas,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -2363,7 +3773,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           `[Turno ${data.turnCount}] 💾 Partita caricata dallo Slot ${slot}.${isNGP ? ' 🎀 Nastri persistenti: ' + persistentRibs + '/10' : ''}`,
         ],
         turnCount: data.turnCount,
-        difficulty: data.difficulty,
+        difficulty: data.difficulty || 'normale',
+        selectedDifficulty: data.selectedDifficulty || null,
         inventoryOpen: false,
         selectedCharacterId: data.selectedCharacterId || data.party[0]?.id || null,
         searchCounts: data.searchCounts || {},
@@ -2377,6 +3788,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
         persistentRibbons: persistentRibs,
         isNewGamePlus: isNGP,
         gameStartTime: data.gameStartTime || Date.now(),
+        collectedDocuments: data.collectedDocuments || [],
+        activeNpc: null,
+        npcQuestProgress: data.npcQuestProgress || {},
+        npcsEncountered: data.npcsEncountered || [],
+        activeDynamicEvent: null,
+        dynamicEventTurnsLeft: 0,
+        storyChoices: data.storyChoices || [],
+        discoveredSecretRooms: data.discoveredSecretRooms || [],
+        endingType: data.endingType || null,
+        exploredSubAreas: data.exploredSubAreas || {},
+        documentsOpen: false,
+        npcsOpen: false,
       });
       return true;
     } catch {
@@ -2427,6 +3850,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       messageLog: state.messageLog.slice(-50),
       turnCount: state.turnCount,
       difficulty: state.difficulty,
+      selectedDifficulty: state.selectedDifficulty,
       selectedCharacterId: state.selectedCharacterId,
       searchCounts: state.searchCounts,
       searchMaxes: state.searchMaxes,
@@ -2438,6 +3862,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       persistentRibbons: totalPersistent,
       isNewGamePlus: true,
       gameStartTime: state.gameStartTime || Date.now(),
+      collectedDocuments: state.collectedDocuments,
+      activeNpc: null,
+      npcQuestProgress: state.npcQuestProgress,
+      npcsEncountered: state.npcsEncountered,
+      activeDynamicEvent: null,
+      dynamicEventTurnsLeft: 0,
+      storyChoices: state.storyChoices,
+      discoveredSecretRooms: state.discoveredSecretRooms,
+      endingType: state.endingType,
+      exploredSubAreas: state.exploredSubAreas,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -2492,7 +3926,307 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combat: null,
       activeEvent: null,
       eventOutcome: null,
+      difficulty: 'normale',
+      selectedDifficulty: null,
+      puzzleState: null,
+      puzzleSourceLocationId: null,
+      qteState: null,
+      collectedDocuments: [],
+      documentsOpen: false,
+      activeNpc: null,
+      npcQuestProgress: {},
+      npcsEncountered: [],
+      npcsOpen: false,
+      activeDynamicEvent: null,
+      dynamicEventTurnsLeft: 0,
+      storyChoices: [],
+      discoveredSecretRooms: [],
+      endingType: null,
+      exploredSubAreas: {},
     });
+  },
+
+  // ==========================================
+  // NPC METHODS
+  // ==========================================
+
+  encounterNpc: (npcId: string) => {
+    const npc = NPCS[npcId];
+    if (!npc) return;
+    set(state => ({
+      activeNpc: npc,
+      npcsEncountered: [...state.npcsEncountered, npcId],
+      messageLog: [...state.messageLog, `[${state.turnCount}] 👤 Incontrate ${npc.name}! "${npc.greeting}"`],
+      notification: {
+        id: `notif_${++notifId}`,
+        type: 'item_found',
+        message: npc.name,
+        icon: npc.portrait,
+        subMessage: 'Sopravvissuto trovato!',
+      },
+    }));
+  },
+
+  talkToNpc: () => {
+    const state = get();
+    if (!state.activeNpc) return;
+    const npc = state.activeNpc;
+    const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
+    set(state => ({
+      messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${dialogue}"`],
+    }));
+  },
+
+  acceptNpcQuest: () => {
+    const state = get();
+    if (!state.activeNpc?.quest) return;
+    const quest = state.activeNpc.quest;
+    if (state.npcQuestProgress[quest.id]?.completed) return;
+    set(state => ({
+      npcQuestProgress: {
+        ...state.npcQuestProgress,
+        [quest.id]: state.npcQuestProgress[quest.id] || { currentCount: 0, completed: false },
+      },
+      messageLog: [...state.messageLog, `[${state.turnCount}] 📋 Missione accettata: "${quest.name}" — ${quest.description}`],
+    }));
+  },
+
+  tradeWithNpc: (tradeIndex: number) => {
+    const state = get();
+    if (!state.activeNpc?.tradeInventory) return false;
+    const trade = state.activeNpc.tradeInventory[tradeIndex];
+    if (!trade) return false;
+    const hasPriceItem = state.party.some(p =>
+      p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity)
+    );
+    if (!hasPriceItem) {
+      set(state => ({
+        messageLog: [...state.messageLog, `[${state.turnCount}] ❌ Non avete gli oggetti necessari per lo scambio.`],
+      }));
+      return false;
+    }
+    let updatedParty = [...state.party];
+    let priceRemoved = false;
+    for (const p of updatedParty) {
+      if (priceRemoved) break;
+      const idx = p.inventory.findIndex(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity);
+      if (idx >= 0) {
+        const item = p.inventory[idx];
+        if (item.quantity > trade.priceQuantity) {
+          updatedParty = updatedParty.map(pp =>
+            pp.id === p.id ? {
+              ...pp,
+              inventory: pp.inventory.map((ii, iiIdx) =>
+                iiIdx === idx ? { ...ii, quantity: ii.quantity - trade.priceQuantity } : ii
+              ),
+            } : pp
+          );
+        } else {
+          updatedParty = updatedParty.map(pp =>
+            pp.id === p.id ? { ...pp, inventory: pp.inventory.filter((_, iiIdx) => iiIdx !== idx) } : pp
+          );
+        }
+        priceRemoved = true;
+      }
+    }
+    const tradedDef = ITEMS[trade.itemId];
+    if (!tradedDef) return false;
+    const result = addItemToParty(updatedParty, trade.itemId, 1);
+    updatedParty = result.party;
+    set(state => ({
+      party: updatedParty,
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🤝 Scambio completato! Ricevuto: ${tradedDef.name}${result.added ? ` → ${result.characterName}` : ' (inventario pieno!)'}`],
+    }));
+    return true;
+  },
+
+  closeNpcDialog: () => {
+    set({ activeNpc: null });
+  },
+
+  // ==========================================
+  // DYNAMIC EVENT METHODS
+  // ==========================================
+
+  triggerDynamicEvent: (eventId: string) => {
+    const event = DYNAMIC_EVENTS[eventId];
+    if (!event) return;
+    set(state => ({
+      activeDynamicEvent: event,
+      dynamicEventTurnsLeft: event.duration,
+      messageLog: [...state.messageLog, `[${state.turnCount}] ${event.icon} ${event.onTriggerMessage}`],
+      notification: {
+        id: `notif_${++notifId}`,
+        type: 'encounter',
+        message: `${event.icon} ${event.title}`,
+        icon: event.icon,
+        subMessage: event.description,
+      },
+    }));
+  },
+
+  handleDynamicEventChoice: (choiceIndex: number) => {
+    const state = get();
+    if (!state.activeDynamicEvent) return;
+    const choice = state.activeDynamicEvent.choices[choiceIndex];
+    if (!choice) return;
+    const outcome = choice.outcome;
+    let updatedParty = [...state.party];
+    const logMessages = [`[${state.turnCount}] ${outcome.description}`];
+    if (outcome.hpChange) {
+      updatedParty = updatedParty.map(p => ({
+        ...p,
+        currentHp: Math.max(1, p.currentHp + outcome.hpChange),
+      }));
+    }
+    if (outcome.receiveItems) {
+      for (const itemEntry of outcome.receiveItems) {
+        const result = addItemToParty(updatedParty, itemEntry.itemId, itemEntry.quantity);
+        updatedParty = result.party;
+        if (result.added) logMessages.push(`[${state.turnCount}] 🎒 Ricevuto: ${ITEMS[itemEntry.itemId]?.name} x${itemEntry.quantity} → ${result.characterName}`);
+      }
+    }
+    if (outcome.endEvent) {
+      logMessages.push(`[${state.turnCount}] ${state.activeDynamicEvent.onEndMessage}`);
+      set({
+        activeDynamicEvent: null,
+        dynamicEventTurnsLeft: 0,
+        party: updatedParty,
+        messageLog: [...state.messageLog, ...logMessages],
+        turnCount: state.turnCount + 1,
+      });
+    } else {
+      set({
+        party: updatedParty,
+        messageLog: [...state.messageLog, ...logMessages],
+        turnCount: state.turnCount + 1,
+      });
+    }
+  },
+
+  tickDynamicEvent: () => {
+    const state = get();
+    if (!state.activeDynamicEvent) return;
+    const newTurnsLeft = state.dynamicEventTurnsLeft - 1;
+    const logMsgs: string[] = [];
+    let updatedParty = [...state.party];
+    if (state.activeDynamicEvent.effect.damagePerTurn > 0) {
+      const dmg = state.activeDynamicEvent.effect.damagePerTurn;
+      updatedParty = updatedParty.map(p => ({
+        ...p,
+        currentHp: Math.max(1, p.currentHp - dmg),
+      }));
+      logMsgs.push(`[${state.turnCount}] 💔 ${state.activeDynamicEvent.icon} ${dmg} danni a tutti (${newTurnsLeft} turni rimasti)`);
+    }
+    if (newTurnsLeft <= 0) {
+      logMsgs.push(`[${state.turnCount}] ✅ ${state.activeDynamicEvent.onEndMessage}`);
+      set({
+        activeDynamicEvent: null,
+        dynamicEventTurnsLeft: 0,
+        party: updatedParty,
+        messageLog: [...state.messageLog, ...logMsgs],
+      });
+    } else {
+      set({
+        dynamicEventTurnsLeft: newTurnsLeft,
+        party: updatedParty,
+        messageLog: [...state.messageLog, ...logMsgs],
+      });
+    }
+  },
+
+  // ==========================================
+  // SECRET ROOM + ENDING + DOCUMENTS + MINI-MAP
+  // ==========================================
+
+  discoverSecretRoom: (roomId: string) => {
+    const state = get();
+    const secret = SECRET_ROOMS[roomId];
+    if (!secret || state.discoveredSecretRooms.includes(roomId)) return;
+    const newDiscovered = [...state.discoveredSecretRooms, roomId];
+    const logMsgs = [
+      `[${state.turnCount}] 🚪 Stanza segreta trovata: ${secret.name}!`,
+      `[${state.turnCount}] ${secret.description}`,
+    ];
+    let updatedParty = [...state.party];
+    if (secret.uniqueItem) {
+      const itemDef = ITEMS[secret.uniqueItem.itemId];
+      if (itemDef) {
+        const result = addItemToParty(updatedParty, secret.uniqueItem.itemId, secret.uniqueItem.quantity);
+        updatedParty = result.party;
+        if (result.added) logMsgs.push(`[${state.turnCount}] 🎁 Trovato: ${itemDef.name}! → ${result.characterName}`);
+      }
+    }
+    for (const entry of secret.lootTable) {
+      if (Math.random() * 100 < entry.chance) {
+        const itemDef = ITEMS[entry.itemId];
+        if (itemDef) {
+          const result = addItemToParty(updatedParty, entry.itemId, entry.quantity);
+          updatedParty = result.party;
+          if (result.added) logMsgs.push(`[${state.turnCount}] 🎒 Trovato: ${itemDef.name} x${entry.quantity} → ${result.characterName}`);
+        }
+      }
+    }
+    set({
+      discoveredSecretRooms: newDiscovered,
+      party: updatedParty,
+      messageLog: [...state.messageLog, ...logMsgs],
+      turnCount: state.turnCount + 1,
+      notification: {
+        id: `notif_${++notifId}`,
+        type: 'item_found',
+        message: `🚪 ${secret.name}`,
+        icon: '🚪',
+        subMessage: 'Stanza segreta scoperta!',
+      },
+    });
+    setTimeout(() => get().checkAchievements(), 100);
+  },
+
+  determineEnding: () => {
+    const state = get();
+    const endings = Object.values(ENDINGS).sort((a, b) => b.priority - a.priority);
+    for (const ending of endings) {
+      const met = ending.requirements.every(req => {
+        switch (req.type) {
+          case 'boss_defeated':
+            return state.bestiary.some(b => b.enemyId === req.value && b.defeated);
+          case 'npc_saved':
+            return state.npcsEncountered.length >= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
+          case 'documents_found':
+            return state.collectedDocuments.length >= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
+          case 'turn_limit':
+            return state.turnCount <= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
+          case 'party_alive':
+            return state.party.filter(p => p.currentHp > 0).length >= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
+          case 'choice':
+            return state.storyChoices.includes(String(req.value) as StoryChoiceTag);
+          case 'secret_rooms':
+            return state.discoveredSecretRooms.length >= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
+          default: return true;
+        }
+      });
+      if (met) return ending;
+    }
+    return ENDINGS['ending_escape'];
+  },
+
+  toggleDocuments: () => {
+    set(state => ({ documentsOpen: !state.documentsOpen }));
+  },
+
+  exploreSubArea: (subAreaId: string) => {
+    const state = get();
+    const locId = state.currentLocationId;
+    const currentSubAreas = state.exploredSubAreas[locId] || [];
+    if (currentSubAreas.includes(subAreaId)) return;
+    set(state => ({
+      exploredSubAreas: {
+        ...state.exploredSubAreas,
+        [locId]: [...currentSubAreas, subAreaId],
+      },
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🗺️ Nuova area esplorata: ${subAreaId}`],
+    }));
   },
 
   // ==========================================
@@ -2665,7 +4399,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     const def = ENEMIES[enemyId];
     if (!def) return;
-    const diff = getDifficultyConfig(state.partySize);
+    const diff = getDifficultyConfig(state.difficulty, state.partySize);
     const enemy = createEnemyInstance(enemyId, diff.statMult);
     const allActors = [
       ...state.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),

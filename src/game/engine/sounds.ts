@@ -460,6 +460,427 @@ class AudioEngine {
     } catch {}
   }
 
+  // -- Enemy-specific monster sounds (RE-inspired) --
+
+  /**
+   * Zombie ambient moan — the iconic RE "Uuuunnnnhhh..."
+   * Layered formant synthesis: vocal fundamental + throat resonance + breath noise + sub-rumble
+   * Call this for idle ambient groaning during combat
+   */
+  playZombieMoan(): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+      // ── Layer 1: Vocal fundamental (slow, wavering pitch) ──
+      const fund = ctx.createOscillator(); fund.type = 'sawtooth';
+      const baseFreq = 75 + Math.random() * 25; // variation: 75–100 Hz
+      fund.frequency.setValueAtTime(baseFreq, t);
+      fund.frequency.linearRampToValueAtTime(baseFreq + 18, t + 0.25);
+      fund.frequency.linearRampToValueAtTime(baseFreq + 8, t + 0.55);
+      fund.frequency.linearRampToValueAtTime(baseFreq - 12, t + 0.85);
+      fund.frequency.linearRampToValueAtTime(baseFreq - 20, t + 1.1);
+      // LFO vibrato on fundamental (slow, irregular)
+      const vibLfo = ctx.createOscillator(); vibLfo.type = 'sine';
+      vibLfo.frequency.setValueAtTime(4 + Math.random() * 2, t); // 4-6 Hz wobble
+      const vibGain = ctx.createGain(); vibGain.gain.value = 5 + Math.random() * 4;
+      vibLfo.connect(vibGain); vibGain.connect(fund.frequency);
+      vibLfo.start(t); vibLfo.stop(t + 1.15);
+      // Formant filter 1: throat resonance (~350 Hz)
+      const f1 = this.flt('bandpass', 350, 6);
+      f1.frequency.setValueAtTime(340, t);
+      f1.frequency.linearRampToValueAtTime(380, t + 0.4);
+      f1.frequency.linearRampToValueAtTime(300, t + 1.0);
+      const f1g = ctx.createGain(); f1g.gain.value = 0.6;
+      fund.connect(f1); f1.connect(f1g);
+      // Formant filter 2: mouth/nasal (~800 Hz)
+      const f2 = this.flt('bandpass', 800, 4);
+      f2.frequency.setValueAtTime(780, t);
+      f2.frequency.linearRampToValueAtTime(900, t + 0.5);
+      f2.frequency.linearRampToValueAtTime(650, t + 1.0);
+      const f2g = ctx.createGain(); f2g.gain.value = 0.25;
+      fund.connect(f2); f2.connect(f2g);
+      // Formant filter 3: deep chest (~180 Hz)
+      const f3 = this.flt('bandpass', 180, 8);
+      f3.frequency.setValueAtTime(175, t);
+      f3.frequency.linearRampToValueAtTime(210, t + 0.35);
+      f3.frequency.linearRampToValueAtTime(150, t + 1.0);
+      const f3g = ctx.createGain(); f3g.gain.value = 0.5;
+      fund.connect(f3); f3.connect(f3g);
+      // Master envelope for all formants
+      const masterEnv = ctx.createGain();
+      masterEnv.gain.setValueAtTime(0.001, t);
+      masterEnv.gain.exponentialRampToValueAtTime(0.2, t + 0.12);
+      masterEnv.gain.setValueAtTime(0.18, t + 0.5);
+      masterEnv.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+      f1g.connect(masterEnv); f2g.connect(masterEnv); f3g.connect(masterEnv);
+      masterEnv.connect(d);
+      fund.start(t); fund.stop(t + 1.15);
+
+      // ── Layer 2: Second harmonic (octave above, quieter) ──
+      const harm2 = ctx.createOscillator(); harm2.type = 'sawtooth';
+      harm2.frequency.setValueAtTime(baseFreq * 2, t);
+      harm2.frequency.linearRampToValueAtTime(baseFreq * 2 + 30, t + 0.3);
+      harm2.frequency.linearRampToValueAtTime(baseFreq * 2 - 20, t + 0.9);
+      const h2lp = this.flt('lowpass', 900, 2);
+      const h2e = this.env(0.06, 0.1, 0.9, t);
+      harm2.connect(h2lp); h2lp.connect(h2e); h2e.connect(d);
+      harm2.start(t); harm2.stop(t + 1.05);
+
+      // ── Layer 3: Breathy noise (wet respiratory quality) ──
+      const breathGain = ctx.createGain();
+      breathGain.gain.setValueAtTime(0.001, t);
+      breathGain.gain.exponentialRampToValueAtTime(0.12, t + 0.15);
+      breathGain.gain.setValueAtTime(0.1, t + 0.6);
+      breathGain.gain.exponentialRampToValueAtTime(0.001, t + 1.05);
+      const breathF = this.flt('bandpass', 500, 1.5);
+      breathF.frequency.setValueAtTime(450, t);
+      breathF.frequency.linearRampToValueAtTime(550, t + 0.5);
+      breathF.frequency.linearRampToValueAtTime(400, t + 1.0);
+      const breathSrc = ctx.createBufferSource(); breathSrc.buffer = this.noiseBuffer;
+      breathSrc.connect(breathF); breathF.connect(breathGain); breathGain.connect(d);
+      breathSrc.start(t); breathSrc.stop(t + 1.1);
+
+      // ── Layer 4: Sub-bass body resonance ──
+      const sub = ctx.createOscillator(); sub.type = 'sine';
+      sub.frequency.setValueAtTime(38, t);
+      sub.frequency.linearRampToValueAtTime(42, t + 0.3);
+      sub.frequency.exponentialRampToValueAtTime(22, t + 1.0);
+      const subE = this.env(0.18, 0.08, 0.95, t);
+      sub.connect(subE); subE.connect(d);
+      sub.start(t); sub.stop(t + 1.05);
+
+      // ── Layer 5: Wet click at end (mouth closing) ──
+      this.nz('bandpass', 2500, 3.0, 0.02, 0.06, t + 0.85 + Math.random() * 0.15, d);
+    } catch {}
+  }
+
+  /**
+   * Zombie attack moan — characteristic RE groan + bite impact
+   * The zombie lets out its iconic moan AS it lunges to bite
+   */
+  playZombieAttack(): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+      // ── The iconic moan (shorter attack version) ──
+      const fund = ctx.createOscillator(); fund.type = 'sawtooth';
+      const baseFreq = 80 + Math.random() * 20;
+      fund.frequency.setValueAtTime(baseFreq, t);
+      fund.frequency.linearRampToValueAtTime(baseFreq + 22, t + 0.1);
+      fund.frequency.linearRampToValueAtTime(baseFreq + 10, t + 0.25);
+      fund.frequency.linearRampToValueAtTime(baseFreq - 15, t + 0.5);
+      fund.frequency.linearRampToValueAtTime(baseFreq - 25, t + 0.7);
+      // Vibrato LFO
+      const vibLfo = ctx.createOscillator(); vibLfo.type = 'sine';
+      vibLfo.frequency.setValueAtTime(5 + Math.random() * 3, t);
+      const vibGain = ctx.createGain(); vibGain.gain.value = 6 + Math.random() * 3;
+      vibLfo.connect(vibGain); vibGain.connect(fund.frequency);
+      vibLfo.start(t); vibLfo.stop(t + 0.75);
+      // Formant 1: throat ~350 Hz
+      const f1 = this.flt('bandpass', 350, 6);
+      f1.frequency.setValueAtTime(340, t);
+      f1.frequency.linearRampToValueAtTime(400, t + 0.2);
+      f1.frequency.linearRampToValueAtTime(280, t + 0.65);
+      const f1g = ctx.createGain(); f1g.gain.value = 0.55;
+      fund.connect(f1); f1.connect(f1g);
+      // Formant 2: nasal ~850 Hz
+      const f2 = this.flt('bandpass', 850, 4);
+      f2.frequency.setValueAtTime(820, t);
+      f2.frequency.linearRampToValueAtTime(950, t + 0.25);
+      f2.frequency.linearRampToValueAtTime(700, t + 0.6);
+      const f2g = ctx.createGain(); f2g.gain.value = 0.2;
+      fund.connect(f2); f2.connect(f2g);
+      // Formant 3: chest ~180 Hz
+      const f3 = this.flt('bandpass', 180, 8);
+      f3.frequency.setValueAtTime(175, t);
+      f3.frequency.linearRampToValueAtTime(220, t + 0.2);
+      f3.frequency.linearRampToValueAtTime(140, t + 0.6);
+      const f3g = ctx.createGain(); f3g.gain.value = 0.45;
+      fund.connect(f3); f3.connect(f3g);
+      // Master envelope
+      const masterEnv = ctx.createGain();
+      masterEnv.gain.setValueAtTime(0.001, t);
+      masterEnv.gain.exponentialRampToValueAtTime(0.25, t + 0.06);
+      masterEnv.gain.setValueAtTime(0.22, t + 0.3);
+      masterEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.72);
+      f1g.connect(masterEnv); f2g.connect(masterEnv); f3g.connect(masterEnv);
+      masterEnv.connect(d);
+      fund.start(t); fund.stop(t + 0.78);
+
+      // Second harmonic
+      const harm2 = ctx.createOscillator(); harm2.type = 'sawtooth';
+      harm2.frequency.setValueAtTime(baseFreq * 2, t);
+      harm2.frequency.linearRampToValueAtTime(baseFreq * 2 + 35, t + 0.15);
+      harm2.frequency.linearRampToValueAtTime(baseFreq * 2 - 25, t + 0.55);
+      const h2lp = this.flt('lowpass', 1000, 2);
+      const h2e = this.env(0.07, 0.05, 0.55, t);
+      harm2.connect(h2lp); h2lp.connect(h2e); h2e.connect(d);
+      harm2.start(t); harm2.stop(t + 0.6);
+
+      // Breath noise
+      const breathF = this.flt('bandpass', 500, 1.5);
+      const breathE = this.env(0.1, 0.04, 0.55, t);
+      const breathSrc = ctx.createBufferSource(); breathSrc.buffer = this.noiseBuffer;
+      breathSrc.connect(breathF); breathF.connect(breathE); breathE.connect(d);
+      breathSrc.start(t); breathSrc.stop(t + 0.6);
+
+      // Sub-bass rumble
+      const sub = ctx.createOscillator(); sub.type = 'sine';
+      sub.frequency.setValueAtTime(42, t);
+      sub.frequency.linearRampToValueAtTime(48, t + 0.15);
+      sub.frequency.exponentialRampToValueAtTime(20, t + 0.6);
+      const subE = this.env(0.2, 0.04, 0.58, t);
+      sub.connect(subE); subE.connect(d);
+      sub.start(t); sub.stop(t + 0.65);
+
+      // ── Bite impact: wet flesh slapping sound ──
+      const biteTime = t + 0.15 + Math.random() * 0.05;
+      // Primary slap: low-mid noise burst
+      this.nz('bandpass', 600, 3.5, 0.06, 0.22, biteTime, d);
+      // Wet squelch
+      this.nz('lowpass', 400, 2.5, 0.08, 0.12, biteTime + 0.02, d);
+      // Bone/jaw snap
+      this.nz('highpass', 2800, 1.5, 0.015, 0.08, biteTime + 0.04, d);
+      // Impact thud
+      const thud = ctx.createOscillator(); thud.type = 'sine';
+      thud.frequency.setValueAtTime(120, biteTime);
+      thud.frequency.exponentialRampToValueAtTime(40, biteTime + 0.12);
+      const thudE = this.env(0.15, 0.005, 0.12, biteTime);
+      thud.connect(thudE); thudE.connect(d);
+      thud.start(biteTime); thud.stop(biteTime + 0.15);
+    } catch {}
+  }
+
+  /** Cerberus (RE zombie dogs): rapid aggressive bark + snarling */
+  playCerberusAttack(): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+      // Aggressive bark: rapid noise burst with high-pass
+      this.nz('highpass', 1800, 1.5, 0.06, 0.3, t, d);
+      this.nz('bandpass', 1200, 4.0, 0.04, 0.22, t + 0.02, d);
+      // Second bark (double-tap)
+      this.nz('highpass', 2200, 1.2, 0.05, 0.25, t + 0.12, d);
+      this.nz('bandpass', 1500, 3.0, 0.03, 0.18, t + 0.14, d);
+      // Snarl: low sawtooth with LFO wobble
+      const snarl = ctx.createOscillator(); snarl.type = 'sawtooth';
+      snarl.frequency.setValueAtTime(150, t + 0.05);
+      snarl.frequency.linearRampToValueAtTime(200, t + 0.15);
+      snarl.frequency.linearRampToValueAtTime(130, t + 0.3);
+      const slp = this.flt('lowpass', 600, 3), se = this.env(0.18, 0.01, 0.28, t + 0.05);
+      snarl.connect(slp); slp.connect(se); se.connect(d);
+      snarl.start(t + 0.05); snarl.stop(t + 0.35);
+      // Jaw snap
+      this.nz('bandpass', 3000, 2.0, 0.02, 0.15, t + 0.08, d);
+    } catch {}
+  }
+
+  /** Licker: eerie screech + tongue-lash whip */
+  playLickerAttack(): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+      // Eerie screech: high sine with vibrato
+      const screech = ctx.createOscillator(); screech.type = 'sawtooth';
+      screech.frequency.setValueAtTime(600, t);
+      screech.frequency.exponentialRampToValueAtTime(1200, t + 0.08);
+      screech.frequency.linearRampToValueAtTime(900, t + 0.25);
+      const slp = this.flt('bandpass', 1000, 5), se = this.env(0.12, 0.01, 0.28, t);
+      screech.connect(slp); slp.connect(se); se.connect(d);
+      screech.start(t); screech.stop(t + 0.3);
+      // Vibrato overtone
+      const vib = ctx.createOscillator(); vib.type = 'sine';
+      vib.frequency.setValueAtTime(1800, t);
+      vib.frequency.linearRampToValueAtTime(2400, t + 0.1);
+      vib.frequency.linearRampToValueAtTime(1600, t + 0.25);
+      const vhp = this.flt('highpass', 1400, 1), ve = this.env(0.06, 0.02, 0.24, t);
+      vib.connect(vhp); vhp.connect(ve); ve.connect(d);
+      vib.start(t); vib.stop(t + 0.28);
+      // Tongue whip: rapid descending sweep
+      this.nz('bandpass', 2500, 1.0, 0.04, 0.2, t + 0.06, d);
+      const whip = ctx.createOscillator(); whip.type = 'triangle';
+      whip.frequency.setValueAtTime(800, t + 0.04);
+      whip.frequency.exponentialRampToValueAtTime(200, t + 0.15);
+      const we = this.env(0.15, 0.005, 0.14, t + 0.04);
+      whip.connect(we); we.connect(d); whip.start(t + 0.04); whip.stop(t + 0.2);
+      // Wet clicking
+      this.nz('bandpass', 4000, 3.0, 0.015, 0.12, t + 0.1, d);
+      this.nz('bandpass', 3500, 4.0, 0.01, 0.08, t + 0.16, d);
+    } catch {}
+  }
+
+  /** Hunter (RE): deep roar + heavy claw slash */
+  playHunterAttack(): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+      // Deep roar: very low sawtooth with sub
+      const roar = ctx.createOscillator(); roar.type = 'sawtooth';
+      roar.frequency.setValueAtTime(55, t);
+      roar.frequency.linearRampToValueAtTime(90, t + 0.12);
+      roar.frequency.linearRampToValueAtTime(65, t + 0.4);
+      const rlp = this.flt('lowpass', 350, 3), re = this.env(0.28, 0.04, 0.42, t);
+      roar.connect(rlp); rlp.connect(re); re.connect(d);
+      roar.start(t); roar.stop(t + 0.48);
+      // Sub rumble
+      const sub = ctx.createOscillator(); sub.type = 'sine';
+      sub.frequency.setValueAtTime(30, t);
+      sub.frequency.exponentialRampToValueAtTime(18, t + 0.35);
+      const se = this.env(0.35, 0.02, 0.38, t);
+      sub.connect(se); se.connect(d); sub.start(t); sub.stop(t + 0.42);
+      // Heavy claw slash: sharp noise + high sine sweep
+      this.nz('highpass', 2500, 1.5, 0.06, 0.2, t + 0.08, d);
+      this.nz('bandpass', 1800, 2.0, 0.05, 0.15, t + 0.1, d);
+      const slash = ctx.createOscillator(); slash.type = 'sine';
+      slash.frequency.setValueAtTime(1500, t + 0.08);
+      slash.frequency.exponentialRampToValueAtTime(400, t + 0.2);
+      const sle = this.env(0.1, 0.005, 0.15, t + 0.08);
+      slash.connect(sle); sle.connect(d); slash.start(t + 0.08); slash.stop(t + 0.22);
+    } catch {}
+  }
+
+  /** Tyrant (T-103): massive ground punch + shockwave */
+  playTyrantAttack(): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+      // Massive impact: layered noise + sub explosion
+      this.nz('bandpass', 800, 1.0, 0.12, 0.4, t, d);
+      this.nz('lowpass', 200, 1.5, 0.3, 0.3, t, d);
+      // Ground tremor sub
+      const boom = ctx.createOscillator(); boom.type = 'sine';
+      boom.frequency.setValueAtTime(60, t);
+      boom.frequency.exponentialRampToValueAtTime(15, t + 0.5);
+      const be = this.envASR(0.5, 0.12, 0.03, 0.2, 0.55, t);
+      boom.connect(be); be.connect(d); boom.start(t); boom.stop(t + 0.6);
+      // Shockwave: bandpass sweep
+      this.nz('bandpass', 1500, 0.5, 0.2, 0.12, t + 0.05, d);
+      this.nz('bandpass', 600, 0.8, 0.25, 0.08, t + 0.1, d);
+      // Metal/impact ring
+      const ring = ctx.createOscillator(); ring.type = 'triangle';
+      ring.frequency.setValueAtTime(120, t + 0.02);
+      ring.frequency.exponentialRampToValueAtTime(50, t + 0.4);
+      const rl = this.flt('lowpass', 300, 2), re = this.env(0.2, 0.01, 0.4, t + 0.02);
+      ring.connect(rl); rl.connect(re); re.connect(d);
+      ring.start(t + 0.02); ring.stop(t + 0.45);
+    } catch {}
+  }
+
+  /** Nemesis: varies by action - rocket, punch, tentacle, STARS scream */
+  playNemesisAttack(action?: string): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+
+      if (action === 'Razzo' || action === 'Devastazione') {
+        // Rocket/Devastation: explosion + rocket trail
+        // Rocket trail: ascending whine
+        const trail = ctx.createOscillator(); trail.type = 'sawtooth';
+        trail.frequency.setValueAtTime(300, t);
+        trail.frequency.exponentialRampToValueAtTime(1200, t + 0.15);
+        const tlp = this.flt('bandpass', 800, 2), te = this.env(0.12, 0.02, 0.2, t);
+        trail.connect(tlp); tlp.connect(te); te.connect(d);
+        trail.start(t); trail.stop(t + 0.22);
+        // Explosion
+        this.nz('bandpass', 1500, 0.5, 0.1, 0.4, t + 0.15, d);
+        this.nz('lowpass', 250, 1.2, 0.35, 0.25, t + 0.15, d);
+        const boom = ctx.createOscillator(); boom.type = 'sine';
+        boom.frequency.setValueAtTime(80, t + 0.15);
+        boom.frequency.exponentialRampToValueAtTime(15, t + 0.55);
+        const be = this.envASR(0.45, 0.1, 0.04, 0.2, 0.5, t + 0.15);
+        boom.connect(be); be.connect(d); boom.start(t + 0.15); boom.stop(t + 0.55);
+      } else if (action === 'S.T.A.R.S.!') {
+        // Nemesis scream: iconic booming roar
+        const scream = ctx.createOscillator(); scream.type = 'sawtooth';
+        scream.frequency.setValueAtTime(70, t);
+        scream.frequency.linearRampToValueAtTime(120, t + 0.1);
+        scream.frequency.linearRampToValueAtTime(100, t + 0.5);
+        scream.frequency.linearRampToValueAtTime(80, t + 0.7);
+        const slp = this.flt('lowpass', 450, 4), se = this.env(0.3, 0.05, 0.72, t);
+        scream.connect(slp); slp.connect(se); se.connect(d);
+        scream.start(t); scream.stop(t + 0.78);
+        // Distorted overtone
+        const ov = ctx.createOscillator(); ov.type = 'square';
+        ov.frequency.setValueAtTime(140, t);
+        ov.frequency.linearRampToValueAtTime(240, t + 0.1);
+        ov.frequency.linearRampToValueAtTime(200, t + 0.5);
+        const olp = this.flt('lowpass', 350, 2), oe = this.env(0.1, 0.04, 0.65, t);
+        ov.connect(olp); olp.connect(oe); oe.connect(d);
+        ov.start(t); ov.stop(t + 0.7);
+        // Sub rumble
+        const sub = ctx.createOscillator(); sub.type = 'sine';
+        sub.frequency.setValueAtTime(35, t);
+        sub.frequency.exponentialRampToValueAtTime(18, t + 0.6);
+        const sube = this.env(0.3, 0.02, 0.6, t);
+        sub.connect(sube); sube.connect(d); sub.start(t); sub.stop(t + 0.65);
+      } else if (action === 'Pugno Tentacolo') {
+        // Tentacle: wet slither + impact
+        this.nz('bandpass', 600, 3.0, 0.08, 0.25, t, d);
+        this.nz('lowpass', 300, 2.0, 0.15, 0.15, t + 0.05, d);
+        // Wet slither
+        const slither = ctx.createOscillator(); slither.type = 'sawtooth';
+        slither.frequency.setValueAtTime(200, t);
+        slither.frequency.linearRampToValueAtTime(350, t + 0.08);
+        slither.frequency.linearRampToValueAtTime(150, t + 0.25);
+        const slp = this.flt('bandpass', 400, 5), se = this.env(0.18, 0.02, 0.28, t);
+        slither.connect(slp); slp.connect(se); se.connect(d);
+        slither.start(t); slither.stop(t + 0.3);
+        // Impact
+        const imp = ctx.createOscillator(); imp.type = 'sine';
+        imp.frequency.setValueAtTime(100, t + 0.08);
+        imp.frequency.exponentialRampToValueAtTime(25, t + 0.3);
+        const ie = this.env(0.3, 0.01, 0.25, t + 0.08);
+        imp.connect(ie); ie.connect(d); imp.start(t + 0.08); imp.stop(t + 0.35);
+      } else {
+        // Default Nemesis attack (Artiglio Multipli, other): heavy punch + roar
+        this.playTyrantAttack();
+        // Add Nemesis-specific distorted overtone
+        const ov = ctx.createOscillator(); ov.type = 'square';
+        ov.frequency.setValueAtTime(100, t);
+        ov.frequency.linearRampToValueAtTime(160, t + 0.12);
+        ov.frequency.linearRampToValueAtTime(120, t + 0.3);
+        const olp = this.flt('lowpass', 400, 3), oe = this.env(0.08, 0.02, 0.28, t);
+        ov.connect(olp); olp.connect(oe); oe.connect(d);
+        ov.start(t); ov.stop(t + 0.32);
+      }
+    } catch {}
+  }
+
+  /** Enemy death: dramatic thud + fade */
+  playEnemyDeath(): void {
+    try {
+      const s = this.init(); if (!s) return;
+      const { ctx, t, d } = s;
+      // Heavy thud
+      this.nz('lowpass', 300, 1.5, 0.15, 0.25, t, d);
+      this.nz('bandpass', 800, 2.0, 0.08, 0.18, t + 0.02, d);
+      // Low impact
+      const thud = ctx.createOscillator(); thud.type = 'sine';
+      thud.frequency.setValueAtTime(80, t);
+      thud.frequency.exponentialRampToValueAtTime(20, t + 0.4);
+      const te = this.env(0.3, 0.01, 0.4, t);
+      thud.connect(te); te.connect(d); thud.start(t); thud.stop(t + 0.45);
+      // Dissonant fade
+      const fade = ctx.createOscillator(); fade.type = 'triangle';
+      fade.frequency.setValueAtTime(200, t + 0.1);
+      fade.frequency.exponentialRampToValueAtTime(80, t + 0.6);
+      const flp = this.flt('lowpass', 500, 1), fe = this.env(0.08, 0.1, 0.45, t + 0.1);
+      fade.connect(flp); flp.connect(fe); fe.connect(d);
+      fade.start(t + 0.1); fade.stop(t + 0.55);
+    } catch {}
+  }
+
+  /** Dispatch enemy attack sound by monster type name */
+  playEnemyAttack(enemyName: string, action?: string): void {
+    const name = (enemyName || '').toLowerCase();
+    if (name.includes('nemesis')) this.playNemesisAttack(action);
+    else if (name.includes('tyrant') || name.includes('t-103') || name.includes('t103')) this.playTyrantAttack();
+    else if (name.includes('hunter')) this.playHunterAttack();
+    else if (name.includes('licker')) this.playLickerAttack();
+    else if (name.includes('cerberus')) this.playCerberusAttack();
+    else this.playZombieAttack(); // Default: zombie-type
+  }
+
   // -- BGM stubs (lazy-loaded from bgm.ts) --
 
   playBgm(type: BgmType): void {
@@ -527,6 +948,9 @@ export const playPoisonTick = (): void => audio.playPoisonTick();
 export const playBleedTick = (): void => audio.playBleedTick();
 export const playExplosion = (): void => audio.playExplosion();
 export const playTaunt = (): void => audio.playTaunt();
+export const playEnemyAttack = (name?: string, action?: string): void => audio.playEnemyAttack(name || '', action);
+export const playEnemyDeath = (): void => audio.playEnemyDeath();
+export const playZombieMoan = (): void => audio.playZombieMoan();
 
 export const playBgm = (type: BgmType): void => audio.playBgm(type);
 export const stopBgm = (): void => audio.stopBgm();

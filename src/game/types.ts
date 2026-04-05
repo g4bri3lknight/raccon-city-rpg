@@ -2,11 +2,30 @@
 // RACCOON CITY ESCAPE - Game Types
 // ==========================================
 
-export type GamePhase = 'title' | 'character-select' | 'character-creator' | 'exploration' | 'combat' | 'event' | 'inventory' | 'game-over' | 'victory';
+export type GamePhase = 'title' | 'character-select' | 'character-creator' | 'exploration' | 'combat' | 'event' | 'inventory' | 'game-over' | 'victory' | 'puzzle' | 'qte';
+
+// ==========================================
+// DIFFICULTY
+// ==========================================
+
+export type DifficultyLevel = 'sopravvissuto' | 'normale' | 'incubo';
+
+export interface DifficultyConfig {
+  label: string;
+  color: string;
+  icon: string;
+  statMult: number;
+  lootMult: number;
+  maxEnemies: number;
+  minEnemies: number;
+  expMult: number;
+  enemyCritChance: number;
+  description: string;
+}
 
 export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'custom';
 
-export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'none';
+export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'none';
 
 export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible';
 
@@ -236,7 +255,38 @@ export interface StoryEvent {
     requiredItemIds?: string[];
     successOutcome: EventOutcome;
     failMessage: string;
+    combinationCode?: string;  // for 'combination' type: the secret code
+    sequencePattern?: string[]; // for 'sequence' type: array of arrow keys ('up','down','left','right')
   };
+}
+
+// ==========================================
+// PUZZLE STATE
+// ==========================================
+
+export interface PuzzleState {
+  type: 'combination' | 'sequence' | 'key_required';
+  title: string;
+  description: string;
+  // Combination lock state
+  codeLength: number;
+  currentInput: string[];
+  targetCode: string;
+  attemptsLeft: number;
+  maxAttempts: number;
+  feedback: ('correct' | 'misplaced' | 'wrong')[][];
+  // Sequence puzzle state
+  sequencePattern: string[];
+  playerSequence: string[];
+  isShowingPattern: boolean;
+  currentPatternIndex: number;
+  showPhaseStep: number;
+  // Key required state
+  requiredItemIds: string[];
+ successOutcome: EventOutcome;
+  failMessage: string;
+  isSolved: boolean;
+  isFailed: boolean;
 }
 
 export interface StoryChoice {
@@ -318,6 +368,32 @@ export interface GameNotification {
   items?: { name: string; itemId: string; icon?: string }[];
 }
 
+// ==========================================
+// QTE STATE
+// ==========================================
+
+export interface QTESequence {
+  direction: 'up' | 'down' | 'left' | 'right' | 'space';
+  timeLimit: number; // ms to press
+}
+
+export interface QTEState {
+  sequences: QTESequence[];
+  currentStep: number;
+  isProcessing: boolean;
+  isComplete: boolean;
+  successes: number;
+  failures: number;
+  timeRemaining: number; // ms
+  result: 'pending' | 'success' | 'partial' | 'failure';
+  rewardHpSave: number; // HP saved on success
+  triggerSource: 'nemesis' | 'event' | 'boss';
+  postSuccessMessage: string;
+  postFailureMessage: string;
+  postSuccessItems?: { itemId: string; quantity: number }[];
+  postFailureCombat?: string[]; // enemyIds to spawn on failure
+}
+
 export interface GameState {
   phase: GamePhase;
   party: Character[];
@@ -329,7 +405,13 @@ export interface GameState {
   eventOutcome: EventOutcome | null;
   messageLog: string[];
   turnCount: number;
-  difficulty: 'normal' | 'hard';
+  difficulty: DifficultyLevel;
+  selectedDifficulty: DifficultyLevel | null;
+  // Puzzle
+  puzzleState: PuzzleState | null;
+  puzzleSourceLocationId: string | null;
+  // QTE
+  qteState: QTEState | null;
   inventoryOpen: boolean;
   selectedCharacterId: string | null;
   notification: GameNotification | null;
@@ -346,4 +428,205 @@ export interface GameState {
   persistentRibbons: number; // total ribbons collected across all playthroughs
   isNewGamePlus: boolean; // whether current run is a New Game+
   gameStartTime: number; // timestamp (ms) when the current adventure started
+  skipNextEncounter: boolean; // prevent combat on next explore
+  achievements: AchievementState;
+  achievementsOpen: boolean;
+  bestiary: BestiaryEntry[];
+  bestiaryOpen: boolean;
+  newAchievementNotification: string | null;
+  // #16 Documents
+  collectedDocuments: string[]; // document IDs
+  documentsOpen: boolean;
+  // #18 NPCs
+  activeNpc: GameNPC | null;
+  npcQuestProgress: Record<string, { currentCount: number; completed: boolean }>; // questId → progress
+  npcsEncountered: string[]; // NPC IDs met
+  npcsOpen: boolean;
+  // #20 Dynamic Events
+  activeDynamicEvent: DynamicEvent | null;
+  dynamicEventTurnsLeft: number;
+  // #21 Story Choices
+  storyChoices: StoryChoiceTag[];
+  // #22 Secret Rooms
+  discoveredSecretRooms: string[];
+  // #23 Endings
+  endingType: EndingType | null;
+  // Mini-map
+  exploredSubAreas: Record<string, string[]>; // locationId → sub-area IDs
 }
+
+// ==========================================
+// ACHIEVEMENTS
+// ==========================================
+
+export interface AchievementDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'combat' | 'exploration' | 'collection' | 'story' | 'special';
+  condition: string; // identifier used in code to check condition
+  hidden: boolean; // true = achievement name/description hidden until unlocked
+  reward?: string; // flavor text reward
+}
+
+export interface AchievementState {
+  unlockedIds: string[];
+  unlockTimestamps: Record<string, number>; // id → timestamp
+}
+
+// ==========================================
+// BESTIARY
+// ==========================================
+
+export interface BestiaryEntry {
+  enemyId: string;
+  encountered: boolean;
+  defeated: boolean;
+  timesDefeated: number;
+  firstDefeatTimestamp?: number;
+}
+
+// ==========================================
+// NEMESIS INVASION
+// ==========================================
+
+export interface NemesisInvasionState {
+  invasionCount: number; // how many times Nemesis has invaded this run
+  lastInvasionTurn: number; // turnCount when Nemesis last appeared
+  invasionDefeated: boolean; // whether the player has defeated Nemesis during an invasion
+}
+
+// ==========================================
+// #16 - DOCUMENTS / LORE
+// ==========================================
+
+export type DocumentType = 'diary' | 'umbrella_file' | 'note' | 'photo' | 'report';
+
+export interface GameDocument {
+  id: string;
+  title: string;
+  content: string;
+  type: DocumentType;
+  locationId: string;
+  icon: string;
+  rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
+  isSecret: boolean;
+  hintRequired?: string; // document id that gives hint to find this
+}
+
+// ==========================================
+// #18 - NPC SURVIVORS
+// ==========================================
+
+export interface NPCQuest {
+  id: string;
+  name: string;
+  description: string;
+  type: 'fetch' | 'kill' | 'explore';
+  targetId: string; // itemId to fetch, enemyId to kill, locationId to explore
+  targetCount: number;
+  rewardItems: { itemId: string; quantity: number }[];
+  rewardExp: number;
+  rewardDialogue: string[];
+}
+
+export interface NPCTradeItem {
+  itemId: string;
+  priceItemId: string;
+  priceQuantity: number;
+}
+
+export interface GameNPC {
+  id: string;
+  name: string;
+  portrait: string; // emoji
+  locationId: string;
+  greeting: string;
+  dialogues: string[];
+  quest?: NPCQuest;
+  tradeInventory?: NPCTradeItem[];
+  questCompletedDialogue?: string[];
+  farewell: string;
+}
+
+// ==========================================
+// #20 - DYNAMIC EVENTS
+// ==========================================
+
+export type DynamicEventType = 'blackout' | 'alarm' | 'collapse' | 'lockdown' | 'gas_leak' | 'fire';
+
+export interface DynamicEvent {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  type: DynamicEventType;
+  duration: number; // turns remaining
+  effect: {
+    encounterRateMod: number;
+    enemyStatMult: number;
+    searchBonus: boolean;
+    damagePerTurn: number;
+  };
+  triggerChance: number; // per explore
+  minTurn: number;
+  locationIds: string[]; // empty = any location
+  onTriggerMessage: string;
+  onEndMessage: string;
+  choices: DynamicEventChoice[];
+}
+
+export interface DynamicEventChoice {
+  text: string;
+  outcome: {
+    description: string;
+    endEvent: boolean;
+    receiveItems?: { itemId: string; quantity: number }[];
+    hpChange?: number;
+  };
+}
+
+// ==========================================
+// #22 - SECRET ROOMS
+// ==========================================
+
+export interface SecretRoom {
+  id: string;
+  locationId: string;
+  name: string;
+  description: string;
+  discoveryMethod: 'search' | 'document' | 'npc_hint';
+  requiredDocumentId?: string;
+  requiredNpcQuestId?: string;
+  searchChance: number;
+  hint: string;
+  lootTable: { itemId: string; chance: number; quantity: number }[];
+  uniqueItem?: { itemId: string; quantity: number };
+}
+
+// ==========================================
+// #23 - MULTIPLE ENDINGS
+// ==========================================
+
+export type EndingType = 'escape' | 'hero' | 'truth' | 'dark';
+
+export interface EndingDefinition {
+  id: EndingType;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: string;
+  color: string;
+  requirements: {
+    type: 'choice' | 'npc_saved' | 'documents_found' | 'turn_limit' | 'party_alive' | 'item' | 'boss_defeated' | 'secret_rooms';
+    value: string | number;
+  }[];
+  priority: number; // higher = checked first
+}
+
+// ==========================================
+// #21 - STORY CHOICES TRACKING
+// ==========================================
+
+export type StoryChoiceTag = 'help_survivors' | 'ignore_survivors' | 'enter_lab' | 'skip_lab' | 'go_back_sewers' | 'proceed_sewers' | 'hack_computer' | 'skip_computer';

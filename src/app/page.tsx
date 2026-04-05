@@ -13,6 +13,12 @@ import VictoryScreen from '@/components/game/VictoryScreen';
 import GameNotification from '@/components/game/GameNotification';
 import GameMap from '@/components/game/GameMap';
 import DebugPanel from '@/components/game/DebugPanel';
+import AchievementPanel from '@/components/game/AchievementPanel';
+import BestiaryPanel from '@/components/game/BestiaryPanel';
+import DocumentsPanel from '@/components/game/DocumentsPanel';
+import NPCDialogPanel from '@/components/game/NPCDialogPanel';
+import PuzzlePanel from '@/components/game/PuzzlePanel';
+import QTEPanel from '@/components/game/QTEPanel';
 import { playBgm, stopBgm } from '@/game/engine/sounds';
 import type { BgmType } from '@/game/engine/sounds';
 
@@ -65,6 +71,12 @@ export default function GamePage() {
       case 'victory':
         playBgm('victory');
         break;
+      case 'puzzle':
+        // Keep current BGM during puzzles
+        break;
+      case 'qte':
+        playBgm('combat');
+        break;
       default:
         stopBgm();
     }
@@ -103,9 +115,15 @@ export default function GamePage() {
       {phase === 'event' && <ExplorationScreen />}
       {phase === 'game-over' && <GameOverScreen />}
       {phase === 'victory' && <VictoryScreen />}
+      {phase === 'puzzle' && <PuzzlePanel />}
+      {phase === 'qte' && <QTEPanel />}
       <InventoryPanel />
       <GameNotification />
       <GameMap />
+      <AchievementPanel />
+      <BestiaryPanel />
+      <DocumentsPanel />
+      <NPCDialogPanel />
       <DebugPanel />
     </div>
   );

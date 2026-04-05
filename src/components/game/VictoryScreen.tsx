@@ -5,16 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Star, RotateCcw, Save, Plus, Sparkles, X, Upload, Clock } from 'lucide-react';
+import { ENDINGS } from '@/game/data/endings';
+import { Star, RotateCcw, Save, Plus, Sparkles, X, Clock } from 'lucide-react';
 
 export default function VictoryScreen() {
-  const { party, turnCount, collectedRibbons, persistentRibbons, gameStartTime, restartGame, saveGameVictory, startNewGamePlus, loadGame, getSaveInfo } = useGameStore();
+  const { party, turnCount, collectedRibbons, persistentRibbons, gameStartTime, endingType, storyChoices, npcsEncountered, collectedDocuments, discoveredSecretRooms, restartGame, saveGameVictory, startNewGamePlus, loadGame, getSaveInfo } = useGameStore();
   const [showSavePanel, setShowSavePanel] = useState(false);
   const [savedSlot, setSavedSlot] = useState<number | null>(null);
   const [showNGPPanel, setShowNGPPanel] = useState(false);
   const [loadedNGP, setLoadedNGP] = useState(false);
 
   const totalPersistent = Math.min((persistentRibbons || 0) + (collectedRibbons || 0), 10);
+  const ending = endingType ? ENDINGS[endingType] : ENDINGS['ending_escape'];
 
   // Calculate play time
   const playTimeFormatted = useMemo(() => {
@@ -63,45 +65,48 @@ export default function VictoryScreen() {
         animate={{ opacity: 1 }}
         className="relative z-10 text-center px-4 max-w-lg"
       >
-        {/* Trophy */}
+        {/* Ending Trophy */}
         <motion.div
           initial={{ scale: 0, rotate: 180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ duration: 1, ease: 'easeOut' }}
           className="mb-6"
         >
-          <Trophy className="w-24 h-24 text-amber-500 mx-auto" style={{
-            filter: 'drop-shadow(0 0 20px rgba(245,158,11,0.5))',
-          }} />
+          <span className="text-7xl sm:text-8xl block" style={{ filter: `drop-shadow(0 0 30px ${ending.color}80)` }}>
+            {ending.icon}
+          </span>
         </motion.div>
 
-        {/* Victory Text */}
+        {/* Ending Title */}
         <motion.h1
           initial={{ opacity: 0, y: 30, scale: 0.8 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 0.5, type: 'spring' }}
-          className="text-6xl sm:text-8xl font-black text-amber-400 mb-2"
+          className="text-5xl sm:text-7xl font-black mb-2"
           style={{
-            textShadow: '0 0 40px rgba(245,158,11,0.5), 0 0 80px rgba(245,158,11,0.2), 3px 3px 0 #000',
+            color: ending.color,
+            textShadow: `0 0 40px ${ending.color}80, 0 0 80px ${ending.color}40, 3px 3px 0 #000`,
           }}
         >
-          VITTORIA!
+          {ending.title}
         </motion.h1>
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="text-amber-600/80 text-sm tracking-[0.3em] uppercase mb-6"
+          className="text-sm tracking-[0.3em] uppercase mb-6"
+          style={{ color: `${ending.color}cc` }}
         >
-          Siete sopravvissuti
+          {ending.subtitle}
         </motion.p>
 
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: '200px' }}
           transition={{ delay: 1, duration: 1 }}
-          className="h-px bg-gradient-to-r from-transparent via-amber-500 to-transparent mx-auto mb-6"
+          className="h-px bg-gradient-to-r from-transparent to-transparent mx-auto mb-6"
+          style={{ background: `linear-gradient(to right, transparent, ${ending.color}60, transparent)` }}
         />
 
         <motion.p
@@ -110,21 +115,73 @@ export default function VictoryScreen() {
           transition={{ delay: 1.3 }}
           className="text-gray-300 text-sm leading-relaxed mb-8 max-w-md mx-auto"
         >
-          Contro ogni probabilità, avete affrontato gli orrori di Raccoon City e siete sopravvissuti.
-          Il Tyrant è stato sconfitto. L&apos;elicottero vi aspetta sulla torre dell&apos;orologio.
-          L&apos;incubo sta per finire... o forse è solo l&apos;inizio.
+          {ending.description}
         </motion.p>
+
+        {/* Story Stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.5 }}
+          className="glass-dark rounded-xl border-white/[0.06] p-4 mb-4"
+        >
+          <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Statistiche Narrazione</h4>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex items-center gap-2 text-white/60">
+              <span>👤</span> <span>NPC incontrati: <strong className="text-white">{npcsEncountered.length}</strong></span>
+            </div>
+            <div className="flex items-center gap-2 text-white/60">
+              <span>📖</span> <span>Documenti: <strong className="text-white">{collectedDocuments.length}</strong></span>
+            </div>
+            <div className="flex items-center gap-2 text-white/60">
+              <span>🚪</span> <span>Stanze segrete: <strong className="text-white">{discoveredSecretRooms.length}</strong></span>
+            </div>
+            <div className="flex items-center gap-2 text-white/60">
+              <span>↩️</span> <span>Scelte narrative: <strong className="text-white">{storyChoices.length}</strong></span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Endings unlocked preview */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.55 }}
+          className="glass-dark rounded-xl border-white/[0.06] p-4 mb-4"
+        >
+          <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Finali</h4>
+          <div className="flex gap-2 flex-wrap">
+            {Object.values(ENDINGS).map(e => {
+              const isUnlocked = e.id === ending.id;
+              return (
+                <Badge
+                  key={e.id}
+                  className={`text-xs ${isUnlocked ? 'border-2 bg-white/[0.06]' : 'opacity-30 bg-white/[0.02]'}`}
+                  style={{
+                    borderColor: isUnlocked ? e.color : undefined,
+                    color: isUnlocked ? e.color : undefined,
+                  }}
+                >
+                  {isUnlocked ? e.icon : '❓'} {e.title}
+                </Badge>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-white/30 mt-2">
+            Esplora, aiuta NPC e raccogli documenti per sbloccare tutti i finali!
+          </p>
+        </motion.div>
 
         {/* Collectible Summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.4 }}
-          className="glass-dark rounded-xl border-purple-700/20 p-4 mb-6"
+          transition={{ delay: 1.7 }}
+          className="glass-dark rounded-xl border-white/[0.06] p-4 mb-4"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xl">🎀</span>
+              <img src="/icons/items/ink_ribbon.png" alt="Ink Ribbon" className="w-6 h-6" />
               <div className="text-left">
                 <p className="text-xs text-white/50">Collezionabili — Questa Run</p>
                 <p className="text-sm font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/10</span> Nastri d&apos;Inchiostro</p>
@@ -160,11 +217,11 @@ export default function VictoryScreen() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.6 }}
-          className="glass-dark rounded-xl border-amber-700/20 p-5 mb-8 text-left"
+          transition={{ delay: 1.9 }}
+          className="glass-dark rounded-xl border-white/[0.06] p-5 mb-8 text-left"
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-amber-300 uppercase tracking-wider">Riepilogo Finale</h3>
+            <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">Riepilogo Finale</h3>
             <div className="flex items-center gap-2">
               {playTimeFormatted && (
                 <Badge className="bg-gray-800/80 text-gray-300 border-gray-700/30">
@@ -182,7 +239,7 @@ export default function VictoryScreen() {
                 key={char.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 1.8 + i * 0.2 }}
+                transition={{ delay: 2.1 + i * 0.2 }}
                 className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/40"
               >
                 <span className="text-2xl">
@@ -214,7 +271,7 @@ export default function VictoryScreen() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 2.5 }}
+          transition={{ delay: 2.7 }}
           className="flex flex-col sm:flex-row gap-3 items-center justify-center"
         >
           {/* Save Victory — unlocks New Game+ */}

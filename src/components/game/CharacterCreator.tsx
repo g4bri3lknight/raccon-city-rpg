@@ -245,16 +245,19 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
   }, [currentStep]);
 
   // Reset stats to archetype defaults when base archetype changes
-  useEffect(() => {
-    if (selectedArchetype && selectedArchetype !== 'custom') {
-      const points = ARCHETYPE_STAT_POINTS[selectedArchetype];
+  const handleArchetypeChange = useCallback((archetype: Archetype | null) => {
+    setSelectedArchetype(archetype);
+    if (archetype && archetype !== 'custom') {
+      const points = ARCHETYPE_STAT_POINTS[archetype as keyof typeof ARCHETYPE_STAT_POINTS];
       if (points) {
         setCustomStats({ hp: points.hp, atk: points.atk, def: points.def, spd: points.spd });
       }
-    } else if (selectedArchetype === 'custom') {
+    } else if (archetype === 'custom') {
       setCustomStats({ hp: CUSTOM_STAT_BUDGET.defaults.hp, atk: CUSTOM_STAT_BUDGET.defaults.atk, def: CUSTOM_STAT_BUDGET.defaults.def, spd: CUSTOM_STAT_BUDGET.defaults.spd });
     }
-  }, [selectedArchetype]);
+    setSelectedAbilities([]);
+    setAbilityFilter('all');
+  }, []);
 
   // ── File upload handler ──
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -298,11 +301,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
     });
   }, []);
 
-  // ── Clear ability selection when switching archetype ──
-  useEffect(() => {
-    setSelectedAbilities([]);
-    setAbilityFilter('all');
-  }, [selectedArchetype]);
+
 
   const isPresetArchetype = selectedArchetype !== null && selectedArchetype !== 'custom';
 
@@ -736,7 +735,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                             key={arch.id}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => setSelectedArchetype(arch.id)}
+                            onClick={() => handleArchetypeChange(arch.id)}
                             className={`relative text-left p-3 sm:p-4 rounded-xl transition-all duration-300 cursor-pointer min-h-[44px] select-none ${
                               isSelected
                                 ? 'glass-dark-accent ring-1 ring-red-600/50 shadow-[0_0_20px_rgba(220,38,38,0.15)]'
@@ -773,7 +772,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => setSelectedArchetype('custom')}
+                        onClick={() => handleArchetypeChange('custom')}
                         className={`relative text-left p-3 sm:p-4 rounded-xl transition-all duration-300 cursor-pointer min-h-[44px] select-none ${
                           selectedArchetype === 'custom'
                             ? 'glass-dark-accent ring-1 ring-red-600/50 shadow-[0_0_20px_rgba(220,38,38,0.15)]'

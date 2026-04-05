@@ -90,7 +90,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
   {
     id: 'scudo_vitale',
     name: 'Scudo Vitale',
-    description: 'Attiva uno scudo energetico che riduce i danni subiti del 50% per due turni.',
+    description: 'Attiva uno scudo energetico che ripristina 30 HP e riduce i danni subiti fino al prossimo turno.',
     icon: '✨',
     targetType: 'self',
     cooldown: 3,
@@ -124,7 +124,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
   {
     id: 'pronto_soccorso',
     name: 'Pronto Soccorso',
-    description: 'Un intervento medico rapido che cura un alleato di una quantità significativa di HP e rimuove status negativi.',
+    description: 'Un intervento medico rapido che cura un alleato di 70 HP e rimuove avvelenamento e sanguinamento.',
     icon: '💊',
     targetType: 'ally',
     cooldown: 2,
@@ -146,7 +146,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
   {
     id: 'adrenalina',
     name: 'Adrenalina',
-    description: 'Inietta adrenalina a un alleato, aumentando la sua velocità e probabilità di critico per due turni.',
+    description: 'Inietta adrenalina a un alleato, ripristinando 40 HP e aumentando i danni inflitti del 25% per 2 turni.',
     icon: '💉',
     targetType: 'ally',
     cooldown: 3,
@@ -180,7 +180,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
   {
     id: 'gas_venefico',
     name: 'Gas Venefico',
-    description: 'Lancia una granata di gas che avvelena tutti i nemici e riduce la loro velocità per due turni.',
+    description: 'Lancia una granata di gas che avvelena tutti i nemici e infligge danni moderati.',
     icon: '💨',
     targetType: 'enemy',
     cooldown: 3,
@@ -204,7 +204,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
   {
     id: 'frecce_etiche',
     name: 'Frecce Elettriche',
-    description: 'Spara una scarica elettrica che paralizza il nemico e riduce drasticamente la sua difesa per due turni.',
+    description: 'Spara una scarica elettrica che paralizza il nemico con alta probabilità e infligge danni moderati.',
     icon: '⚡',
     targetType: 'enemy',
     cooldown: 3,

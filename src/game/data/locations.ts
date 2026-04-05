@@ -80,14 +80,12 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     ],
     storyEvent: {
       title: 'L\'Armeria',
-      description: 'Trovate l\'armeria della stazione. La porta è chiusa con un lucchetto, ma attraverso i vetri si intravedono armi e munizioni.',
+      description: 'Trovate l\'armeria della stazione. La porta è chiusa con un lucchetto numerico a 4 cifre. Sulla serratura c\'è un graffio: "1974".',
       choices: [
         {
-          text: 'Forzare la serratura',
+          text: 'Provare a decifrare il codice',
           outcome: {
-            description: 'Dopo diversi tentativi, la porta si apre. Trovate munizioni preziose e una cura medica.',
-            receiveItems: [{ itemId: 'ammo_pistol', quantity: 6 }, { itemId: 'herb_red', quantity: 1 }],
-            hpChange: -10,
+            description: 'Dovete inserire il codice corretto sul lucchetto...',
           },
         },
         {
@@ -98,6 +96,16 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
           },
         },
       ],
+      puzzle: {
+        type: 'combination',
+        combinationCode: '1974',
+        successOutcome: {
+          description: 'Il lucchetto si apre! Dentro trovate munizioni preziose e una cura medica.',
+          receiveItems: [{ itemId: 'ammo_pistol', quantity: 6 }, { itemId: 'herb_red', quantity: 1 }],
+          hpChange: 10,
+        },
+        failMessage: 'Il codice è sbagliato! Il lucchetto non si muove. Dovete rinunciare...',
+      },
     },
   },
   hospital_district: {
@@ -234,13 +242,12 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     ],
     storyEvent: {
       title: 'Il Computer Centrale',
-      description: 'Trovate il computer principale del laboratorio. Lo schermo mostra un messaggio: "EMERGENZA: Prototipo T-103 in fase di attivazione. Codice di sblocco richiesto."',
+      description: 'Trovate il computer principale del laboratorio. Lo schermo mostra un messaggio: "EMERGENZA: Protocollo di disattivazione richiesto. Ripetete la sequenza di sicurezza." Una serie di frecce lampeggia sullo schermo...',
       choices: [
         {
-          text: 'Provare a hackerare il sistema',
+          text: 'Ripetere la sequenza di sicurezza',
           outcome: {
-            description: 'Dopo minuti di tentativi, riuscite a disabilitare i sistemi di sicurezza. Trovate un deposito segreto con equipaggiamento prezioso.',
-            receiveItems: [{ itemId: 'spray', quantity: 2 }, { itemId: 'ammo_magnum', quantity: 6 }],
+            description: 'Osservate le frecce e cercate di memorizzarle...',
           },
         },
         {
@@ -251,6 +258,15 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
           },
         },
       ],
+      puzzle: {
+        type: 'sequence',
+        sequencePattern: ['up', 'right', 'down', 'left', 'space'],
+        successOutcome: {
+          description: 'Sequenza corretta! I sistemi di sicurezza si disattivano. Trovate un deposito segreto con equipaggiamento prezioso.',
+          receiveItems: [{ itemId: 'spray', quantity: 2 }, { itemId: 'ammo_magnum', quantity: 6 }],
+        },
+        failMessage: 'Sequenza errata! Il sistema attiva un allarme. Dovete fuggire!',
+      },
     },
   },
   clock_tower: {

@@ -14,7 +14,8 @@ import { Separator } from '@/components/ui/separator';
 import {
   Compass, Search, Package, MapPin, ChevronRight,
   Skull, Flashlight, Shield, Swords, Heart,
-  ArrowRightLeft, AlertTriangle, CheckCircle2, Users, Map
+  ArrowRightLeft, AlertTriangle, CheckCircle2, Users, Map, Trophy, BookOpen,
+  FileText, User, Zap
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 
@@ -23,19 +24,23 @@ export default function ExplorationScreen() {
   const {
     party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
     activeEvent, inventoryOpen, selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
+    difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc, collectedDocuments,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
+    toggleAchievements, toggleBestiary, toggleDocuments,
+    handleDynamicEventChoice,
+    startQTE,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
   const searchExhausted = (searchCounts[currentLocationId] || 0) >= (searchMaxes[currentLocationId] || 0) && (searchMaxes[currentLocationId] || 0) > 0;
-  const diffLabel = partySize === 1 ? 'Sopravvivenza' : partySize === 2 ? 'Normale' : 'Sfida';
-  const diffStyle = partySize === 1
+  const diffLabel = difficulty === 'sopravvissuto' ? 'Sopravvissuto' : difficulty === 'incubo' ? 'Incubo' : 'Normale';
+  const diffStyle = difficulty === 'sopravvissuto'
     ? 'text-green-400 border-green-800/50 bg-green-950/30'
-    : partySize === 2
-      ? 'text-yellow-400 border-yellow-800/50 bg-yellow-950/30'
-      : 'text-red-400 border-red-800/50 bg-red-950/30';
-  const diffIcon = partySize === 1 ? '🏃' : partySize === 2 ? '⚔️' : '💀';
+    : difficulty === 'incubo'
+      ? 'text-red-400 border-red-800/50 bg-red-950/30'
+      : 'text-yellow-400 border-yellow-800/50 bg-yellow-950/30';
+  const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
   const [showEventChoice, setShowEventChoice] = useState(false);
   const explorationLogRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +73,7 @@ export default function ExplorationScreen() {
             </div>
           )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 backdrop-blur-sm">
-            <span className="text-sm">🎀</span>
+            <img src="/icons/items/ink_ribbon.png" alt="Ink Ribbon" className="w-5 h-5" />
             <span className="text-xs font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/10</span></span>
             {(persistentRibbons || 0) > 0 && (
               <span className="text-purple-400/40">|</span>
@@ -225,6 +230,12 @@ export default function ExplorationScreen() {
                   <p
                     key={i}
                     className={`text-sm sm:text-base leading-relaxed ${
+                      msg.includes('🚪') ? 'text-purple-400' :
+                      msg.includes('👤') ? 'text-green-400' :
+                      msg.includes('💬') ? 'text-amber-200' :
+                      msg.includes('📋') ? 'text-cyan-300' :
+                      msg.includes('🤝') ? 'text-emerald-300' :
+                      msg.includes('☢️') || msg.includes('☠️') ? 'text-orange-400' :
                       msg.includes('⚔️') || msg.includes('💀') ? 'text-red-400' :
                       msg.includes('🎒') ? 'text-amber-400' :
                       msg.includes('❤️') || msg.includes('🎉') ? 'text-green-400' :
@@ -242,6 +253,60 @@ export default function ExplorationScreen() {
                 {messageLog.length === 0 && !activeEvent && (
                   <p className="text-gray-600 italic text-base">L&apos;avventura ha inizio...</p>
                 )}
+
+                {/* ── Dynamic Event Banner ── */}
+                <AnimatePresence>
+                  {activeDynamicEvent && (
+                    <motion.div
+                      key="dynamic-event"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="space-y-2 pt-2 border-t border-amber-900/30"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-300">Evento Dinamico</span>
+                        <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 text-[10px] ml-auto">
+                          {dynamicEventTurnsLeft} turni
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl">{activeDynamicEvent.icon}</span>
+                        <div>
+                          <h4 className="text-base font-bold text-white">{activeDynamicEvent.title}</h4>
+                          <p className="text-xs text-white/50">{activeDynamicEvent.description}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-amber-200/70 italic">{activeDynamicEvent.onTriggerMessage}</p>
+                      {activeDynamicEvent.effect.damagePerTurn > 0 && (
+                        <p className="text-[10px] text-red-400">
+                          💔 {activeDynamicEvent.effect.damagePerTurn} danni per turno
+                        </p>
+                      )}
+                      <div className="space-y-1.5 pt-1">
+                        {activeDynamicEvent.choices.map((choice, i) => (
+                          <motion.button
+                            key={i}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.12 }}
+                            whileHover={{ scale: 1.01, x: 3 }}
+                            whileTap={{ scale: 0.99 }}
+                            onClick={() => handleDynamicEventChoice(i)}
+                            className="w-full text-left p-2 sm:p-2.5 rounded-lg border border-amber-800/20 hover:border-amber-700/40
+                              bg-amber-950/10 hover:bg-amber-950/20 text-white/70 hover:text-white
+                              transition-all duration-200 text-sm sm:text-base flex items-center gap-2"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5 text-amber-400/60 shrink-0" />
+                            {choice.text}
+                          </motion.button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* ── Evento con scelta — integrato nel Registro Eventi ── */}
                 <AnimatePresence>
@@ -288,7 +353,22 @@ export default function ExplorationScreen() {
 
           {/* Action Buttons */}
           <div className="shrink-0 p-3 border-t border-white/[0.06] glass-dark-accent">
-            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent ? 'opacity-40 pointer-events-none' : ''}`}>
+            {/* Status Indicators */}
+            {(activeDynamicEvent || activeNpc || collectedDocuments.length > 0) && (
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                {activeDynamicEvent && (
+                  <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 text-[10px] animate-pulse">
+                    {activeDynamicEvent.icon} {activeDynamicEvent.title} ({dynamicEventTurnsLeft})
+                  </Badge>
+                )}
+                {collectedDocuments.length > 0 && (
+                  <Badge className="bg-white/[0.04] text-white/40 border-white/[0.06] text-[10px] cursor-pointer hover:bg-white/[0.08]" onClick={toggleDocuments}>
+                    📖 {collectedDocuments.length} documenti
+                  </Badge>
+                )}
+              </div>
+            )}
+            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
               <Button
                 onClick={explore}
                 disabled={aliveParty.length === 0}
@@ -315,6 +395,24 @@ export default function ExplorationScreen() {
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
               >
                 <Map className="w-4 h-4 mr-1.5" /> Mappa
+              </Button>
+              <Button
+                onClick={toggleAchievements}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <Trophy className="w-4 h-4 mr-1.5" /> Traguardi
+              </Button>
+              <Button
+                onClick={toggleBestiary}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <BookOpen className="w-4 h-4 mr-1.5" /> Bestiario
+              </Button>
+              <Button
+                onClick={toggleDocuments}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <FileText className="w-4 h-4 mr-1.5" /> Documenti
               </Button>
               {location.isBossArea && (
                 <Button

@@ -39,6 +39,7 @@ export function calculateDamage(
   defenderDef: number,
   isDefending: boolean,
   attackerArchetype?: Archetype,
+  attackerHasAdrenaline?: boolean,
 ): { damage: number; isCritical: boolean; isMiss: boolean } {
   // Miss chance
   const missChance = 8;
@@ -48,6 +49,11 @@ export function calculateDamage(
 
   // Base damage formula
   let baseDamage = attackerAtk * random(85, 115) / 100;
+
+  // Adrenaline buff: +25% damage
+  if (attackerHasAdrenaline) {
+    baseDamage *= 1.25;
+  }
   
   // Defense reduction
   let defMultiplier = defenderDef / (defenderDef + 50);
@@ -75,10 +81,16 @@ export function calculateDamageNoMiss(
   defenderDef: number,
   isDefending: boolean,
   attackerArchetype?: Archetype,
+  attackerHasAdrenaline?: boolean,
 ): { damage: number; isCritical: boolean; isMiss: false } {
   // Guaranteed hit (for Sparo Mirato)
   let baseDamage = attackerAtk * random(90, 110) / 100;
-  
+
+  // Adrenaline buff: +25% damage
+  if (attackerHasAdrenaline) {
+    baseDamage *= 1.25;
+  }
+
   let defMultiplier = defenderDef / (defenderDef + 50);
   
   if (isDefending) {
@@ -121,6 +133,12 @@ export const WEAPON_AMMO: Record<string, string> = {
   grenade_launcher: 'ammo_grenade',
 };
 
+export interface AppliedBuff {
+  targetId: string;
+  effect: StatusEffect;
+  duration: number;
+}
+
 export interface ActionResult {
   log: CombatLogEntry;
   updatedEnemy?: EnemyInstance;
@@ -130,6 +148,7 @@ export interface ActionResult {
   consumedAmmoUid?: string; // uid of ammo item consumed by ranged attack
   isMeleeFallback?: boolean; // true when ranged weapon has no ammo
   tauntTargetId?: string; // set when tank uses Immolation
+  appliedBuff?: AppliedBuff; // set when a buff is applied to a character
 }
 
 export function executePlayerAttack(
@@ -168,11 +187,13 @@ export function executePlayerAttack(
   }
 
   const totalAtk = character.baseAtk + weaponBonus;
+  const hasAdrenaline = character.statusEffects.includes('adrenaline');
   const { damage, isCritical, isMiss } = calculateDamage(
     totalAtk,
     enemy.def,
     enemy.isDefending,
     character.archetype,
+    hasAdrenaline,
   );
 
   const newHp = Math.max(0, enemy.currentHp - damage);
@@ -227,6 +248,7 @@ export function executePlayerSpecial(
   target: EnemyInstance | Character,
   turn: number,
   party: Character[],
+  enemies?: EnemyInstance[],
 ): ActionResult {
   const specialId = resolveSpecialId(character, 'special1Id');
   const special = specialId ? getSpecialById(specialId) : undefined;
@@ -242,7 +264,7 @@ export function executePlayerSpecial(
     };
   }
 
-  return executeSpecialAbility(character, target, turn, party, [], special);
+  return executeSpecialAbility(character, target, turn, party, enemies || [], special);
 }
 
 export function executePlayerSpecial2(
@@ -295,7 +317,8 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 1.6;
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       result.log = {
@@ -312,8 +335,9 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 1.3;
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
 
-      const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
       const primaryHp = Math.max(0, enemyTarget.currentHp - primary.damage);
       let updatedEnemies = enemies.map(e =>
         e.id === enemyTarget.id ? { ...e, currentHp: primaryHp, isDefending: false } : e
@@ -323,7 +347,7 @@ function executeSpecialAbility(
       const splashAtk = (character.baseAtk + weaponBonus) * 0.6;
       updatedEnemies = updatedEnemies.map(e => {
         if (e.id !== enemyTarget.id && e.currentHp > 0) {
-          const splash = calculateDamage(splashAtk, e.def, e.isDefending);
+          const splash = calculateDamage(splashAtk, e.def, e.isDefending, undefined, hasAdrenaline);
           const newHp = Math.max(0, e.currentHp - splash.damage);
           if (!splash.isMiss) {
             splashLog.push(`${e.name}: -${splash.damage}`);
@@ -355,8 +379,9 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 2.0;
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
       // Guaranteed hit - no miss
-      const { damage, isCritical } = calculateDamageNoMiss(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const { damage, isCritical } = calculateDamageNoMiss(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       let message = `${character.name} esegue uno SPARO MIRATO su ${enemyTarget.name} per ${damage} danni!`;
@@ -375,7 +400,8 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 0.9;
-      const { damage, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
+      const { damage, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, undefined, hasAdrenaline);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       
@@ -404,7 +430,8 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 1.4;
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       
@@ -431,10 +458,11 @@ function executeSpecialAbility(
       // AOE poison - damages ALL living enemies
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 0.7;
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
       const livingEnemies = enemies.filter(e => e.currentHp > 0);
       let totalDmg = 0;
       const updatedEnemies = livingEnemies.map(e => {
-        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending);
+        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline);
         if (isMiss) return { ...e, isDefending: false };
         totalDmg += damage;
         const newHp = Math.max(0, e.currentHp - damage);
@@ -462,7 +490,7 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 1.1;
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, character.statusEffects.includes('adrenaline'));
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
 
@@ -490,7 +518,7 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 0.9;
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, character.statusEffects.includes('adrenaline'));
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
 
@@ -597,15 +625,24 @@ function executeSpecialAbility(
 
     case 'adrenalina': {
       const healTarget = target as Character;
-      // Adrenalina: heal 25 HP and boost speed temporarily (simulated by setting defending for turn advantage)
-      const healAmount = 25;
+      // Adrenalina: heal 40 HP + 2-turn ATK buff (+25% damage)
+      const healAmount = 40;
       const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
+      const alreadyBuffed = healTarget.statusEffects.includes('adrenaline');
+      const updatedStatus = alreadyBuffed
+        ? healTarget.statusEffects
+        : [...healTarget.statusEffects, 'adrenaline' as StatusEffect];
       result.log = {
         turn, actorName: character.name, actorType: 'player', action: 'Adrenalina',
         targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
-        message: `${character.name} inietta ADRENALINA a ${healTarget.name}! +${healAmount} HP e potenziamento temporaneo!`,
+        message: alreadyBuffed
+          ? `${character.name} inietta ADRENALINA a ${healTarget.name}! +${healAmount} HP!`
+          : `${character.name} inietta ADRENALINA a ${healTarget.name}! +${healAmount} HP e +25% danni per 2 turni!`,
       };
-      result.updatedCharacter = { ...healTarget, currentHp: newHp };
+      result.updatedCharacter = { ...healTarget, currentHp: newHp, statusEffects: updatedStatus };
+      if (!alreadyBuffed) {
+        result.appliedBuff = { targetId: healTarget.id, effect: 'adrenaline', duration: 2 };
+      }
       break;
     }
 
@@ -677,11 +714,12 @@ function executeSpecialAbility(
       // AOE stun - damages ALL living enemies + high stun chance
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 0.8);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
       const livingEnemies = enemies.filter(e => e.currentHp > 0);
       let totalDmg = 0;
       let stunnedCount = 0;
       const updatedEnemies = livingEnemies.map(e => {
-        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending);
+        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline);
         if (isMiss) return { ...e, isDefending: false };
         totalDmg += damage;
         const newHp = Math.max(0, e.currentHp - damage);
@@ -714,7 +752,7 @@ function executeSpecialAbility(
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 1.0);
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, character.statusEffects.includes('adrenaline'));
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
 

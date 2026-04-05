@@ -10,6 +10,7 @@ import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '@/game/data/specials';
 import ItemIcon from './ItemIcon';
 import { WEAPON_AMMO, resolveSpecialId } from '@/game/engine/combat';
 import { audio } from '@/game/engine/sounds';
+import { playEnemyAttack, playEnemyDeath, playZombieMoan } from '@/game/engine/sounds';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
 
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +53,48 @@ export default function CombatScreen() {
     aliveEnemiesRef.current = enemies;
     alivePartyRef.current = party;
   });
+
+  // ── Enemy death detection: play death sound when an enemy's HP drops to 0 ──
+  const prevEnemyHpRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    if (!combat) return;
+    const newDeaths: string[] = [];
+    for (const enemy of enemies) {
+      const prevHp = prevEnemyHpRef.current[enemy.id] ?? enemy.currentHp;
+      if (prevHp > 0 && enemy.currentHp <= 0) {
+        newDeaths.push(enemy.name);
+      }
+    }
+    // Update HP ref
+    const hpMap: Record<string, number> = {};
+    for (const enemy of enemies) hpMap[enemy.id] = enemy.currentHp;
+    prevEnemyHpRef.current = hpMap;
+    // Play death sound for each newly dead enemy (skip on victory to avoid overlap)
+    if (newDeaths.length > 0 && !combat.isVictory) {
+      try { playEnemyDeath(); } catch {}
+    }
+  }, [enemies, combat?.isVictory]);
+
+  // ── Ambient zombie moan: periodic groan when zombie-type enemies are alive ──
+  useEffect(() => {
+    if (!combat || combat.isVictory || combat.isDefeat) return;
+    // Check if any alive enemy is a zombie type
+    const hasZombie = enemies.some(e => {
+      if (e.currentHp <= 0) return false;
+      const name = (e.name || '').toLowerCase();
+      return name.includes('zombie') || name.includes('zombi') || name.includes('cadavere');
+    });
+    if (!hasZombie) return;
+    // Play a random zombie moan every 4-8 seconds
+    const scheduleNext = () => {
+      const delay = 4000 + Math.random() * 4000; // 4–8 seconds
+      return setTimeout(() => {
+        try { playZombieMoan(); } catch {}
+      }, delay);
+    };
+    const timerId = scheduleNext();
+    return () => clearTimeout(timerId);
+  }, [combat?.isVictory, combat?.isDefeat, enemies]);
 
   // ── Derived data ──
   const lastEntries = combat?.log?.slice(-3) || [];
@@ -124,8 +167,11 @@ export default function CombatScreen() {
       } else if (entry.damage && entry.damage > 0) {
         // Any other damage entry (enemy attacks, etc.)
         if (entry.actorType === 'enemy') {
-          audio.playEnemyHit();
+          playEnemyAttack(entry.actorName, entry.action);
         }
+      } else if (entry.damage === 0 && entry.isMiss && entry.actorType === 'enemy') {
+        // Enemy miss
+        audio.playMiss();
       }
     } catch { /* audio not available */ }
   }, [combat?.log?.length]);
