@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { DOCUMENTS } from '@/game/data/documents';
@@ -156,7 +156,7 @@ function StandardDocumentReader({ doc }: { doc: GameDocument }) {
 }
 
 export default function DocumentsPanel() {
-  const { documentsOpen, toggleDocuments, collectedDocuments, currentLocationId } = useGameStore();
+  const { documentsOpen, toggleDocuments, collectedDocuments, currentLocationId, readDocuments, markDocumentRead } = useGameStore();
   const [selectedDoc, setSelectedDoc] = useState<GameDocument | null>(null);
   const [filterType, setFilterType] = useState<DocumentType | 'all'>('all');
 
@@ -182,6 +182,14 @@ export default function DocumentsPanel() {
   const totalDocs = Object.keys(DOCUMENTS).length;
   const secretDocs = docs.filter(d => d.isSecret).length;
   const totalSecretDocs = Object.values(DOCUMENTS).filter(d => d.isSecret).length;
+  const unreadCount = collectedDocuments.length - readDocuments.length;
+
+  // Mark document as read when selected
+  useEffect(() => {
+    if (selectedDoc) {
+      markDocumentRead(selectedDoc.id);
+    }
+  }, [selectedDoc, markDocumentRead]);
 
   return (
     <AnimatePresence>
@@ -311,6 +319,9 @@ export default function DocumentsPanel() {
                                 </div>
                               </div>
                               {doc.isSecret && <span className="text-xs">🔒</span>}
+                              {!readDocuments.includes(doc.id) && (
+                                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0 animate-pulse" />
+                              )}
                               <ChevronDown className="w-3 h-3 text-white/30" />
                             </div>
                           </motion.button>

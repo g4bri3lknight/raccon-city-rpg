@@ -397,6 +397,12 @@ interface GameStore extends GameState {
 
   // #16 Documents
   toggleDocuments: () => void;
+  markDocumentRead: (docId: string) => void;
+
+  // Trunk (item box)
+  toggleTrunk: () => void;
+  depositToTrunk: (characterId: string, itemUid: string) => void;
+  withdrawFromTrunk: (characterId: string, itemUid: string) => void;
 
   // #18 NPCs
   encounterNpc: (npcId: string) => void;
@@ -418,6 +424,10 @@ interface GameStore extends GameState {
 
   // Mini-map
   exploreSubArea: (subAreaId: string) => void;
+
+  // Sub-area navigation
+  enterSubArea: (subAreaId: string) => void;
+  exitSubArea: () => void;
 
   // Debug
   debugHealAll: () => void;
@@ -489,7 +499,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   bestiaryOpen: false,
   newAchievementNotification: null,
   collectedDocuments: [],
+  readDocuments: [],
   documentsOpen: false,
+  trunkItems: [],
+  trunkOpen: false,
   activeNpc: null,
   npcQuestProgress: {},
   npcsEncountered: [],
@@ -501,6 +514,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   discoveredSecretRooms: [],
   endingType: null,
   exploredSubAreas: {},
+  currentSubAreaId: null,
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -510,7 +524,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], documentsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {} });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], readDocuments: [], documentsOpen: false, trunkItems: [], trunkOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubAreaId: null });
   },
 
   goToCharacterCreator: () => {
@@ -552,7 +566,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       newAchievementNotification: null,
       difficulty: activeDifficulty,
       collectedDocuments: [],
+      readDocuments: [],
       documentsOpen: false,
+      trunkItems: [],
+      trunkOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -563,6 +580,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       discoveredSecretRooms: [],
       endingType: null,
       exploredSubAreas: {},
+      currentSubAreaId: null,
       // persistentRibbons is preserved (set externally for New Game+)
     });
   },
@@ -605,7 +623,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       newAchievementNotification: null,
       difficulty: activeDifficulty,
       collectedDocuments: [],
+      readDocuments: [],
       documentsOpen: false,
+      trunkItems: [],
+      trunkOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -616,6 +637,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       discoveredSecretRooms: [],
       endingType: null,
       exploredSubAreas: {},
+      currentSubAreaId: null,
       // persistentRibbons is preserved (set externally for New Game+)
     });
   },
@@ -666,7 +688,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       puzzleSourceLocationId: null,
       qteState: null,
       collectedDocuments: [],
+      readDocuments: [],
       documentsOpen: false,
+      trunkItems: [],
+      trunkOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -677,6 +702,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       discoveredSecretRooms: [],
       endingType: null,
       exploredSubAreas: {},
+      currentSubAreaId: null,
       bossPhases: {},
       nemesisPursuitLevel: 0,
       nemesisLastSeenLocation: null,
@@ -689,6 +715,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // ==========================================
   explore: () => {
     const state = get();
+    // Don't allow exploration while inside a sub-area (safe room)
+    if (state.currentSubAreaId) return;
     const location = LOCATIONS[state.currentLocationId];
 
     // Play location ambient sound (#33)
@@ -1280,6 +1308,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       visitedLocations: newVisited,
       party: updatedParty,
       skipNextEncounter: true, // Prevent immediate combat after traveling
+      currentSubAreaId: null, // Exit sub-area when traveling
     });
     setTimeout(() => get().checkAchievements(), 100);
   },
@@ -3917,6 +3946,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isNewGamePlus: state.isNewGamePlus || false,
       gameStartTime: state.gameStartTime || Date.now(),
       collectedDocuments: state.collectedDocuments,
+      readDocuments: state.readDocuments,
+      trunkItems: state.trunkItems,
+      trunkOpen: false,
       activeNpc: null,
       npcQuestProgress: state.npcQuestProgress,
       npcsEncountered: state.npcsEncountered,
@@ -3926,6 +3958,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       discoveredSecretRooms: state.discoveredSecretRooms,
       endingType: null,
       exploredSubAreas: state.exploredSubAreas,
+      currentSubAreaId: null, // Don't save inside a sub-area
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -4000,7 +4033,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isNewGamePlus: isNGP,
         gameStartTime: data.gameStartTime || Date.now(),
         collectedDocuments: data.collectedDocuments || [],
-        activeNpc: null,
+        readDocuments: data.readDocuments || [],
+        trunkItems: data.trunkItems || [],
+        trunkOpen: false,
         npcQuestProgress: data.npcQuestProgress || {},
         npcsEncountered: data.npcsEncountered || [],
         activeDynamicEvent: null,
@@ -4009,6 +4044,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         discoveredSecretRooms: data.discoveredSecretRooms || [],
         endingType: data.endingType || null,
         exploredSubAreas: data.exploredSubAreas || {},
+        currentSubAreaId: data.currentSubAreaId || null,
         documentsOpen: false,
         npcsOpen: false,
       });
@@ -4074,6 +4110,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isNewGamePlus: true,
       gameStartTime: state.gameStartTime || Date.now(),
       collectedDocuments: state.collectedDocuments,
+      readDocuments: state.readDocuments,
+      trunkItems: state.trunkItems,
+      trunkOpen: false,
       activeNpc: null,
       npcQuestProgress: state.npcQuestProgress,
       npcsEncountered: state.npcsEncountered,
@@ -4083,6 +4122,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       discoveredSecretRooms: state.discoveredSecretRooms,
       endingType: state.endingType,
       exploredSubAreas: state.exploredSubAreas,
+      currentSubAreaId: null,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -4143,7 +4183,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       puzzleSourceLocationId: null,
       qteState: null,
       collectedDocuments: [],
+      readDocuments: [],
       documentsOpen: false,
+      trunkItems: [],
+      trunkOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -4154,6 +4197,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       discoveredSecretRooms: [],
       endingType: null,
       exploredSubAreas: {},
+      currentSubAreaId: null,
     });
   },
 
@@ -4571,6 +4615,73 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(state => ({ documentsOpen: !state.documentsOpen }));
   },
 
+  markDocumentRead: (docId: string) => {
+    const { readDocuments, collectedDocuments } = get();
+    if (collectedDocuments.includes(docId) && !readDocuments.includes(docId)) {
+      set({ readDocuments: [...readDocuments, docId] });
+    }
+  },
+
+  toggleTrunk: () => {
+    try {
+      const isOpen = get().trunkOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
+    set(state => ({ trunkOpen: !state.trunkOpen }));
+  },
+
+  depositToTrunk: (characterId: string, itemUid: string) => {
+    const { party, trunkItems } = get();
+    const character = party.find(p => p.id === characterId);
+    if (!character) return;
+    const item = character.inventory.find(i => i.uid === itemUid);
+    if (!item) return;
+    // If equipped weapon, unequip first
+    if (item.isEquipped && character.weapon && character.weapon.itemId === item.itemId) {
+      set(state => ({
+        party: state.party.map(p =>
+          p.id === characterId
+            ? { ...p, inventory: p.inventory.filter(i => i.uid !== itemUid), weapon: null }
+            : p
+        ),
+        trunkItems: [...trunkItems, { ...item, isEquipped: false }],
+      }));
+    } else {
+      set(state => ({
+        party: state.party.map(p =>
+          p.id === characterId
+            ? { ...p, inventory: p.inventory.filter(i => i.uid !== itemUid) }
+            : p
+        ),
+        trunkItems: [...trunkItems, { ...item, isEquipped: false }],
+      }));
+    }
+  },
+
+  withdrawFromTrunk: (characterId: string, itemUid: string) => {
+    const { party, trunkItems } = get();
+    const character = party.find(p => p.id === characterId);
+    if (!character) return;
+    const item = trunkItems.find(i => i.uid === itemUid);
+    if (!item) return;
+    if (character.inventory.length >= character.maxInventorySlots) return; // full
+    // Auto-equip weapons
+    const updatedItem = item.type === 'weapon' && !character.weapon
+      ? { ...item, isEquipped: true }
+      : { ...item, isEquipped: false };
+    const updatedWeapon = item.type === 'weapon' && !character.weapon
+      ? { itemId: item.itemId, name: item.name, atkBonus: item.weaponStats?.atkBonus || 0, type: item.weaponStats?.type || 'melee' as const, special: item.weaponStats?.special, ammoType: item.weaponStats?.ammoType }
+      : character.weapon;
+    set(state => ({
+      party: state.party.map(p =>
+        p.id === characterId
+          ? { ...p, inventory: [...p.inventory, updatedItem], weapon: updatedWeapon }
+          : p
+      ),
+      trunkItems: state.trunkItems.filter(i => i.uid !== itemUid),
+    }));
+  },
+
   exploreSubArea: (subAreaId: string) => {
     const state = get();
     const locId = state.currentLocationId;
@@ -4582,6 +4693,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
         [locId]: [...currentSubAreas, subAreaId],
       },
       messageLog: [...state.messageLog, `[${state.turnCount}] 🗺️ Nuova area esplorata: ${subAreaId}`],
+    }));
+  },
+
+  // ==========================================
+  // SUB-AREA NAVIGATION
+  // ==========================================
+  enterSubArea: (subAreaId: string) => {
+    const state = get();
+    const locId = state.currentLocationId;
+    const location = LOCATIONS[locId];
+    const subArea = location?.subAreas?.find(s => s.id === subAreaId);
+    if (!subArea) return;
+    // Track exploration
+    const currentSubAreas = state.exploredSubAreas[locId] || [];
+    const alreadyExplored = currentSubAreas.includes(subAreaId);
+    set(state => ({
+      currentSubAreaId: subAreaId,
+      exploredSubAreas: alreadyExplored
+        ? state.exploredSubAreas
+        : { ...state.exploredSubAreas, [locId]: [...currentSubAreas, subAreaId] },
+      messageLog: alreadyExplored
+        ? [...state.messageLog, `[${state.turnCount}] 🚪 Entrati: ${subArea.name}`]
+        : [...state.messageLog, `[${state.turnCount}] 🚪 Entrati in una nuova area: ${subArea.name}`, `[${state.turnCount}] 🗺️ Nuova area esplorata!`],
+      // Close panels when entering sub-area
+      inventoryOpen: false,
+      mapOpen: false,
+      achievementsOpen: false,
+      bestiaryOpen: false,
+      documentsOpen: false,
+      npcsOpen: false,
+      trunkOpen: false,
+    }));
+  },
+
+  exitSubArea: () => {
+    const state = get();
+    if (!state.currentSubAreaId) return;
+    const locId = state.currentLocationId;
+    const location = LOCATIONS[locId];
+    set(state => ({
+      currentSubAreaId: null,
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🚪 Tornati a: ${location?.name || locId}`],
+      trunkOpen: false,
     }));
   },
 

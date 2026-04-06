@@ -29,6 +29,22 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'Una carrozzeria contorta blocca la strada.',
       'Un giornale vola nel vento: "VIRUS NELLA CITTA\'"',
     ],
+    subAreas: [
+      {
+        id: 'city_safe_room',
+        locationId: 'city_outskirts',
+        name: 'Rifugio in un Negozio',
+        description: 'Un piccolo negozio di alimentari barricato dall\'interno. Le finestre sono state coperte con assi di legno. Un debole lume a gas illumina la stanza, e l\'odore di caffè rancido riempie l\'aria. Un baule di metallo è appoggiato contro il muro.',
+        type: 'safe_room',
+        icon: '🏪',
+        ambientText: [
+          'Il fischio del vento si attenua dietro le assi di legno...',
+          'Una candela trema sulla mensola, proiettando ombre lunghe.',
+          'Il baule di metallo è pesante e robusto. Sembra resistito a molto.',
+          'Un leggero odore di muffa mescolato a caffè.',
+        ],
+      },
+    ],
     storyEvent: {
       title: 'Primo Contatto',
       description: 'Mentre attraversate la periferia, notate un gruppo di sopravvissuti barricati in un negozio. Uno di loro vi fa segno di avvicinarvi.',
@@ -80,9 +96,25 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'File polizieschi sparsi sul pavimento coperti di polvere.',
       'L\'odore della polvere da sparo permea l\'aria.',
     ],
+    subAreas: [
+      {
+        id: 'rpd_safe_room',
+        locationId: 'rpd_station',
+        name: 'Sala Riposo R.P.D.',
+        description: 'La sala riposo della stazione di polizia è sorprendentemente intatta. Un divano di pelle consunta, un distributore di caffè ancora funzionante, e una macchina da scrivere su una scrivania ordinata. La luce fioca crea un\'atmosfera tranquilla e irreale, lontana dall\'orrore fuori.',
+        type: 'safe_room',
+        icon: '🏢',
+        ambientText: [
+          'Il ronzio del distributore di caffè è quasi confortante...',
+          'Una foto della squadra è appesa alla parete. Sorridono.',
+          'La macchina da scrivere attende pazientemente sulla scrivania.',
+          'L\'aria è fresca e pulita. Un vero rifugio.',
+        ],
+      },
+    ],
     storyEvent: {
       title: 'L\'Armeria',
-      description: 'Trovate l\'armeria della stazione. La porta è chiusa con un lucchetto numerico a 4 cifre. Sulla serratura c\'è un graffio: "1974".',
+      description: 'Trovate l\'armeria della stazione. La porta è chiusa con un lucchetto numerico a 4 cifre. Sulla serratura c\'è un graffito: "1974".',
       choices: [
         {
           text: 'Provare a decifrare il codice',
@@ -141,6 +173,22 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'Una flebo si dondola dal soffitto, gocciolando un liquido scuro.',
       'L\'eco di una risata maniacale riecheggia da qualche parte...',
     ],
+    subAreas: [
+      {
+        id: 'hospital_safe_room',
+        locationId: 'hospital_district',
+        name: 'Cappella dell\'Ospedale',
+        description: 'Una piccola cappella al terzo piano, dimenticata dal caos. Le vetrate colorate filtrano una luce fioca. I banchi di legno sono intatti, e una croce d\'argento brilla sul piccolo altare. L\'aria è calma e il silenzio è quasi religioso.',
+        type: 'safe_room',
+        icon: '⛪',
+        ambientText: [
+          'La luce filtrata dalle vetrate colorate dipinge ombre mutevoli.',
+          'Un cero brucia ancora sull\'altare. Quanto dura da quando è stato acceso?',
+          'Il silenzio è assoluto. Nessun lamento, nessun ronzio.',
+          'Un crocifisso di legno è appoggiato su un banco. Chi lo ha lasciato qui?',
+        ],
+      },
+    ],
     storyEvent: {
       title: 'Il Laboratorio Segreto',
       description: 'Nella cantina dell\'ospedale trovate un passaggio nascosto dietro un armadietto medico. Una porta di metallo con il logo della Umbrella Corporation.',
@@ -196,6 +244,22 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'Una grata arrugginita cigola sotto il vostro peso.',
       'L\'odore della decomposizione è insopportabile.',
     ],
+    subAreas: [
+      {
+        id: 'sewers_safe_room',
+        locationId: 'sewers',
+        name: 'Stazione di Pompaggio',
+        description: 'Una stanza di controllo con vecchi strumenti di manutenzione. Le pareti sono piastrellate di bianco, l\'unica zona pulita nelle fogne. Un generatore di emergenza alimenta una luce fioca. Un vecchio baule dei lavori pubblici è ancorato al pavimento.',
+        type: 'safe_room',
+        icon: '🔧',
+        ambientText: [
+          'Il generatore ronza dolcemente. Ancora qualche ora di carica.',
+          'Vecchi schemi idraulici sono attaccati alla parete.',
+          'L\'aria qui è sorprendentemente secca.',
+          'Una tazza da lavoro con su scritto "Raccoon City Water Dept." gioca con la gravità.',
+        ],
+      },
+    ],
     storyEvent: {
       title: 'La Tomba Sottacqua',
       description: 'Trovate un corpo con una nota scritta col sangue: "Non scendere più in basso. Non scendere nel laboratorio. La Umbrella sa tutto."',
@@ -244,6 +308,22 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'Schermi mostrano sequenze genetiche impossibili.',
       'I tubi di vetro nelle pareti emanano una luce sinistra.',
     ],
+    subAreas: [
+      {
+        id: 'lab_safe_room',
+        locationId: 'laboratory_entrance',
+        name: 'Ufficio del Ricercatore Capo',
+        description: 'Un ufficio ordinato e spoglio, l\'unico luogo nel laboratorio non contaminato. Una scrivania in mogano, libri di virologia, e una finestra blindata che mostra le profondità del complesso. Una lampada da tavolo crea un\'oasi di calore nel freddo sotterraneo.',
+        type: 'safe_room',
+        icon: '🔬',
+        ambientText: [
+          'La lampada da tavolo emette un bagliore caldo e ambrato.',
+          'Un diario aperto sulla scrivania: "...i risultati sono oltre ogni aspettativa..."',
+          'La temperatura qui è controllata. Non si sente né caldo né freddo.',
+          'Uno schema organico è parzialmente visibile su una lavagna bianca.',
+        ],
+      },
+    ],
     storyEvent: {
       title: 'Il Computer Centrale',
       description: 'Trovate il computer principale del laboratorio. Lo schermo mostra un messaggio: "EMERGENZA: Protocollo di disattivazione richiesto. Ripetete la sequenza di sicurezza." Una serie di frecce lampeggia sullo schermo...',
@@ -289,6 +369,22 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'I meccanismi del grande orologio ticchettano inesorabili.',
       'Da qui si vede tutta Raccoon City in fiamme.',
       'Il vento ulula tra le strutture metalliche.',
+    ],
+    subAreas: [
+      {
+        id: 'clocktower_safe_room',
+        locationId: 'clock_tower',
+        name: 'Sala del Meccanismo',
+        description: 'Un piccolo vano nascosto dietro l\'ingranaggio principale dell\'orologio. Strumenti di manutenzione, olio per ingranaggi, e un vecchio baule da lavoro. La luce che filtra attraverso le fessure dell\'orologio crea un gioco di ombre ipnotico.',
+        type: 'safe_room',
+        icon: '⚙️',
+        ambientText: [
+          'L\'ingranaggio principale ticchetta come un battito cardiaco.',
+          'Una vecchia radio da campo è posata su un tavolino.',
+          'L\'olio per ingranaggi ha un odore quasi piacevole.',
+          'Il vento fischia dolcemente attraverso le fessure del quadrante.',
+        ],
+      },
     ],
   },
 };

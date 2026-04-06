@@ -17,6 +17,7 @@ import AchievementPanel from '@/components/game/AchievementPanel';
 import BestiaryPanel from '@/components/game/BestiaryPanel';
 import DocumentsPanel from '@/components/game/DocumentsPanel';
 import NPCDialogPanel from '@/components/game/NPCDialogPanel';
+import TrunkPanel from '@/components/game/TrunkPanel';
 import PuzzlePanel from '@/components/game/PuzzlePanel';
 import QTEPanel from '@/components/game/QTEPanel';
 import { playBgm, stopBgm, audioEngine } from '@/game/engine/sounds';
@@ -139,6 +140,7 @@ export default function GamePage() {
       <BestiaryPanel />
       <DocumentsPanel />
       <NPCDialogPanel />
+      <TrunkPanel />
       <DebugPanel />
     </div>
   );

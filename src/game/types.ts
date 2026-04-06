@@ -248,6 +248,18 @@ export interface EnemyInstance {
 // LOCATIONS
 // ==========================================
 
+export type SubAreaType = 'safe_room' | 'exploration' | 'secret' | 'story';
+
+export interface SubAreaDefinition {
+  id: string;
+  locationId: string;
+  name: string;
+  description: string;
+  type: SubAreaType;
+  icon: string;
+  ambientText?: string[];
+}
+
 export interface LocationDefinition {
   id: string;
   name: string;
@@ -262,6 +274,7 @@ export interface LocationDefinition {
   bossId?: string;
   ambientText: string[];
   lockedLocations?: { locationId: string; requiredItemId: string; lockedMessage: string }[];
+  subAreas?: SubAreaDefinition[]; // sub-rooms within this location (e.g. safe rooms)
 }
 
 export interface StoryEvent {
@@ -455,7 +468,11 @@ export interface GameState {
   newAchievementNotification: string | null;
   // #16 Documents
   collectedDocuments: string[]; // document IDs
+  readDocuments: string[]; // document IDs that have been opened/read by the player
   documentsOpen: boolean;
+  // Trunk (shared item box across safe rooms)
+  trunkItems: ItemInstance[];
+  trunkOpen: boolean;
   // #18 NPCs
   activeNpc: GameNPC | null;
   npcQuestProgress: Record<string, { currentCount: number; completed: boolean }>; // questId → progress
@@ -473,6 +490,8 @@ export interface GameState {
   endingType: EndingType | null;
   // Mini-map
   exploredSubAreas: Record<string, string[]>; // locationId → sub-area IDs
+  // Sub-area navigation
+  currentSubAreaId: string | null; // currently entered sub-area within a location
   // #14 Boss multi-fase
   bossPhases: Record<string, BossPhase[]>; // enemyId → phases
   // #27 Nemesis persistente

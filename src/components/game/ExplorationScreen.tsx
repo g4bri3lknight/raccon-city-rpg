@@ -15,7 +15,7 @@ import {
   Compass, Search, Package, MapPin, ChevronRight,
   Skull, Flashlight, Shield, Swords, Heart,
   ArrowRightLeft, AlertTriangle, CheckCircle2, Users, Map, Trophy, BookOpen,
-  FileText, User, Zap, ScrollText
+  FileText, User, Zap, ScrollText, Save, DoorOpen, ArrowLeft, Home
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 import { NPCS } from '@/game/data/npcs';
@@ -26,16 +26,22 @@ export default function ExplorationScreen() {
     party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
     activeEvent, inventoryOpen, selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
     difficulty, activeDynamicEvent, dynamicEventTurnsLeft, dynamicEventChoiceMade, activeNpc, collectedDocuments,
+    readDocuments,
     npcQuestProgress,
+    currentSubAreaId,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
-    toggleAchievements, toggleBestiary, toggleDocuments,
+    toggleAchievements, toggleBestiary, toggleDocuments, toggleTrunk,
+    enterSubArea, exitSubArea,
     handleDynamicEventChoice,
     startQTE,
     encounterNpc,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
+  const safeRoom = location?.subAreas?.find(s => s.type === 'safe_room');
+  const activeSubArea = currentSubAreaId ? location?.subAreas?.find(s => s.id === currentSubAreaId) : null;
+  const isInSafeRoom = activeSubArea?.type === 'safe_room';
   const searchExhausted = (searchCounts[currentLocationId] || 0) >= (searchMaxes[currentLocationId] || 0) && (searchMaxes[currentLocationId] || 0) > 0;
   const diffLabel = difficulty === 'sopravvissuto' ? 'Sopravvissuto' : difficulty === 'incubo' ? 'Incubo' : 'Normale';
   const diffStyle = difficulty === 'sopravvissuto'
@@ -46,7 +52,9 @@ export default function ExplorationScreen() {
   const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
   const [showEventChoice, setShowEventChoice] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
+  const [showSavePanel, setShowSavePanel] = useState(false);
   const explorationLogRef = useRef<HTMLDivElement>(null);
+  const unreadDocs = collectedDocuments.length - readDocuments.length;
 
   // Auto-scroll exploration log to bottom
   useEffect(() => {
@@ -98,26 +106,41 @@ export default function ExplorationScreen() {
               <span className="text-[10px] text-purple-400/70">✨{persistentRibbons}</span>
             )}
           </div>
-          <SaveLoadPanel mode="both" compact />
+          <SaveLoadPanel mode="load" compact />
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-5">
           <motion.div
-            key={currentLocationId}
+            key={currentSubAreaId || currentLocationId}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
             <div className="flex items-center gap-2 mb-1">
-              <MapPin className="w-4 h-4 text-red-400" />
-              <Badge variant="outline" className="border-red-500/30 text-red-400 text-xs bg-red-500/10">
-                {location.isBossArea ? '⚠ ZONA FINALE' : `Turno ${turnCount}`}
-              </Badge>
+              {isInSafeRoom ? (
+                <Home className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <MapPin className="w-4 h-4 text-red-400" />
+              )}
+              {isInSafeRoom ? (
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-xs bg-emerald-500/10">
+                  SAFE ROOM
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-red-500/30 text-red-400 text-xs bg-red-500/10">
+                  {location.isBossArea ? '⚠ ZONA FINALE' : `Turno ${turnCount}`}
+                </Badge>
+              )}
               <Badge variant="outline" className={`${diffStyle} text-xs ml-1`}>
                 {diffIcon} {diffLabel}
               </Badge>
             </div>
-            <h2 className="text-lg sm:text-2xl font-bold text-white">{location.name}</h2>
+            <h2 className="text-lg sm:text-2xl font-bold text-white">
+              {isInSafeRoom ? `${safeRoom?.icon} ${activeSubArea?.name}` : location.name}
+            </h2>
+            {isInSafeRoom && (
+              <p className="text-xs sm:text-sm text-white/50 mt-1 leading-relaxed">{activeSubArea?.description}</p>
+            )}
           </motion.div>
         </div>
       </div>
@@ -443,77 +466,128 @@ export default function ExplorationScreen() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
-              <Button
-                onClick={explore}
-                disabled={aliveParty.length === 0}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-              >
-                <Compass className="w-4 h-4 mr-1.5" /> Esplora
-              </Button>
-              <Button
-                onClick={searchArea}
-                disabled={aliveParty.length === 0 || searchExhausted}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Search className="w-4 h-4 mr-1.5" /> Cerca
-              </Button>
-              <Button
-                onClick={toggleInventory}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-              >
-                <Package className="w-4 h-4 mr-1.5" /> Inventario
-              </Button>
-
-              <Button
-                onClick={toggleMap}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-              >
-                <Map className="w-4 h-4 mr-1.5" /> Mappa
-              </Button>
-              <Button
-                onClick={toggleAchievements}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-              >
-                <Trophy className="w-4 h-4 mr-1.5" /> Traguardi
-              </Button>
-              <Button
-                onClick={toggleBestiary}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-              >
-                <BookOpen className="w-4 h-4 mr-1.5" /> Bestiario
-              </Button>
-              <Button
-                onClick={toggleDocuments}
-                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-              >
-                <FileText className="w-4 h-4 mr-1.5" /> Documenti
-                {collectedDocuments.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-amber-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-lg min-w-[18px] h-[18px] px-1">{collectedDocuments.length}</span>
-                )}
-              </Button>
-              <Button
-                onClick={() => setShowMissions(!showMissions)}
-                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-              >
-                <ScrollText className="w-4 h-4 mr-1.5" /> Missioni
-                {activeMissions.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-cyan-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-lg min-w-[18px] h-[18px] px-1">{activeMissions.length}</span>
-                )}
-              </Button>
-              {location.isBossArea && (
+            {/* Save panel (safe rooms only) */}
+            {showSavePanel && isInSafeRoom && (
+              <div className="mb-2">
+                <SaveLoadPanel mode="save" />
+              </div>
+            )}
+            {/* ── IN SAFE ROOM: different action grid ── */}
+            {isInSafeRoom ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
+                {/* Exit safe room — prominent */}
                 <Button
-                  onClick={startBossFight}
-                  disabled={aliveParty.length === 0}
-                  className="col-span-2 sm:col-span-1 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm py-2.5 font-bold animate-pulse"
+                  onClick={exitSubArea}
+                  className="col-span-2 sm:col-span-1 bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
                 >
-                  <Skull className="w-4 h-4 mr-1.5" /> Affronta il Boss
+                  <ArrowLeft className="w-4 h-4 mr-1.5" /> Torna indietro
                 </Button>
-              )}
-            </div>
+                <Button
+                  onClick={toggleInventory}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <Package className="w-4 h-4 mr-1.5" /> Inventario
+                </Button>
+                <Button
+                  onClick={toggleTrunk}
+                  className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 text-amber-300 hover:text-white text-xs sm:text-sm py-2.5"
+                >
+                  <Package className="w-4 h-4 mr-1.5" /> Baule
+                </Button>
+                <Button
+                  onClick={() => setShowSavePanel(!showSavePanel)}
+                  className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:text-white text-xs sm:text-sm py-2.5"
+                >
+                  <Save className="w-4 h-4 mr-1.5" /> Salvare
+                </Button>
+                <Button
+                  onClick={toggleDocuments}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <FileText className="w-4 h-4 mr-1.5" /> Documenti{unreadDocs > 0 && (
+                    <span className="ml-1.5 bg-blue-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] h-[16px] px-1">{unreadDocs}</span>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
+                <Button
+                  onClick={explore}
+                  disabled={aliveParty.length === 0}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <Compass className="w-4 h-4 mr-1.5" /> Esplora
+                </Button>
+                <Button
+                  onClick={searchArea}
+                  disabled={aliveParty.length === 0 || searchExhausted}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Search className="w-4 h-4 mr-1.5" /> Cerca
+                </Button>
+                <Button
+                  onClick={toggleInventory}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <Package className="w-4 h-4 mr-1.5" /> Inventario
+                </Button>
+                <Button
+                  onClick={toggleMap}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <Map className="w-4 h-4 mr-1.5" /> Mappa
+                </Button>
+                <Button
+                  onClick={toggleAchievements}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <Trophy className="w-4 h-4 mr-1.5" /> Traguardi
+                </Button>
+                <Button
+                  onClick={toggleBestiary}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <BookOpen className="w-4 h-4 mr-1.5" /> Bestiario
+                </Button>
+                <Button
+                  onClick={toggleDocuments}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <FileText className="w-4 h-4 mr-1.5" /> Documenti{unreadDocs > 0 && (
+                    <span className="ml-1.5 bg-blue-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] h-[16px] px-1">{unreadDocs}</span>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setShowMissions(!showMissions)}
+                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                >
+                  <ScrollText className="w-4 h-4 mr-1.5" /> Missioni{activeMissions.length > 0 && (
+                    <span className="ml-1.5 bg-cyan-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] h-[16px] px-1">{activeMissions.length}</span>
+                  )}
+                </Button>
+                {/* Safe Room entry — green styled button */}
+                {safeRoom && (
+                  <Button
+                    onClick={() => enterSubArea(safeRoom.id)}
+                    className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:text-white text-xs sm:text-sm py-2.5"
+                  >
+                    <DoorOpen className="w-4 h-4 mr-1.5" /> {safeRoom.name}
+                  </Button>
+                )}
+                {location.isBossArea && (
+                  <Button
+                    onClick={startBossFight}
+                    disabled={aliveParty.length === 0}
+                    className="col-span-2 sm:col-span-1 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm py-2.5 font-bold animate-pulse"
+                  >
+                    <Skull className="w-4 h-4 mr-1.5" /> Affronta il Boss
+                  </Button>
+                )}
+              </div>
+            )}
 
-            {/* Travel Options */}
-            {location.nextLocations.length > 0 && !location.isBossArea && (
+            {/* Travel Options — not shown inside sub-areas */}
+            {location.nextLocations.length > 0 && !location.isBossArea && !isInSafeRoom && (
               <div className="mt-2">
                 <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5">Spostati verso:</div>
                 <div className="flex flex-wrap gap-1.5">
