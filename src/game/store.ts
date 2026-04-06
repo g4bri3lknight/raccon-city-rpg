@@ -284,6 +284,23 @@ function createEnemyInstance(enemyId: string, statMult: number = 1): EnemyInstan
   };
 }
 
+// ==========================================
+// ENCOUNTER GROUP SYSTEM
+// Enemies are grouped so encounters don't mix humans with undead/creatures
+// Group 'bio': undead + creature (B.O.W.s coexist in same areas)
+// Group 'human': human Umbrella personnel (fight in squads)
+// ==========================================
+
+function getEncounterGroup(enemyId: string): 'bio' | 'human' {
+  const def = ENEMIES[enemyId];
+  if (!def) return 'bio';
+  return def.enemyType === 'human' ? 'human' : 'bio';
+}
+
+function filterPoolByGroup(pool: string[], group: 'bio' | 'human'): string[] {
+  return pool.filter(id => getEncounterGroup(id) === group);
+}
+
 // ── Build lookup: for each key item, which locked paths require it ──
 // Key items that auto-discard when all their doors are opened
 const KEY_ITEM_IDS = new Set(['key_rpd', 'key_sewers', 'key_lab']);
@@ -479,6 +496,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   npcsOpen: false,
   activeDynamicEvent: null,
   dynamicEventTurnsLeft: 0,
+  dynamicEventChoiceMade: false,
   storyChoices: [],
   discoveredSecretRooms: [],
   endingType: null,
@@ -688,15 +706,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (Math.random() * 100 < location.encounterRate) {
-      // Play encounter sound (#36)
-      try { playEncounter(); } catch {}
-
+      // Sound handled by GameNotification component (avoids double-play)
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Spawn enemies scaled by party size
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
       const enemies: EnemyInstance[] = [];
-      for (let i = 0; i < numEnemies; i++) {
-        const enemyId = location.enemyPool[Math.floor(Math.random() * location.enemyPool.length)];
+
+      // Determine encounter group: pick first enemy, then filter pool to same group
+      // This prevents mixing humans with undead/creatures in the same encounter
+      const firstEnemyId = location.enemyPool[Math.floor(Math.random() * location.enemyPool.length)];
+      const encounterGroup = getEncounterGroup(firstEnemyId);
+      const filteredPool = filterPoolByGroup(location.enemyPool, encounterGroup);
+
+      enemies.push(createEnemyInstance(firstEnemyId, diff.statMult));
+      for (let i = 1; i < numEnemies; i++) {
+        const enemyId = filteredPool[Math.floor(Math.random() * filteredPool.length)];
         enemies.push(createEnemyInstance(enemyId, diff.statMult));
       }
 
@@ -792,9 +816,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Invasion chance scales with pursuit level (8% base + 3% per level)
     if (canNemesisAppear && Math.random() < (0.08 + nemesisPursuitLevel * 0.03)) {
-      // Play encounter sound for Nemesis invasion (#36)
-      try { playEncounter(); } catch {}
-
+      // Sound handled by GameNotification component (avoids double-play)
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Stronger Nemesis based on pursuit level
       const nemesisStatMult = diff.statMult * (0.8 + 0.1 * nemesisPursuitLevel);
@@ -885,6 +907,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           turnCount: state.turnCount + 1,
           activeDynamicEvent: event,
           dynamicEventTurnsLeft: event.duration,
+          dynamicEventChoiceMade: false,
           notification: {
             id: `notif_${++notifId}`,
             type: 'encounter',
@@ -915,6 +938,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({
           activeDynamicEvent: null,
           dynamicEventTurnsLeft: 0,
+          dynamicEventChoiceMade: false,
           party: updatedParty,
           messageLog: [...newLog, ...tickLog],
           turnCount: state.turnCount + 1,
@@ -951,10 +975,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const foundEntry = availableItems[Math.floor(Math.random() * availableItems.length)];
         const itemDef = ITEMS[foundEntry.itemId];
         if (itemDef) {
-          // ── Play item pickup sound (#36) ──
-          if (itemDef.type !== 'collectible') {
-            try { playItemPickup(); } catch {}
-          }
+          // Sound handled by GameNotification component (avoids double-play)
           if (itemDef.type === 'collectible') {
             if (state.collectedRibbons >= 10) {
               // Already found all ribbons
@@ -1163,8 +1184,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({ messageLog: newLog, turnCount: state.turnCount + 1 });
         return;
       }
-      // Play document found sound (#36)
-      try { playDocumentFound(); } catch {}
+      // Sound handled by GameNotification component (avoids double-play)
       const newDocs = [...state.collectedDocuments, doc.id];
       set({
         messageLog: [...newLog, `[${state.turnCount}] 📖 Documento trovato: "${doc.title}"`],
@@ -1606,10 +1626,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // Build bundled notification for multiple items found, or single item notification
-    // Play item pickup sound if any items were found (#36)
-    if (foundNotifItems.length > 0) {
-      try { playItemPickup(); } catch {}
-    }
+    // Sound handled by GameNotification component (avoids double-play)
     const finderChar = updatedParty.find(p => p.id === targetId);
     if (!lastNotif && foundNotifItems.length > 0) {
       if (foundNotifItems.length === 1) {
@@ -1647,8 +1664,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (searchDocs.length > 0 && Math.random() < 0.35) {
       const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
       const newDocs = [...state.collectedDocuments, doc.id];
-      // Play document found sound (#36)
-      try { playDocumentFound(); } catch {}
+      // Sound handled by GameNotification component (avoids double-play)
       set({
         messageLog: [...newLog, `[${state.turnCount}] 🎒 ${flavourText}`, `[${state.turnCount}] 📖 ${searcherName} trova un documento: "${doc.title}"`],
         collectedDocuments: newDocs,
@@ -2718,9 +2734,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       if (updatedEnemies.some(e => e.isBoss)) {
-        // Play victory sound for boss kill (#36)
-        try { playVictory(); } catch {}
-
+        // Sound handled by GameNotification component (avoids double-play)
         set({
           notification: {
             id: `notif_${++notifId}`,
@@ -2751,9 +2765,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return;
       }
 
-      // Play victory sound for regular combat (#36)
-      try { playVictory(); } catch {}
-
+      // Sound handled by GameNotification component (avoids double-play)
       set({
         notification: {
           id: `notif_${++notifId}`,
@@ -2786,9 +2798,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Check if all party members are dead
     if (updatedParty.every(p => p.currentHp <= 0)) {
-      // Play defeat sound (#36)
-      try { playDefeat(); } catch {}
-
+      // Sound handled by GameNotification component (avoids double-play)
       set({
         notification: {
           id: `notif_${++notifId}`,
@@ -4402,7 +4412,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   handleDynamicEventChoice: (choiceIndex: number) => {
     const state = get();
-    if (!state.activeDynamicEvent) return;
+    if (!state.activeDynamicEvent || state.dynamicEventChoiceMade) return;
     const choice = state.activeDynamicEvent.choices[choiceIndex];
     if (!choice) return;
     const outcome = choice.outcome;
@@ -4426,6 +4436,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         activeDynamicEvent: null,
         dynamicEventTurnsLeft: 0,
+        dynamicEventChoiceMade: false,
         party: updatedParty,
         messageLog: [...state.messageLog, ...logMessages],
         turnCount: state.turnCount + 1,
@@ -4433,6 +4444,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } else {
       set({
         party: updatedParty,
+        dynamicEventChoiceMade: true,
         messageLog: [...state.messageLog, ...logMessages],
         turnCount: state.turnCount + 1,
       });
@@ -4458,6 +4470,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         activeDynamicEvent: null,
         dynamicEventTurnsLeft: 0,
+        dynamicEventChoiceMade: false,
         party: updatedParty,
         messageLog: [...state.messageLog, ...logMsgs],
       });
@@ -4478,8 +4491,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     const secret = SECRET_ROOMS[roomId];
     if (!secret || state.discoveredSecretRooms.includes(roomId)) return;
-    // Play item pickup sound for secret room discovery (#36)
-    try { playItemPickup(); } catch {}
+    // Sound handled by GameNotification component (avoids double-play)
     const newDiscovered = [...state.discoveredSecretRooms, roomId];
     const logMsgs = [
       `[${state.turnCount}] 🚪 Stanza segreta trovata: ${secret.name}!`,

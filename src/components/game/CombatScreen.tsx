@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CombatAction } from '@/game/types';
 import LogText from '@/components/game/LogText';
-import { ENEMY_IMAGES, CHARACTER_IMAGES } from '@/game/data/enemies';
+import { ENEMY_IMAGES, CHARACTER_IMAGES, ENEMIES } from '@/game/data/enemies';
 import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '@/game/data/specials';
 import ItemIcon from './ItemIcon';
 import { WEAPON_AMMO, resolveSpecialId } from '@/game/engine/combat';
@@ -318,7 +318,7 @@ export default function CombatScreen() {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [autoCombat, isPlayerTurn, combat?.currentActorId]);
+  }, [autoCombat, isPlayerTurn, combat?.currentActorId, combat?.turn]);
 
   const currentCharacter = party.find(p => p.id === combat.currentActorId);
   const aliveEnemies = enemies.filter(e => e.currentHp > 0);
@@ -565,6 +565,15 @@ export default function CombatScreen() {
                 <span className={`text-[9px] sm:text-[10px] font-bold ${isDead ? 'text-gray-700' : enemy.isBoss ? 'text-red-300' : 'text-gray-300'}`}>
                   {enemy.name}
                 </span>
+                {/* Enemy type badge */}
+                {!isDead && (() => {
+                  const enemyDef = ENEMIES[enemy.definitionId];
+                  const eType = enemyDef?.enemyType;
+                  if (eType === 'human') return <span className="text-[6px] sm:text-[7px] bg-blue-600/70 text-blue-100 px-1 rounded font-medium">UMANO</span>;
+                  if (eType === 'undead') return <span className="text-[6px] sm:text-[7px] bg-gray-600/70 text-gray-300 px-1 rounded font-medium">NON-MORTO</span>;
+                  if (eType === 'creature') return <span className="text-[6px] sm:text-[7px] bg-purple-600/70 text-purple-100 px-1 rounded font-medium">B.O.W.</span>;
+                  return null;
+                })()}
                 {/* Mini HP bar */}
                 <div className="w-18 sm:w-20 h-2 rounded-full overflow-hidden bg-gray-800/80">
                   <div className="h-full rounded-full transition-all duration-500" style={{

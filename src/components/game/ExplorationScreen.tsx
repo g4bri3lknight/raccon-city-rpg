@@ -15,7 +15,7 @@ import {
   Compass, Search, Package, MapPin, ChevronRight,
   Skull, Flashlight, Shield, Swords, Heart,
   ArrowRightLeft, AlertTriangle, CheckCircle2, Users, Map, Trophy, BookOpen,
-  FileText, User, Zap
+  FileText, User, Zap, ScrollText
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 import { NPCS } from '@/game/data/npcs';
@@ -25,7 +25,7 @@ export default function ExplorationScreen() {
   const {
     party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
     activeEvent, inventoryOpen, selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
-    difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc, collectedDocuments,
+    difficulty, activeDynamicEvent, dynamicEventTurnsLeft, dynamicEventChoiceMade, activeNpc, collectedDocuments,
     npcQuestProgress,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
@@ -310,10 +310,13 @@ export default function ExplorationScreen() {
                             transition={{ delay: i * 0.12 }}
                             whileHover={{ scale: 1.01, x: 3 }}
                             whileTap={{ scale: 0.99 }}
-                            onClick={() => handleDynamicEventChoice(i)}
-                            className="w-full text-left p-2 sm:p-2.5 rounded-lg border border-amber-800/20 hover:border-amber-700/40
-                              bg-amber-950/10 hover:bg-amber-950/20 text-white/70 hover:text-white
-                              transition-all duration-200 text-sm sm:text-base flex items-center gap-2"
+                            onClick={() => !dynamicEventChoiceMade && handleDynamicEventChoice(i)}
+                            disabled={dynamicEventChoiceMade}
+                            className={`w-full text-left p-2 sm:p-2.5 rounded-lg border transition-all duration-200 text-sm sm:text-base flex items-center gap-2 ${
+                              dynamicEventChoiceMade
+                                ? 'border-white/[0.04] bg-white/[0.01] text-white/20 cursor-not-allowed line-through'
+                                : 'border-amber-800/20 hover:border-amber-700/40 bg-amber-950/10 hover:bg-amber-950/20 text-white/70 hover:text-white'
+                            }`}
                           >
                             <ChevronRight className="w-3.5 h-3.5 text-amber-400/60 shrink-0" />
                             {choice.text}
@@ -370,25 +373,11 @@ export default function ExplorationScreen() {
           {/* Action Buttons */}
           <div className="shrink-0 p-3 border-t border-white/[0.06] glass-dark-accent">
             {/* Status Indicators */}
-            {(activeDynamicEvent || activeNpc || collectedDocuments.length > 0 || activeMissions.length > 0) && (
+            {(activeDynamicEvent || activeNpc) && (
               <div className="flex items-center gap-2 flex-wrap mb-2">
                 {activeDynamicEvent && (
                   <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 text-[10px] animate-pulse">
                     {activeDynamicEvent.icon} {activeDynamicEvent.title} ({dynamicEventTurnsLeft})
-                  </Badge>
-                )}
-                {activeMissions.length > 0 && (
-                  <Badge
-                    className="bg-cyan-900/40 text-cyan-300 border-cyan-700/30 text-[10px] cursor-pointer hover:bg-cyan-900/60 transition-colors"
-                    onClick={() => setShowMissions(!showMissions)}
-                  >
-                    📋 {activeMissions.length} mission{activeMissions.length > 1 ? 'i' : 'e'} attiva{activeMissions.length > 1 ? 'e' : ''}
-                    {completedMissions > 0 && <span className="ml-1 text-green-400/60">({completedMissions} completata{completedMissions > 1 ? 'e' : ''})</span>}
-                  </Badge>
-                )}
-                {collectedDocuments.length > 0 && (
-                  <Badge className="bg-white/[0.04] text-white/40 border-white/[0.06] text-[10px] cursor-pointer hover:bg-white/[0.08]" onClick={toggleDocuments}>
-                    📖 {collectedDocuments.length} documenti
                   </Badge>
                 )}
               </div>
@@ -496,9 +485,21 @@ export default function ExplorationScreen() {
               </Button>
               <Button
                 onClick={toggleDocuments}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
               >
                 <FileText className="w-4 h-4 mr-1.5" /> Documenti
+                {collectedDocuments.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-amber-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-lg min-w-[18px] h-[18px] px-1">{collectedDocuments.length}</span>
+                )}
+              </Button>
+              <Button
+                onClick={() => setShowMissions(!showMissions)}
+                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <ScrollText className="w-4 h-4 mr-1.5" /> Missioni
+                {activeMissions.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-cyan-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-lg min-w-[18px] h-[18px] px-1">{activeMissions.length}</span>
+                )}
               </Button>
               {location.isBossArea && (
                 <Button

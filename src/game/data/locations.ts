@@ -116,7 +116,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'L\'ospedale è un\'immagine di orrore. Le corsie sono coperte di detriti, le luci fluorescenze lampeggiano in modo ossessivo. I pazienti non sono più... pazienti.',
     backgroundImage: '/assets/hospital.png',
     encounterRate: 45,
-    enemyPool: ['zombie_doctor', 'zombie_soldier', 'zombie_dog', 'licker', 'licker_crawler', 'hunter'],
+    enemyPool: ['zombie_doctor', 'zombie_soldier', 'zombie_dog', 'licker', 'licker_crawler', 'hunter', 'mercenary', 'uss_agent'],
     itemPool: [
       { itemId: 'first_aid', chance: 40, quantity: 1 },
       { itemId: 'antidote', chance: 30, quantity: 1 },
@@ -171,7 +171,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'Le fogne di Raccoon City sono un labirinto oscuro. L\'acqua verde e putrida scorre tra i condotti. Il suolo è scivoloso e il rumore delle gocce amplifica ogni suono.',
     backgroundImage: '/assets/sewers.png',
     encounterRate: 50,
-    enemyPool: ['zombie_dog', 'cerberus_alpha', 'licker', 'licker_smasher', 'hunter'],
+    enemyPool: ['zombie_dog', 'cerberus_alpha', 'licker', 'licker_smasher', 'hunter', 'mercenary', 'ubcs_commander', 'uss_agent'],
     itemPool: [
       { itemId: 'herb_green', chance: 35, quantity: 1 },
       { itemId: 'antidote', chance: 40, quantity: 1 },
@@ -224,7 +224,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'Il quartier generale sotterraneo della Umbrella Corporation. Supercomputer, provette, e creature che non dovrebbero esistere. È qui che è iniziato tutto.',
     backgroundImage: '/assets/laboratory.png',
     encounterRate: 55,
-    enemyPool: ['hunter', 'licker', 'licker_smasher', 'licker_crawler', 'zombie_soldier'],
+    enemyPool: ['hunter', 'licker', 'licker_smasher', 'licker_crawler', 'zombie_soldier', 'mercenary', 'ubcs_commander', 'umbrella_scientist', 'uss_agent', 'umbrella_sniper', 'umbrella_supervisor'],
     itemPool: [
       { itemId: 'spray', chance: 30, quantity: 1 },
       { itemId: 'antidote', chance: 40, quantity: 2 },

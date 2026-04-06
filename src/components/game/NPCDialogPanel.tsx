@@ -193,9 +193,10 @@ export default function NPCDialogPanel() {
                         </div>
                         <Button
                           size="sm"
+                          variant="outline"
                           disabled={!canDo}
                           onClick={() => tradeWithNpc(idx)}
-                          className="h-7 px-2 text-[10px] border-amber-700/40 text-amber-300 hover:bg-amber-950/30 disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="h-7 px-2 text-[10px] border-amber-700/40 bg-transparent text-amber-300 hover:bg-amber-950/30 hover:border-amber-500/50 hover:text-amber-200 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
                           Scambia
                         </Button>
@@ -256,7 +257,7 @@ export default function NPCDialogPanel() {
           <Button
             onClick={closeNpcDialog}
             variant="ghost"
-            className="w-full text-white/30 hover:text-white/60 text-xs"
+            className="w-full text-white/30 hover:text-white/60 hover:bg-white/[0.04] text-xs"
           >
             <ArrowLeft className="w-3 h-3 mr-1" /> Continua l&apos;esplorazione
           </Button>

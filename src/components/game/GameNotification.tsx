@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { audio } from '@/game/engine/sounds';
@@ -103,6 +103,9 @@ export default function GameNotification() {
   const notification = useGameStore(s => s.notification);
   const [state, setState] = useState<{ visible: boolean; key: number; clearing: boolean }>({ visible: false, key: 0, clearing: false });
 
+  // Track the last processed notification ID to prevent double-processing in React Strict Mode
+  const processedNotifId = useRef<string | null>(null);
+
   // Play sound on new notification
   const playSound = useCallback((type: string) => {
     try {
@@ -117,22 +120,32 @@ export default function GameNotification() {
     } catch { /* audio not available */ }
   }, []);
 
-  // Detect new notification
-  if (notification && !state.visible && !state.clearing) {
-    const newKey = state.key + 1;
-    setState({ visible: true, key: newKey, clearing: false });
+  // Detect new notification (useEffect to avoid double-fire in Strict Mode)
+  // CRITICAL: dependency array must NOT include local state (key, clearing) because
+  // setState inside the effect would trigger cleanup, killing the timers prematurely.
+  useEffect(() => {
+    if (!notification) return;
+    if (processedNotifId.current === notification.id) return;
+
+    processedNotifId.current = notification.id;
+    setState(prev => ({ ...prev, visible: true, key: prev.key + 1, clearing: false }));
     playSound(notification.type);
     const duration = getDuration(notification.type);
+    const notifId = notification.id;
 
-    setTimeout(() => setState(prev => ({ ...prev, visible: false })), duration);
-    setTimeout(() => {
-      setState(prev => ({ ...prev, clearing: false }));
+    const hideTimer = setTimeout(() => setState(prev => ({ ...prev, visible: false })), duration);
+    const clearTimer = setTimeout(() => {
       const current = useGameStore.getState();
-      if (current.notification?.id === notification.id) {
+      if (current.notification?.id === notifId) {
         useGameStore.setState({ notification: null });
       }
     }, duration + 400);
-  }
+
+    return () => {
+      clearTimeout(hideTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [notification, playSound]);
 
   if (!state.visible || !notification) return null;
 

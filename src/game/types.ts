@@ -175,6 +175,8 @@ export interface ItemInstance {
 // ENEMIES
 // ==========================================
 
+export type EnemyType = 'undead' | 'creature' | 'human' | 'boss';
+
 export interface EnemyDefinition {
   id: string;
   name: string;
@@ -189,6 +191,7 @@ export interface EnemyDefinition {
   abilities: EnemyAbility[];
   isBoss: boolean;
   variantGroup?: string;
+  enemyType?: EnemyType; // undead = immune to poison/bleed, creature = immune to poison/bleed (B.O.W.), human = fully sensitive, boss = resistant
 }
 
 export interface LootEntry {
@@ -460,6 +463,7 @@ export interface GameState {
   // #20 Dynamic Events
   activeDynamicEvent: DynamicEvent | null;
   dynamicEventTurnsLeft: number;
+  dynamicEventChoiceMade: boolean;
   // #21 Story Choices
   storyChoices: StoryChoiceTag[];
   // #22 Secret Rooms
@@ -522,7 +526,7 @@ export interface NemesisInvasionState {
 // #16 - DOCUMENTS / LORE
 // ==========================================
 
-export type DocumentType = 'diary' | 'umbrella_file' | 'note' | 'photo' | 'report';
+export type DocumentType = 'diary' | 'umbrella_file' | 'note' | 'photo' | 'report' | 'email';
 
 export interface GameDocument {
   id: string;
@@ -534,6 +538,15 @@ export interface GameDocument {
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
   isSecret: boolean;
   hintRequired?: string; // document id that gives hint to find this
+  // Email-specific fields
+  emailMeta?: {
+    from: string;
+    to: string;
+    date: string;
+    cc?: string;
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    attachments?: string[];
+  };
 }
 
 // ==========================================
