@@ -123,15 +123,19 @@ export default function GameNotification() {
   // Detect new notification (useEffect to avoid double-fire in Strict Mode)
   // CRITICAL: dependency array must NOT include local state (key, clearing) because
   // setState inside the effect would trigger cleanup, killing the timers prematurely.
+  // Use notification.id (always a string or null) instead of the full object to keep
+  // the array size constant across renders (avoids React "changed size" warning on HMR).
   useEffect(() => {
     if (!notification) return;
     if (processedNotifId.current === notification.id) return;
 
     processedNotifId.current = notification.id;
-    setState(prev => ({ ...prev, visible: true, key: prev.key + 1, clearing: false }));
-    playSound(notification.type);
-    const duration = getDuration(notification.type);
+    const notifType = notification.type;
     const notifId = notification.id;
+
+    setState(prev => ({ ...prev, visible: true, key: prev.key + 1, clearing: false }));
+    playSound(notifType);
+    const duration = getDuration(notifType);
 
     const hideTimer = setTimeout(() => setState(prev => ({ ...prev, visible: false })), duration);
     const clearTimer = setTimeout(() => {
@@ -145,7 +149,7 @@ export default function GameNotification() {
       clearTimeout(hideTimer);
       clearTimeout(clearTimer);
     };
-  }, [notification, playSound]);
+  }, [notification?.id, playSound]);
 
   if (!state.visible || !notification) return null;
 

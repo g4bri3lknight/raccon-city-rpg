@@ -20,6 +20,7 @@ export interface DifficultyConfig {
   minEnemies: number;
   expMult: number;
   enemyCritChance: number;
+  encounterRateMod: number; // +/- percentage modifier to base encounter rate
   description: string;
 }
 

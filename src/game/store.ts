@@ -174,9 +174,9 @@ const WEAPON_STATS: Record<string, WeaponInstance> = {
 
 // ── Difficulty configuration ──
 const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
-  sopravvissuto: { label: 'Sopravvissuto', color: '#22c55e', icon: '🏃', statMult: 0.6, lootMult: 1.5, minEnemies: 1, maxEnemies: 2, expMult: 1.4, enemyCritChance: 5, description: 'Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia.' },
-  normale: { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 0.85, lootMult: 1.1, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 10, description: 'Bilanciato. La vera esperienza di Raccoon City.' },
-  incubo: { label: 'Incubo', color: '#ef4444', icon: '💀', statMult: 1.4, lootMult: 0.6, minEnemies: 2, maxEnemies: 4, expMult: 0.8, enemyCritChance: 20, description: 'Nemici potenti, poco bottino. Solo per i più coraggiosi.' },
+  sopravvissuto: { label: 'Sopravvissuto', color: '#22c55e', icon: '🏃', statMult: 0.75, lootMult: 1.3, minEnemies: 1, maxEnemies: 2, expMult: 1.2, enemyCritChance: 8, encounterRateMod: -10, description: 'Nemici più deboli, più bottino e EXP. Per chi vuole godersi la storia.' },
+  normale:      { label: 'Normale',      color: '#eab308', icon: '⚔️', statMult: 1.0,  lootMult: 1.0, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 15, encounterRateMod: 0, description: 'Bilanciato. La vera esperienza di Raccoon City.' },
+  incubo:       { label: 'Incubo',       color: '#ef4444', icon: '💀', statMult: 1.55, lootMult: 0.5, minEnemies: 2, maxEnemies: 4, expMult: 0.7, enemyCritChance: 25, encounterRateMod: 15, description: 'Nemici devastanti, risorse scarse. Solo per i più coraggiosi.' },
 };
 
 function getDifficultyConfig(difficulty: DifficultyLevel, partySize?: number): DifficultyConfig {
@@ -705,9 +705,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    if (Math.random() * 100 < location.encounterRate) {
+    const diff = getDifficultyConfig(state.difficulty, state.partySize);
+    const adjustedEncounterRate = Math.max(5, Math.min(95, location.encounterRate + diff.encounterRateMod));
+
+    if (Math.random() * 100 < adjustedEncounterRate) {
       // Sound handled by GameNotification component (avoids double-play)
-      const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Spawn enemies scaled by party size
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
       const enemies: EnemyInstance[] = [];
@@ -3290,7 +3292,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return;
       }
 
-      const { log, updatedParty: afterEnemyAttack, appliedStatus } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId);
+      const currentDiff = getDifficultyConfig(get().difficulty, get().partySize);
+      const { log, updatedParty: afterEnemyAttack, appliedStatus } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, currentDiff.enemyCritChance);
 
       // Record applied status duration
       if (appliedStatus) {

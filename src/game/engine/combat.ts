@@ -85,6 +85,7 @@ export function calculateDamage(
   isDefending: boolean,
   attackerArchetype?: Archetype,
   attackerHasAdrenaline?: boolean,
+  overrideCritChance?: number,
 ): { damage: number; isCritical: boolean; isMiss: boolean } {
   // Miss chance
   const missChance = 8;
@@ -110,9 +111,9 @@ export function calculateDamage(
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
-  // Critical hit
-  let critChance = 10;
-  if (attackerArchetype === 'dps') critChance = 25;
+  // Critical hit — use overrideCritChance if provided (enemy difficulty), else archetype-based
+  let critChance = overrideCritChance ?? 10;
+  if (!overrideCritChance && attackerArchetype === 'dps') critChance = 25;
   const isCritical = chance(critChance);
   if (isCritical) {
     damage = Math.floor(damage * 1.8);
@@ -127,6 +128,7 @@ export function calculateDamageNoMiss(
   isDefending: boolean,
   attackerArchetype?: Archetype,
   attackerHasAdrenaline?: boolean,
+  overrideCritChance?: number,
 ): { damage: number; isCritical: boolean; isMiss: false } {
   // Guaranteed hit (for Sparo Mirato)
   let baseDamage = attackerAtk * random(90, 110) / 100;
@@ -144,8 +146,8 @@ export function calculateDamageNoMiss(
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
-  let critChance = 10;
-  if (attackerArchetype === 'dps') critChance = 25;
+  let critChance = overrideCritChance ?? 10;
+  if (!overrideCritChance && attackerArchetype === 'dps') critChance = 25;
   const isCritical = chance(critChance);
   if (isCritical) {
     damage = Math.floor(damage * 1.8);
@@ -1359,6 +1361,7 @@ export function executeEnemyAttack(
   party: Character[],
   turn: number,
   forcedTargetId?: string | null,
+  enemyCritChance?: number,
 ): { log: CombatLogEntry; updatedParty: Character[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number } } {
   // Pick random ability
   const ability = enemy.abilities.find(() => chance(100)) || enemy.abilities[0];
@@ -1383,6 +1386,9 @@ export function executeEnemyAttack(
     enemy.atk * ability.power,
     target.baseDef + (target.isDefending ? 5 : 0),
     target.isDefending,
+    undefined,   // no attacker archetype for enemies
+    false,       // no adrenaline
+    enemyCritChance,
   );
 
   let newHp = Math.max(0, target.currentHp - damage);
