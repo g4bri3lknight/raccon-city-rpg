@@ -48,6 +48,7 @@ import {
 import { WeaponInstance } from './types';
 import { ACHIEVEMENTS } from './data/achievements';
 import { DOCUMENTS } from './data/documents';
+import { audioEngine as audio } from './engine/sounds';
 import {
   playLocationAmbient,
   playTravel,
@@ -4170,6 +4171,141 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     if (!state.activeNpc) return;
     const npc = state.activeNpc;
+
+    // ── Check for fetch quest completion ──
+    if (npc.quest && npc.quest.type === 'fetch' && !state.npcQuestProgress[npc.quest.id]?.completed) {
+      const questProgress = state.npcQuestProgress[npc.quest.id];
+      if (questProgress) {
+        // Count how many of the required items the party has
+        let partyItemCount = 0;
+        for (const p of state.party) {
+          for (const inv of p.inventory) {
+            if (inv.itemId === npc.quest.targetId) {
+              partyItemCount += inv.quantity;
+            }
+          }
+        }
+
+        if (partyItemCount >= npc.quest.targetCount) {
+          // Player has enough items → complete the quest
+          // Remove required items from party inventory
+          let updatedParty = [...state.party];
+          let toRemove = npc.quest.targetCount;
+          for (const p of updatedParty) {
+            if (toRemove <= 0) break;
+            for (let i = p.inventory.length - 1; i >= 0; i--) {
+              if (p.inventory[i].itemId === npc.quest.targetId && toRemove > 0) {
+                const avail = p.inventory[i].quantity;
+                if (avail <= toRemove) {
+                  toRemove -= avail;
+                  updatedParty = updatedParty.map(pp =>
+                    pp.id === p.id ? { ...pp, inventory: pp.inventory.filter((_, idx) => idx !== i) } : pp
+                  );
+                } else {
+                  p.inventory[i].quantity -= toRemove;
+                  toRemove = 0;
+                  updatedParty = [...updatedParty];
+                }
+              }
+            }
+          }
+
+          // Award rewards
+          const logMsgs: string[] = [`[${state.turnCount}] 💬 ${npc.name}: "Grazie! Hai portato esattamente quello che mi serviva!"`];
+          logMsgs.push(`[${state.turnCount}] 📋 Missione completata: "${npc.quest.name}"!`);
+          if (npc.quest.rewardItems) {
+            for (const reward of npc.quest.rewardItems) {
+              const rewardDef = ITEMS[reward.itemId];
+              if (!rewardDef) continue;
+              const result = addItemToParty(updatedParty, reward.itemId, reward.quantity);
+              updatedParty = result.party;
+              if (result.added) logMsgs.push(`[${state.turnCount}] 🎁 Ricompensa: ${rewardDef.name} x${reward.quantity} → ${result.characterName}`);
+            }
+          }
+          if (npc.quest.rewardExp > 0) {
+            logMsgs.push(`[${state.turnCount}] ⬆️ +${npc.quest.rewardExp} EXP (missione completata)`);
+            // Grant EXP to alive party members
+            updatedParty = updatedParty.map(p => {
+              if (p.currentHp <= 0) return p;
+              return { ...p, exp: p.exp + npc.quest.rewardExp };
+            });
+          }
+
+          set({
+            party: updatedParty,
+            npcQuestProgress: {
+              ...state.npcQuestProgress,
+              [npc.quest.id]: { currentCount: npc.quest.targetCount, completed: true },
+            },
+            messageLog: [...state.messageLog, ...logMsgs],
+          });
+          return;
+        } else if (partyItemCount > 0) {
+          // Has some but not enough
+          set(state => ({
+            messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "Vedo che hai ${partyItemCount}/${npc.quest.targetCount} di quello che ti ho chiesto... portami il resto!"`],
+          }));
+          return;
+        }
+      }
+    }
+
+    // ── Check for explore quest completion ──
+    if (npc.quest && npc.quest.type === 'explore' && !state.npcQuestProgress[npc.quest.id]?.completed) {
+      const questProgress = state.npcQuestProgress[npc.quest.id];
+      if (questProgress && state.visitedLocations?.includes(npc.quest.targetId)) {
+        // Player has visited the target location → complete the quest
+        const logMsgs: string[] = [`[${state.turnCount}] 💬 ${npc.name}: "${npc.quest.rewardDialogue?.[0] || 'Hai fatto un ottimo lavoro esplorando!'}"`];
+        logMsgs.push(`[${state.turnCount}] 📋 Missione completata: "${npc.quest.name}"!`);
+
+        let updatedParty = [...state.party];
+        if (npc.quest.rewardItems) {
+          for (const reward of npc.quest.rewardItems) {
+            const rewardDef = ITEMS[reward.itemId];
+            if (!rewardDef) continue;
+            const result = addItemToParty(updatedParty, reward.itemId, reward.quantity);
+            updatedParty = result.party;
+            if (result.added) logMsgs.push(`[${state.turnCount}] 🎁 Ricompensa: ${rewardDef.name} x${reward.quantity} → ${result.characterName}`);
+          }
+        }
+        if (npc.quest.rewardExp > 0) {
+          logMsgs.push(`[${state.turnCount}] ⬆️ +${npc.quest.rewardExp} EXP (missione completata)`);
+          updatedParty = updatedParty.map(p => {
+            if (p.currentHp <= 0) return p;
+            return { ...p, exp: p.exp + npc.quest.rewardExp };
+          });
+        }
+
+        set({
+          party: updatedParty,
+          npcQuestProgress: {
+            ...state.npcQuestProgress,
+            [npc.quest.id]: { currentCount: 1, completed: true },
+          },
+          messageLog: [...state.messageLog, ...logMsgs],
+        });
+        return;
+      } else if (questProgress) {
+        set(state => ({
+          messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "Non hai ancora esplorato ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a cercare!"`],
+        }));
+        return;
+      }
+    }
+
+    // ── Check for kill quest status ──
+    if (npc.quest && npc.quest.type === 'kill' && !state.npcQuestProgress[npc.quest.id]?.completed) {
+      const questProgress = state.npcQuestProgress[npc.quest.id];
+      if (questProgress) {
+        const remaining = npc.quest.targetCount - questProgress.currentCount;
+        set(state => ({
+          messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "Devi ancora eliminare ${remaining} ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a combattere!"`],
+        }));
+        return;
+      }
+    }
+
+    // ── Default: random dialogue ──
     const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
     set(state => ({
       messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${dialogue}"`],

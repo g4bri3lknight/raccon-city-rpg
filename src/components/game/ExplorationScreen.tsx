@@ -18,6 +18,7 @@ import {
   FileText, User, Zap
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
+import { NPCS } from '@/game/data/npcs';
 
 export default function ExplorationScreen() {
   const state = useGameStore();
@@ -25,11 +26,13 @@ export default function ExplorationScreen() {
     party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
     activeEvent, inventoryOpen, selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
     difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc, collectedDocuments,
+    npcQuestProgress,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments,
     handleDynamicEventChoice,
     startQTE,
+    encounterNpc,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
@@ -42,6 +45,7 @@ export default function ExplorationScreen() {
       : 'text-yellow-400 border-yellow-800/50 bg-yellow-950/30';
   const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
   const [showEventChoice, setShowEventChoice] = useState(false);
+  const [showMissions, setShowMissions] = useState(false);
   const explorationLogRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll exploration log to bottom
@@ -54,6 +58,18 @@ export default function ExplorationScreen() {
   if (!location) return null;
 
   const aliveParty = party.filter(p => p.currentHp > 0);
+
+  // Active missions (accepted, not completed)
+  const activeMissions = Object.entries(npcQuestProgress)
+    .filter(([_, progress]) => !progress.completed)
+    .map(([questId, progress]) => {
+      const npc = Object.values(NPCS).find(n => n.quest?.id === questId);
+      return npc ? { npc, progress } : null;
+    })
+    .filter(Boolean);
+  const completedMissions = Object.entries(npcQuestProgress)
+    .filter(([_, progress]) => progress.completed)
+    .length;
 
   return (
     <div className="h-screen game-horror flex flex-col overflow-hidden">
@@ -354,11 +370,20 @@ export default function ExplorationScreen() {
           {/* Action Buttons */}
           <div className="shrink-0 p-3 border-t border-white/[0.06] glass-dark-accent">
             {/* Status Indicators */}
-            {(activeDynamicEvent || activeNpc || collectedDocuments.length > 0) && (
+            {(activeDynamicEvent || activeNpc || collectedDocuments.length > 0 || activeMissions.length > 0) && (
               <div className="flex items-center gap-2 flex-wrap mb-2">
                 {activeDynamicEvent && (
                   <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 text-[10px] animate-pulse">
                     {activeDynamicEvent.icon} {activeDynamicEvent.title} ({dynamicEventTurnsLeft})
+                  </Badge>
+                )}
+                {activeMissions.length > 0 && (
+                  <Badge
+                    className="bg-cyan-900/40 text-cyan-300 border-cyan-700/30 text-[10px] cursor-pointer hover:bg-cyan-900/60 transition-colors"
+                    onClick={() => setShowMissions(!showMissions)}
+                  >
+                    📋 {activeMissions.length} mission{activeMissions.length > 1 ? 'i' : 'e'} attiva{activeMissions.length > 1 ? 'e' : ''}
+                    {completedMissions > 0 && <span className="ml-1 text-green-400/60">({completedMissions} completata{completedMissions > 1 ? 'e' : ''})</span>}
                   </Badge>
                 )}
                 {collectedDocuments.length > 0 && (
@@ -368,6 +393,67 @@ export default function ExplorationScreen() {
                 )}
               </div>
             )}
+            {/* Mission Tracker */}
+            <AnimatePresence>
+              {showMissions && activeMissions.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden mb-2"
+                >
+                  <div className="p-2.5 rounded-lg border border-cyan-800/20 bg-cyan-950/10 space-y-1.5 max-h-40 overflow-y-auto inventory-scrollbar">
+                    {activeMissions.map(({ npc, progress }) => {
+                      if (!npc?.quest) return null;
+                      const q = npc.quest;
+                      const typeLabel = q.type === 'fetch' ? '📦 Recupera' : q.type === 'kill' ? '⚔️ Uccidi' : '🗺️ Esplora';
+                      const isComplete = progress.currentCount >= q.targetCount;
+                      const npcIsHere = npc.locationId === currentLocationId;
+                      const npcLocation = LOCATIONS[npc.locationId];
+                      const npcLocationName = npcLocation?.name || npc.locationId;
+                      return (
+                        <div key={q.id} className={`flex items-center justify-between p-2 rounded-lg border transition-all ${isComplete ? 'border-green-700/30 bg-green-950/20' : 'border-white/[0.06] bg-white/[0.03]'}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-xs">{npc.portrait}</span>
+                              <span className={`text-xs font-semibold truncate ${isComplete ? 'text-green-300' : 'text-cyan-200'}`}>{q.name}</span>
+                            </div>
+                            <p className="text-[10px] text-white/40">
+                              {typeLabel} · {progress.currentCount}/{q.targetCount}
+                            </p>
+                            {!npcIsHere && (
+                              <p className="text-[10px] text-white/30 mt-0.5">
+                                📍 {npc.name}: <span className={isComplete ? 'text-green-400/50' : 'text-amber-400/50'}>{npcLocationName}</span>
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {npcIsHere && (
+                              <Button
+                                size="sm"
+                                onClick={() => encounterNpc(npc.id)}
+                                className={`h-6 px-2 text-[10px] ${
+                                  isComplete
+                                    ? 'bg-green-900/40 border-green-700/30 text-green-300 hover:bg-green-800/50'
+                                    : 'bg-cyan-900/30 border-cyan-700/30 text-cyan-300 hover:bg-cyan-800/40'
+                                } border`}
+                              >
+                                {isComplete ? '✓ Consegna' : '💬 Contatta'}
+                              </Button>
+                            )}
+                            {isComplete && !npcIsHere && (
+                              <Badge className="bg-green-900/40 text-green-300 border-green-700/30 text-[9px]">
+                                Pronto ✓
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
               <Button
                 onClick={explore}

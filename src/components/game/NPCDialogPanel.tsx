@@ -9,9 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { X, MessageSquare, ScrollText, Handshake, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export default function NPCDialogPanel() {
-  const { activeNpc, npcQuestProgress, party } = useGameStore();
+  const { activeNpc, npcQuestProgress, party, visitedLocations, messageLog } = useGameStore();
   const { talkToNpc, acceptNpcQuest, tradeWithNpc, closeNpcDialog } = useGameStore();
-  const [showTrade, setShowTrade] = useState(false);
+  const [npcReply, setNpcReply] = useState<string | null>(null);
 
   if (!activeNpc) return null;
 
@@ -20,6 +20,35 @@ export default function NPCDialogPanel() {
   const questProgress = quest ? npcQuestProgress[quest.id] : null;
   const questCompleted = questProgress?.completed || false;
   const hasQuest = quest && !questCompleted;
+
+  // Determine what "Parla" will do based on quest type
+  const getTalkLabel = () => {
+    if (!hasQuest || !questProgress) return 'Parla';
+    if (quest!.type === 'fetch') {
+      let itemCount = 0;
+      for (const p of party) {
+        for (const inv of p.inventory) {
+          if (inv.itemId === quest!.targetId) itemCount += inv.quantity;
+        }
+      }
+      if (itemCount >= quest!.targetCount) return '📦 Consegna';
+      if (itemCount > 0) return `📦 Consegna (${itemCount}/${quest!.targetCount})`;
+      return '💬 Parla';
+    }
+    if (quest!.type === 'explore') {
+      if (visitedLocations?.includes(quest!.targetId)) return '🗺️ Rapporto';
+      return '💬 Parla';
+    }
+    if (quest!.type === 'kill') {
+      const remaining = quest!.targetCount - questProgress.currentCount;
+      return `⚔️ Stato (${remaining})`;
+    }
+    return '💬 Parla';
+  };
+  const talkLabel = getTalkLabel();
+
+  // Find the last NPC reply from the message log (for visible feedback in dialog)
+  const lastNpcLine = npcReply || messageLog.filter(m => m.includes('💬')).slice(-1)[0] || null;
 
   // Check if player can trade (has required items)
   const canTrade = (tradeIndex: number) => {
@@ -192,24 +221,38 @@ export default function NPCDialogPanel() {
           )}
           <div className="flex gap-2">
             <Button
-              onClick={talkToNpc}
+              onClick={() => {
+                setNpcReply(null);
+                talkToNpc();
+                // After a tick, check the message log for NPC response
+                setTimeout(() => {
+                  const log = useGameStore.getState().messageLog;
+                  const last = log.filter(m => m.includes('💬')).slice(-1)[0];
+                  if (last) {
+                    setNpcReply(last);
+                    // If quest was completed, auto-close after 2s
+                    if (last.includes('Missione completata') || last.includes('Grazie')) {
+                      setTimeout(() => closeNpcDialog(), 2000);
+                    }
+                  }
+                }, 100);
+              }}
               variant="ghost"
-              className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-white/60 hover:text-white text-sm"
+              className={`flex-1 bg-white/[0.04] hover:bg-white/[0.08] border text-sm ${
+                talkLabel.includes('Consegna') || talkLabel.includes('Rapporto')
+                  ? 'border-green-700/30 text-green-300 hover:text-green-200'
+                  : 'border-white/[0.06] text-white/60 hover:text-white'
+              }`}
             >
               <MessageSquare className="w-4 h-4 mr-1.5" />
-              Parla
+              {talkLabel}
             </Button>
-            {npc.tradeInventory && npc.tradeInventory.length > 0 && (
-              <Button
-                onClick={() => setShowTrade(!showTrade)}
-                variant="ghost"
-                className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-white/60 hover:text-white text-sm"
-              >
-                <Handshake className="w-4 h-4 mr-1.5" />
-                Commercia
-              </Button>
-            )}
           </div>
+          {lastNpcLine && (
+            <div className="p-2.5 rounded-lg border border-white/[0.06] bg-white/[0.03] text-sm text-white/70 italic animate-in fade-in slide-in-from-bottom-2">
+              {lastNpcLine.replace(/^\[\d+\] /, '')}
+            </div>
+          )}
           <Button
             onClick={closeNpcDialog}
             variant="ghost"

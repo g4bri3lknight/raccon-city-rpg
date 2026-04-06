@@ -19,7 +19,7 @@ import DocumentsPanel from '@/components/game/DocumentsPanel';
 import NPCDialogPanel from '@/components/game/NPCDialogPanel';
 import PuzzlePanel from '@/components/game/PuzzlePanel';
 import QTEPanel from '@/components/game/QTEPanel';
-import { playBgm, stopBgm } from '@/game/engine/sounds';
+import { playBgm, stopBgm, audioEngine } from '@/game/engine/sounds';
 import type { BgmType } from '@/game/engine/sounds';
 
 export default function GamePage() {
@@ -37,6 +37,21 @@ export default function GamePage() {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  // Preload critical SFX files on first user interaction (browser requires gesture for AudioContext)
+  useEffect(() => {
+    const preload = () => {
+      audioEngine.preloadCriticalSounds();
+      window.removeEventListener('click', preload);
+      window.removeEventListener('keydown', preload);
+    };
+    window.addEventListener('click', preload, { once: true });
+    window.addEventListener('keydown', preload, { once: true });
+    return () => {
+      window.removeEventListener('click', preload);
+      window.removeEventListener('keydown', preload);
+    };
   }, []);
 
   // ── BGM management based on game phase ──
