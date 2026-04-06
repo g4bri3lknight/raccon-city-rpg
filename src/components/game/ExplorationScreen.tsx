@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { LOCATIONS } from '@/game/data/locations';
@@ -15,7 +15,7 @@ import {
   Compass, Search, Package, MapPin, ChevronRight,
   Skull, Flashlight, Shield, Swords, Heart,
   ArrowRightLeft, AlertTriangle, CheckCircle2, Users, Map, Trophy, BookOpen,
-  FileText, User, Zap, ScrollText, Save, DoorOpen, ArrowLeft, Home
+  FileText, User, Zap, ScrollText, Save, DoorOpen, ArrowLeft, Home, FlaskConical, Wrench
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 import { NPCS } from '@/game/data/npcs';
@@ -31,11 +31,12 @@ export default function ExplorationScreen() {
     currentSubAreaId,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
-    toggleAchievements, toggleBestiary, toggleDocuments, toggleTrunk,
+    toggleAchievements, toggleBestiary, toggleDocuments, toggleTrunk, toggleCrafting,
     enterSubArea, exitSubArea,
     handleDynamicEventChoice,
     startQTE,
     encounterNpc,
+    toggleUmbrellaLabsTheme,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
@@ -53,6 +54,7 @@ export default function ExplorationScreen() {
   const [showEventChoice, setShowEventChoice] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
   const [showSavePanel, setShowSavePanel] = useState(false);
+  const closeSavePanel = useCallback(() => setShowSavePanel(false), []);
   const explorationLogRef = useRef<HTMLDivElement>(null);
   const unreadDocs = collectedDocuments.length - readDocuments.length;
 
@@ -107,6 +109,18 @@ export default function ExplorationScreen() {
             )}
           </div>
           <SaveLoadPanel mode="load" compact />
+          {/* #42 Umbrella Labs Theme Toggle */}
+          <button
+            onClick={toggleUmbrellaLabsTheme}
+            title="Tema Umbrella Labs"
+            className={`flex items-center justify-center w-8 h-8 rounded-lg backdrop-blur-sm border transition-all duration-200 ${
+              state.umbrellaLabsTheme
+                ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41] shadow-[0_0_12px_rgba(0,255,65,0.2)]'
+                : 'bg-white/[0.04] border-white/[0.08] text-white/30 hover:text-white/60 hover:border-white/20'
+            }`}
+          >
+            <FlaskConical className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-5">
@@ -466,11 +480,9 @@ export default function ExplorationScreen() {
                 </motion.div>
               )}
             </AnimatePresence>
-            {/* Save panel (safe rooms only) */}
-            {showSavePanel && isInSafeRoom && (
-              <div className="mb-2">
-                <SaveLoadPanel mode="save" />
-              </div>
+            {/* Save panel — rendered once, controlled via isOpen */}
+            {isInSafeRoom && (
+              <SaveLoadPanel mode="save" isOpen={showSavePanel} onClose={closeSavePanel} />
             )}
             {/* ── IN SAFE ROOM: different action grid ── */}
             {isInSafeRoom ? (
@@ -495,7 +507,7 @@ export default function ExplorationScreen() {
                   <Package className="w-4 h-4 mr-1.5" /> Baule
                 </Button>
                 <Button
-                  onClick={() => setShowSavePanel(!showSavePanel)}
+                  onClick={() => setShowSavePanel(true)}
                   className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:text-white text-xs sm:text-sm py-2.5"
                 >
                   <Save className="w-4 h-4 mr-1.5" /> Salvare
@@ -507,6 +519,12 @@ export default function ExplorationScreen() {
                   <FileText className="w-4 h-4 mr-1.5" /> Documenti{unreadDocs > 0 && (
                     <span className="ml-1.5 bg-blue-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] h-[16px] px-1">{unreadDocs}</span>
                   )}
+                </Button>
+                <Button
+                  onClick={toggleCrafting}
+                  className="bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-white text-xs sm:text-sm py-2.5"
+                >
+                  <Wrench className="w-4 h-4 mr-1.5" /> Craft
                 </Button>
               </div>
             ) : (

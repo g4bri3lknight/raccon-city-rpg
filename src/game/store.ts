@@ -27,6 +27,7 @@ import {
   StoryChoiceTag,
   NPCQuest,
   DynamicEventChoice,
+  GameStats,
 } from './types';
 import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems, ARCHETYPE_STAT_POINTS, computeGrowthRates } from './data/characters';
 import { ENEMIES } from './data/enemies';
@@ -44,6 +45,7 @@ import {
   generateLoot,
   addExp,
   WEAPON_AMMO,
+  calculateParryCounterDamage,
 } from './engine/combat';
 import { WeaponInstance } from './types';
 import { ACHIEVEMENTS } from './data/achievements';
@@ -65,11 +67,14 @@ import {
   playItemPickup,
   playMenuOpen,
   playMenuClose,
+  playSafeRoomAmbient,
+  stopAmbient,
 } from './engine/sounds';
 import { NPCS } from './data/npcs';
 import { DYNAMIC_EVENTS } from './data/dynamic-events';
 import { SECRET_ROOMS } from './data/secrets';
 import { ENDINGS } from './data/endings';
+import { CRAFTING_RECIPES } from './data/crafting';
 
 const MAX_INVENTORY_SLOTS = 12;
 
@@ -99,7 +104,7 @@ function addItemToParty(
   const itemDef = ITEMS[itemId];
   if (!itemDef) return { party, added: false, characterName: '', characterId: '' };
 
-  const isStackable = itemDef.type === 'ammo' || itemDef.type === 'healing' || itemDef.type === 'antidote';
+  const isStackable = itemDef.type === 'ammo' || itemDef.type === 'healing' || itemDef.type === 'antidote' || itemDef.type === 'material';
   const uid = `${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const newItem: ItemInstance = {
     uid,
@@ -191,6 +196,55 @@ function getDifficultyConfig(difficulty: DifficultyLevel, partySize?: number): D
 
 export { DIFFICULTY_CONFIGS, getDifficultyConfig };
 
+// ── Game Stats defaults and helpers ──
+function defaultGameStats(): GameStats {
+  return {
+    totalDamageDealt: 0,
+    totalDamageReceived: 0,
+    totalHealingDone: 0,
+    enemiesKilled: {},
+    itemsUsed: 0,
+    itemsCrafted: 0,
+    documentsFound: 0,
+    secretRoomsFound: 0,
+    parriesPerformed: 0,
+    turnsPlayed: 0,
+    locationsVisited: 0,
+    npcsEncountered: 0,
+    bossDefeated: [],
+    startTime: 0,
+  };
+}
+
+function updateGameStats(current: GameStats, delta: Partial<GameStats>): GameStats {
+  const mergedEnemiesKilled = { ...current.enemiesKilled };
+  if (delta.enemiesKilled) {
+    for (const [k, v] of Object.entries(delta.enemiesKilled)) {
+      mergedEnemiesKilled[k] = (mergedEnemiesKilled[k] || 0) + v;
+    }
+  }
+  return {
+    ...current,
+    totalDamageDealt: current.totalDamageDealt + (delta.totalDamageDealt || 0),
+    totalDamageReceived: current.totalDamageReceived + (delta.totalDamageReceived || 0),
+    totalHealingDone: current.totalHealingDone + (delta.totalHealingDone || 0),
+    enemiesKilled: mergedEnemiesKilled,
+    itemsUsed: current.itemsUsed + (delta.itemsUsed || 0),
+    itemsCrafted: current.itemsCrafted + (delta.itemsCrafted || 0),
+    parriesPerformed: current.parriesPerformed + (delta.parriesPerformed || 0),
+    bossDefeated: delta.bossDefeated
+      ? [...current.bossDefeated, ...delta.bossDefeated.filter(id => !current.bossDefeated.includes(id))]
+      : current.bossDefeated,
+    // These are computed from other state, updated on read
+    documentsFound: delta.documentsFound ?? current.documentsFound,
+    secretRoomsFound: delta.secretRoomsFound ?? current.secretRoomsFound,
+    turnsPlayed: delta.turnsPlayed ?? current.turnsPlayed,
+    locationsVisited: delta.locationsVisited ?? current.locationsVisited,
+    npcsEncountered: delta.npcsEncountered ?? current.npcsEncountered,
+    startTime: delta.startTime ?? current.startTime,
+  };
+}
+
 function createCharacter(archetypeId: Archetype): Character {
   const archetype = CHARACTER_ARCHETYPES.find(a => a.id === archetypeId);
   if (!archetype) throw new Error(`Archetype ${archetypeId} not found`);
@@ -211,6 +265,8 @@ function createCharacter(archetypeId: Archetype): Character {
     expToNext: 50,
     statusEffects: [],
     isDefending: false,
+    parryReady: false,
+    parryCooldown: 0,
     inventory: archetype.startingItems.map(item => ({ ...item, uid: `${item.uid}_${Date.now()}` })),
     maxInventorySlots: 6,
     weapon: archetype.startingItems.find(i => i.weaponStats)?.weaponStats || null,
@@ -250,6 +306,8 @@ function createCustomCharacter(config: CustomCharacterConfig): Character {
     expToNext: 50,
     statusEffects: [],
     isDefending: false,
+    parryReady: false,
+    parryCooldown: 0,
     inventory: startingItems.map(item => ({ ...item, uid: `${item.uid}_${Date.now()}` })),
     maxInventorySlots: 6,
     weapon: startingItems.find(i => i.weaponStats)?.weaponStats || null,
@@ -404,6 +462,11 @@ interface GameStore extends GameState {
   depositToTrunk: (characterId: string, itemUid: string) => void;
   withdrawFromTrunk: (characterId: string, itemUid: string) => void;
 
+  // Crafting
+  craftingOpen: boolean;
+  toggleCrafting: () => void;
+  craftItem: (recipeId: string, characterId: string) => boolean;
+
   // #18 NPCs
   encounterNpc: (npcId: string) => void;
   talkToNpc: () => void;
@@ -428,6 +491,9 @@ interface GameStore extends GameState {
   // Sub-area navigation
   enterSubArea: (subAreaId: string) => void;
   exitSubArea: () => void;
+
+  // #42 Umbrella Labs theme
+  toggleUmbrellaLabsTheme: () => void;
 
   // Debug
   debugHealAll: () => void;
@@ -503,6 +569,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   documentsOpen: false,
   trunkItems: [],
   trunkOpen: false,
+  craftingOpen: false,
   activeNpc: null,
   npcQuestProgress: {},
   npcsEncountered: [],
@@ -515,6 +582,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   endingType: null,
   exploredSubAreas: {},
   currentSubAreaId: null,
+  umbrellaLabsTheme: false,
+  gameStats: defaultGameStats(),
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -524,7 +593,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], readDocuments: [], documentsOpen: false, trunkItems: [], trunkOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubAreaId: null });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], readDocuments: [], documentsOpen: false, trunkItems: [], trunkOpen: false, craftingOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubAreaId: null, umbrellaLabsTheme: false, gameStats: defaultGameStats() });
   },
 
   goToCharacterCreator: () => {
@@ -570,6 +639,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       documentsOpen: false,
       trunkItems: [],
       trunkOpen: false,
+      craftingOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -581,6 +651,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       endingType: null,
       exploredSubAreas: {},
       currentSubAreaId: null,
+      umbrellaLabsTheme: false,
+      gameStats: { ...defaultGameStats(), startTime: Date.now() },
       // persistentRibbons is preserved (set externally for New Game+)
     });
   },
@@ -627,6 +699,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       documentsOpen: false,
       trunkItems: [],
       trunkOpen: false,
+      craftingOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -638,18 +711,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
       endingType: null,
       exploredSubAreas: {},
       currentSubAreaId: null,
+      umbrellaLabsTheme: false,
+      gameStats: { ...defaultGameStats(), startTime: Date.now() },
       // persistentRibbons is preserved (set externally for New Game+)
     });
   },
 
   gameOver: () => {
-    set({ phase: 'game-over' });
+    // Snapshot computed stats before game-over
+    const s = get();
+    set({ phase: 'game-over', gameStats: updateGameStats(s.gameStats, {
+      documentsFound: s.collectedDocuments.length,
+      secretRoomsFound: s.discoveredSecretRooms.length,
+      turnsPlayed: s.turnCount,
+      locationsVisited: s.visitedLocations.length,
+      npcsEncountered: s.npcsEncountered.length,
+    }) });
   },
 
   victory: () => {
     const state = get();
     const ending = get().determineEnding();
-    set({ phase: 'victory', endingType: ending.id });
+    // Snapshot computed stats before victory
+    set({ phase: 'victory', endingType: ending.id, gameStats: updateGameStats(state.gameStats, {
+      documentsFound: state.collectedDocuments.length,
+      secretRoomsFound: state.discoveredSecretRooms.length,
+      turnsPlayed: state.turnCount,
+      locationsVisited: state.visitedLocations.length,
+      npcsEncountered: state.npcsEncountered.length,
+    }) });
     setTimeout(() => get().checkAchievements(), 100);
   },
 
@@ -692,6 +782,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       documentsOpen: false,
       trunkItems: [],
       trunkOpen: false,
+      craftingOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -707,6 +798,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       nemesisPursuitLevel: 0,
       nemesisLastSeenLocation: null,
       nemesisLastSeenTurn: 0,
+      umbrellaLabsTheme: false,
+      gameStats: defaultGameStats(),
     });
   },
 
@@ -2264,7 +2357,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (action === 'defend') {
       // Execute defend immediately
       const character = state.party.find(p => p.id === state.combat!.currentActorId)!;
-      const result = executePlayerDefend(character, state.combat.turn);
+
+      // ── PARRY CHECK ──
+      // A parry succeeds if the next actor in turn order is an enemy
+      // AND parryCooldown is 0 (not on cooldown)
+      const turnOrder = state.combat!.fullTurnOrder || [];
+      const currentIdx = turnOrder.findIndex(a => a.id === character.id);
+      let nextActorIsEnemy = false;
+      if (currentIdx >= 0) {
+        // Find the next alive actor after this one
+        for (let i = 1; i <= turnOrder.length; i++) {
+          const candidate = turnOrder[(currentIdx + i) % turnOrder.length];
+          if (candidate.id === character.id) continue;
+          const isAlive = candidate.type === 'player'
+            ? state.party.find(p => p.id === candidate.id)?.currentHp > 0
+            : state.enemies.find(e => e.id === candidate.id)?.currentHp > 0;
+          if (isAlive) {
+            nextActorIsEnemy = candidate.type === 'enemy';
+            break;
+          }
+        }
+      }
+      const canParry = nextActorIsEnemy && (character.parryCooldown || 0) === 0;
+      const result = executePlayerDefend(character, state.combat.turn, canParry);
       
       const updatedParty = state.party.map(p =>
         p.id === character.id ? result.updatedCharacter! : p
@@ -2331,6 +2446,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     if (!state.combat || state.combat.currentActorType !== 'player' || !state.combat.selectedAction) return;
 
+    // Stats tracking deltas
+    let deltaDamageDealt = 0;
+    let deltaHealingDone = 0;
+    let deltaItemsUsed = 0;
+    let deltaEnemiesKilled: Record<string, number> = {};
+    let deltaBossDefeated: string[] = [];
+
     const character = state.party.find(p => p.id === state.combat!.currentActorId)!;
     let updatedParty = [...state.party];
     let updatedEnemies = [...state.enemies];
@@ -2347,6 +2469,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const enemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget)!;
         const result = executePlayerAttack(character, enemy, state.combat.turn);
         newLog.push(result.log);
+        if (result.log.damage) deltaDamageDealt += result.log.damage;
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
         }
@@ -2382,6 +2505,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
         const result = executePlayerSpecial(character, target, state.combat.turn, updatedParty, updatedEnemies);
         newLog.push(result.log);
+        if (result.log.damage) deltaDamageDealt += result.log.damage;
+        if (result.log.heal) deltaHealingDone += result.log.heal;
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
         }
@@ -2433,6 +2558,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
         const result = executePlayerSpecial2(character, target, state.combat.turn, updatedParty, updatedEnemies);
         newLog.push(result.log);
+        if (result.log.damage) deltaDamageDealt += result.log.damage;
+        if (result.log.heal) deltaHealingDone += result.log.heal;
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
         }
@@ -2482,6 +2609,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (!state.combat.selectedItemUid || !state.combat.selectedTarget) return;
         const item = character.inventory.find(i => i.uid === state.combat!.selectedItemUid);
         if (!item) return;
+        deltaItemsUsed = 1;
         
         // Rocket launcher: kill_all targets all enemies
         if (item.effect?.type === 'kill_all') {
@@ -2523,6 +2651,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         
         const result = executeUseItem(character, item, healTarget, updatedParty, state.combat.turn);
         newLog.push(result.log);
+        if (result.log.heal) deltaHealingDone += result.log.heal;
         if (result.updatedCharacter) {
           updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
         }
@@ -2623,6 +2752,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Check if all enemies are dead
     if (updatedEnemies.every(e => e.currentHp <= 0)) {
       newPhase = 'exploration';
+
+      // Track enemy kills for stats
+      for (const enemy of updatedEnemies) {
+        if (enemy.currentHp <= 0) {
+          deltaEnemiesKilled[enemy.definitionId] = (deltaEnemiesKilled[enemy.definitionId] || 0) + 1;
+          if (enemy.isBoss && !state.gameStats.bossDefeated.includes(enemy.definitionId)) {
+            deltaBossDefeated.push(enemy.definitionId);
+          }
+        }
+      }
       
       // Get difficulty config for loot/EXP multipliers
       const lootDiff = getDifficultyConfig(state.difficulty, state.partySize);
@@ -2788,6 +2927,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
           bestiary: victoryBestiary,
           npcQuestProgress: updatedNpcQuestProgress,
           nemesisPursuitLevel: newNemesisPursuitLevel,
+          gameStats: updateGameStats(state.gameStats, {
+            totalDamageDealt: deltaDamageDealt,
+            totalHealingDone: deltaHealingDone,
+            itemsUsed: deltaItemsUsed,
+            enemiesKilled: deltaEnemiesKilled,
+            bossDefeated: deltaBossDefeated,
+          }),
         });
         setTimeout(() => {
           set({ phase: 'victory', combat: null, enemies: [], notification: null });
@@ -2819,6 +2965,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         bestiary: victoryBestiary,
         npcQuestProgress: updatedNpcQuestProgress,
         nemesisPursuitLevel: newNemesisPursuitLevel,
+        gameStats: updateGameStats(state.gameStats, {
+          totalDamageDealt: deltaDamageDealt,
+          totalHealingDone: deltaHealingDone,
+          itemsUsed: deltaItemsUsed,
+          enemiesKilled: deltaEnemiesKilled,
+          bossDefeated: deltaBossDefeated,
+        }),
       });
       setTimeout(() => {
         set({ phase: 'exploration', combat: null, enemies: [], notification: null });
@@ -2841,6 +2994,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combat: { ...state.combat, log: newLog, isDefeat: true, isProcessing: true },
         party: updatedParty,
         messageLog: [...state.messageLog, `[${state.turnCount}] 💀 Tutti i membri del gruppo sono caduti...`],
+        gameStats: updateGameStats(state.gameStats, {
+          totalDamageDealt: deltaDamageDealt,
+          totalHealingDone: deltaHealingDone,
+          itemsUsed: deltaItemsUsed,
+        }),
       });
       setTimeout(() => {
         set({ phase: 'game-over', combat: null, enemies: [], notification: null });
@@ -2848,7 +3006,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    // Advance to next actor
+    // Advance to next actor (pass stats delta for persistence)
     get().advanceToNextActor({
       ...state.combat,
       log: newLog,
@@ -2858,6 +3016,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       special2Cooldowns: updatedCooldowns2,
       tauntTargetId,
       statusDurations: updatedCombatStatusDurations,
+      _statsDelta: {
+        totalDamageDealt: deltaDamageDealt,
+        totalHealingDone: deltaHealingDone,
+        itemsUsed: deltaItemsUsed,
+      },
     });
   },
 
@@ -2993,10 +3156,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     setTimeout(() => get().executeCombatTurn(), 600);
   },
 
-  advanceToNextActor: (combatState: GameStore['combat'] & { party?: Character[]; enemies?: EnemyInstance[] }) => {
+  advanceToNextActor: (combatState: GameStore['combat'] & { party?: Character[]; enemies?: EnemyInstance[]; _statsDelta?: Partial<GameStats> }) => {
     const state = get();
     const combat = combatState || state.combat;
     if (!combat) return;
+
+    // Extract stats delta from previous player action (if any)
+    const statsDelta = combatState?._statsDelta;
+    // Track damage received from status effects (poison, bleeding on party)
+    let deltaDamageReceived = 0;
+    let deltaParries = 0;
+    let deltaParryDamage = 0;
 
     const party = combatState?.party || state.party;
     const enemies = combatState?.enemies || state.enemies;
@@ -3071,6 +3241,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Process status effects at new turn start
     let updatedParty = party.map(p => ({ ...p, isDefending: false }));
+    // Decrement parry cooldowns at new turn (but preserve parryReady until consumed by enemy)
+    if (isNewTurn) {
+      updatedParty = updatedParty.map(p => ({
+        ...p,
+        parryCooldown: Math.max(0, (p.parryCooldown || 0) - 1),
+      }));
+    }
     let updatedStatusDurations: Record<string, StatusDuration[]> = JSON.parse(JSON.stringify(statusDurations));
 
     if (isNewTurn) {
@@ -3083,6 +3260,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           if (sd.effect === 'poison') {
             const poisonDmg = Math.max(1, Math.floor(p.maxHp * 0.06));
             hp = Math.max(0, hp - poisonDmg);
+            deltaDamageReceived += poisonDmg;
             statusLogEntries.push({
               turn: newTurn,
               actorName: p.name,
@@ -3095,6 +3273,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           if (sd.effect === 'bleeding') {
             const bleedDmg = Math.max(1, Math.floor(p.maxHp * 0.04));
             hp = Math.max(0, hp - bleedDmg);
+            deltaDamageReceived += bleedDmg;
             statusLogEntries.push({
               turn: newTurn,
               actorName: p.name,
@@ -3312,6 +3491,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             special2Cooldowns: updatedCooldowns2,
             tauntTargetId,
           },
+          gameStats: statsDelta ? updateGameStats(state.gameStats, { ...statsDelta, totalDamageReceived: deltaDamageReceived }) : updateGameStats(state.gameStats, { totalDamageReceived: deltaDamageReceived }),
         });
 
         // If next is also enemy, chain
@@ -3322,29 +3502,115 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       const currentDiff = getDifficultyConfig(get().difficulty, get().partySize);
-      const { log, updatedParty: afterEnemyAttack, appliedStatus } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, currentDiff.enemyCritChance);
 
-      // Record applied status duration
-      if (appliedStatus) {
-        const existing = updatedStatusDurations[appliedStatus.targetId] || [];
-        if (!existing.some(d => d.effect === appliedStatus.effect)) {
-          updatedStatusDurations[appliedStatus.targetId] = [
-            ...existing,
-            { effect: appliedStatus.effect, turnsLeft: appliedStatus.duration },
-          ];
+      // ── PARRY CHECK ──
+      // If the enemy's target has parryReady, negate the attack and counter
+      const aliveTargets = updatedParty.filter(p => p.currentHp > 0);
+      let enemyTarget: Character;
+      if (tauntTargetId) {
+        const tauntTarget = aliveTargets.find(p => p.id === tauntTargetId);
+        enemyTarget = tauntTarget || aliveTargets[random(0, aliveTargets.length - 1)];
+      } else {
+        enemyTarget = aliveTargets[random(0, aliveTargets.length - 1)];
+      }
+
+      const parryingCharacter = enemyTarget?.parryReady ? enemyTarget : null;
+      let parryLogEntries: CombatLogEntry[] = [];
+      let parryUpdatedEnemies = [...updatedEnemiesForStatus];
+      let finalAfterEnemyAttack = updatedParty;
+
+      if (parryingCharacter) {
+        // PARRY SUCCESS: negate damage, counter attack the enemy
+        const { damage: counterDamage } = calculateParryCounterDamage(parryingCharacter);
+        const newEnemyHp = Math.max(0, enemy.currentHp - counterDamage);
+        parryUpdatedEnemies = parryUpdatedEnemies.map(e =>
+          e.id === enemy.id ? { ...e, currentHp: newEnemyHp } : e
+        );
+        // Track parry stats
+        deltaParries = 1;
+        deltaParryDamage = counterDamage;
+
+        parryLogEntries.push({
+          turn: newTurn,
+          actorName: enemy.name,
+          actorType: 'enemy',
+          action: 'Attacco',
+          targetName: parryingCharacter.name,
+          targetId: parryingCharacter.id,
+          damage: 0,
+          isMiss: false,
+          message: `⚔️ PARRY! ${parryingCharacter.name} para l'attacco di ${enemy.name}! Danni annullati!`,
+        });
+        parryLogEntries.push({
+          turn: newTurn,
+          actorName: parryingCharacter.name,
+          actorType: 'player',
+          action: 'PARRY!',
+          targetName: enemy.name,
+          targetId: enemy.id,
+          damage: counterDamage,
+          message: `⚔️ Contrattacco perfetto! ${parryingCharacter.name} infligge ${counterDamage} danni a ${enemy.name}!`,
+        });
+
+        // Reset parry state on the character
+        finalAfterEnemyAttack = updatedParty.map(p =>
+          p.id === parryingCharacter.id ? { ...p, parryReady: false, isDefending: false } : p
+        );
+
+        // Check if enemy died from counter
+        if (newEnemyHp <= 0) {
+          aliveEnemyIds.delete(enemy.id);
+        }
+      } else {
+        // Normal enemy attack
+        const { log, updatedParty: afterEnemyAttack, appliedStatus } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, currentDiff.enemyCritChance);
+
+        // Record applied status duration
+        if (appliedStatus) {
+          const existing = updatedStatusDurations[appliedStatus.targetId] || [];
+          if (!existing.some(d => d.effect === appliedStatus.effect)) {
+            updatedStatusDurations[appliedStatus.targetId] = [
+              ...existing,
+              { effect: appliedStatus.effect, turnsLeft: appliedStatus.duration },
+            ];
+          }
+        }
+        parryLogEntries.push(log);
+        finalAfterEnemyAttack = afterEnemyAttack;
+        // Track damage received from enemy attack
+        if (log.damage) deltaDamageReceived += log.damage;
+
+        // Check game over after enemy attack
+        if (afterEnemyAttack.every(p => p.currentHp <= 0)) {
+          try { playDefeat(); } catch {}
+          set({
+            phase: 'game-over',
+            party: afterEnemyAttack,
+            enemies: updatedEnemiesForStatus,
+            messageLog: [...state.messageLog, `[${state.turnCount}] 💀 Tutti i membri del gruppo sono caduti...`],
+            gameStats: updateGameStats(state.gameStats, {
+              ...statsDelta,
+              totalDamageReceived: deltaDamageReceived,
+            }),
+          });
+          return;
         }
       }
 
-      // Check game over after enemy attack
-      if (afterEnemyAttack.every(p => p.currentHp <= 0)) {
-        // Play defeat sound (#36)
+      // Check game over after enemy attack (parry case)
+      if (finalAfterEnemyAttack.every(p => p.currentHp <= 0)) {
         try { playDefeat(); } catch {}
-
         set({
           phase: 'game-over',
-          party: afterEnemyAttack,
-          enemies: updatedEnemiesForStatus,
+          party: finalAfterEnemyAttack,
+          enemies: parryUpdatedEnemies,
           messageLog: [...state.messageLog, `[${state.turnCount}] 💀 Tutti i membri del gruppo sono caduti...`],
+          gameStats: updateGameStats(state.gameStats, {
+            ...statsDelta,
+            totalDamageDealt: deltaParryDamage,
+            parriesPerformed: deltaParries,
+            totalDamageReceived: deltaDamageReceived,
+          }),
         });
         return;
       }
@@ -3364,8 +3630,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (nextNextIdx === 0) nextNextTurn = newTurn + 1;
 
       set({
-        party: afterEnemyAttack,
-        enemies: updatedEnemiesForStatus,
+        party: finalAfterEnemyAttack,
+        enemies: parryUpdatedEnemies,
         combat: {
           ...combat,
           turn: nextNextTurn,
@@ -3374,12 +3640,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
           selectedAction: null,
           selectedTarget: null,
           selectedItemUid: null,
-          log: [...newLog, log],
+          log: [...newLog, ...parryLogEntries],
           statusDurations: updatedStatusDurations,
           specialCooldowns: updatedCooldowns,
           special2Cooldowns: updatedCooldowns2,
           tauntTargetId,
         },
+        gameStats: updateGameStats(state.gameStats, {
+          ...statsDelta,
+          totalDamageDealt: deltaParryDamage,
+          parriesPerformed: deltaParries,
+          totalDamageReceived: deltaDamageReceived,
+        }),
       });
 
       // If next is also enemy, chain
@@ -3406,6 +3678,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         special2Cooldowns: updatedCooldowns2,
         tauntTargetId,
       },
+      gameStats: statsDelta ? updateGameStats(state.gameStats, { ...statsDelta, totalDamageReceived: deltaDamageReceived }) : updateGameStats(state.gameStats, { totalDamageReceived: deltaDamageReceived }),
     });
   },
 
@@ -3949,6 +4222,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       readDocuments: state.readDocuments,
       trunkItems: state.trunkItems,
       trunkOpen: false,
+      craftingOpen: false,
       activeNpc: null,
       npcQuestProgress: state.npcQuestProgress,
       npcsEncountered: state.npcsEncountered,
@@ -3959,6 +4233,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       endingType: null,
       exploredSubAreas: state.exploredSubAreas,
       currentSubAreaId: null, // Don't save inside a sub-area
+      umbrellaLabsTheme: state.umbrellaLabsTheme,
+      gameStats: state.gameStats,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -4036,6 +4312,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         readDocuments: data.readDocuments || [],
         trunkItems: data.trunkItems || [],
         trunkOpen: false,
+        craftingOpen: false,
         npcQuestProgress: data.npcQuestProgress || {},
         npcsEncountered: data.npcsEncountered || [],
         activeDynamicEvent: null,
@@ -4047,6 +4324,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         currentSubAreaId: data.currentSubAreaId || null,
         documentsOpen: false,
         npcsOpen: false,
+        umbrellaLabsTheme: data.umbrellaLabsTheme || false,
+        gameStats: data.gameStats || defaultGameStats(),
       });
       return true;
     } catch {
@@ -4113,6 +4392,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       readDocuments: state.readDocuments,
       trunkItems: state.trunkItems,
       trunkOpen: false,
+      craftingOpen: false,
       activeNpc: null,
       npcQuestProgress: state.npcQuestProgress,
       npcsEncountered: state.npcsEncountered,
@@ -4123,6 +4403,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       endingType: state.endingType,
       exploredSubAreas: state.exploredSubAreas,
       currentSubAreaId: null,
+      umbrellaLabsTheme: state.umbrellaLabsTheme,
+      gameStats: state.gameStats,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -4187,6 +4469,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       documentsOpen: false,
       trunkItems: [],
       trunkOpen: false,
+      craftingOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -4198,6 +4481,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       endingType: null,
       exploredSubAreas: {},
       currentSubAreaId: null,
+      umbrellaLabsTheme: false,
+      gameStats: defaultGameStats(),
     });
   },
 
@@ -4627,7 +4912,96 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const isOpen = get().trunkOpen;
       if (!isOpen) playMenuOpen(); else playMenuClose();
     } catch {}
-    set(state => ({ trunkOpen: !state.trunkOpen }));
+    set(state => ({ trunkOpen: !state.trunkOpen, craftingOpen: false }));
+  },
+
+  toggleCrafting: () => {
+    try {
+      const isOpen = get().craftingOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
+    set(state => ({ craftingOpen: !state.craftingOpen, trunkOpen: false }));
+  },
+
+  craftItem: (recipeId: string, characterId: string): boolean => {
+    const state = get();
+    const recipe = CRAFTING_RECIPES.find(r => r.id === recipeId);
+    if (!recipe) return false;
+
+    const character = state.party.find(p => p.id === characterId);
+    if (!character) return false;
+
+    // Check all ingredients are available
+    const inventory = character.inventory;
+    for (const ing of recipe.ingredients) {
+      const owned = inventory.find(i => i.itemId === ing.itemId);
+      if (!owned || owned.quantity < ing.quantity) return false;
+    }
+
+    // Check inventory not full (account for stacking)
+    const resultDef = ITEMS[recipe.result.itemId];
+    const isStackable = resultDef && (resultDef.type === 'ammo' || resultDef.type === 'healing' || resultDef.type === 'antidote' || resultDef.type === 'material');
+    const existingStack = isStackable ? inventory.find(i => i.itemId === recipe.result.itemId) : null;
+    const wouldBeNewSlot = !existingStack;
+    const slotsAvailable = character.maxInventorySlots - inventory.length;
+
+    if (wouldBeNewSlot && slotsAvailable <= 0) return false;
+
+    // Remove ingredients and add result
+    let updatedInventory = [...inventory];
+
+    // Remove ingredients
+    for (const ing of recipe.ingredients) {
+      updatedInventory = updatedInventory.map(item => {
+        if (item.itemId === ing.itemId) {
+          const newQty = item.quantity - ing.quantity;
+          if (newQty <= 0) return null as unknown as ItemInstance;
+          return { ...item, quantity: newQty };
+        }
+        return item;
+      }).filter(Boolean) as ItemInstance[];
+    }
+
+    // Add result
+    if (existingStack) {
+      updatedInventory = updatedInventory.map(item =>
+        item.itemId === recipe.result.itemId
+          ? { ...item, quantity: item.quantity + recipe.result.quantity }
+          : item
+      );
+    } else {
+      const uid = `${recipe.result.itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      updatedInventory.push({
+        uid,
+        itemId: recipe.result.itemId,
+        name: resultDef!.name,
+        description: resultDef!.description,
+        type: resultDef!.type,
+        rarity: resultDef!.rarity,
+        icon: resultDef!.icon,
+        usable: resultDef!.usable,
+        equippable: resultDef!.equippable,
+        effect: resultDef!.effect,
+        quantity: recipe.result.quantity,
+      });
+    }
+
+    // Update party
+    set(state => ({
+      party: state.party.map(p =>
+        p.id === characterId ? { ...p, inventory: updatedInventory } : p
+      ),
+      messageLog: [
+        ...state.messageLog,
+        `[${state.turnCount}] 🔧 ${character.name} ha creato: ${recipe.icon} ${recipe.name} ×${recipe.result.quantity}!`,
+      ],
+      craftingOpen: false,
+    }));
+
+    // Play crafting success sound
+    try { playItemPickup(); } catch {}
+
+    return true;
   },
 
   depositToTrunk: (characterId: string, itemUid: string) => {
@@ -4724,7 +5098,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       documentsOpen: false,
       npcsOpen: false,
       trunkOpen: false,
+      craftingOpen: false,
     }));
+    // Play safe room ambient if entering a safe room
+    if (subArea.type === 'safe_room') {
+      stopAmbient();
+      playSafeRoomAmbient();
+    }
   },
 
   exitSubArea: () => {
@@ -4732,11 +5112,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state.currentSubAreaId) return;
     const locId = state.currentLocationId;
     const location = LOCATIONS[locId];
+    // Stop safe room ambient and resume location ambient
+    stopAmbient();
     set(state => ({
       currentSubAreaId: null,
       messageLog: [...state.messageLog, `[${state.turnCount}] 🚪 Tornati a: ${location?.name || locId}`],
       trunkOpen: false,
+      craftingOpen: false,
     }));
+    playLocationAmbient(locId);
+  },
+
+  // #42 Umbrella Labs theme toggle
+  toggleUmbrellaLabsTheme: () => {
+    set(state => ({ umbrellaLabsTheme: !state.umbrellaLabsTheme }));
   },
 
   // ==========================================

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { ENEMIES } from '@/game/data/enemies';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { Button } from '@/components/ui/button';
@@ -9,11 +10,12 @@ import { ENDINGS } from '@/game/data/endings';
 import { Star, RotateCcw, Save, Plus, Sparkles, X, Clock } from 'lucide-react';
 
 export default function VictoryScreen() {
-  const { party, turnCount, collectedRibbons, persistentRibbons, gameStartTime, endingType, storyChoices, npcsEncountered, collectedDocuments, discoveredSecretRooms, restartGame, saveGameVictory, startNewGamePlus, loadGame, getSaveInfo } = useGameStore();
+  const { party, turnCount, collectedRibbons, persistentRibbons, gameStartTime, endingType, storyChoices, npcsEncountered, collectedDocuments, discoveredSecretRooms, restartGame, saveGameVictory, startNewGamePlus, loadGame, getSaveInfo, gameStats } = useGameStore();
   const [showSavePanel, setShowSavePanel] = useState(false);
   const [savedSlot, setSavedSlot] = useState<number | null>(null);
   const [showNGPPanel, setShowNGPPanel] = useState(false);
   const [loadedNGP, setLoadedNGP] = useState(false);
+  const [showFullStats, setShowFullStats] = useState(false);
 
   const totalPersistent = Math.min((persistentRibbons || 0) + (collectedRibbons || 0), 10);
   const ending = endingType ? ENDINGS[endingType] : ENDINGS['ending_escape'];
@@ -118,26 +120,44 @@ export default function VictoryScreen() {
           {ending.description}
         </motion.p>
 
-        {/* Story Stats */}
+        {/* Combat Stats Summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.5 }}
           className="glass-dark rounded-xl border-white/[0.06] p-4 mb-4"
         >
-          <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Statistiche Narrazione</h4>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-2 text-white/60">
-              <span>👤</span> <span>NPC incontrati: <strong className="text-white">{npcsEncountered.length}</strong></span>
+          <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Statistiche Combattimento</h4>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="text-center">
+              <div className="text-red-400 font-bold text-lg">{gameStats.totalDamageDealt.toLocaleString()}</div>
+              <div className="text-white/40 mt-0.5">⚔️ Danni Inflitti</div>
             </div>
-            <div className="flex items-center gap-2 text-white/60">
-              <span>📖</span> <span>Documenti: <strong className="text-white">{collectedDocuments.length}</strong></span>
+            <div className="text-center">
+              <div className="text-orange-400 font-bold text-lg">{gameStats.totalDamageReceived.toLocaleString()}</div>
+              <div className="text-white/40 mt-0.5">🛡️ Danni Subiti</div>
             </div>
-            <div className="flex items-center gap-2 text-white/60">
-              <span>🚪</span> <span>Stanze segrete: <strong className="text-white">{discoveredSecretRooms.length}</strong></span>
+            <div className="text-center">
+              <div className="text-green-400 font-bold text-lg">{gameStats.totalHealingDone.toLocaleString()}</div>
+              <div className="text-white/40 mt-0.5">❤️ Cure</div>
             </div>
-            <div className="flex items-center gap-2 text-white/60">
-              <span>↩️</span> <span>Scelte narrative: <strong className="text-white">{storyChoices.length}</strong></span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-[11px] mt-2 pt-2 border-t border-white/[0.04]">
+            <div className="text-center">
+              <div className="text-purple-300 font-bold">{Object.values(gameStats.enemiesKilled).reduce((s, c) => s + c, 0)}</div>
+              <div className="text-white/30">💀 Uccisi</div>
+            </div>
+            <div className="text-center">
+              <div className="text-blue-300 font-bold">{gameStats.itemsUsed}</div>
+              <div className="text-white/30">🎒 Oggetti</div>
+            </div>
+            <div className="text-center">
+              <div className="text-yellow-300 font-bold">{gameStats.parriesPerformed}</div>
+              <div className="text-white/30">⚡ Parry</div>
+            </div>
+            <div className="text-center">
+              <div className="text-cyan-300 font-bold">{gameStats.bossDefeated.length}</div>
+              <div className="text-white/30">👑 Boss</div>
             </div>
           </div>
         </motion.div>
@@ -209,6 +229,99 @@ export default function VictoryScreen() {
               <p className="text-xs font-bold text-amber-300">
                 🏆 Obiettivo Segreto sbloccato! Tutti e 10 i nastri raccolti!
               </p>
+            </motion.div>
+          )}
+        </motion.div>
+
+        {/* Expandable Full Stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 2.0 }}
+          className="mb-4"
+        >
+          <button
+            onClick={() => setShowFullStats(!showFullStats)}
+            className="w-full glass-dark rounded-xl border-white/[0.06] p-3 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+          >
+            <span className="text-xs font-bold text-white/40 uppercase tracking-wider">Statistiche Complete</span>
+            <span className={`text-white/30 text-xs transition-transform duration-200 ${showFullStats ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+          {showFullStats && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              className="glass-dark rounded-b-xl border-white/[0.06] border-t-0 p-4 mt-0"
+            >
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">📍</span>
+                  <span className="text-white/50 flex-1">Luoghi Visitati</span>
+                  <span className="text-white font-bold">{gameStats.locationsVisited}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">👤</span>
+                  <span className="text-white/50 flex-1">NPC Incontrati</span>
+                  <span className="text-white font-bold">{gameStats.npcsEncountered}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">📖</span>
+                  <span className="text-white/50 flex-1">Documenti</span>
+                  <span className="text-white font-bold">{gameStats.documentsFound}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">🚪</span>
+                  <span className="text-white/50 flex-1">Stanze Segrete</span>
+                  <span className="text-white font-bold">{gameStats.secretRoomsFound}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">📦</span>
+                  <span className="text-white/50 flex-1">Oggetti Craftati</span>
+                  <span className="text-white font-bold">{gameStats.itemsCrafted}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">↩️</span>
+                  <span className="text-white/50 flex-1">Scelte Narrative</span>
+                  <span className="text-white font-bold">{storyChoices.length}</span>
+                </div>
+              </div>
+              {/* Boss defeated detail */}
+              {gameStats.bossDefeated.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-white/[0.04]">
+                  <div className="text-[11px] text-white/40 uppercase tracking-wider font-bold mb-1.5">👑 Boss Sconfitti</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {gameStats.bossDefeated.map((bossId) => {
+                      const def = ENEMIES[bossId];
+                      return (
+                        <span key={bossId} className="text-[10px] px-2 py-0.5 rounded bg-amber-900/30 border border-amber-700/20 text-amber-300">
+                          {def?.icon || '💀'} {def?.name || bossId}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Top enemy kills */}
+              {Object.keys(gameStats.enemiesKilled).length > 0 && (
+                <div className="mt-3 pt-2 border-t border-white/[0.04]">
+                  <div className="text-[11px] text-white/40 uppercase tracking-wider font-bold mb-1.5">Nemici per Tipo (Top 5)</div>
+                  <div className="space-y-1">
+                    {Object.entries(gameStats.enemiesKilled)
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 5)
+                      .map(([enemyId, count]) => {
+                        const def = ENEMIES[enemyId];
+                        return (
+                          <div key={enemyId} className="flex items-center gap-2 text-[11px]">
+                            <span>{def?.icon || '💀'}</span>
+                            <span className="text-white/50 flex-1 text-left">{def?.name || enemyId}</span>
+                            <span className="text-white/70 font-bold">x{count}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </motion.div>

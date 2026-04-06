@@ -28,7 +28,7 @@ export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'custom';
 
 export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'none';
 
-export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible';
+export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible' | 'material' | 'booster';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -93,6 +93,8 @@ export interface Character {
   expToNext: number;
   statusEffects: StatusEffect[];
   isDefending: boolean;
+  parryReady: boolean;   // true when player executed a parry (next enemy attack negated)
+  parryCooldown: number; // turns remaining until parry is available again
   inventory: ItemInstance[];
   maxInventorySlots: number;
   weapon: WeaponInstance | null;
@@ -382,6 +384,27 @@ export interface CombatState {
 }
 
 // ==========================================
+// GAME STATS (End-game statistics tracking)
+// ==========================================
+
+export interface GameStats {
+  totalDamageDealt: number;
+  totalDamageReceived: number;
+  totalHealingDone: number;
+  enemiesKilled: Record<string, number>;
+  itemsUsed: number;
+  itemsCrafted: number;
+  documentsFound: number;
+  secretRoomsFound: number;
+  parriesPerformed: number;
+  turnsPlayed: number;
+  locationsVisited: number;
+  npcsEncountered: number;
+  bossDefeated: string[];
+  startTime: number;
+}
+
+// ==========================================
 // GAME STATE
 // ==========================================
 
@@ -498,6 +521,10 @@ export interface GameState {
   nemesisPursuitLevel: number; // 0-5, increases each invasion
   nemesisLastSeenLocation: string | null;
   nemesisLastSeenTurn: number;
+  // #42 Umbrella Labs theme
+  umbrellaLabsTheme: boolean;
+  // #38 End-game statistics
+  gameStats: GameStats;
 }
 
 // ==========================================

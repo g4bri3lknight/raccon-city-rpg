@@ -1197,7 +1197,16 @@ function executePlayerSpecial2Legacy(
 // DEFEND
 // ==========================================
 
-export function executePlayerDefend(character: Character, turn: number): ActionResult {
+export function executePlayerDefend(character: Character, turn: number, parrySuccess: boolean = false): ActionResult {
+  if (parrySuccess) {
+    return {
+      log: {
+        turn, actorName: character.name, actorType: 'player', action: 'Difesa',
+        message: `⚔️ ${character.name} esegue una PARRY PERFETTA! Il prossimo attacco nemico verrà neutralizzato e contrattaccato!`,
+      },
+      updatedCharacter: { ...character, isDefending: true, parryReady: true, parryCooldown: 3 },
+    };
+  }
   return {
     log: {
       turn, actorName: character.name, actorType: 'player', action: 'Difesa',
@@ -1205,6 +1214,13 @@ export function executePlayerDefend(character: Character, turn: number): ActionR
     },
     updatedCharacter: { ...character, isDefending: true },
   };
+}
+
+export function calculateParryCounterDamage(character: Character): { damage: number } {
+  const weaponBonus = character.weapon?.atkBonus || 0;
+  const totalAtk = character.baseAtk + weaponBonus;
+  const damage = Math.max(1, Math.floor(totalAtk * 0.5));
+  return { damage };
 }
 
 export function executeUseItem(

@@ -18,6 +18,7 @@ import BestiaryPanel from '@/components/game/BestiaryPanel';
 import DocumentsPanel from '@/components/game/DocumentsPanel';
 import NPCDialogPanel from '@/components/game/NPCDialogPanel';
 import TrunkPanel from '@/components/game/TrunkPanel';
+import CraftingPanel from '@/components/game/CraftingPanel';
 import PuzzlePanel from '@/components/game/PuzzlePanel';
 import QTEPanel from '@/components/game/QTEPanel';
 import { playBgm, stopBgm, audioEngine } from '@/game/engine/sounds';
@@ -26,6 +27,7 @@ import type { BgmType } from '@/game/engine/sounds';
 export default function GamePage() {
   const phase = useGameStore(s => s.phase);
   const currentLocationId = useGameStore(s => s.currentLocationId);
+  const umbrellaLabsTheme = useGameStore(s => s.umbrellaLabsTheme);
   const prevPhaseRef = useRef(phase);
 
   // F2 key toggles debug panel
@@ -122,7 +124,7 @@ export default function GamePage() {
   }, [phase, currentLocationId]);
 
   return (
-    <div className="game-root">
+    <div className={`game-root ${umbrellaLabsTheme ? 'umbrella-labs' : ''}`}>
       {phase === 'title' && <TitleScreen />}
       {phase === 'character-select' && <CharacterSelect />}
       {phase === 'character-creator' && <CharacterCreator onComplete={() => useGameStore.getState().goToCharacterSelect()} onCancel={() => useGameStore.getState().goToCharacterSelect()} />}
@@ -141,6 +143,7 @@ export default function GamePage() {
       <DocumentsPanel />
       <NPCDialogPanel />
       <TrunkPanel />
+      <CraftingPanel />
       <DebugPanel />
     </div>
   );

@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { useGameStore, SaveSlotInfo } from '@/game/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  X, Save, Upload, Trash2, MapPin, Users, Clock, Plus, FolderOpen
+  X, Save, Upload, Trash2, MapPin, Users, Clock, FolderOpen
 } from 'lucide-react';
 
 type Mode = 'closed' | 'save' | 'load';
@@ -14,34 +15,49 @@ type Mode = 'closed' | 'save' | 'load';
 interface SaveLoadPanelProps {
   mode?: 'both' | 'save' | 'load';
   compact?: boolean;
+  isOpen?: boolean;
+  onClose?: () => void;
   renderClosed?: (openPanel: (mode: 'save' | 'load') => void) => React.ReactNode;
 }
 
-export default function SaveLoadPanel({ mode = 'both', compact = false, renderClosed }: SaveLoadPanelProps) {
-  const { saveGame, loadGame, getSaveInfo, deleteSave, phase, messageLog } = useGameStore();
+export default function SaveLoadPanel({ mode = 'both', compact = false, isOpen, onClose, renderClosed }: SaveLoadPanelProps) {
+  const { saveGame, loadGame, getSaveInfo, deleteSave, phase } = useGameStore();
   const [panelMode, setPanelMode] = useState<Mode>('closed');
-  const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>([null, null, null]);
   const [justSaved, setJustSaved] = useState<number | null>(null);
   const [justLoaded, setJustLoaded] = useState<number | null>(null);
 
-  const refreshSlots = useCallback(() => {
-    setSlots([getSaveInfo(1), getSaveInfo(2), getSaveInfo(3)]);
-  }, [getSaveInfo]);
+  // Determine effective display mode: external isOpen overrides internal panelMode
+  const effectiveMode: Mode = isOpen
+    ? (mode === 'load' ? 'load' : 'save')
+    : panelMode;
+
+  const isShowingOverlay = effectiveMode !== 'closed';
+  const isSave = effectiveMode === 'save';
+
+  // Read slots fresh on every render when overlay is open (reads from localStorage)
+  const slots: (SaveSlotInfo | null)[] = isShowingOverlay
+    ? [getSaveInfo(1), getSaveInfo(2), getSaveInfo(3)]
+    : [null, null, null];
+
+  const closePanel = useCallback(() => {
+    setPanelMode('closed');
+    setJustSaved(null);
+    setJustLoaded(null);
+    onClose?.();
+  }, [onClose]);
 
   const openPanel = (m: 'save' | 'load') => {
     setJustSaved(null);
     setJustLoaded(null);
-    setSlots([getSaveInfo(1), getSaveInfo(2), getSaveInfo(3)]);
     setPanelMode(m);
   };
 
   const handleSave = (slot: number) => {
     saveGame(slot);
-    refreshSlots();
     setJustSaved(slot);
     setTimeout(() => {
       setJustSaved(null);
-      if (!compact) setPanelMode('closed');
+      if (!compact) closePanel();
     }, 1500);
   };
 
@@ -51,17 +67,17 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
       setJustLoaded(slot);
       setTimeout(() => {
         setJustLoaded(null);
-        setPanelMode('closed');
+        closePanel();
       }, 1000);
     }
   };
 
   const handleDelete = (slot: number) => {
     deleteSave(slot);
-    refreshSlots();
   };
 
-  if (panelMode === 'closed') {
+  // ── CLOSED STATE (compact header buttons) ──
+  if (!isShowingOverlay) {
     if (renderClosed) {
       return <>{renderClosed(openPanel)}</>;
     }
@@ -95,15 +111,14 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
     );
   }
 
-  const isSave = panelMode === 'save';
-
-  return (
+  // ── OVERLAY STATE ──
+  const overlay = (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) setPanelMode('closed'); }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 glass-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) closePanel(); }}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -123,7 +138,7 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
               {isSave ? 'Salva Partita' : 'Carica Partita'}
             </h2>
           </div>
-          <Button variant="ghost" onClick={() => setPanelMode('closed')} className="text-white/40 hover:text-white hover:bg-white/[0.05] h-8 w-8 p-0">
+          <Button variant="ghost" onClick={closePanel} className="text-white/40 hover:text-white hover:bg-white/[0.05] h-8 w-8 p-0">
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -283,4 +298,10 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
       </motion.div>
     </motion.div>
   );
+
+  // Portal to document.body to escape CSS transform contexts (framer-motion, overflow:hidden)
+  if (typeof window !== 'undefined') {
+    return createPortal(overlay, document.body);
+  }
+  return overlay;
 }

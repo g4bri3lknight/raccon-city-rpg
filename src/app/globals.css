@@ -1232,3 +1232,420 @@
 .animate-pulse-glow { animation: pulse-glow 1.5s ease-in-out infinite; }
 .animate-critical-slash { animation: critical-slash 0.4s ease-out forwards; }
 .animate-enemy-death { animation: enemy-death 0.8s ease-out forwards; }
+
+/* ═══════════════════════════════════════════════════════════
+   UMBRELLA LABS THEME — Feature #42
+   Acid green (#00ff41) accent on pure black (#000000)
+   Inspired by Umbrella Corporation visual identity
+   ═══════════════════════════════════════════════════════════ */
+
+.umbrella-labs {
+  background: #000000 !important;
+  color: #d0ffd0 !important;
+}
+
+.umbrella-labs .game-horror {
+  background: #000000 !important;
+  color: #d0ffd0 !important;
+}
+
+/* ── Override shadcn CSS variables with green accent ── */
+.umbrella-labs.game-root {
+  --primary: oklch(0.84 0.29 142);
+  --primary-foreground: oklch(0.15 0.02 142);
+  --secondary: oklch(0.22 0.04 142);
+  --secondary-foreground: oklch(0.90 0.15 142);
+  --muted: oklch(0.18 0.03 142);
+  --muted-foreground: oklch(0.65 0.08 142);
+  --accent: oklch(0.18 0.03 142);
+  --accent-foreground: oklch(0.90 0.15 142);
+  --destructive: oklch(0.65 0.25 25);
+  --border: oklch(0.25 0.05 142 / 30%);
+  --input: oklch(0.20 0.04 142 / 40%);
+  --ring: oklch(0.70 0.20 142);
+  --card: oklch(0.14 0.02 142);
+  --card-foreground: oklch(0.92 0.12 142);
+  --popover: oklch(0.14 0.02 142);
+  --popover-foreground: oklch(0.92 0.12 142);
+  --foreground: oklch(0.92 0.12 142);
+  --background: oklch(0.08 0.02 142);
+}
+
+/* ── Glass panels ── */
+.umbrella-labs .glass-dark {
+  background: rgba(0, 8, 0, 0.88);
+  border: 1px solid rgba(0, 255, 65, 0.08);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.7),
+    0 0 20px rgba(0, 255, 65, 0.03),
+    inset 0 1px 0 rgba(0, 255, 65, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.umbrella-labs .glass-dark-accent {
+  background: rgba(0, 12, 0, 0.9);
+  border: 1px solid rgba(0, 255, 65, 0.15);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.7),
+    0 0 25px rgba(0, 255, 65, 0.06),
+    inset 0 1px 0 rgba(0, 255, 65, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.umbrella-labs .glass-dark-inner {
+  background: rgba(0, 255, 65, 0.02);
+  border: 1px solid rgba(0, 255, 65, 0.05);
+}
+
+.umbrella-labs .glass-overlay {
+  background: rgba(0, 4, 0, 0.92);
+}
+
+/* ── Scrollbar overrides ── */
+.umbrella-labs .inventory-scrollbar {
+  scrollbar-color: #00cc33 #0a1a0a !important;
+}
+
+.umbrella-labs .inventory-scrollbar::-webkit-scrollbar-track {
+  background: #0a1a0a;
+}
+
+.umbrella-labs .inventory-scrollbar::-webkit-scrollbar-thumb {
+  background: #00cc33;
+}
+
+.umbrella-labs .inventory-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #00ff41;
+}
+
+.umbrella-labs .glass-scrollbar {
+  scrollbar-color: rgba(0, 255, 65, 0.2) rgba(0, 20, 0, 0.5) !important;
+}
+
+.umbrella-labs .glass-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 20, 0, 0.5);
+}
+
+.umbrella-labs .glass-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 65, 0.2);
+}
+
+.umbrella-labs .glass-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 65, 0.35);
+}
+
+/* ── Horror text/border → green ── */
+.umbrella-labs .horror-text {
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+.umbrella-labs .horror-border {
+  border-color: rgba(0, 255, 65, 0.3);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.1);
+}
+
+.umbrella-labs .horror-card {
+  background: rgba(0, 8, 0, 0.85);
+  border-color: rgba(0, 255, 65, 0.2);
+}
+
+.umbrella-labs .horror-panel {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: rgba(0, 255, 65, 0.3);
+  box-shadow: 0 0 30px rgba(0, 255, 65, 0.1), inset 0 0 30px rgba(0, 8, 0, 0.6);
+}
+
+/* ── Buttons ── */
+.umbrella-labs .glass-btn:hover {
+  background: rgba(0, 255, 65, 0.08);
+  border-color: rgba(0, 255, 65, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.05);
+}
+
+/* ── HP bars: green gradient ── */
+.umbrella-labs .hp-green {
+  background: linear-gradient(90deg, #003d10, #00ff41);
+}
+
+.umbrella-labs .hp-yellow {
+  background: linear-gradient(90deg, #1a3d00, #a0ff00);
+}
+
+.umbrella-labs .hp-red {
+  background: linear-gradient(90deg, #1a3300, #66ff00);
+}
+
+.umbrella-labs .hp-poison {
+  background: linear-gradient(90deg, #001a33, #00aaff);
+}
+
+.umbrella-labs .hp-critical-flash {
+  animation: hp-critical-green 0.8s ease-in-out infinite;
+}
+
+@keyframes hp-critical-green {
+  0%, 100% { border-color: rgba(0, 255, 65, 0.4); }
+  50% { border-color: rgba(0, 255, 65, 0.9); }
+}
+
+/* ── Bleeding overlay → green tint ── */
+.umbrella-labs .bleeding-overlay {
+  background:
+    radial-gradient(ellipse at 10% 50%, rgba(0, 50, 15, 0.55), transparent 65%),
+    radial-gradient(ellipse at 90% 80%, rgba(0, 30, 10, 0.3), transparent 50%);
+}
+
+/* ── Blood drip → green drip ── */
+.umbrella-labs .blood-streak {
+  background: linear-gradient(to bottom, transparent, rgba(0, 180, 50, 0.8));
+}
+
+.umbrella-labs .blood-drip svg path {
+  fill: url(#umbrella-green-drip) !important;
+}
+
+/* ── Poison overlay → cyan instead of purple ── */
+.umbrella-labs .poison-overlay {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(0, 80, 120, 0.4), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0, 20, 40, 0.5) 100%);
+}
+
+.umbrella-labs .poison-edge-glow {
+  box-shadow: inset 0 0 12px 3px rgba(0, 200, 255, 0.4), inset 0 0 25px 6px rgba(0, 80, 120, 0.2);
+}
+
+/* ── Boss aura → green ── */
+.umbrella-labs .boss-aura {
+  animation: boss-aura-pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes boss-aura-pulse-green {
+  0%, 100% { box-shadow: 0 0 10px 2px rgba(0, 255, 65, 0.15), inset 0 0 10px rgba(0, 255, 65, 0.05); }
+  50% { box-shadow: 0 0 25px 8px rgba(0, 255, 65, 0.3), inset 0 0 15px rgba(0, 255, 65, 0.1); }
+}
+
+/* ── Enemy shadow → green ── */
+.umbrella-labs .shadow-enemy {
+  background: radial-gradient(ellipse, rgba(0, 255, 65, 0.25), transparent 70%);
+}
+
+.umbrella-labs .shadow-player {
+  background: radial-gradient(ellipse, rgba(0, 200, 100, 0.25), transparent 70%);
+}
+
+/* ── Pulse red → pulse green ── */
+.umbrella-labs .pulse-red {
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 5px rgba(0, 255, 65, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(0, 255, 65, 0.6); }
+}
+
+.umbrella-labs .animate-pulse-glow {
+  animation: pulse-glow-green 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow-green {
+  0%, 100% { box-shadow: 0 0 4px rgba(0, 255, 65, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(0, 255, 65, 0.6); }
+}
+
+/* ── Defend aura → green ── */
+.umbrella-labs .defend-aura {
+  animation: defend-aura-green 1.2s ease-in-out infinite;
+}
+
+@keyframes defend-aura-green {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(0, 255, 65, 0.2); }
+  30% { box-shadow: 0 0 20px 4px rgba(0, 255, 65, 0.35); }
+  60% { box-shadow: 0 0 12px 2px rgba(0, 255, 65, 0.15); }
+}
+
+.umbrella-labs .defend-pulse {
+  animation: entity-defend-green 1.5s ease-in-out infinite !important;
+}
+
+@keyframes entity-defend-green {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(0, 255, 65, 0.2); }
+  50% { box-shadow: 0 0 20px 6px rgba(0, 255, 65, 0.4); }
+}
+
+.umbrella-labs .defend-ring {
+  border-color: rgba(0, 255, 65, 0.5);
+}
+
+@keyframes defend-ring-green-anim {
+  0% { opacity: 0; transform: scale(0.8); border-color: rgba(0, 255, 65, 0.8); }
+  30% { opacity: 0.6; transform: scale(1.1); }
+  70% { opacity: 0.3; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(1.4); border-color: rgba(0, 255, 65, 0); }
+}
+
+.umbrella-labs .defend-ring {
+  animation: defend-ring-green-anim 1.2s ease-out forwards;
+}
+
+/* ── Splitter handles → green ── */
+.umbrella-labs .splitter-handle-horizontal:hover,
+.umbrella-labs .splitter-handle-horizontal:active {
+  background: rgba(0, 255, 65, 0.15);
+}
+
+.umbrella-labs .splitter-handle-horizontal:hover::after {
+  background: rgba(0, 255, 65, 0.4);
+}
+
+.umbrella-labs .splitter-handle-vertical:hover,
+.umbrella-labs .splitter-handle-vertical:active {
+  background: rgba(0, 255, 65, 0.15);
+}
+
+.umbrella-labs .splitter-handle-vertical:hover::after {
+  background: rgba(0, 255, 65, 0.4);
+}
+
+/* ── Glass border pulse → green ── */
+.umbrella-labs .glass-pulse-border {
+  animation: glass-border-pulse-green 3s ease-in-out infinite;
+}
+
+@keyframes glass-border-pulse-green {
+  0%, 100% { border-color: rgba(0, 255, 65, 0.06); }
+  50% { border-color: rgba(0, 255, 65, 0.15); }
+}
+
+/* ── Entity highlight → green ── */
+.umbrella-labs .entity-highlight {
+  background: radial-gradient(ellipse at 30% 20%, rgba(0, 255, 65, 0.25), transparent 60%);
+}
+
+/* ── Poison particles → cyan ── */
+.umbrella-labs .poison-particle {
+  background: radial-gradient(circle, rgba(0, 200, 255, 0.8), transparent);
+}
+
+.umbrella-labs .bleed-drip {
+  background: #00cc33;
+}
+
+/* ── Safe room badge glow ── */
+.umbrella-labs .umbrella-glow {
+  text-shadow: 0 0 10px #00ff41, 0 0 20px rgba(0, 255, 65, 0.5);
+}
+
+/* ── Rarity borders → green tint ── */
+.umbrella-labs .rarity-common {
+  border-color: rgba(0, 255, 65, 0.3);
+}
+
+.umbrella-labs .rarity-uncommon {
+  border-color: rgba(0, 255, 65, 0.5);
+}
+
+/* ── Notification flash → green ── */
+.umbrella-labs .animate-kill-flash {
+  animation: kill-flash-green 0.8s ease-out;
+}
+
+@keyframes kill-flash-green {
+  0% { background-color: transparent; }
+  15% { background-color: rgba(0, 255, 65, 0.1); }
+  100% { background-color: transparent; }
+}
+
+/* ── Level up glow → green ── */
+.umbrella-labs .animate-levelup-glow {
+  animation: levelup-glow-green 1.2s ease-out;
+}
+
+@keyframes levelup-glow-green {
+  0% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0); }
+  50% { box-shadow: 0 0 30px 10px rgba(0, 255, 65, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0); }
+}
+
+/* ── Heal effect → green ── */
+.umbrella-labs .heal-number {
+  color: #00ff41 !important;
+}
+
+/* ── Damage flash → green ── */
+.umbrella-labs .sprite-flash {
+  animation: flash-green 0.3s ease-out;
+}
+
+@keyframes flash-green {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(2) saturate(2) hue-rotate(80deg); }
+}
+
+/* ═══ CRT Scanline Effect ═══ */
+.umbrella-labs::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 65, 0.025) 2px,
+    rgba(0, 255, 65, 0.025) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PARRY / COUNTERATTACK ANIMATION SYSTEM
+   ═══════════════════════════════════════════════════════════ */
+
+@keyframes parry-flash {
+  0% { opacity: 0; background: transparent; }
+  15% { opacity: 1; background: radial-gradient(circle, rgba(250, 204, 21, 0.4), transparent 70%); }
+  40% { opacity: 0.8; background: radial-gradient(circle, rgba(250, 204, 21, 0.6), transparent 60%); }
+  70% { opacity: 0.3; background: radial-gradient(circle, rgba(250, 204, 21, 0.2), transparent 80%); }
+  100% { opacity: 0; background: transparent; }
+}
+
+.animate-parry-flash {
+  animation: parry-flash 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes parry-text {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); text-shadow: 0 0 0 rgba(250, 204, 21, 0); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.4); text-shadow: 0 0 30px rgba(250, 204, 21, 0.8), 0 0 60px rgba(250, 204, 21, 0.4); }
+  40% { opacity: 1; transform: translate(-50%, -50%) scale(1); text-shadow: 0 0 20px rgba(250, 204, 21, 0.6), 0 0 40px rgba(250, 204, 21, 0.3); }
+  70% { opacity: 0.7; transform: translate(-50%, -60%) scale(1.05); text-shadow: 0 0 10px rgba(250, 204, 21, 0.3); }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(0.8); text-shadow: 0 0 0 rgba(250, 204, 21, 0); }
+}
+
+.animate-parry-text {
+  animation: parry-text 1.2s ease-out forwards;
+  pointer-events: none;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #fbbf24;
+  font-size: 1.5rem;
+}
+
+@keyframes parry-glow-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); border-color: rgba(250, 204, 21, 0.8); }
+  30% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.3); }
+  60% { opacity: 0.4; transform: translate(-50%, -50%) scale(1.5); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); border-color: rgba(250, 204, 21, 0); }
+}
+
+.animate-parry-ring {
+  animation: parry-glow-ring 1.0s ease-out forwards;
+  border: 3px solid rgba(250, 204, 21, 0.6);
+  border-radius: 50%;
+  pointer-events: none;
+  position: absolute;
+  width: 80%;
+  height: 80%;
+  left: 50%;
+  top: 50%;
+}

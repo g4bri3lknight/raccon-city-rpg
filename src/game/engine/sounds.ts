@@ -65,6 +65,7 @@ const SFX_FILES: Record<string, string> = {
   playAmbientSewers: '/audio/ambient_sewers.wav',
   playAmbientLaboratory: '/audio/ambient_laboratory.wav',
   playAmbientClockTower: '/audio/ambient_clocktower.wav',
+  playAmbientSafeRoom: '/audio/ambient_safe_room.wav',
 };
 
 export interface BgmLayers {
@@ -346,6 +347,18 @@ export class AudioEngine {
     }
   }
 
+  playSafeRoomAmbient(): void {
+    this.playSfx('playAmbientSafeRoom', 0.4);
+  }
+
+  stopAmbient(): void {
+    if (this._ambientSource) {
+      try { this._ambientSource.stop(); } catch {}
+      this._ambientSource = null;
+    }
+    this._currentAmbient = null;
+  }
+
   /** Preload critical SFX files so they play instantly on first use */
   public preloadCriticalSounds(): void {
     if (!this.ensureContext()) return;
@@ -377,6 +390,8 @@ export function playMenuOpen(): void { audioEngine.playMenuOpen(); }
 export function playMenuClose(): void { audioEngine.playMenuClose(); }
 export function playEnemyAttack(enemyName: string, action?: string): void { audioEngine.playEnemyAttack(enemyName, action); }
 export function playEnemyDeath(): void { audioEngine.playEnemyDeath(); }
+export function playSafeRoomAmbient(): void { audioEngine.playSafeRoomAmbient(); }
+export function stopAmbient(): void { audioEngine.stopAmbient(); }
 export function playZombieMoan(): void { audioEngine.playZombieMoan(); }
 export default audioEngine;
 
