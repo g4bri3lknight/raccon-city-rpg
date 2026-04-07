@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { ENEMIES } from '@/game/data/enemies';
 import { LOCATIONS } from '@/game/data/locations';
-import { Button } from '@/components/ui/button';
+import { NPCS } from '@/game/data/npcs';
 import {
   Heart, Package, Key, Crosshair, Bug, Skull, MapPin,
-  Shield, Zap, ChevronDown, ChevronUp, X, Flame
+  Shield, Zap, ChevronDown, ChevronUp, X, Flame, Users, Settings
 } from 'lucide-react';
 
 const ENEMY_OPTIONS = Object.keys(ENEMIES).map(id => ({
@@ -73,15 +73,13 @@ function DebugButton({ label, icon, onClick, variant = 'default' }: {
     ? 'border-green-500/30 text-green-300 hover:bg-white/[0.06]'
     : 'border-white/[0.08] text-white/60 hover:bg-white/[0.06]';
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      className={`w-full justify-start gap-2 text-[11px] font-medium h-8 ${colorClass}`}
+    <button
+      className={`w-full flex items-center justify-start gap-2 text-[11px] font-medium h-8 px-2.5 rounded-md border transition-colors bg-transparent ${colorClass}`}
       onClick={onClick}
     >
       {icon}
       {label}
-    </Button>
+    </button>
   );
 }
 
@@ -281,6 +279,140 @@ export default function DebugPanel() {
               <div className="flex justify-between"><span>New Game+:</span><span className="text-white/70 font-mono">{useGameStore.getState().isNewGamePlus ? 'YES' : 'NO'}</span></div>
             </div>
           </Section>
+
+          {/* ── AI / NPC / Quest ── */}
+          <Section title="AI / NPC / Quest" icon={<Users className="w-3.5 h-3.5" />}>
+            <DebugButton
+              label="Incontri NPC locale"
+              icon={<span className="text-sm">💬</span>}
+              onClick={() => {
+                const locId = useGameStore.getState().currentLocationId;
+                const localNpcs = Object.values(NPCS).filter(n => n.locationId === locId);
+                if (localNpcs.length > 0) {
+                  useGameStore.getState().encounterNpc(localNpcs[0].id);
+                }
+              }}
+            />
+            <DebugButton
+              label="Quest Casuale (NPC + Teleport)"
+              icon={<span className="text-sm">🎲</span>}
+              variant="success"
+              onClick={() => {
+                const state = useGameStore.getState();
+                // Pick a random NPC that has a quest
+                const npcsWithQuest = Object.values(NPCS).filter(n => n.quest);
+                if (npcsWithQuest.length === 0) return;
+                const randomNpc = npcsWithQuest[Math.floor(Math.random() * npcsWithQuest.length)];
+                // Close any active dialog first
+                useGameStore.setState({ activeNpc: null });
+                // Teleport to NPC location if needed
+                if (state.currentLocationId !== randomNpc.locationId) {
+                  useGameStore.getState().debugTeleport(randomNpc.locationId);
+                }
+                // Encounter after a short delay to allow teleport to settle
+                setTimeout(() => {
+                  useGameStore.getState().encounterNpc(randomNpc.id);
+                }, 150);
+              }}
+            />
+            <DebugButton
+              label="+1 Progress Quest Attiva"
+              icon={<span className="text-sm">📈</span>}
+              onClick={() => {
+                const state = useGameStore.getState();
+                // Find first incomplete quest
+                const incompleteEntry = Object.entries(state.npcQuestProgress).find(
+                  ([_, progress]) => !progress.completed
+                );
+                if (!incompleteEntry) {
+                  useGameStore.setState({
+                    messageLog: [...state.messageLog, '[DEBUG] ⚠️ Nessuna quest attiva da avanzare.'],
+                  });
+                  return;
+                }
+                const [questId, progress] = incompleteEntry;
+                const npc = Object.values(NPCS).find(n => n.quest?.id === questId);
+                const targetCount = npc?.quest?.targetCount || 999;
+                const newCount = Math.min(progress.currentCount + 1, targetCount);
+                const completed = newCount >= targetCount;
+                const updatedProgress = { ...state.npcQuestProgress, [questId]: { currentCount: newCount, completed } };
+                useGameStore.setState({
+                  npcQuestProgress: updatedProgress,
+                  messageLog: [...state.messageLog, `[DEBUG] 📈 Quest "${npc?.quest?.name || questId}": ${newCount}/${targetCount}${completed ? ' ✅ COMPLETATA!' : ''}`],
+                });
+              }}
+            />
+            <div className="text-[9px] text-white/30 uppercase tracking-wider mt-1 mb-1">Tutti gli NPC — Teleporta + Incontra</div>
+            {Object.values(NPCS).map(npc => (
+              <button
+                key={npc.id}
+                onClick={() => {
+                  const state = useGameStore.getState();
+                  if (state.currentLocationId !== npc.locationId) {
+                    useGameStore.getState().debugTeleport(npc.locationId);
+                  }
+                  setTimeout(() => {
+                    useGameStore.getState().encounterNpc(npc.id);
+                  }, 100);
+                }}
+                className="w-full text-[10px] px-2 py-1.5 rounded border text-left transition-colors border-white/[0.08] text-white/40 hover:bg-white/[0.06] hover:text-white/60 hover:border-white/[0.15] flex items-center gap-2"
+              >
+                <span className="text-xs">{npc.portrait}</span>
+                <span className="flex-1 truncate">{npc.name}</span>
+                <span className="text-[8px] text-white/20 truncate max-w-[80px]">{LOCATIONS[npc.locationId]?.name}</span>
+                <span className="text-[9px] text-cyan-400/60 shrink-0">↕️</span>
+              </button>
+            ))}
+            <div className="flex gap-1 mt-2">
+              <button
+                onClick={() => {
+                  const state = useGameStore.getState();
+                  const updatedProgress = { ...state.npcQuestProgress };
+                  for (const npc of Object.values(NPCS)) {
+                    if (npc.quest) {
+                      updatedProgress[npc.quest.id] = { currentCount: npc.quest.targetCount, completed: true };
+                    }
+                  }
+                  useGameStore.setState({
+                    npcQuestProgress: updatedProgress,
+                    messageLog: [...state.messageLog, '[DEBUG] ✅ Tutte le quest completate!'],
+                  });
+                }}
+                className="flex-1 text-[10px] px-2 py-1.5 rounded border border-green-500/30 text-green-300 hover:bg-green-950/20 transition-colors"
+              >
+                ✅ Completa Tutte le Quest
+              </button>
+              <button
+                onClick={() => {
+                  const state = useGameStore.getState();
+                  useGameStore.setState({
+                    npcQuestProgress: {},
+                    npcsEncountered: [],
+                    messageLog: [...state.messageLog, '[DEBUG] 🔄 Tutte le quest resettate.'],
+                  });
+                }}
+                className="flex-1 text-[10px] px-2 py-1.5 rounded border border-red-500/30 text-red-300 hover:bg-red-950/20 transition-colors"
+              >
+                🔄 Reset Quest
+              </button>
+            </div>
+          </Section>
+
+          {/* ── Admin Panel ── */}
+          <Section title="Admin Panel" icon={<Settings className="w-3.5 h-3.5" />}>
+            <p className="text-[9px] text-white/30 mb-1">CRUD per oggetti, quest, eventi, documenti, suoni, immagini.</p>
+            <DebugButton
+              label="Apri Admin Panel (F3)"
+              icon={<Settings className="w-3.5 h-3.5" />}
+              onClick={() => {
+                // Dispatch F3 event to open admin panel
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3' }));
+              }}
+              variant="success"
+            />
+          </Section>
+
+
         </div>
       </motion.div>
     </AnimatePresence>

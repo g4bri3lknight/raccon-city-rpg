@@ -65,17 +65,17 @@ const SFX_FILES: Record<string, string> = {
   playAmbientSewers: '/audio/ambient_sewers.wav',
   playAmbientLaboratory: '/audio/ambient_laboratory.wav',
   playAmbientClockTower: '/audio/ambient_clocktower.wav',
-  playAmbientSafeRoom: '/audio/ambient_safe_room.wav',
 };
 
-export interface BgmLayers {
-  oscillators: OscillatorNode[];
-  sources: AudioBufferSourceNode[];
-  gains: GainNode[];
-  lfos: OscillatorNode[];
-}
+// Sounds that are preloaded on first user interaction (most critical)
+const PRELOAD_KEYS = [
+  'playAttack', 'playEnemyHit', 'playPlayerHit', 'playMiss',
+  'playEncounter', 'playVictory', 'playDefeat', 'playPistolShot',
+  'playShotgunBlast', 'playZombieAttack', 'playZombieDeath',
+  'playItemPickup', 'playMenuOpen', 'playMenuClose',
+];
 
-export class AudioEngine {
+class AudioEngine {
   public ctx: AudioContext | null = null;
   public masterGain: GainNode | null = null;
   private _masterVolume = 0.5;
@@ -89,12 +89,15 @@ export class AudioEngine {
   public bgmMixer: GainNode | null = null;
   public currentBgm: string | null = null;
   public bgmTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  public bgmLayers: BgmLayers = { oscillators: [], sources: [], gains: [], lfos: [] };
-  public noiseBuffer: AudioBuffer | null = null;
-  public _bgmLoaded = false;
-  public _pendingBgm: string | null = null;
 
-  public get isInitialized(): boolean { return this._initialized; }
+  // Ambient sound tracking (stopable source)
+  private _ambientSource: AudioBufferSourceNode | null = null;
+  private _ambientGainNode: GainNode | null = null;
+  private _currentAmbientRef: string | null = null;
+  private _ambientSuspended = false;
+
+  // Preload state
+  private _preloaded = false;
 
   public ensureContext(): boolean {
     if (this._initialized && this.ctx) return true;
@@ -104,41 +107,9 @@ export class AudioEngine {
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.value = this._muted ? 0 : this._masterVolume;
       this.masterGain.connect(this.ctx.destination);
-
-      // BGM chain: bgmGain → masterGain
-      this._bgmGain = this.ctx.createGain();
-      this._bgmGain.gain.value = this.bgmVolume;
-      this._bgmGain.connect(this.masterGain);
-      this.bgmGain = this._bgmGain;
-
-      // BGM mixer: bgmMixer → bgmGain (for fade in/out)
-      this.bgmMixer = this.ctx.createGain();
-      this.bgmMixer.gain.value = 1.0;
-      this.bgmMixer.connect(this.bgmGain);
-
-      // Noise buffer for BGM synthesis
-      const len = this.ctx.sampleRate * 4;
-      this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-      const data = this.noiseBuffer.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-
       this._initialized = true;
       return true;
     } catch { return false; }
-  }
-
-  /** Create an LFO oscillator connected to a target AudioParam */
-  public createLfo(freq: number, depth: number, target: AudioParam): OscillatorNode {
-    const ctx = this.ctx!;
-    const lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = freq;
-    const gain = ctx.createGain();
-    gain.gain.value = depth;
-    lfo.connect(gain);
-    gain.connect(target);
-    lfo.start(ctx.currentTime);
-    return lfo;
   }
 
   public resume(): boolean {
@@ -161,15 +132,29 @@ export class AudioEngine {
     if (this.masterGain && !this._muted) this.masterGain.gain.value = this._masterVolume;
   }
 
+  // ======== ASYNC SFX LOADING (plays immediately after load) ========
+
   private async loadSfx(name: string): Promise<AudioBuffer | null> {
     if (this._cache[name]) return this._cache[name];
     if (this._loading.has(name)) return null;
 
-    const path = SFX_FILES[name];
-    if (!path) return null;
-
     this._loading.add(name);
     try {
+      // 1) Try DB BLOB first (uploaded via Admin Panel)
+      try {
+        const dbResp = await fetch(`/api/media/sound?ref=${encodeURIComponent(name)}`);
+        if (dbResp.ok) {
+          const arrayBuf = await dbResp.arrayBuffer();
+          const audioBuf = await this.ctx!.decodeAudioData(arrayBuf);
+          this._cache[name] = audioBuf;
+          return audioBuf;
+        }
+      } catch {}
+
+      // 2) Fallback to file on disk
+      const path = SFX_FILES[name];
+      if (!path) return null;
+
       const resp = await fetch(path);
       if (!resp.ok) return null;
       const arrayBuf = await resp.arrayBuffer();
@@ -196,62 +181,43 @@ export class AudioEngine {
     } catch {}
   }
 
-  private async playSfx(name: string, volume = 1.0): Promise<void> {
+  /**
+   * Play an SFX — loads asynchronously if not cached, then plays immediately.
+   * This fixes the bug where first-time sounds were silent.
+   */
+  private playSfx(name: string, volume = 1.0): void {
     if (!this.ensureContext()) return;
-    await this.resumePromise();
-    let buf = this._cache[name];
-    if (!buf) {
-      buf = await this.loadSfx(name);
-    }
-    if (buf) {
-      this.playBuffer(buf, volume);
+    this.resume();
+
+    const cached = this._cache[name];
+    if (cached) {
+      // Already cached — play immediately
+      this.playBuffer(cached, volume);
     } else {
-      // WAV not found — synthesize a short tone as fallback
-      this.playFallbackTone(name, volume);
+      // Not cached — load then play
+      this.loadSfx(name).then(audioBuf => {
+        if (audioBuf) this.playBuffer(audioBuf, volume);
+      });
     }
   }
 
-  /** Blocking resume that actually waits for the context to unlock */
-  private async resumePromise(): Promise<void> {
-    if (!this.ctx) return;
-    if (this.ctx.state === 'suspended') {
-      try { await this.ctx.resume(); } catch {}
-    }
-  }
+  // ======== PRELOADING ========
 
-  /** Simple synthesis fallback when no WAV file is available */
-  private playFallbackTone(name: string, volume: number): void {
-    if (!this.ctx || !this.masterGain) return;
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      // Different tones per category
-      const freqMap: Record<string, number> = {
-        playAttack: 220, playRangedAttack: 330, playSpecial: 440,
-        playEnemyHit: 180, playPlayerHit: 150, playMiss: 100,
-        playCritical: 500, playHeal: 660, playDefend: 200,
-        playZombieMoan: 80, playZombieAttack: 110, playZombieDeath: 60,
-        playEncounter: 300, playVictory: 523, playDefeat: 100,
-        playItemPickup: 800, playPistolShot: 600, playShotgunBlast: 400,
-        playExplosion: 50,
-      };
-      let freq = 200;
-      for (const [key, f] of Object.entries(freqMap)) {
-        if (name.startsWith(key)) { freq = f; break; }
-      }
-      osc.type = name.includes('Death') || name.includes('Defeat') ? 'sawtooth' : 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(volume * 0.3, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(this.ctx.currentTime);
-      osc.stop(this.ctx.currentTime + 0.2);
-    } catch {}
+  /**
+   * Preload critical sounds in the background so they're ready instantly.
+   * Call this once on first user interaction.
+   */
+  public preloadCriticalSounds(): void {
+    if (this._preloaded || !this.ensureContext()) return;
+    this._preloaded = true;
+    this.resume();
+
+    for (const key of PRELOAD_KEYS) {
+      this.loadSfx(key); // fire-and-forget, will cache for later use
+    }
   }
 
   // ======== PUBLIC PLAY METHODS ========
-  // These map directly to the function names called from the game store.
 
   playAttack(): void { this.playSfx('playAttack', 0.7); }
   playRangedAttack(): void { this.playSfx('playRangedAttack', 0.7); }
@@ -287,7 +253,6 @@ export class AudioEngine {
   playEnemyDeath(): void { this.playSfx('playEnemyDeath', 0.6); }
 
   playEnemyAttack(enemyName: string, action?: string): void {
-    // Map enemy names to their specific attack sounds
     const map: Record<string, string> = {
       'zombie': 'playZombieAttack',
       'zombie_soldier': 'playZombieAttack',
@@ -298,7 +263,6 @@ export class AudioEngine {
       'proto_tyrant': 'playTyrantAttack',
       'nemesis_boss': 'playNemesisAttack',
     };
-    // Find matching key
     const key = Object.entries(map).find(([k]) => enemyName.includes(k));
     if (key) {
       const fn = this[key[1] as keyof AudioEngine];
@@ -326,10 +290,9 @@ export class AudioEngine {
   playTravel(): void { this.playSfx('playTravel', 0.5); }
   playSearch(): void { this.playSfx('playSearch', 0.5); }
 
-  // Ambient sounds (longer, loopable)
-  private _ambientSource: AudioBufferSourceNode | null = null;
-  private _ambientGain: GainNode | null = null;
-  private _currentAmbient: string | null = null;
+  // ======== AMBIENT SOUND SYSTEM ========
+  // Ambient sounds use a dedicated stopable source with a gain node.
+  // They are automatically suspended during combat and resumed after.
 
   playLocationAmbient(locationId: string): void {
     const map: Record<string, string> = {
@@ -341,36 +304,233 @@ export class AudioEngine {
       'clock_tower': 'playAmbientClockTower',
     };
     const key = map[locationId];
-    if (key) {
-      const fn = this[key as keyof AudioEngine];
-      if (typeof fn === 'function') (fn as () => void)();
+    if (!key) return;
+
+    // Don't restart if same ambient is playing (or suspended)
+    if (this._currentAmbientRef === key && this._ambientSource) {
+      // If ambient was suspended (combat ended), resume it
+      if (this._ambientSuspended && this._ambientGainNode) {
+        this._ambientSuspended = false;
+        this._ambientGainNode.gain.value = 0.25;
+      }
+      return;
     }
-  }
 
-  playSafeRoomAmbient(): void {
-    this.playSfx('playAmbientSafeRoom', 0.4);
-  }
+    // Stop any previous ambient
+    this._stopAmbientSource();
 
-  stopAmbient(): void {
-    if (this._ambientSource) {
-      try { this._ambientSource.stop(); } catch {}
-      this._ambientSource = null;
-    }
-    this._currentAmbient = null;
-  }
+    this._currentAmbientRef = key;
+    this._ambientSuspended = false;
 
-  /** Preload critical SFX files so they play instantly on first use */
-  public preloadCriticalSounds(): void {
     if (!this.ensureContext()) return;
-    const critical = ['playAttack', 'playEnemyHit', 'playPlayerHit', 'playEncounter', 'playPistolShot', 'playZombieMoan', 'playVictory', 'playDefeat'];
-    for (const name of critical) {
-      this.loadSfx(name);
+    this.resume();
+
+    // Load ambient asynchronously then play with looping
+    this.loadSfx(key).then(audioBuf => {
+      if (!audioBuf || !this.ctx || this._currentAmbientRef !== key) return;
+
+      try {
+        const source = this.ctx.createBufferSource();
+        source.buffer = audioBuf;
+        source.loop = true;
+
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0.25; // ambient volume (lower than SFX)
+        source.connect(gain);
+        gain.connect(this.masterGain!);
+        source.start(0);
+
+        this._ambientSource = source;
+        this._ambientGainNode = gain;
+
+        // Clean up reference when source ends unexpectedly
+        source.onended = () => {
+          if (this._ambientSource === source) {
+            this._ambientSource = null;
+          }
+        };
+      } catch {}
+    });
+  }
+
+  /** Suspend ambient sound (called when combat starts) */
+  private _suspendAmbient(): void {
+    if (this._ambientGainNode && this._ambientSource) {
+      // Fade out over 300ms then suspend
+      try {
+        this._ambientGainNode.gain.linearRampToValueAtTime(0, this.ctx!.currentTime + 0.3);
+      } catch {}
+      this._ambientSuspended = true;
     }
+  }
+
+  /** Resume ambient sound (called when combat ends) */
+  private _resumeAmbient(): void {
+    if (this._ambientSuspended && this._ambientGainNode && this._ambientSource) {
+      try {
+        this._ambientGainNode.gain.linearRampToValueAtTime(0.25, this.ctx!.currentTime + 0.5);
+      } catch {}
+      this._ambientSuspended = false;
+    }
+  }
+
+  /** Stop ambient sound completely */
+  private _stopAmbientSource(): void {
+    try {
+      if (this._ambientSource) {
+        this._ambientSource.stop();
+        this._ambientSource.disconnect();
+        this._ambientSource = null;
+      }
+    } catch {}
+    if (this._ambientGainNode) {
+      this._ambientGainNode.disconnect();
+      this._ambientGainNode = null;
+    }
+    this._currentAmbientRef = null;
+    this._ambientSuspended = false;
+  }
+
+  // ======== BGM SYSTEM ========
+  private _bgmSource: AudioBufferSourceNode | null = null;
+  private _bgmAudioBuffer: AudioBuffer | null = null;
+
+  // BGM cache (tracks loaded via DB/file, reused across play calls)
+  private _bgmCache: Record<string, AudioBuffer> = {};
+
+  playBgm(type: string): void {
+    if (!this.ensureContext()) return;
+    this.resume();
+
+    // Don't restart if same BGM is already playing
+    if (this.currentBgm === type && this._bgmSource) return;
+
+    // Stop current BGM
+    this.stopBgm();
+
+    // Suspend/resume ambient based on BGM type
+    if (type === 'combat' || type === 'gameover') {
+      this._suspendAmbient();
+    } else {
+      this._resumeAmbient();
+    }
+
+    // BGM file mapping (fallback if DB BLOB is not available)
+    const bgmFiles: Record<string, string> = {
+      title: '/audio/bgm_title.wav',
+      city_outskirts: '/audio/bgm_city.wav',
+      rpd_station: '/audio/bgm_rpd.wav',
+      hospital: '/audio/bgm_hospital.wav',
+      sewers: '/audio/bgm_sewers.wav',
+      laboratory: '/audio/bgm_lab.wav',
+      clock_tower: '/audio/bgm_clocktower.wav',
+      combat: '/audio/bgm_combat.wav',
+      gameover: '/audio/bgm_gameover.wav',
+      victory: '/audio/bgm_victory.wav',
+    };
+
+    // BGM refKey mapping (used for DB lookup)
+    const bgmRefKeys: Record<string, string> = {
+      title: 'bgm_title',
+      city_outskirts: 'bgm_city',
+      rpd_station: 'bgm_rpd',
+      hospital: 'bgm_hospital',
+      sewers: 'bgm_sewers',
+      laboratory: 'bgm_lab',
+      clock_tower: 'bgm_clocktower',
+      combat: 'bgm_combat',
+      gameover: 'bgm_gameover',
+      victory: 'bgm_victory',
+    };
+
+    const file = bgmFiles[type];
+    const refKey = bgmRefKeys[type];
+    if (!file && !refKey) return;
+
+    this.currentBgm = type;
+
+    // Create gain node for BGM
+    if (!this._bgmGain) {
+      this._bgmGain = this.ctx!.createGain();
+      this._bgmGain.gain.value = this.bgmVolume;
+      this._bgmGain.connect(this.masterGain!);
+      this.bgmGain = this._bgmGain;
+    }
+    this._bgmGain.gain.value = this.bgmVolume;
+
+    // Check BGM cache first
+    if (this._bgmCache[type]) {
+      this._bgmAudioBuffer = this._bgmCache[type];
+      this._playBgmLoop();
+      return;
+    }
+
+    // Load BGM async (DB first, then file fallback)
+    const loadBgm = async (): Promise<AudioBuffer> => {
+      // 1) Try DB
+      if (refKey) {
+        try {
+          const dbResp = await fetch(`/api/media/sound?ref=${encodeURIComponent(refKey)}`);
+          if (dbResp.ok) {
+            const arrayBuf = await dbResp.arrayBuffer();
+            return await this.ctx!.decodeAudioData(arrayBuf);
+          }
+        } catch {}
+      }
+      // 2) Fallback to file
+      if (file) {
+        const resp = await fetch(file);
+        if (resp.ok) {
+          const arrayBuf = await resp.arrayBuffer();
+          return await this.ctx!.decodeAudioData(arrayBuf);
+        }
+      }
+      throw new Error('BGM not available');
+    };
+
+    loadBgm()
+      .then(audioBuf => {
+        if (this.currentBgm !== type) return; // BGM changed while loading
+        this._bgmAudioBuffer = audioBuf;
+        this._bgmCache[type] = audioBuf; // cache for next time
+        this._playBgmLoop();
+      })
+      .catch(() => {
+        // BGM not available — silent fallback
+      });
+  }
+
+  private _playBgmLoop(): void {
+    if (!this.ctx || !this._bgmAudioBuffer || !this._bgmGain) return;
+    try {
+      const source = this.ctx.createBufferSource();
+      source.buffer = this._bgmAudioBuffer;
+      source.loop = true;
+      source.connect(this._bgmGain);
+      source.start(0);
+      this._bgmSource = source;
+    } catch {}
+  }
+
+  stopBgm(): void {
+    try {
+      if (this._bgmSource) {
+        this._bgmSource.stop();
+        this._bgmSource.disconnect();
+        this._bgmSource = null;
+      }
+    } catch {}
+    if (this.bgmTimeoutId) {
+      clearTimeout(this.bgmTimeoutId);
+      this.bgmTimeoutId = null;
+    }
+    this.currentBgm = null;
+    this._bgmAudioBuffer = null;
   }
 }
 
-export const audioEngine = new AudioEngine();
-export { audioEngine as audio };
+export const audio = new AudioEngine();
+export const audioEngine = audio;
 
 // Backward-compatible standalone exports for the game store
 export function playLocationAmbient(locationId: string): void { audioEngine.playLocationAmbient(locationId); }
@@ -390,26 +550,11 @@ export function playMenuOpen(): void { audioEngine.playMenuOpen(); }
 export function playMenuClose(): void { audioEngine.playMenuClose(); }
 export function playEnemyAttack(enemyName: string, action?: string): void { audioEngine.playEnemyAttack(enemyName, action); }
 export function playEnemyDeath(): void { audioEngine.playEnemyDeath(); }
-export function playSafeRoomAmbient(): void { audioEngine.playSafeRoomAmbient(); }
-export function stopAmbient(): void { audioEngine.stopAmbient(); }
 export function playZombieMoan(): void { audioEngine.playZombieMoan(); }
-export default audioEngine;
+export type BgmType = 'title' | 'city_outskirts' | 'rpd_station' | 'hospital' | 'sewers' | 'laboratory' | 'clock_tower' | 'combat' | 'gameover' | 'victory';
 
-// BGM placeholder exports — monkey-patched by bgm.ts after lazy load
-export type BgmType = 'title' | 'city_outskirts' | 'rpd_station' | 'hospital' | 'sewers' | 'laboratory' | 'clock_tower' | 'combat' | 'victory' | 'gameover';
-export function playBgm(type: BgmType): void {
-  if (!audioEngine._bgmLoaded) {
-    audioEngine._pendingBgm = type;
-    import('./bgm').catch(() => {});
-    return;
-  }
-  if (typeof (audioEngine as Record<string, unknown>).playBgm === 'function') {
-    (audioEngine as { playBgm: (t: BgmType) => void }).playBgm(type);
-  }
-}
-export function stopBgm(): void {
-  if (!audioEngine._bgmLoaded) return;
-  if (typeof (audioEngine as Record<string, unknown>).stopBgm === 'function') {
-    (audioEngine as { stopBgm: () => void }).stopBgm();
-  }
-}
+export function playBgm(type: BgmType | string): void { audio.playBgm(type); }
+export function stopBgm(): void { audio.stopBgm(); }
+export function preloadCriticalSounds(): void { audio.preloadCriticalSounds(); }
+
+export default audioEngine;

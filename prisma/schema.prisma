@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../db/custom.db"
+}
+
+model Item {
+  id               String   @id
+  name             String
+  description      String
+  type             String   // weapon | healing | ammo | utility | antidote | bag | collectible | key
+  rarity           String   // common | uncommon | rare | legendary
+  icon             String
+  usable           Boolean  @default(false)
+  equippable       Boolean  @default(false)
+  stackable        Boolean  @default(true)
+  maxStack         Int      @default(99)
+  // Weapon fields (nullable, only for weapons)
+  weaponType       String?  // melee | ranged
+  atkBonus         Int?
+  ammoType         String?  // itemId of ammo it uses
+  // Effect fields (nullable, only for usable items)
+  effectType       String?  // heal | heal_full | cure | damage_boost | defense_boost | add_ammo | add_slots | kill_all
+  effectValue      Int?
+  effectTarget     String?  // self | one_ally | all_allies | all_enemies
+  effectStatusCured String? // JSON array: ["poison","bleeding"]
+  // Slots (for bags)
+  addSlots         Int?
+  createdAt        DateTime @default(now())
+  @@map("items")
+}
+
+model SideQuest {
+  id              String   @id
+  npcId           String
+  name            String
+  description     String
+  type            String   // fetch | kill | explore
+  targetId        String
+  targetCount     Int      @default(1)
+  rewardItems     String   // JSON: [{"itemId":"ammo_pistol","quantity":6}]
+  rewardExp       Int      @default(0)
+  rewardDialogue  String   // JSON: ["line1","line2"]
+  sortOrder       Int      @default(0)
+  prerequisiteQuestId String? // quest id that must be completed first
+  createdAt       DateTime @default(now())
+  @@map("side_quests")
+}
+
+model DynamicEvent {
+  id               String   @id
+  title            String
+  description      String
+  icon             String
+  type             String
+  duration         Int
+  encounterRateMod Int      @default(0)
+  enemyStatMult    Float    @default(1.0)
+  searchBonus      Boolean  @default(false)
+  damagePerTurn    Int      @default(0)
+  triggerChance    Int
+  minTurn          Int      @default(0)
+  locationIds      String   @default("[]")
+  onTriggerMessage String
+  onEndMessage     String
+  choices          String   // JSON: [{text, outcome:{description,endEvent,receiveItems,hpChange}}]
+  createdAt        DateTime @default(now())
+  @@map("dynamic_events")
+}
+
+model Document {
+  id              String   @id
+  title           String
+  content         String
+  type            String   // diary | umbrella_file | note | photo | report | email
+  locationId      String
+  icon            String   @default("")
+  rarity          String   @default("common")
+  isSecret        Boolean  @default(false)
+  hintRequired    String?
+  createdAt       DateTime @default(now())
+  @@map("documents")
+}
+
+model GameSound {
+  id        String   @id
+  name      String
+  refKey    String?  @unique // Internal reference key: 'playAttack', 'bgm_title', etc.
+  filePath  String   @default("")
+  category  String   @default("ui") // combat | enemy | weapon | ui | ambient | bgm
+  volume    Float    @default(1.0)
+  loopable  Boolean  @default(false)
+  data      Bytes?   // Binary audio data (BLOB)
+  mimeType  String?  // audio/wav, audio/mpeg, audio/ogg, etc.
+  createdAt DateTime @default(now())
+  @@map("game_sounds")
+}
+
+model GameImage {
+  id          String   @id
+  name        String
+  refKey      String?  @unique // Internal reference key
+  filePath    String   @default("")
+  category    String   @default("ui") // background | icon | portrait | sprite | ui
+  altText     String   @default("")
+  associatedId String? // e.g. locationId, itemId, npcId, enemyId
+  sortOrder   Int      @default(0)
+  data        Bytes?   // Binary image data (BLOB)
+  mimeType    String?  // image/jpeg, image/png, image/webp, image/svg+xml, etc.
+  createdAt   DateTime @default(now())
+  @@map("game_images")
+}

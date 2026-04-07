@@ -31,51 +31,6 @@ function getStatusChance(baseChance: number, archetype?: Archetype): number {
 }
 
 // ==========================================
-// EFFECT RESISTANCE SYSTEM
-// Only humans are affected by poison and bleeding.
-// Undead, creatures (B.O.W.) are immune. Bosses have 50% resistance.
-// ==========================================
-
-interface EffectResistance {
-  immune: boolean;
-  resistChance: number; // 1 = always applies (if roll passes), 0.5 = 50% chance even after roll
-  immuneMessage: string;
-}
-
-function getEffectResistance(enemyTarget: EnemyInstance, effect: 'poison' | 'bleeding'): EffectResistance {
-  const enemyDef = ENEMIES[enemyTarget.definitionId];
-  const enemyType = enemyDef?.enemyType;
-
-  if (enemyType === 'human') {
-    return { immune: false, resistChance: 1, immuneMessage: '' };
-  }
-
-  if (enemyType === 'boss') {
-    return { immune: false, resistChance: 0.5, immuneMessage: '' };
-  }
-
-  // undead and creature (B.O.W.) are fully immune
-  if (enemyType === 'undead') {
-    return {
-      immune: true,
-      resistChance: 0,
-      immuneMessage: effect === 'poison'
-        ? 'Il veleno non ha effetto sui non-morti!'
-        : 'I non-morti non sanguinano!',
-    };
-  }
-
-  // creature (B.O.W.) - immune (mutated biology)
-  return {
-    immune: true,
-    resistChance: 0,
-    immuneMessage: effect === 'poison'
-      ? 'Il veleno non ha effetto su questa creatura!'
-      : 'La ferita si chiude immediatamente! I B.O.W. non sanguinano!',
-  };
-}
-
-// ==========================================
 // DAMAGE CALCULATION
 // ==========================================
 
@@ -85,7 +40,6 @@ export function calculateDamage(
   isDefending: boolean,
   attackerArchetype?: Archetype,
   attackerHasAdrenaline?: boolean,
-  overrideCritChance?: number,
 ): { damage: number; isCritical: boolean; isMiss: boolean } {
   // Miss chance
   const missChance = 8;
@@ -111,9 +65,9 @@ export function calculateDamage(
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
-  // Critical hit — use overrideCritChance if provided (enemy difficulty), else archetype-based
-  let critChance = overrideCritChance ?? 10;
-  if (!overrideCritChance && attackerArchetype === 'dps') critChance = 25;
+  // Critical hit
+  let critChance = 10;
+  if (attackerArchetype === 'dps') critChance = 25;
   const isCritical = chance(critChance);
   if (isCritical) {
     damage = Math.floor(damage * 1.8);
@@ -128,7 +82,6 @@ export function calculateDamageNoMiss(
   isDefending: boolean,
   attackerArchetype?: Archetype,
   attackerHasAdrenaline?: boolean,
-  overrideCritChance?: number,
 ): { damage: number; isCritical: boolean; isMiss: false } {
   // Guaranteed hit (for Sparo Mirato)
   let baseDamage = attackerAtk * random(90, 110) / 100;
@@ -146,8 +99,8 @@ export function calculateDamageNoMiss(
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
-  let critChance = overrideCritChance ?? 10;
-  if (!overrideCritChance && attackerArchetype === 'dps') critChance = 25;
+  let critChance = 10;
+  if (attackerArchetype === 'dps') critChance = 25;
   const isCritical = chance(critChance);
   if (isCritical) {
     damage = Math.floor(damage * 1.8);
@@ -455,16 +408,11 @@ function executeSpecialAbility(
       let message = `${character.name} lancia VELENO ACIDO su ${enemyTarget.name} per ${damage} danni!`;
       if (isMiss) message = `${character.name} lancia veleno ma ${enemyTarget.name} schiva!`;
       
-      // Apply poison — using new resistance system (only humans, bosses partially resistant)
+      // Apply poison
       if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-        const resist = getEffectResistance(enemyTarget, 'poison');
-        if (resist.immune) {
-          message += ` ${resist.immuneMessage}`;
-        } else if (chance(resist.resistChance) && !updated.statusEffects.includes('poison')) {
+        if (!updated.statusEffects.includes('poison')) {
           updated.statusEffects = [...updated.statusEffects, 'poison'];
           message += ` ${enemyTarget.name} è avvelenato!`;
-        } else {
-          message += ` ${enemyTarget.name} resiste al veleno!`;
         }
       }
 
@@ -506,152 +454,32 @@ function executeSpecialAbility(
       break;
     }
 
-    case 'ferita_profonda': {
-      // Single target bleed + moderate damage (only affects humans)
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 1.2);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-
-      let message = `${character.name} infligge una FERITA PROFONDA a ${enemyTarget.name} per ${damage} danni!`;
-      if (isMiss) message = `${character.name} tenta una ferita profonda ma ${enemyTarget.name} schiva!`;
-
-      // Apply bleeding — only humans, bosses partially resistant
-      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-        const resist = getEffectResistance(enemyTarget, 'bleeding');
-        if (resist.immune) {
-          message += ` ${resist.immuneMessage}`;
-        } else if (chance(resist.resistChance) && !updated.statusEffects.includes('bleeding')) {
-          updated.statusEffects = [...updated.statusEffects, 'bleeding'];
-          message += ` ${enemyTarget.name} sanguina!`;
-        } else {
-          message += ` ${enemyTarget.name} resiste!`;
-        }
-      }
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Ferita Profonda',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
-        message, statusEffect: 'bleeding',
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    case 'lacerazione_multipla': {
-      // AOE bleed - damages ALL enemies, only humans are affected by bleeding
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 0.8);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const livingEnemies = enemies.filter(e => e.currentHp > 0);
-      let totalDmg = 0;
-      let bleedCount = 0;
-      let immuneCount = 0;
-      const updatedEnemies = livingEnemies.map(e => {
-        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline);
-        if (isMiss) return { ...e, isDefending: false };
-        totalDmg += damage;
-        const newHp = Math.max(0, e.currentHp - damage);
-        const updated = { ...e, currentHp: newHp, isDefending: false };
-        const resist = getEffectResistance(e, 'bleeding');
-        if (special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-          if (resist.immune) {
-            immuneCount++;
-          } else if (chance(resist.resistChance) && !updated.statusEffects.includes('bleeding')) {
-            updated.statusEffects = [...updated.statusEffects, 'bleeding'];
-            bleedCount++;
-          }
-        }
-        return updated;
-      });
-
-      let bleedMsg = bleedCount > 0 ? ` ${bleedCount} nemici sanguinano!` : '';
-      if (immuneCount > 0) bleedMsg += ` ${immuneCount} immuni al sanguinamento!`;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Lacerazione Multipla',
-        damage: totalDmg,
-        message: `${character.name} esegue LACERAZIONE MULTIPLA! Tutti i nemici subiscono ${totalDmg} danni!${bleedMsg}`,
-        statusEffect: bleedCount > 0 ? 'bleeding' : undefined,
-      };
-      result.updatedEnemies = updatedEnemies;
-      break;
-    }
-
-    case 'colpo_tagliente': {
-      // Single target high damage + bleed (only affects humans)
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 1.5);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-
-      let message = `${character.name} esegue un COLOPO TAGLIENTE su ${enemyTarget.name} per ${damage} danni!`;
-      if (isCritical) message = `${character.name} esegue un COLOPO TAGLIENTE CRITICO su ${enemyTarget.name} per ${damage} danni!`;
-      if (isMiss) message = `${character.name} tenta un colpo tagliente ma ${enemyTarget.name} schiva!`;
-
-      // Apply bleeding — only humans, bosses partially resistant
-      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-        const resist = getEffectResistance(enemyTarget, 'bleeding');
-        if (resist.immune) {
-          message += ` ${resist.immuneMessage}`;
-        } else if (chance(resist.resistChance) && !updated.statusEffects.includes('bleeding')) {
-          updated.statusEffects = [...updated.statusEffects, 'bleeding'];
-          message += ` ${enemyTarget.name} sanguina copiosamente!`;
-        } else {
-          message += ` ${enemyTarget.name} resiste al taglio!`;
-        }
-      }
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Colpo Tagliente',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
-        message, statusEffect: 'bleeding',
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
     case 'gas_venefico': {
-      // AOE poison - damages ALL enemies, but only humans are affected by poison
+      // AOE poison - damages ALL living enemies
       const weaponBonus = character.weapon?.atkBonus || 0;
       const totalAtk = (character.baseAtk + weaponBonus) * 0.7;
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
       const livingEnemies = enemies.filter(e => e.currentHp > 0);
       let totalDmg = 0;
-      let poisonedCount = 0;
-      let immuneCount = 0;
       const updatedEnemies = livingEnemies.map(e => {
         const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline);
         if (isMiss) return { ...e, isDefending: false };
         totalDmg += damage;
         const newHp = Math.max(0, e.currentHp - damage);
         const updated = { ...e, currentHp: newHp, isDefending: false };
-        const resist = getEffectResistance(e, 'poison');
         if (special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-          if (resist.immune) {
-            immuneCount++;
-          } else if (chance(resist.resistChance) && !updated.statusEffects.includes('poison')) {
+          if (!updated.statusEffects.includes('poison')) {
             updated.statusEffects = [...updated.statusEffects, 'poison'];
-            poisonedCount++;
           }
         }
         return updated;
       });
 
-      let poisonMsg = poisonedCount > 0 ? ` ${poisonedCount} nemici avvelenati!` : '';
-      if (immuneCount > 0) poisonMsg += ` ${immuneCount} immuni al veleno!`;
       result.log = {
         turn, actorName: character.name, actorType: 'player', action: 'Gas Venefico',
         damage: totalDmg,
-        message: `${character.name} lancia Gas Venefico! Tutti i nemici subiscono ${totalDmg} danni!${poisonMsg}`,
-        statusEffect: poisonedCount > 0 ? 'poison' : undefined,
+        message: `${character.name} lancia Gas Venefico! Tutti i nemici sono avvelenati e subiscono ${totalDmg} danni!`,
+        statusEffect: 'poison',
       };
       result.updatedEnemies = updatedEnemies;
       break;
@@ -919,7 +747,7 @@ function executeSpecialAbility(
     }
 
     case 'siero_inibitore': {
-      // Single target: moderate damage + poison AND stun (poison only affects humans)
+      // Single target: moderate damage + poison AND stun
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
       const weaponBonus = character.weapon?.atkBonus || 0;
@@ -931,17 +759,14 @@ function executeSpecialAbility(
       let message = `${character.name} inietta SIERO INIBITORE a ${enemyTarget.name} per ${damage} danni!`;
       const appliedEffects: string[] = [];
 
-      // Apply poison (only humans, bosses partially resistant)
+      // Apply poison
       if (!isMiss && chance(getStatusChance(65, character.archetype))) {
-        const resist = getEffectResistance(enemyTarget, 'poison');
-        if (resist.immune) {
-          message += ` ${resist.immuneMessage}`;
-        } else if (chance(resist.resistChance) && !updated.statusEffects.includes('poison')) {
+        if (!updated.statusEffects.includes('poison')) {
           updated.statusEffects = [...updated.statusEffects, 'poison'];
           appliedEffects.push('avvelenato');
         }
       }
-      // Apply stun (works on all types)
+      // Apply stun
       if (!isMiss && chance(getStatusChance(40, character.archetype))) {
         if (!updated.statusEffects.includes('stunned')) {
           updated.statusEffects = [...updated.statusEffects, 'stunned'];
@@ -1197,16 +1022,7 @@ function executePlayerSpecial2Legacy(
 // DEFEND
 // ==========================================
 
-export function executePlayerDefend(character: Character, turn: number, parrySuccess: boolean = false): ActionResult {
-  if (parrySuccess) {
-    return {
-      log: {
-        turn, actorName: character.name, actorType: 'player', action: 'Difesa',
-        message: `⚔️ ${character.name} esegue una PARRY PERFETTA! Il prossimo attacco nemico verrà neutralizzato e contrattaccato!`,
-      },
-      updatedCharacter: { ...character, isDefending: true, parryReady: true, parryCooldown: 3 },
-    };
-  }
+export function executePlayerDefend(character: Character, turn: number): ActionResult {
   return {
     log: {
       turn, actorName: character.name, actorType: 'player', action: 'Difesa',
@@ -1214,13 +1030,6 @@ export function executePlayerDefend(character: Character, turn: number, parrySuc
     },
     updatedCharacter: { ...character, isDefending: true },
   };
-}
-
-export function calculateParryCounterDamage(character: Character): { damage: number } {
-  const weaponBonus = character.weapon?.atkBonus || 0;
-  const totalAtk = character.baseAtk + weaponBonus;
-  const damage = Math.max(1, Math.floor(totalAtk * 0.5));
-  return { damage };
 }
 
 export function executeUseItem(
@@ -1377,7 +1186,6 @@ export function executeEnemyAttack(
   party: Character[],
   turn: number,
   forcedTargetId?: string | null,
-  enemyCritChance?: number,
 ): { log: CombatLogEntry; updatedParty: Character[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number } } {
   // Pick random ability
   const ability = enemy.abilities.find(() => chance(100)) || enemy.abilities[0];
@@ -1402,9 +1210,6 @@ export function executeEnemyAttack(
     enemy.atk * ability.power,
     target.baseDef + (target.isDefending ? 5 : 0),
     target.isDefending,
-    undefined,   // no attacker archetype for enemies
-    false,       // no adrenaline
-    enemyCritChance,
   );
 
   let newHp = Math.max(0, target.currentHp - damage);

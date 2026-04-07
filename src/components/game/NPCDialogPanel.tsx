@@ -1,29 +1,68 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { ITEMS } from '@/game/data/items';
+import { ITEMS } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, MessageSquare, ScrollText, Handshake, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { X, MessageSquare, ScrollText, Handshake, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+
+interface ChatMessage {
+  role: 'npc' | 'player' | 'system';
+  content: string;
+  id: string;
+  isFallback?: boolean;
+}
 
 export default function NPCDialogPanel() {
-  const { activeNpc, npcQuestProgress, party, visitedLocations, messageLog } = useGameStore();
+  const { activeNpc, npcQuestProgress, party, visitedLocations } = useGameStore();
   const { talkToNpc, acceptNpcQuest, tradeWithNpc, closeNpcDialog } = useGameStore();
-  const [npcReply, setNpcReply] = useState<string | null>(null);
-
-  if (!activeNpc) return null;
+  const [showTrade, setShowTrade] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [lastNpcId, setLastNpcId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const npc = activeNpc;
-  const quest = npc.quest;
+  const quest = npc?.quest;
   const questProgress = quest ? npcQuestProgress[quest.id] : null;
   const questCompleted = questProgress?.completed || false;
   const hasQuest = quest && !questCompleted;
 
+  // Initialize greeting when NPC changes (tracked via lastNpcId state)
+  if (npc && lastNpcId !== npc.id) {
+    setLastNpcId(npc.id);
+    setChatMessages([{
+      role: 'npc',
+      content: npc.greeting,
+      id: `greeting-${npc.id}`,
+    }]);
+    setError(null);
+  }
+
+  // ── Handle "Parla" button: adds dialogue to the chat panel ──
+  const handleTalk = useCallback(() => {
+    if (!npc) return;
+    const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
+    setChatMessages(prev => [...prev, {
+      role: 'npc',
+      content: dialogue,
+      id: `npc-talk-${Date.now()}`,
+      isFallback: true,
+    }]);
+    setError(null);
+    talkToNpc();
+  }, [npc, talkToNpc]);
+
+  // Auto-scroll chat when messages change
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages.length]);
+
   // Determine what "Parla" will do based on quest type
   const getTalkLabel = () => {
-    if (!hasQuest || !questProgress) return 'Parla';
+    if (!hasQuest || !questProgress) return '💬 Parla';
     if (quest!.type === 'fetch') {
       let itemCount = 0;
       for (const p of party) {
@@ -47,21 +86,15 @@ export default function NPCDialogPanel() {
   };
   const talkLabel = getTalkLabel();
 
-  // Find the last NPC reply from the message log (for visible feedback in dialog)
-  const lastNpcLine = npcReply || messageLog.filter(m => m.includes('💬')).slice(-1)[0] || null;
-
-  // Check if player can trade (has required items)
+  // Check if player can trade
   const canTrade = (tradeIndex: number) => {
-    if (!npc.tradeInventory) return false;
+    if (!npc?.tradeInventory) return false;
     const trade = npc.tradeInventory[tradeIndex];
     if (!trade) return false;
     return party.some(p => p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity));
   };
 
-  // Dialogue
-  const displayDialogues = questCompleted && npc.questCompletedDialogue
-    ? npc.questCompletedDialogue
-    : npc.dialogues;
+  if (!npc) return null;
 
   return (
     <motion.div
@@ -69,8 +102,8 @@ export default function NPCDialogPanel() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 glass-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) closeNpcDialog(); }}
     >
-      {/* Background blur */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       <motion.div
@@ -105,20 +138,47 @@ export default function NPCDialogPanel() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 inventory-scrollbar">
-          {/* Dialogue */}
+        {/* Content — Chat + Quest + Trade */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 inventory-scrollbar" ref={chatEndRef as React.RefObject<HTMLDivElement>}>
+
+          {/* Chat Messages */}
           <div className="space-y-2">
             <div className="text-[10px] uppercase tracking-wider text-white/30 flex items-center gap-1">
-              <MessageSquare className="w-3 h-3" /> Dialogo
+              <MessageSquare className="w-3 h-3" /> Conversazione
             </div>
-            <div className="glass-dark-inner rounded-lg p-3">
-              {displayDialogues.map((line, i) => (
-                <p key={i} className="text-sm text-white/70 italic leading-relaxed">
-                  &ldquo;{line}&rdquo;
-                </p>
-              ))}
+            <div className="glass-dark-inner rounded-lg p-3 space-y-3 min-h-[60px]">
+              <AnimatePresence initial={false}>
+                {chatMessages.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex flex-col ${msg.role === 'player' ? 'items-end' : 'items-start'}`}
+                  >
+                    <div className="flex items-start gap-2 max-w-[90%]">
+                      <span className="text-base shrink-0 mt-0.5">{npc.portrait}</span>
+                      <div>
+                        <span className="text-[10px] font-bold text-amber-400/70">{npc.name}</span>
+                        <p className="text-sm text-white/80 italic leading-relaxed">
+                          &ldquo;{msg.content}&rdquo;
+                        </p>
+                        {msg.isFallback && (
+                          <span className="text-[9px] text-white/20 italic">risposta predefinita</span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
+
+            {/* Error message */}
+            {error && (
+              <div className="flex items-center gap-1.5 p-2 rounded-lg border border-red-900/30 bg-red-950/20">
+                <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
+                <span className="text-[10px] text-red-400/80">{error}</span>
+              </div>
+            )}
           </div>
 
           {/* Quest Section */}
@@ -169,7 +229,7 @@ export default function NPCDialogPanel() {
           )}
 
           {/* Trade Section */}
-          {npc.tradeInventory && npc.tradeInventory.length > 0 && (
+          {npc.tradeInventory && npc.tradeInventory.length > 0 && !showTrade && (
             <div className="space-y-2">
               <div className="text-[10px] uppercase tracking-wider text-white/30 flex items-center gap-1">
                 <Handshake className="w-3 h-3" /> Commercio
@@ -193,10 +253,9 @@ export default function NPCDialogPanel() {
                         </div>
                         <Button
                           size="sm"
-                          variant="outline"
                           disabled={!canDo}
                           onClick={() => tradeWithNpc(idx)}
-                          className="h-7 px-2 text-[10px] border-amber-700/40 bg-transparent text-amber-300 hover:bg-amber-950/30 hover:border-amber-500/50 hover:text-amber-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="h-7 px-2 text-[10px] border-amber-700/40 text-amber-300 hover:bg-amber-950/30 disabled:opacity-30 disabled:cursor-not-allowed bg-transparent"
                         >
                           Scambia
                         </Button>
@@ -210,7 +269,7 @@ export default function NPCDialogPanel() {
         </div>
 
         {/* Action Buttons */}
-        <div className="p-3 sm:p-4 border-t border-white/[0.06] space-y-2 shrink-0">
+        <div className="p-3 sm:p-4 border-t border-white/[0.04] space-y-2 shrink-0">
           {hasQuest && !questProgress && (
             <Button
               onClick={acceptNpcQuest}
@@ -222,24 +281,9 @@ export default function NPCDialogPanel() {
           )}
           <div className="flex gap-2">
             <Button
-              onClick={() => {
-                setNpcReply(null);
-                talkToNpc();
-                // After a tick, check the message log for NPC response
-                setTimeout(() => {
-                  const log = useGameStore.getState().messageLog;
-                  const last = log.filter(m => m.includes('💬')).slice(-1)[0];
-                  if (last) {
-                    setNpcReply(last);
-                    // If quest was completed, auto-close after 2s
-                    if (last.includes('Missione completata') || last.includes('Grazie')) {
-                      setTimeout(() => closeNpcDialog(), 2000);
-                    }
-                  }
-                }, 100);
-              }}
+              onClick={handleTalk}
               variant="ghost"
-              className={`flex-1 bg-white/[0.04] hover:bg-white/[0.08] border text-sm ${
+              className={`flex-1 bg-transparent hover:bg-white/[0.08] border text-sm ${
                 talkLabel.includes('Consegna') || talkLabel.includes('Rapporto')
                   ? 'border-green-700/30 text-green-300 hover:text-green-200'
                   : 'border-white/[0.06] text-white/60 hover:text-white'
@@ -248,19 +292,15 @@ export default function NPCDialogPanel() {
               <MessageSquare className="w-4 h-4 mr-1.5" />
               {talkLabel}
             </Button>
+            <Button
+              onClick={closeNpcDialog}
+              variant="ghost"
+              className="flex-1 bg-transparent hover:bg-white/[0.08] border border-white/[0.06] text-white/60 hover:text-white text-sm"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1.5" />
+              Chiudi
+            </Button>
           </div>
-          {lastNpcLine && (
-            <div className="p-2.5 rounded-lg border border-white/[0.06] bg-white/[0.03] text-sm text-white/70 italic animate-in fade-in slide-in-from-bottom-2">
-              {lastNpcLine.replace(/^\[\d+\] /, '')}
-            </div>
-          )}
-          <Button
-            onClick={closeNpcDialog}
-            variant="ghost"
-            className="w-full text-white/30 hover:text-white/60 hover:bg-white/[0.04] text-xs"
-          >
-            <ArrowLeft className="w-3 h-3 mr-1" /> Continua l&apos;esplorazione
-          </Button>
         </div>
       </motion.div>
     </motion.div>

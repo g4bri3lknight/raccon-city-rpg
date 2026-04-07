@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Shield, Swords, Heart, Zap, ChevronRight, Check, Users, UserPlus, X, User, Crosshair, Settings2, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Shield, Swords, Heart, Zap, ChevronRight, Check, Users, UserPlus, X, User, Crosshair, Settings2, Sparkles, Trash2, Dices } from 'lucide-react';
 import { CHARACTER_IMAGES } from '@/game/data/enemies';
 import { getSpecialById } from '@/game/data/specials';
 import ItemIcon from './ItemIcon';
@@ -217,6 +217,8 @@ export default function CharacterSelect() {
   const startGame = useGameStore(s => s.startGame);
   const selectedDifficulty = useGameStore(s => s.selectedDifficulty);
   const selectDifficulty = useGameStore(s => s.selectDifficulty);
+  const randomizerMode = useGameStore(s => s.randomizerMode);
+  const toggleRandomizerMode = useGameStore(s => s.toggleRandomizerMode);
   
   const [selected, setSelected] = useState<Set<string>>(new Set()); // set of carousel item ids
   const [customCharacters, setCustomCharacters] = useState<CustomCharacterConfig[]>([]);
@@ -682,6 +684,27 @@ export default function CharacterSelect() {
                   <span className="sm:hidden text-[10px]">Incu</span>
                 </button>
               </div>
+            </div>
+
+            {/* Randomizer Toggle */}
+            <div className="mt-2">
+              <button
+                onClick={toggleRandomizerMode}
+                className={"flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all w-full " + (randomizerMode
+                  ? 'border-purple-500 bg-purple-900/40 text-purple-300 shadow-[0_0_14px_rgba(168,85,247,0.25)]'
+                  : 'border-purple-700/50 bg-purple-950/30 text-purple-400 opacity-50 hover:opacity-80'
+                )}
+              >
+                <Dices className="w-4 h-4" />
+                <span className="hidden sm:inline">🎲 Modalità Randomizer</span>
+                <span className="sm:hidden">🎲 Randomizer</span>
+                {randomizerMode && <Check className="w-3.5 h-3.5 ml-auto text-purple-300" />}
+              </button>
+              {randomizerMode && (
+                <p className="text-[10px] text-purple-300/60 mt-1 leading-relaxed">
+                  ⚠️ Nemici, oggetti e percorsi saranno casuali! Il gioco rimane completable.
+                </p>
+              )}
             </div>
           </div>
           <Button

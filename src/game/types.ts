@@ -20,7 +20,6 @@ export interface DifficultyConfig {
   minEnemies: number;
   expMult: number;
   enemyCritChance: number;
-  encounterRateMod: number; // +/- percentage modifier to base encounter rate
   description: string;
 }
 
@@ -28,7 +27,7 @@ export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'custom';
 
 export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'none';
 
-export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible' | 'material' | 'booster';
+export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -93,8 +92,6 @@ export interface Character {
   expToNext: number;
   statusEffects: StatusEffect[];
   isDefending: boolean;
-  parryReady: boolean;   // true when player executed a parry (next enemy attack negated)
-  parryCooldown: number; // turns remaining until parry is available again
   inventory: ItemInstance[];
   maxInventorySlots: number;
   weapon: WeaponInstance | null;
@@ -178,8 +175,6 @@ export interface ItemInstance {
 // ENEMIES
 // ==========================================
 
-export type EnemyType = 'undead' | 'creature' | 'human' | 'boss';
-
 export interface EnemyDefinition {
   id: string;
   name: string;
@@ -194,7 +189,6 @@ export interface EnemyDefinition {
   abilities: EnemyAbility[];
   isBoss: boolean;
   variantGroup?: string;
-  enemyType?: EnemyType; // undead = immune to poison/bleed, creature = immune to poison/bleed (B.O.W.), human = fully sensitive, boss = resistant
 }
 
 export interface LootEntry {
@@ -250,16 +244,10 @@ export interface EnemyInstance {
 // LOCATIONS
 // ==========================================
 
-export type SubAreaType = 'safe_room' | 'exploration' | 'secret' | 'story';
-
 export interface SubAreaDefinition {
   id: string;
-  locationId: string;
   name: string;
   description: string;
-  type: SubAreaType;
-  icon: string;
-  ambientText?: string[];
 }
 
 export interface LocationDefinition {
@@ -276,7 +264,7 @@ export interface LocationDefinition {
   bossId?: string;
   ambientText: string[];
   lockedLocations?: { locationId: string; requiredItemId: string; lockedMessage: string }[];
-  subAreas?: SubAreaDefinition[]; // sub-rooms within this location (e.g. safe rooms)
+  subAreas?: SubAreaDefinition[];
 }
 
 export interface StoryEvent {
@@ -384,27 +372,6 @@ export interface CombatState {
 }
 
 // ==========================================
-// GAME STATS (End-game statistics tracking)
-// ==========================================
-
-export interface GameStats {
-  totalDamageDealt: number;
-  totalDamageReceived: number;
-  totalHealingDone: number;
-  enemiesKilled: Record<string, number>;
-  itemsUsed: number;
-  itemsCrafted: number;
-  documentsFound: number;
-  secretRoomsFound: number;
-  parriesPerformed: number;
-  turnsPlayed: number;
-  locationsVisited: number;
-  npcsEncountered: number;
-  bossDefeated: string[];
-  startTime: number;
-}
-
-// ==========================================
 // GAME STATE
 // ==========================================
 
@@ -491,11 +458,7 @@ export interface GameState {
   newAchievementNotification: string | null;
   // #16 Documents
   collectedDocuments: string[]; // document IDs
-  readDocuments: string[]; // document IDs that have been opened/read by the player
   documentsOpen: boolean;
-  // Trunk (shared item box across safe rooms)
-  trunkItems: ItemInstance[];
-  trunkOpen: boolean;
   // #18 NPCs
   activeNpc: GameNPC | null;
   npcQuestProgress: Record<string, { currentCount: number; completed: boolean }>; // questId → progress
@@ -504,7 +467,6 @@ export interface GameState {
   // #20 Dynamic Events
   activeDynamicEvent: DynamicEvent | null;
   dynamicEventTurnsLeft: number;
-  dynamicEventChoiceMade: boolean;
   // #21 Story Choices
   storyChoices: StoryChoiceTag[];
   // #22 Secret Rooms
@@ -513,18 +475,36 @@ export interface GameState {
   endingType: EndingType | null;
   // Mini-map
   exploredSubAreas: Record<string, string[]>; // locationId → sub-area IDs
-  // Sub-area navigation
-  currentSubAreaId: string | null; // currently entered sub-area within a location
   // #14 Boss multi-fase
   bossPhases: Record<string, BossPhase[]>; // enemyId → phases
   // #27 Nemesis persistente
   nemesisPursuitLevel: number; // 0-5, increases each invasion
   nemesisLastSeenLocation: string | null;
   nemesisLastSeenTurn: number;
-  // #42 Umbrella Labs theme
-  umbrellaLabsTheme: boolean;
-  // #38 End-game statistics
-  gameStats: GameStats;
+  // #45 Randomizer Mode
+  randomizerMode: boolean;
+  randomizedLocationData: RandomizedLocationData | null;
+  // Safe Room & Item Box
+  currentSubArea: string | null;
+  itemBoxItems: ItemInstance[];
+  // Document read tracking
+  readDocuments: string[]; // document IDs that have been opened/read
+}
+
+// ==========================================
+// #45 - RANDOMIZER
+// ==========================================
+
+export interface RandomizedLocationData {
+  locations: Record<string, {
+    enemyPool: string[];
+    itemPool: { itemId: string; chance: number; quantity: number }[];
+    nextLocations: string[];
+    isBossArea: boolean;
+    bossEnemy?: string;
+    lockedLocations?: { locationId: string; requiredItemId: string; lockedMessage: string }[];
+    encounterRate: number;
+  }>;
 }
 
 // ==========================================
@@ -585,15 +565,6 @@ export interface GameDocument {
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
   isSecret: boolean;
   hintRequired?: string; // document id that gives hint to find this
-  // Email-specific fields
-  emailMeta?: {
-    from: string;
-    to: string;
-    date: string;
-    cc?: string;
-    priority?: 'low' | 'normal' | 'high' | 'urgent';
-    attachments?: string[];
-  };
 }
 
 // ==========================================
@@ -610,6 +581,10 @@ export interface NPCQuest {
   rewardItems: { itemId: string; quantity: number }[];
   rewardExp: number;
   rewardDialogue: string[];
+  // DB-backed quest fields (optional, used by quest-helper)
+  npcId?: string;
+  sortOrder?: number;
+  prerequisiteQuestId?: string;
 }
 
 export interface NPCTradeItem {

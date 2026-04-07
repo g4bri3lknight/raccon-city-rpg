@@ -1,8 +1,11 @@
 // BGM Module — Lazy-loaded cinematic background music for Raccoon City RPG
 // Dynamically imported by sounds.ts. Monkey-patches AudioEngine with BGM.
 
-import { audioEngine, type AudioEngine, type BgmType } from './sounds';
+import { audio } from './sounds';
+import type { AudioEngine } from './sounds';
 export type { BgmType } from './sounds';
+
+type BgmType = 'title' | 'city_outskirts' | 'rpd_station' | 'hospital' | 'sewers' | 'laboratory' | 'clock_tower' | 'combat' | 'victory' | 'gameover';
 
 const periodicTimers: ReturnType<typeof setInterval>[] = [];
 let _reverbConvolver: ConvolverNode | null = null;
@@ -374,4 +377,4 @@ function installBgm(engine: AudioEngine): void {
   }
 }
 
-installBgm(audioEngine);
+installBgm(audio);

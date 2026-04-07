@@ -103,9 +103,6 @@ export default function GameNotification() {
   const notification = useGameStore(s => s.notification);
   const [state, setState] = useState<{ visible: boolean; key: number; clearing: boolean }>({ visible: false, key: 0, clearing: false });
 
-  // Track the last processed notification ID to prevent double-processing in React Strict Mode
-  const processedNotifId = useRef<string | null>(null);
-
   // Play sound on new notification
   const playSound = useCallback((type: string) => {
     try {
@@ -120,36 +117,32 @@ export default function GameNotification() {
     } catch { /* audio not available */ }
   }, []);
 
-  // Detect new notification (useEffect to avoid double-fire in Strict Mode)
-  // CRITICAL: dependency array must NOT include local state (key, clearing) because
-  // setState inside the effect would trigger cleanup, killing the timers prematurely.
-  // Use notification.id (always a string or null) instead of the full object to keep
-  // the array size constant across renders (avoids React "changed size" warning on HMR).
+  // Detect new notification via ref to avoid re-triggering on re-renders
+  const notifIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!notification) return;
-    if (processedNotifId.current === notification.id) return;
+    if (notification && notification.id !== notifIdRef.current) {
+      notifIdRef.current = notification.id;
+      setState(prev => ({ visible: true, key: prev.key + 1, clearing: false }));
+      playSound(notification.type);
+      const duration = getDuration(notification.type);
+      const notifId = notification.id;
 
-    processedNotifId.current = notification.id;
-    const notifType = notification.type;
-    const notifId = notification.id;
+      const hideTimer = setTimeout(() => setState(prev => ({ ...prev, visible: false })), duration);
+      const clearTimer = setTimeout(() => {
+        setState(prev => ({ ...prev, clearing: false }));
+        notifIdRef.current = null;
+        const current = useGameStore.getState();
+        if (current.notification?.id === notifId) {
+          useGameStore.setState({ notification: null });
+        }
+      }, duration + 400);
 
-    setState(prev => ({ ...prev, visible: true, key: prev.key + 1, clearing: false }));
-    playSound(notifType);
-    const duration = getDuration(notifType);
-
-    const hideTimer = setTimeout(() => setState(prev => ({ ...prev, visible: false })), duration);
-    const clearTimer = setTimeout(() => {
-      const current = useGameStore.getState();
-      if (current.notification?.id === notifId) {
-        useGameStore.setState({ notification: null });
-      }
-    }, duration + 400);
-
-    return () => {
-      clearTimeout(hideTimer);
-      clearTimeout(clearTimer);
-    };
-  }, [notification?.id, playSound]);
+      return () => {
+        clearTimeout(hideTimer);
+        clearTimeout(clearTimer);
+      };
+    }
+  }, [notification, playSound]);
 
   if (!state.visible || !notification) return null;
 

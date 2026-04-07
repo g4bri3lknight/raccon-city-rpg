@@ -1,6 +1,7 @@
-import { ItemDefinition } from './types';
+import { ItemDefinition } from '../types';
+export type { ItemDefinition } from '../types';
 
-export const ITEMS: Record<string, ItemDefinition> = {
+export const STATIC_ITEMS: Record<string, ItemDefinition> = {
   // Weapons
   pipe: {
     id: 'pipe', name: 'Tubo di Piombo', description: 'Un pesante tubo di piombo.',
@@ -147,66 +148,10 @@ export const ITEMS: Record<string, ItemDefinition> = {
     id: 'fuse', name: 'Fusibile', description: 'Un fusibile elettrico per ripristinare l\'energia.',
     type: 'utility', rarity: 'uncommon', icon: '🔌', usable: false, equippable: false,
   },
-
-  // ── Crafting Materials ──
-  gunpowder: {
-    id: 'gunpowder', name: 'Polvere da Sparo', description: 'Polvere nera per ricaricare munizioni. Materiale di craft.',
-    type: 'material', rarity: 'common', icon: '💥', usable: false, equippable: false,
-  },
-  metal_scrap: {
-    id: 'metal_scrap', name: 'Pezzi di Metallo', description: 'Frammenti metallici recuperati. Materiale di craft.',
-    type: 'material', rarity: 'common', icon: '🔩', usable: false, equippable: false,
-  },
-  empty_shell: {
-    id: 'empty_shell', name: 'Cartuccia Vuota', description: 'Cartucce scariche da riutilizzare. Materiale di craft.',
-    type: 'material', rarity: 'uncommon', icon: '🫧', usable: false, equippable: false,
-  },
-  distilled_water: {
-    id: 'distilled_water', name: 'Acqua Distillata', description: 'Acqua pura per preparazioni chimiche. Materiale di craft.',
-    type: 'material', rarity: 'common', icon: '💧', usable: false, equippable: false,
-  },
-  alcohol: {
-    id: 'alcohol', name: 'Alcol', description: 'Alcol denaturato per disinfettare e miscelare. Materiale di craft.',
-    type: 'material', rarity: 'common', icon: '🧪', usable: false, equippable: false,
-  },
-
-  // ── Crafted Healing Items ──
-  crafted_antidote: {
-    id: 'crafted_antidote', name: 'Antidoto', description: 'Antidoto artigianale. Cura avvelenamento immediatamente.',
-    type: 'antidote', rarity: 'common', icon: '💉', usable: true, equippable: false,
-    effect: { type: 'cure', value: 0, target: 'self', statusCured: ['poison'] },
-  },
-  strong_bandage: {
-    id: 'strong_bandage', name: 'Cerotto Potente', description: 'Benda medica rinforzata. Ripristina 60 HP.',
-    type: 'healing', rarity: 'uncommon', icon: '🩹', usable: true, equippable: false,
-    effect: { type: 'heal', value: 60, target: 'self' },
-  },
-  strong_painkiller: {
-    id: 'strong_painkiller', name: 'Analgesico Forte', description: 'Potente antidolorifico. Ripristina 100 HP.',
-    type: 'healing', rarity: 'rare', icon: '💊', usable: true, equippable: false,
-    effect: { type: 'heal', value: 100, target: 'self' },
-  },
-
-  // ── Crafted Boosters ──
-  stimulant: {
-    id: 'stimulant', name: 'Stimolante', description: 'Potenzia l\'ATTacco di +5 per 5 turni in combattimento.',
-    type: 'booster', rarity: 'uncommon', icon: '⚡', usable: true, equippable: false,
-    effect: { type: 'damage_boost', value: 5, target: 'self' },
-  },
-  elastic_bandage: {
-    id: 'elastic_bandage', name: 'Benda Elastica', description: 'Protezione rinforzata. +5 DIFesa per 5 turni in combattimento.',
-    type: 'booster', rarity: 'uncommon', icon: '🛡️', usable: true, equippable: false,
-    effect: { type: 'defense_boost', value: 5, target: 'self' },
-  },
-  adrenaline_shot: {
-    id: 'adrenaline_shot', name: 'Adrenalina', description: 'Iniezione di adrenalina. +3 VELocità per 5 turni in combattimento.',
-    type: 'booster', rarity: 'uncommon', icon: '💊', usable: true, equippable: false,
-    effect: { type: 'damage_boost', value: 0, target: 'self' },
-  },
 };
 
 export function createItemInstance(itemId: string, quantity: number = 1): ItemDefinition & { uid: string; quantity: number } {
-  const def = ITEMS[itemId];
+  const def = STATIC_ITEMS[itemId];
   if (!def) throw new Error(`Item ${itemId} not found`);
   return {
     ...def,

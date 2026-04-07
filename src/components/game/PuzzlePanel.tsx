@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { Button } from '@/components/ui/button';
-import { ITEMS } from '@/game/data/items';
+import { ITEMS } from '@/game/data/loader';
 import {
   ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Delete, Check, X, Key, Lock, Sparkles,
 } from 'lucide-react';

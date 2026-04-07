@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CombatAction } from '@/game/types';
 import LogText from '@/components/game/LogText';
-import { ENEMY_IMAGES, CHARACTER_IMAGES, ENEMIES } from '@/game/data/enemies';
+import { ENEMY_IMAGES, CHARACTER_IMAGES } from '@/game/data/enemies';
 import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '@/game/data/specials';
 import ItemIcon from './ItemIcon';
 import { WEAPON_AMMO, resolveSpecialId } from '@/game/engine/combat';
@@ -37,8 +37,6 @@ export default function CombatScreen() {
   const [hitIsCritical, setHitIsCritical] = useState(false);
   const [deathTargetId, setDeathTargetId] = useState<string | null>(null);
   const [bossPhaseId, setBossPhaseId] = useState<string | null>(null);
-  // ── PARRY state ──
-  const [parryCharId, setParryCharId] = useState<string | null>(null);
 
   const { percent: desktopPercent, containerRef: desktopContainerRef, handleMouseDown: desktopMouseDown, handleTouchStart: desktopTouchStart } = useResizableSplit({ initialPercent: 80, minPercent: 55, maxPercent: 88, direction: 'horizontal' });
   const { percent: mobilePercent, containerRef: mobileContainerRef, handleMouseDown: mobileMouseDown, handleTouchStart: mobileTouchStart } = useResizableSplit({ initialPercent: 65, minPercent: 40, maxPercent: 80, direction: 'vertical' });
@@ -167,17 +165,6 @@ export default function CombatScreen() {
         setBossPhaseId(bossEnemy.id);
         setTimeout(() => setBossPhaseId(null), 2000);
       }
-    }
-    // ── PARRY detection: trigger golden flash on defending character ──
-    if (lastEntry.action === 'PARRY!' && lastEntry.targetId) {
-      queueMicrotask(() => {
-        setParryCharId(lastEntry.targetId!);
-        setScreenShake('heavy');
-        setTimeout(() => {
-          setParryCharId(null);
-          setScreenShake(null);
-        }, 1200);
-      });
     }
   }, [combat?.log?.length, enemies]);
 
@@ -331,7 +318,7 @@ export default function CombatScreen() {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [autoCombat, isPlayerTurn, combat?.currentActorId, combat?.turn]);
+  }, [autoCombat, isPlayerTurn, combat?.currentActorId]);
 
   const currentCharacter = party.find(p => p.id === combat.currentActorId);
   const aliveEnemies = enemies.filter(e => e.currentHp > 0);
@@ -339,7 +326,6 @@ export default function CombatScreen() {
   const usableItems = currentCharacter?.inventory.filter(i => i.usable) || [];
   const specialCd = combat.specialCooldowns?.[currentCharacter?.id || ''] ?? 0;
   const special2Cd = combat.special2Cooldowns?.[currentCharacter?.id || ''] ?? 0;
-  const parryCd = currentCharacter?.parryCooldown ?? 0;
   const arch = currentCharacter?.archetype;
 
   // ── AI action prediction: which action will auto-combat pick? ──
@@ -579,15 +565,6 @@ export default function CombatScreen() {
                 <span className={`text-[9px] sm:text-[10px] font-bold ${isDead ? 'text-gray-700' : enemy.isBoss ? 'text-red-300' : 'text-gray-300'}`}>
                   {enemy.name}
                 </span>
-                {/* Enemy type badge */}
-                {!isDead && (() => {
-                  const enemyDef = ENEMIES[enemy.definitionId];
-                  const eType = enemyDef?.enemyType;
-                  if (eType === 'human') return <span className="text-[6px] sm:text-[7px] bg-blue-600/70 text-blue-100 px-1 rounded font-medium">UMANO</span>;
-                  if (eType === 'undead') return <span className="text-[6px] sm:text-[7px] bg-gray-600/70 text-gray-300 px-1 rounded font-medium">NON-MORTO</span>;
-                  if (eType === 'creature') return <span className="text-[6px] sm:text-[7px] bg-purple-600/70 text-purple-100 px-1 rounded font-medium">B.O.W.</span>;
-                  return null;
-                })()}
                 {/* Mini HP bar */}
                 <div className="w-18 sm:w-20 h-2 rounded-full overflow-hidden bg-gray-800/80">
                   <div className="h-full rounded-full transition-all duration-500" style={{
@@ -871,18 +848,11 @@ export default function CombatScreen() {
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
                   aiPredictedAction === 'defend'
                     ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.3)] animate-pulse'
-                    : parryCd > 0
-                      ? 'text-gray-500 hover:bg-gray-800/40 hover:text-gray-400 hover:border-gray-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
-                      : 'text-gray-200 hover:bg-cyan-950/40 hover:text-cyan-200 hover:border-cyan-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
+                    : 'text-gray-200 hover:bg-cyan-950/40 hover:text-cyan-200 hover:border-cyan-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
                 }`}
               >
                 <Shield className="w-3.5 h-3.5 text-cyan-400" />
                 Difesa
-                {parryCd > 0 ? (
-                  <span className="ml-auto bg-gray-700 text-gray-400 text-[8px] font-bold px-1.5 py-0.5 rounded">PARRY {parryCd}t</span>
-                ) : (
-                  <span className="ml-auto text-[8px] text-amber-400/60">⚔️ Parry</span>
-                )}
               </button>
               <button
                 onClick={() => handleMenuAction('flee')}
@@ -1273,18 +1243,11 @@ export default function CombatScreen() {
                   className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
                     aiPredictedAction === 'defend'
                       ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse'
-                      : parryCd > 0
-                        ? 'text-gray-500 active:bg-gray-800/50 active:text-gray-400 border border-transparent'
-                        : 'text-gray-300 active:bg-cyan-950/50 active:text-cyan-200 border border-transparent'
+                      : 'text-gray-300 active:bg-cyan-950/50 active:text-cyan-200 border border-transparent'
                   }`}
                 >
                   <Shield className="w-5 h-5 text-cyan-400" />
                   <span>Difesa</span>
-                  {parryCd > 0 ? (
-                    <span className="text-[7px] text-gray-500 font-bold">PARRY {parryCd}t</span>
-                  ) : (
-                    <span className="text-[7px] text-amber-400/60">⚔️ Parry</span>
-                  )}
                 </button>
                 <button
                   onClick={() => handleMenuAction('flee')}

@@ -1,6 +1,6 @@
 import { DynamicEvent } from '../types';
 
-export const DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
+export const STATIC_DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
   // ==========================================
   // BLACKOUT
   // ==========================================
@@ -35,7 +35,7 @@ export const DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
         text: 'Cercare nel buio (bonus oggetti)',
         outcome: {
           description: 'Con la torcia accesa, esplorate l\'area al buio. Nell\'oscurità trovate oggetti che nessuno avrebbe notato alla luce del giorno.',
-          endEvent: false,
+          endEvent: true,
           receiveItems: [{ itemId: 'herb_green', quantity: 1 }, { itemId: 'ammo_pistol', quantity: 3 }],
           hpChange: 0,
         },
@@ -85,7 +85,7 @@ export const DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
         text: 'Combattere e resistere',
         outcome: {
           description: 'Decidete di tenere la posizione. Qualsiasi cosa arrivi, sarete pronti. L\'allarme continua a suonare, ma voi siete pronti a tutto.',
-          endEvent: false,
+          endEvent: true,
           hpChange: 0,
         },
       },
@@ -126,7 +126,7 @@ export const DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
         text: 'Continuare a muoversi (rischio)',
         outcome: {
           description: 'Correte attraverso i detriti cadenti. Una pietra vi colpisce alla spalla, ma riuscite a uscire dalla zona di pericolo prima che il soffitto crolli del tutto.',
-          endEvent: false,
+          endEvent: true,
           hpChange: -15,
         },
       },
@@ -168,7 +168,7 @@ export const DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
         text: 'Aspettare che scada',
         outcome: {
           description: 'Non avete scelta — sedetevi e aspettate. Le ore passano lente nell\'ansia. Alla fine il sistema si resetta da solo e le porte si aprono.',
-          endEvent: false,
+          endEvent: true,
           hpChange: 0,
         },
       },
@@ -210,7 +210,7 @@ export const DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
         text: 'Correre attraverso il gas',
         outcome: {
           description: 'Trattenete il fiato e correte. Il gas vi brucia la pelle e i polmoni. Arrivate dall\'altra parte tossendo violentemente, intossicati.',
-          endEvent: false,
+          endEvent: true,
           hpChange: -20,
         },
       },
@@ -251,7 +251,7 @@ export const DYNAMIC_EVENTS: Record<string, DynamicEvent> = {
         text: 'Cercare una via alternativa',
         outcome: {
           description: 'Lasciate che il fuoco bruci e cercate un\'altra via. Attraverso un condotto di ventilazione trovate una stanza sicura con alcuni rifornimenti abbandonati.',
-          endEvent: false,
+          endEvent: true,
           receiveItems: [{ itemId: 'bandage', quantity: 2 }],
           hpChange: -8,
         },

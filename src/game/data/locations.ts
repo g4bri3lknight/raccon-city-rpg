@@ -15,8 +15,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'bag_small', chance: 15, quantity: 1 },
       { itemId: 'key_sewers', chance: 15, quantity: 1 },
       { itemId: 'crank_handle', chance: 12, quantity: 1 },
-      { itemId: 'empty_shell', chance: 8, quantity: 1 },
-      { itemId: 'alcohol', chance: 10, quantity: 1 },
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
     ],
@@ -32,20 +30,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'Un giornale vola nel vento: "VIRUS NELLA CITTA\'"',
     ],
     subAreas: [
-      {
-        id: 'city_safe_room',
-        locationId: 'city_outskirts',
-        name: 'Rifugio in un Negozio',
-        description: 'Un piccolo negozio di alimentari barricato dall\'interno. Le finestre sono state coperte con assi di legno. Un debole lume a gas illumina la stanza, e l\'odore di caffè rancido riempie l\'aria. Un baule di metallo è appoggiato contro il muro.',
-        type: 'safe_room',
-        icon: '🏪',
-        ambientText: [
-          'Il fischio del vento si attenua dietro le assi di legno...',
-          'Una candela trema sulla mensola, proiettando ombre lunghe.',
-          'Il baule di metallo è pesante e robusto. Sembra resistito a molto.',
-          'Un leggero odore di muffa mescolato a caffè.',
-        ],
-      },
+      { id: 'safe_room', name: 'Safe Room', description: 'Un rifugio sicuro con una vecchia macchina da scrivere e un armadietto per gli oggetti.' },
     ],
     storyEvent: {
       title: 'Primo Contatto',
@@ -84,7 +69,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'lockpick', chance: 15, quantity: 1 },
       { itemId: 'bag_small', chance: 20, quantity: 1 },
       { itemId: 'fuse', chance: 12, quantity: 1 },
-      { itemId: 'gunpowder', chance: 12, quantity: 1 },
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
     ],
@@ -100,24 +84,11 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'L\'odore della polvere da sparo permea l\'aria.',
     ],
     subAreas: [
-      {
-        id: 'rpd_safe_room',
-        locationId: 'rpd_station',
-        name: 'Sala Riposo R.P.D.',
-        description: 'La sala riposo della stazione di polizia è sorprendentemente intatta. Un divano di pelle consunta, un distributore di caffè ancora funzionante, e una macchina da scrivere su una scrivania ordinata. La luce fioca crea un\'atmosfera tranquilla e irreale, lontana dall\'orrore fuori.',
-        type: 'safe_room',
-        icon: '🏢',
-        ambientText: [
-          'Il ronzio del distributore di caffè è quasi confortante...',
-          'Una foto della squadra è appesa alla parete. Sorridono.',
-          'La macchina da scrivere attende pazientemente sulla scrivania.',
-          'L\'aria è fresca e pulita. Un vero rifugio.',
-        ],
-      },
+      { id: 'safe_room', name: 'Safe Room', description: 'L\'ufficio del capitano, chiuso a chiave dall\'interno. Un\'unica lampada illumina una macchina da scrivere e un armadietto blindato.' },
     ],
     storyEvent: {
       title: 'L\'Armeria',
-      description: 'Trovate l\'armeria della stazione. La porta è chiusa con un lucchetto numerico a 4 cifre. Sulla serratura c\'è un graffito: "1974".',
+      description: 'Trovate l\'armeria della stazione. La porta è chiusa con un lucchetto numerico a 4 cifre. Sulla serratura c\'è un graffio: "1974".',
       choices: [
         {
           text: 'Provare a decifrare il codice',
@@ -151,7 +122,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'L\'ospedale è un\'immagine di orrore. Le corsie sono coperte di detriti, le luci fluorescenze lampeggiano in modo ossessivo. I pazienti non sono più... pazienti.',
     backgroundImage: '/assets/hospital.png',
     encounterRate: 45,
-    enemyPool: ['zombie_doctor', 'zombie_soldier', 'zombie_dog', 'licker', 'licker_crawler', 'hunter', 'mercenary', 'uss_agent'],
+    enemyPool: ['zombie_doctor', 'zombie_soldier', 'zombie_dog', 'licker', 'licker_crawler', 'hunter'],
     itemPool: [
       { itemId: 'first_aid', chance: 40, quantity: 1 },
       { itemId: 'antidote', chance: 30, quantity: 1 },
@@ -160,9 +131,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'bag_small', chance: 15, quantity: 1 },
       { itemId: 'bag_medium', chance: 10, quantity: 1 },
       { itemId: 'key_rpd', chance: 12, quantity: 1 },
-      { itemId: 'gunpowder', chance: 12, quantity: 1 },
-      { itemId: 'distilled_water', chance: 10, quantity: 1 },
-      { itemId: 'alcohol', chance: 10, quantity: 1 },
       { itemId: 'ammo_grenade', chance: 8, quantity: 1 },
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
@@ -180,20 +148,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'L\'eco di una risata maniacale riecheggia da qualche parte...',
     ],
     subAreas: [
-      {
-        id: 'hospital_safe_room',
-        locationId: 'hospital_district',
-        name: 'Cappella dell\'Ospedale',
-        description: 'Una piccola cappella al terzo piano, dimenticata dal caos. Le vetrate colorate filtrano una luce fioca. I banchi di legno sono intatti, e una croce d\'argento brilla sul piccolo altare. L\'aria è calma e il silenzio è quasi religioso.',
-        type: 'safe_room',
-        icon: '⛪',
-        ambientText: [
-          'La luce filtrata dalle vetrate colorate dipinge ombre mutevoli.',
-          'Un cero brucia ancora sull\'altare. Quanto dura da quando è stato acceso?',
-          'Il silenzio è assoluto. Nessun lamento, nessun ronzio.',
-          'Un crocifisso di legno è appoggiato su un banco. Chi lo ha lasciato qui?',
-        ],
-      },
+      { id: 'safe_room', name: 'Safe Room', description: 'La sala d\'attesa del reparto maternità, fortunatamente intatta. Un armadietto medico e un\'area di pronto soccorso.' },
     ],
     storyEvent: {
       title: 'Il Laboratorio Segreto',
@@ -225,7 +180,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'Le fogne di Raccoon City sono un labirinto oscuro. L\'acqua verde e putrida scorre tra i condotti. Il suolo è scivoloso e il rumore delle gocce amplifica ogni suono.',
     backgroundImage: '/assets/sewers.png',
     encounterRate: 50,
-    enemyPool: ['zombie_dog', 'cerberus_alpha', 'licker', 'licker_smasher', 'hunter', 'mercenary', 'ubcs_commander', 'uss_agent'],
+    enemyPool: ['zombie_dog', 'cerberus_alpha', 'licker', 'licker_smasher', 'hunter'],
     itemPool: [
       { itemId: 'herb_green', chance: 35, quantity: 1 },
       { itemId: 'antidote', chance: 40, quantity: 1 },
@@ -235,8 +190,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'ammo_grenade', chance: 8, quantity: 1 },
       { itemId: 'bag_medium', chance: 12, quantity: 1 },
       { itemId: 'key_lab', chance: 10, quantity: 1 },
-      { itemId: 'metal_scrap', chance: 12, quantity: 1 },
-      { itemId: 'distilled_water', chance: 10, quantity: 1 },
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
     ],
@@ -253,20 +206,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'L\'odore della decomposizione è insopportabile.',
     ],
     subAreas: [
-      {
-        id: 'sewers_safe_room',
-        locationId: 'sewers',
-        name: 'Stazione di Pompaggio',
-        description: 'Una stanza di controllo con vecchi strumenti di manutenzione. Le pareti sono piastrellate di bianco, l\'unica zona pulita nelle fogne. Un generatore di emergenza alimenta una luce fioca. Un vecchio baule dei lavori pubblici è ancorato al pavimento.',
-        type: 'safe_room',
-        icon: '🔧',
-        ambientText: [
-          'Il generatore ronza dolcemente. Ancora qualche ora di carica.',
-          'Vecchi schemi idraulici sono attaccati alla parete.',
-          'L\'aria qui è sorprendentemente secca.',
-          'Una tazza da lavoro con su scritto "Raccoon City Water Dept." gioca con la gravità.',
-        ],
-      },
+      { id: 'safe_room', name: 'Safe Room', description: 'Una piccola stazione di manutenzione con una porta rinforzata. L\'unico luogo asciutto e sicuro nelle fogne.' },
     ],
     storyEvent: {
       title: 'La Tomba Sottacqua',
@@ -296,7 +236,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'Il quartier generale sotterraneo della Umbrella Corporation. Supercomputer, provette, e creature che non dovrebbero esistere. È qui che è iniziato tutto.',
     backgroundImage: '/assets/laboratory.png',
     encounterRate: 55,
-    enemyPool: ['hunter', 'licker', 'licker_smasher', 'licker_crawler', 'zombie_soldier', 'mercenary', 'ubcs_commander', 'umbrella_scientist', 'uss_agent', 'umbrella_sniper', 'umbrella_supervisor'],
+    enemyPool: ['hunter', 'licker', 'licker_smasher', 'licker_crawler', 'zombie_soldier'],
     itemPool: [
       { itemId: 'spray', chance: 30, quantity: 1 },
       { itemId: 'antidote', chance: 40, quantity: 2 },
@@ -306,8 +246,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'herb_red', chance: 25, quantity: 1 },
       { itemId: 'bag_medium', chance: 15, quantity: 1 },
-      { itemId: 'metal_scrap', chance: 12, quantity: 1 },
-      { itemId: 'empty_shell', chance: 8, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
     ],
     nextLocations: ['clock_tower', 'hospital_district', 'sewers'],
@@ -319,20 +257,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'I tubi di vetro nelle pareti emanano una luce sinistra.',
     ],
     subAreas: [
-      {
-        id: 'lab_safe_room',
-        locationId: 'laboratory_entrance',
-        name: 'Ufficio del Ricercatore Capo',
-        description: 'Un ufficio ordinato e spoglio, l\'unico luogo nel laboratorio non contaminato. Una scrivania in mogano, libri di virologia, e una finestra blindata che mostra le profondità del complesso. Una lampada da tavolo crea un\'oasi di calore nel freddo sotterraneo.',
-        type: 'safe_room',
-        icon: '🔬',
-        ambientText: [
-          'La lampada da tavolo emette un bagliore caldo e ambrato.',
-          'Un diario aperto sulla scrivania: "...i risultati sono oltre ogni aspettativa..."',
-          'La temperatura qui è controllata. Non si sente né caldo né freddo.',
-          'Uno schema organico è parzialmente visibile su una lavagna bianca.',
-        ],
-      },
+      { id: 'safe_room', name: 'Safe Room', description: 'Un ufficio privato del dottor Voss, protetto da un codice di sicurezza. L\'unico luogo nel laboratorio libero da creature.' },
     ],
     storyEvent: {
       title: 'Il Computer Centrale',
@@ -379,22 +304,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       'I meccanismi del grande orologio ticchettano inesorabili.',
       'Da qui si vede tutta Raccoon City in fiamme.',
       'Il vento ulula tra le strutture metalliche.',
-    ],
-    subAreas: [
-      {
-        id: 'clocktower_safe_room',
-        locationId: 'clock_tower',
-        name: 'Sala del Meccanismo',
-        description: 'Un piccolo vano nascosto dietro l\'ingranaggio principale dell\'orologio. Strumenti di manutenzione, olio per ingranaggi, e un vecchio baule da lavoro. La luce che filtra attraverso le fessure dell\'orologio crea un gioco di ombre ipnotico.',
-        type: 'safe_room',
-        icon: '⚙️',
-        ambientText: [
-          'L\'ingranaggio principale ticchetta come un battito cardiaco.',
-          'Una vecchia radio da campo è posata su un tavolino.',
-          'L\'olio per ingranaggi ha un odore quasi piacevole.',
-          'Il vento fischia dolcemente attraverso le fessure del quadrante.',
-        ],
-      },
     ],
   },
 };

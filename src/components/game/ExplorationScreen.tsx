@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { LOCATIONS } from '@/game/data/locations';
@@ -15,34 +15,27 @@ import {
   Compass, Search, Package, MapPin, ChevronRight,
   Skull, Flashlight, Shield, Swords, Heart,
   ArrowRightLeft, AlertTriangle, CheckCircle2, Users, Map, Trophy, BookOpen,
-  FileText, User, Zap, ScrollText, Save, DoorOpen, ArrowLeft, Home, FlaskConical, Wrench
+  FileText, User, Zap, Dices, Home
 } from 'lucide-react';
-import SaveLoadPanel from './SaveLoadPanel';
+import SafeRoomPanel from './SafeRoomPanel';
 import { NPCS } from '@/game/data/npcs';
+import { getEffectiveLocation } from '@/game/data/randomizer';
 
 export default function ExplorationScreen() {
   const state = useGameStore();
   const {
     party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
     activeEvent, inventoryOpen, selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
-    difficulty, activeDynamicEvent, dynamicEventTurnsLeft, dynamicEventChoiceMade, activeNpc, collectedDocuments,
-    readDocuments,
-    npcQuestProgress,
-    currentSubAreaId,
+    difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc, collectedDocuments,
+    npcQuestProgress, readDocuments, randomizerMode, randomizedLocationData, currentSubArea,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
-    toggleAchievements, toggleBestiary, toggleDocuments, toggleTrunk, toggleCrafting,
-    enterSubArea, exitSubArea,
+    toggleAchievements, toggleBestiary, toggleDocuments,
     handleDynamicEventChoice,
-    startQTE,
-    encounterNpc,
-    toggleUmbrellaLabsTheme,
+    startQTE, enterSafeRoom,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
-  const safeRoom = location?.subAreas?.find(s => s.type === 'safe_room');
-  const activeSubArea = currentSubAreaId ? location?.subAreas?.find(s => s.id === currentSubAreaId) : null;
-  const isInSafeRoom = activeSubArea?.type === 'safe_room';
   const searchExhausted = (searchCounts[currentLocationId] || 0) >= (searchMaxes[currentLocationId] || 0) && (searchMaxes[currentLocationId] || 0) > 0;
   const diffLabel = difficulty === 'sopravvissuto' ? 'Sopravvissuto' : difficulty === 'incubo' ? 'Incubo' : 'Normale';
   const diffStyle = difficulty === 'sopravvissuto'
@@ -53,10 +46,7 @@ export default function ExplorationScreen() {
   const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
   const [showEventChoice, setShowEventChoice] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
-  const [showSavePanel, setShowSavePanel] = useState(false);
-  const closeSavePanel = useCallback(() => setShowSavePanel(false), []);
   const explorationLogRef = useRef<HTMLDivElement>(null);
-  const unreadDocs = collectedDocuments.length - readDocuments.length;
 
   // Auto-scroll exploration log to bottom
   useEffect(() => {
@@ -67,7 +57,13 @@ export default function ExplorationScreen() {
 
   if (!location) return null;
 
+  // If in safe room, show SafeRoomPanel instead of exploration
+  if (currentSubArea === 'safe_room') {
+    return <SafeRoomPanel />;
+  }
+
   const aliveParty = party.filter(p => p.currentHp > 0);
+  const hasSafeRoom = !location.isBossArea && !!location.subAreas?.some(sa => sa.id === 'safe_room');
 
   // Active missions (accepted, not completed)
   const activeMissions = Object.entries(npcQuestProgress)
@@ -108,53 +104,30 @@ export default function ExplorationScreen() {
               <span className="text-[10px] text-purple-400/70">✨{persistentRibbons}</span>
             )}
           </div>
-          <SaveLoadPanel mode="load" compact />
-          {/* #42 Umbrella Labs Theme Toggle */}
-          <button
-            onClick={toggleUmbrellaLabsTheme}
-            title="Tema Umbrella Labs"
-            className={`flex items-center justify-center w-8 h-8 rounded-lg backdrop-blur-sm border transition-all duration-200 ${
-              state.umbrellaLabsTheme
-                ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41] shadow-[0_0_12px_rgba(0,255,65,0.2)]'
-                : 'bg-white/[0.04] border-white/[0.08] text-white/30 hover:text-white/60 hover:border-white/20'
-            }`}
-          >
-            <FlaskConical className="w-4 h-4" />
-          </button>
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-5">
           <motion.div
-            key={currentSubAreaId || currentLocationId}
+            key={currentLocationId}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
             <div className="flex items-center gap-2 mb-1">
-              {isInSafeRoom ? (
-                <Home className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <MapPin className="w-4 h-4 text-red-400" />
-              )}
-              {isInSafeRoom ? (
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-xs bg-emerald-500/10">
-                  SAFE ROOM
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="border-red-500/30 text-red-400 text-xs bg-red-500/10">
-                  {location.isBossArea ? '⚠ ZONA FINALE' : `Turno ${turnCount}`}
-                </Badge>
-              )}
+              <MapPin className="w-4 h-4 text-red-400" />
+              <Badge variant="outline" className="border-red-500/30 text-red-400 text-xs bg-red-500/10">
+                {location.isBossArea ? '⚠ ZONA FINALE' : `Turno ${turnCount}`}
+              </Badge>
               <Badge variant="outline" className={`${diffStyle} text-xs ml-1`}>
                 {diffIcon} {diffLabel}
               </Badge>
+              {randomizerMode && (
+                <Badge variant="outline" className="border-purple-500/40 bg-purple-500/10 text-purple-300 text-xs ml-1 animate-pulse">
+                  <Dices className="w-3 h-3 mr-1" /> RANDOMIZER
+                </Badge>
+              )}
             </div>
-            <h2 className="text-lg sm:text-2xl font-bold text-white">
-              {isInSafeRoom ? `${safeRoom?.icon} ${activeSubArea?.name}` : location.name}
-            </h2>
-            {isInSafeRoom && (
-              <p className="text-xs sm:text-sm text-white/50 mt-1 leading-relaxed">{activeSubArea?.description}</p>
-            )}
+            <h2 className="text-lg sm:text-2xl font-bold text-white">{location.name}</h2>
           </motion.div>
         </div>
       </div>
@@ -347,13 +320,10 @@ export default function ExplorationScreen() {
                             transition={{ delay: i * 0.12 }}
                             whileHover={{ scale: 1.01, x: 3 }}
                             whileTap={{ scale: 0.99 }}
-                            onClick={() => !dynamicEventChoiceMade && handleDynamicEventChoice(i)}
-                            disabled={dynamicEventChoiceMade}
-                            className={`w-full text-left p-2 sm:p-2.5 rounded-lg border transition-all duration-200 text-sm sm:text-base flex items-center gap-2 ${
-                              dynamicEventChoiceMade
-                                ? 'border-white/[0.04] bg-white/[0.01] text-white/20 cursor-not-allowed line-through'
-                                : 'border-amber-800/20 hover:border-amber-700/40 bg-amber-950/10 hover:bg-amber-950/20 text-white/70 hover:text-white'
-                            }`}
+                            onClick={() => handleDynamicEventChoice(i)}
+                            className="w-full text-left p-2 sm:p-2.5 rounded-lg border border-amber-800/20 hover:border-amber-700/40
+                              bg-amber-950/10 hover:bg-amber-950/20 text-white/70 hover:text-white
+                              transition-all duration-200 text-sm sm:text-base flex items-center gap-2"
                           >
                             <ChevronRight className="w-3.5 h-3.5 text-amber-400/60 shrink-0" />
                             {choice.text}
@@ -421,7 +391,7 @@ export default function ExplorationScreen() {
             )}
             {/* Mission Tracker */}
             <AnimatePresence>
-              {showMissions && activeMissions.length > 0 && (
+              {showMissions && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -429,14 +399,14 @@ export default function ExplorationScreen() {
                   className="overflow-hidden mb-2"
                 >
                   <div className="p-2.5 rounded-lg border border-cyan-800/20 bg-cyan-950/10 space-y-1.5 max-h-40 overflow-y-auto inventory-scrollbar">
-                    {activeMissions.map(({ npc, progress }) => {
+                    {activeMissions.length === 0 ? (
+                      <p className="text-xs text-white/30 text-center py-2 italic">Nessuna missione attiva</p>
+                    ) : (
+                      activeMissions.map(({ npc, progress }) => {
                       if (!npc?.quest) return null;
                       const q = npc.quest;
                       const typeLabel = q.type === 'fetch' ? '📦 Recupera' : q.type === 'kill' ? '⚔️ Uccidi' : '🗺️ Esplora';
                       const isComplete = progress.currentCount >= q.targetCount;
-                      const npcIsHere = npc.locationId === currentLocationId;
-                      const npcLocation = LOCATIONS[npc.locationId];
-                      const npcLocationName = npcLocation?.name || npc.locationId;
                       return (
                         <div key={q.id} className={`flex items-center justify-between p-2 rounded-lg border transition-all ${isComplete ? 'border-green-700/30 bg-green-950/20' : 'border-white/[0.06] bg-white/[0.03]'}`}>
                           <div className="flex-1 min-w-0">
@@ -446,196 +416,146 @@ export default function ExplorationScreen() {
                             </div>
                             <p className="text-[10px] text-white/40">
                               {typeLabel} · {progress.currentCount}/{q.targetCount}
+                              {!isComplete && q.type === 'fetch' && <span className="text-amber-400/60 ml-1">(parla con {npc.name} quando hai gli oggetti)</span>}
+                              {!isComplete && q.type === 'explore' && <span className="text-amber-400/60 ml-1">(parla con {npc.name} dopo aver esplorato)</span>}
                             </p>
-                            {!npcIsHere && (
-                              <p className="text-[10px] text-white/30 mt-0.5">
-                                📍 {npc.name}: <span className={isComplete ? 'text-green-400/50' : 'text-amber-400/50'}>{npcLocationName}</span>
-                              </p>
-                            )}
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                            {npcIsHere && (
-                              <Button
-                                size="sm"
-                                onClick={() => encounterNpc(npc.id)}
-                                className={`h-6 px-2 text-[10px] ${
-                                  isComplete
-                                    ? 'bg-green-900/40 border-green-700/30 text-green-300 hover:bg-green-800/50'
-                                    : 'bg-cyan-900/30 border-cyan-700/30 text-cyan-300 hover:bg-cyan-800/40'
-                                } border`}
-                              >
-                                {isComplete ? '✓ Consegna' : '💬 Contatta'}
-                              </Button>
-                            )}
-                            {isComplete && !npcIsHere && (
-                              <Badge className="bg-green-900/40 text-green-300 border-green-700/30 text-[9px]">
-                                Pronto ✓
-                              </Badge>
-                            )}
-                          </div>
+                          {isComplete && (
+                            <Badge className="bg-green-900/40 text-green-300 border-green-700/30 text-[9px] shrink-0 ml-2">
+                              Pronto ✓
+                            </Badge>
+                          )}
                         </div>
                       );
-                    })}
+                    })
+                    )}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-            {/* Save panel — rendered once, controlled via isOpen */}
-            {isInSafeRoom && (
-              <SaveLoadPanel mode="save" isOpen={showSavePanel} onClose={closeSavePanel} />
-            )}
-            {/* ── IN SAFE ROOM: different action grid ── */}
-            {isInSafeRoom ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
-                {/* Exit safe room — prominent */}
-                <Button
-                  onClick={exitSubArea}
-                  className="col-span-2 sm:col-span-1 bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-1.5" /> Torna indietro
-                </Button>
-                <Button
-                  onClick={toggleInventory}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <Package className="w-4 h-4 mr-1.5" /> Inventario
-                </Button>
-                <Button
-                  onClick={toggleTrunk}
-                  className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 text-amber-300 hover:text-white text-xs sm:text-sm py-2.5"
-                >
-                  <Package className="w-4 h-4 mr-1.5" /> Baule
-                </Button>
-                <Button
-                  onClick={() => setShowSavePanel(true)}
-                  className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:text-white text-xs sm:text-sm py-2.5"
-                >
-                  <Save className="w-4 h-4 mr-1.5" /> Salvare
-                </Button>
-                <Button
-                  onClick={toggleDocuments}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <FileText className="w-4 h-4 mr-1.5" /> Documenti{unreadDocs > 0 && (
-                    <span className="ml-1.5 bg-blue-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] h-[16px] px-1">{unreadDocs}</span>
-                  )}
-                </Button>
-                <Button
-                  onClick={toggleCrafting}
-                  className="bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-white text-xs sm:text-sm py-2.5"
-                >
-                  <Wrench className="w-4 h-4 mr-1.5" /> Craft
-                </Button>
-              </div>
-            ) : (
-              <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
-                <Button
-                  onClick={explore}
-                  disabled={aliveParty.length === 0}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <Compass className="w-4 h-4 mr-1.5" /> Esplora
-                </Button>
-                <Button
-                  onClick={searchArea}
-                  disabled={aliveParty.length === 0 || searchExhausted}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Search className="w-4 h-4 mr-1.5" /> Cerca
-                </Button>
-                <Button
-                  onClick={toggleInventory}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <Package className="w-4 h-4 mr-1.5" /> Inventario
-                </Button>
-                <Button
-                  onClick={toggleMap}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <Map className="w-4 h-4 mr-1.5" /> Mappa
-                </Button>
-                <Button
-                  onClick={toggleAchievements}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <Trophy className="w-4 h-4 mr-1.5" /> Traguardi
-                </Button>
-                <Button
-                  onClick={toggleBestiary}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <BookOpen className="w-4 h-4 mr-1.5" /> Bestiario
-                </Button>
-                <Button
-                  onClick={toggleDocuments}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <FileText className="w-4 h-4 mr-1.5" /> Documenti{unreadDocs > 0 && (
-                    <span className="ml-1.5 bg-blue-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] h-[16px] px-1">{unreadDocs}</span>
-                  )}
-                </Button>
-                <Button
-                  onClick={() => setShowMissions(!showMissions)}
-                  className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
-                >
-                  <ScrollText className="w-4 h-4 mr-1.5" /> Missioni{activeMissions.length > 0 && (
-                    <span className="ml-1.5 bg-cyan-500/80 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] h-[16px] px-1">{activeMissions.length}</span>
-                  )}
-                </Button>
-                {/* Safe Room entry — green styled button */}
-                {safeRoom && (
-                  <Button
-                    onClick={() => enterSubArea(safeRoom.id)}
-                    className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:text-white text-xs sm:text-sm py-2.5"
-                  >
-                    <DoorOpen className="w-4 h-4 mr-1.5" /> {safeRoom.name}
-                  </Button>
-                )}
-                {location.isBossArea && (
-                  <Button
-                    onClick={startBossFight}
-                    disabled={aliveParty.length === 0}
-                    className="col-span-2 sm:col-span-1 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm py-2.5 font-bold animate-pulse"
-                  >
-                    <Skull className="w-4 h-4 mr-1.5" /> Affronta il Boss
-                  </Button>
-                )}
-              </div>
-            )}
+            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
+              <Button
+                onClick={explore}
+                disabled={aliveParty.length === 0}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <Compass className="w-4 h-4 mr-1.5" /> Esplora
+              </Button>
+              <Button
+                onClick={searchArea}
+                disabled={aliveParty.length === 0 || searchExhausted}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Search className="w-4 h-4 mr-1.5" /> Cerca
+              </Button>
+              <Button
+                onClick={toggleInventory}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <Package className="w-4 h-4 mr-1.5" /> Inventario
+              </Button>
 
-            {/* Travel Options — not shown inside sub-areas */}
-            {location.nextLocations.length > 0 && !location.isBossArea && !isInSafeRoom && (
-              <div className="mt-2">
-                <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5">Spostati verso:</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {location.nextLocations.map(locId => {
-                    const loc = LOCATIONS[locId];
-                    if (!loc) return null;
-                    const locked = location.lockedLocations?.find(l => l.locationId === locId);
-                    const hasKey = locked ? party.some(p => p.inventory.some(i => i.itemId === locked.requiredItemId)) : true;
-                    const isLocked = locked && !hasKey;
-                    return (
-                      <Button
-                        key={locId}
-                        variant="outline"
-                        onClick={() => travelTo(locId)}
-                        disabled={isLocked}
-                        className={`text-[10px] sm:text-xs border ${
-                          isLocked
-                            ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
-                            : 'border-white/[0.08] hover:border-red-500/30 bg-white/[0.03] hover:bg-red-500/[0.06] text-white/60 hover:text-red-300'
-                        }`}
-                      >
-                        {isLocked ? '🔒' : <ArrowRightLeft className="w-3 h-3 mr-1" />}
-                        {loc.name}
-                        {!isLocked && <ChevronRight className="w-3 h-3 ml-1" />}
-                      </Button>
-                    );
-                  })}
+              <Button
+                onClick={toggleMap}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <Map className="w-4 h-4 mr-1.5" /> Mappa
+              </Button>
+              <Button
+                onClick={toggleAchievements}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <Trophy className="w-4 h-4 mr-1.5" /> Traguardi
+              </Button>
+              <Button
+                onClick={toggleBestiary}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <BookOpen className="w-4 h-4 mr-1.5" /> Bestiario
+              </Button>
+              <Button
+                onClick={toggleDocuments}
+                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
+              >
+                <FileText className="w-4 h-4 mr-1.5" /> Documenti
+                {(() => {
+                  const unread = collectedDocuments.filter(id => !readDocuments.includes(id)).length;
+                  return unread > 0 ? (
+                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center border border-black/30">
+                      {unread}
+                    </span>
+                  ) : null;
+                })()}
+              </Button>
+              <Button
+                onClick={() => setShowMissions(!showMissions)}
+                className={`relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5 ${showMissions ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-300' : ''}`}
+              >
+                <BookOpen className="w-4 h-4 mr-1.5" /> Missioni
+                {activeMissions.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center border border-black/30">
+                    {activeMissions.length}
+                  </span>
+                )}
+              </Button>
+              {hasSafeRoom && (
+                <Button
+                  onClick={enterSafeRoom}
+                  className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-xs sm:text-sm py-2.5"
+                >
+                  <Home className="w-4 h-4 mr-1.5" /> Safe Room
+                </Button>
+              )}
+              {location.isBossArea && (
+                <Button
+                  onClick={startBossFight}
+                  disabled={aliveParty.length === 0}
+                  className="col-span-2 sm:col-span-1 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-white text-xs sm:text-sm py-2.5 font-bold animate-pulse"
+                >
+                  <Skull className="w-4 h-4 mr-1.5" /> Affronta il Boss
+                </Button>
+              )}
+            </div>
+
+            {/* Travel Options */}
+            {/* #45 Randomizer: use randomized nextLocations */}
+            {(() => {
+              const effectiveLoc = getEffectiveLocation(currentLocationId, randomizedLocationData);
+              const travelLocations = (effectiveLoc?.nextLocations || location.nextLocations);
+              const lockedLocations = effectiveLoc?.lockedLocations || location.lockedLocations;
+              if (travelLocations.length === 0 || location.isBossArea) return null;
+              return (
+                <div className="mt-2">
+                  <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5">Spostati verso:</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {travelLocations.map(locId => {
+                      const loc = LOCATIONS[locId];
+                      if (!loc) return null;
+                      const locked = lockedLocations?.find(l => l.locationId === locId);
+                      const hasKey = locked ? party.some(p => p.inventory.some(i => i.itemId === locked.requiredItemId)) : true;
+                      const isLocked = locked && !hasKey;
+                      return (
+                        <Button
+                          key={locId}
+                          variant="outline"
+                          onClick={() => travelTo(locId)}
+                          disabled={isLocked}
+                          className={`text-[10px] sm:text-xs border ${
+                            isLocked
+                              ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
+                              : 'border-white/[0.08] hover:border-red-500/30 bg-white/[0.03] hover:bg-red-500/[0.06] text-white/60 hover:text-red-300'
+                          }`}
+                        >
+                          {isLocked ? '🔒' : <ArrowRightLeft className="w-3 h-3 mr-1" />}
+                          {loc.name}
+                          {!isLocked && <ChevronRight className="w-3 h-3 ml-1" />}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       </div>

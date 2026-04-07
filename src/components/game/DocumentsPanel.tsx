@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { DOCUMENTS } from '@/game/data/documents';
+import { DOCUMENTS } from '@/game/data/loader';
 import { LOCATIONS } from '@/game/data/locations';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, X, FileText, MapPin, ChevronDown, Mail, Paperclip, User } from 'lucide-react';
+import { BookOpen, X, FileText, MapPin, Filter, ChevronDown, Mail, Eye, EyeOff } from 'lucide-react';
 import type { DocumentType, GameDocument } from '@/game/types';
 
 const DOC_TYPE_LABELS: Record<DocumentType, { label: string; icon: string; color: string }> = {
@@ -16,7 +16,7 @@ const DOC_TYPE_LABELS: Record<DocumentType, { label: string; icon: string; color
   note: { label: 'Nota', icon: '📝', color: 'text-gray-300 border-gray-700/30 bg-gray-950/20' },
   photo: { label: 'Foto', icon: '📷', color: 'text-emerald-300 border-emerald-700/30 bg-emerald-950/20' },
   report: { label: 'Rapporto', icon: '📋', color: 'text-cyan-300 border-cyan-700/30 bg-cyan-950/20' },
-  email: { label: 'E-mail', icon: '📧', color: 'text-blue-300 border-blue-700/30 bg-blue-950/20' },
+  email: { label: 'Email', icon: '📧', color: 'text-blue-300 border-blue-700/30 bg-blue-950/20' },
 };
 
 const RARITY_COLORS = {
@@ -26,133 +26,227 @@ const RARITY_COLORS = {
   legendary: 'border-amber-500/40 bg-amber-950/20 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
 };
 
-const PRIORITY_STYLES: Record<string, { label: string; className: string }> = {
-  low: { label: 'Bassa', className: 'text-gray-400 border-gray-600/30 bg-gray-800/30' },
-  normal: { label: 'Normale', className: 'text-blue-300 border-blue-600/30 bg-blue-900/30' },
-  high: { label: 'Alta', className: 'text-orange-300 border-orange-600/30 bg-orange-900/30' },
-  urgent: { label: '⚠ Urgente', className: 'text-red-300 border-red-500/40 bg-red-900/40 animate-pulse' },
-};
+// Parse email content into structured fields
+function parseEmailContent(content: string) {
+  const lines = content.split('\n');
+  const fields: Record<string, string> = {};
+  let bodyStartIdx = 0;
+  let headerDone = false;
 
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      if (headerDone || i > 0) {
+        bodyStartIdx = i + 1;
+        break;
+      }
+      continue;
+    }
+    if (line.startsWith('Da:') || line.startsWith('From:')) {
+      fields.from = line.replace(/^(Da|From):\s*/, '');
+      headerDone = true;
+    } else if (line.startsWith('A:') || line.startsWith('To:')) {
+      fields.to = line.replace(/^(A|To):\s*/, '');
+      headerDone = true;
+    } else if (line.startsWith('Oggetto:') || line.startsWith('Subject:')) {
+      fields.subject = line.replace(/^(Oggetto|Subject):\s*/, '');
+      headerDone = true;
+    } else if (line.startsWith('Data:') || line.startsWith('Date:')) {
+      fields.date = line.replace(/^(Data|Date):\s*/, '');
+      headerDone = true;
+    } else if (line.startsWith('Priorità:') || line.startsWith('Priority:')) {
+      fields.priority = line.replace(/^(Priorità|Priority):\s*/, '');
+      headerDone = true;
+    } else if (headerDone && !fields.body) {
+      bodyStartIdx = i;
+      break;
+    }
+  }
+
+  fields.body = lines.slice(bodyStartIdx).join('\n').trim();
+  return fields;
+}
+
+// Parse report content into structured fields
+function parseReportContent(content: string) {
+  const lines = content.split('\n');
+  const headerLines: string[] = [];
+  let bodyStartIdx = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      if (headerLines.length > 0) {
+        bodyStartIdx = i + 1;
+        break;
+      }
+      continue;
+    }
+    // Check if it looks like a header line (UPPERCASE or starts with known prefixes)
+    if (
+      line === line.toUpperCase() ||
+      line.startsWith('REGISTRO') ||
+      line.startsWith('REPORT') ||
+      line.startsWith('MEMO') ||
+      line.startsWith('PROGETTO') ||
+      line.startsWith('ORDINE') ||
+      line.startsWith('SETTIMANA') ||
+      line.startsWith('Giorno')
+    ) {
+      headerLines.push(line);
+    } else {
+      bodyStartIdx = i;
+      break;
+    }
+  }
+
+  return {
+    header: headerLines.join('\n').trim(),
+    body: lines.slice(bodyStartIdx).join('\n').trim() || content,
+  };
+}
+
+// Email-styled document reader
 function EmailDocumentReader({ doc }: { doc: GameDocument }) {
-  const meta = doc.emailMeta!;
-  const priority = meta.priority || 'normal';
-  const priorityStyle = PRIORITY_STYLES[priority];
+  const email = parseEmailContent(doc.content);
 
   return (
-    <div className="space-y-0">
-      {/* Email Header — mimics a real email client */}
-      <div className="p-4 rounded-t-lg border border-white/[0.06] bg-white/[0.02] space-y-3">
-        {/* Subject line */}
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
-            <Mail className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-base sm:text-lg font-bold text-white leading-tight">{doc.title}</h4>
-              {priority !== 'normal' && (
-                <Badge className={`text-[9px] border px-1.5 py-0 ${priorityStyle.className}`}>
-                  {priorityStyle.label}
-                </Badge>
-              )}
-            </div>
-            <p className="text-[10px] text-white/30 mt-0.5">{meta.date}</p>
-          </div>
-        </div>
-
-        {/* Email fields */}
-        <div className="border-t border-white/[0.06] pt-2.5 space-y-1.5 pl-11">
-          <div className="flex items-start gap-2">
-            <span className="text-[10px] font-bold text-white/40 uppercase w-10 shrink-0 pt-0.5">Da:</span>
-            <span className="text-xs text-blue-200/80 break-all">{meta.from}</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-[10px] font-bold text-white/40 uppercase w-10 shrink-0 pt-0.5">A:</span>
-            <span className="text-xs text-white/60 break-all">{meta.to}</span>
-          </div>
-          {meta.cc && (
-            <div className="flex items-start gap-2">
-              <span className="text-[10px] font-bold text-white/40 uppercase w-10 shrink-0 pt-0.5">Cc:</span>
-              <span className="text-xs text-white/50 break-all">{meta.cc}</span>
-            </div>
+    <div className="rounded-lg border border-blue-700/30 bg-blue-950/10 overflow-hidden">
+      {/* Email header bar */}
+      <div className="px-4 py-3 border-b border-blue-800/30 bg-blue-950/20">
+        <div className="flex items-center gap-2 mb-2">
+          <Mail className="w-4 h-4 text-blue-400" />
+          <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">Email</span>
+          {email.priority && (
+            <Badge className="text-[9px] bg-red-900/50 text-red-300 border-red-700/30 ml-auto">
+              {email.priority}
+            </Badge>
+          )}
+          {email.date && (
+            <span className="text-[10px] text-white/30 ml-auto">{email.date}</span>
           )}
         </div>
-
-        {/* Attachments */}
-        {meta.attachments && meta.attachments.length > 0 && (
-          <div className="pl-11 pt-1.5 border-t border-white/[0.06]">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <Paperclip className="w-3 h-3 text-white/30" />
-              <span className="text-[10px] font-semibold text-white/40 uppercase">
-                Allegati ({meta.attachments.length})
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {meta.attachments.map((att, i) => (
-                <div
-                  key={i}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded border border-white/[0.06] bg-white/[0.02] text-[10px] text-white/50 hover:bg-white/[0.05] hover:text-white/70 transition-colors cursor-default"
-                >
-                  <Paperclip className="w-2.5 h-2.5" />
-                  <span className="truncate max-w-[180px]">{att}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        {email.subject && (
+          <h4 className="text-sm sm:text-base font-bold text-white">{email.subject}</h4>
         )}
-
-        {/* Location + Secret badge */}
-        <div className="pl-11 flex items-center gap-2 pt-1">
-          <span className="text-[10px] text-white/30 flex items-center gap-1">
-            <MapPin className="w-2.5 h-2.5" />
-            {LOCATIONS[doc.locationId]?.name}
-          </span>
-          {doc.isSecret && (
-            <Badge className="text-[9px] text-purple-300 border-purple-700/30 bg-purple-900/30 px-1.5 py-0">
-              🔒 Segreto
-            </Badge>
+        <div className="mt-2 space-y-0.5">
+          {email.from && (
+            <div className="text-[11px]">
+              <span className="text-white/40 font-medium">Da: </span>
+              <span className="text-blue-200/80">{email.from}</span>
+            </div>
+          )}
+          {email.to && (
+            <div className="text-[11px]">
+              <span className="text-white/40 font-medium">A: </span>
+              <span className="text-blue-200/80">{email.to}</span>
+            </div>
           )}
         </div>
       </div>
-
-      {/* Email Body */}
-      <div className={`p-4 rounded-b-lg border border-t-0 ${RARITY_COLORS[doc.rarity]}`}>
-        <div className="border-t border-white/[0.06] pt-3">
-          <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{doc.content}</p>
-        </div>
+      {/* Email body */}
+      <div className="p-4">
+        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{email.body}</p>
       </div>
     </div>
   );
 }
 
-function StandardDocumentReader({ doc }: { doc: GameDocument }) {
+// Diary-styled document reader
+function DiaryDocumentReader({ doc }: { doc: GameDocument }) {
   return (
-    <div className={`p-4 rounded-lg border ${RARITY_COLORS[doc.rarity]}`}>
-      <div className="flex items-start gap-3 mb-3">
-        <span className="text-2xl">{doc.icon}</span>
-        <div className="flex-1 min-w-0">
-          <h4 className="text-base sm:text-lg font-bold text-white">{doc.title}</h4>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge className={`text-[9px] ${DOC_TYPE_LABELS[doc.type].color}`}>
-              {DOC_TYPE_LABELS[doc.type].icon} {DOC_TYPE_LABELS[doc.type].label}
-            </Badge>
-            <span className="text-[10px] text-white/30 flex items-center gap-1">
-              <MapPin className="w-2.5 h-2.5" />
-              {LOCATIONS[doc.locationId]?.name}
-            </span>
-          </div>
-        </div>
+    <div className="rounded-lg border border-amber-700/30 bg-amber-950/10 overflow-hidden">
+      <div className="px-4 py-2 border-b border-amber-800/30 bg-amber-950/20 flex items-center gap-2">
+        <span className="text-base">📔</span>
+        <span className="text-xs font-bold text-amber-300 italic">Pagine scritte a mano</span>
       </div>
-      <div className="border-t border-white/[0.06] pt-3">
-        <p className="text-sm text-white/70 leading-relaxed italic whitespace-pre-line">{doc.content}</p>
+      <div className="p-4 bg-[repeating-linear-gradient(transparent,transparent_27px,rgba(180,140,80,0.06)_27px,rgba(180,140,80,0.06)_28px)]">
+        <p className="text-sm text-amber-100/70 leading-relaxed italic whitespace-pre-line font-serif">
+          {doc.content}
+        </p>
       </div>
-      {doc.isSecret && (
-        <div className="mt-3 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
-          <p className="text-[10px] text-purple-300 font-semibold">🔒 Documento Segreto</p>
-        </div>
-      )}
     </div>
   );
+}
+
+// Report-styled document reader
+function ReportDocumentReader({ doc }: { doc: GameDocument }) {
+  const report = parseReportContent(doc.content);
+
+  return (
+    <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 overflow-hidden">
+      <div className="px-4 py-2 border-b border-cyan-800/30 bg-cyan-950/20 flex items-center gap-2">
+        <span className="text-base">📋</span>
+        <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">Rapporto Ufficiale</span>
+      </div>
+      {report.header && (
+        <div className="px-4 py-2 border-b border-cyan-800/20 bg-cyan-950/10">
+          <p className="text-xs font-bold text-cyan-200/60 uppercase tracking-wide whitespace-pre-line">{report.header}</p>
+        </div>
+      )}
+      <div className="p-4">
+        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{report.body}</p>
+      </div>
+    </div>
+  );
+}
+
+// Umbrella file reader
+function UmbrellaFileReader({ doc }: { doc: GameDocument }) {
+  return (
+    <div className="rounded-lg border border-red-700/30 bg-red-950/10 overflow-hidden">
+      <div className="px-4 py-2 border-b border-red-800/30 bg-red-950/20 flex items-center gap-2">
+        <span className="text-base">📁</span>
+        <span className="text-xs font-bold text-red-300 uppercase tracking-wider">Umbrella Corp — CLASSIFICATO</span>
+        <Badge className="text-[8px] bg-red-900/60 text-red-400 border-red-700/40 ml-auto uppercase">Top Secret</Badge>
+      </div>
+      <div className="p-4">
+        <p className="text-sm text-red-100/70 leading-relaxed whitespace-pre-line">{doc.content}</p>
+      </div>
+    </div>
+  );
+}
+
+// Photo reader
+function PhotoDocumentReader({ doc }: { doc: GameDocument }) {
+  return (
+    <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/10 overflow-hidden">
+      <div className="px-4 py-2 border-b border-emerald-800/30 bg-emerald-950/20 flex items-center gap-2">
+        <span className="text-base">📷</span>
+        <span className="text-xs font-bold text-emerald-300">Fotografia</span>
+      </div>
+      <div className="p-4">
+        <p className="text-sm text-emerald-100/70 leading-relaxed whitespace-pre-line italic">{doc.content}</p>
+      </div>
+    </div>
+  );
+}
+
+// Note reader
+function NoteDocumentReader({ doc }: { doc: GameDocument }) {
+  return (
+    <div className="rounded-lg border border-gray-700/30 bg-gray-950/10 overflow-hidden">
+      <div className="px-4 py-2 border-b border-gray-700/30 bg-gray-950/20 flex items-center gap-2">
+        <span className="text-base">📝</span>
+        <span className="text-xs font-bold text-gray-300">Nota</span>
+      </div>
+      <div className="p-4">
+        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{doc.content}</p>
+      </div>
+    </div>
+  );
+}
+
+function DocumentReader({ doc }: { doc: GameDocument }) {
+  switch (doc.type) {
+    case 'email': return <EmailDocumentReader doc={doc} />;
+    case 'diary': return <DiaryDocumentReader doc={doc} />;
+    case 'report': return <ReportDocumentReader doc={doc} />;
+    case 'umbrella_file': return <UmbrellaFileReader doc={doc} />;
+    case 'photo': return <PhotoDocumentReader doc={doc} />;
+    case 'note': return <NoteDocumentReader doc={doc} />;
+    default: return <NoteDocumentReader doc={doc} />;
+  }
 }
 
 export default function DocumentsPanel() {
@@ -164,6 +258,9 @@ export default function DocumentsPanel() {
   const docs = collectedDocuments
     .map(id => DOCUMENTS[id])
     .filter(Boolean);
+
+  // Count unread
+  const unreadCount = docs.filter(d => !readDocuments.includes(d.id)).length;
 
   // Filter by type
   const filteredDocs = filterType === 'all'
@@ -182,14 +279,11 @@ export default function DocumentsPanel() {
   const totalDocs = Object.keys(DOCUMENTS).length;
   const secretDocs = docs.filter(d => d.isSecret).length;
   const totalSecretDocs = Object.values(DOCUMENTS).filter(d => d.isSecret).length;
-  const unreadCount = collectedDocuments.length - readDocuments.length;
 
-  // Mark document as read when selected
-  useEffect(() => {
-    if (selectedDoc) {
-      markDocumentRead(selectedDoc.id);
-    }
-  }, [selectedDoc, markDocumentRead]);
+  const handleSelectDoc = (doc: GameDocument) => {
+    setSelectedDoc(doc);
+    markDocumentRead(doc.id);
+  };
 
   return (
     <AnimatePresence>
@@ -211,10 +305,15 @@ export default function DocumentsPanel() {
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/[0.06] shrink-0">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-amber-400" />
-                <h3 className="text-base sm:text-lg font-bold text-white">Documenti Raccolti</h3>
+                <h3 className="text-base sm:text-lg font-bold text-white">Documenti</h3>
                 <Badge className="bg-amber-900/50 text-amber-300 border-amber-700/30 text-xs">
                   {docs.length}/{totalDocs}
                 </Badge>
+                {unreadCount > 0 && (
+                  <Badge className="bg-blue-900/50 text-blue-300 border-blue-700/30 text-xs animate-pulse">
+                    {unreadCount} nuovi
+                  </Badge>
+                )}
                 {secretDocs > 0 && (
                   <Badge className="bg-purple-900/50 text-purple-300 border-purple-700/30 text-xs">
                     🔒 {secretDocs}/{totalSecretDocs}
@@ -231,30 +330,28 @@ export default function DocumentsPanel() {
               </Button>
             </div>
 
-            {/* Filter tabs — hidden when a document is open */}
-            {!selectedDoc && docs.length > 0 && (
-              <div className="flex gap-1 p-2 border-b border-white/[0.06] overflow-x-auto shrink-0">
-                <Badge
-                  className={`cursor-pointer text-[10px] sm:text-xs px-2 py-1 transition-all ${filterType === 'all' ? 'bg-amber-900/50 text-amber-300 border-amber-700/40' : 'bg-white/[0.03] text-white/50 border-white/[0.06] hover:bg-white/[0.06]'}`}
-                  onClick={() => setFilterType('all')}
-                >
-                  Tutti ({docs.length})
-                </Badge>
-                {Object.entries(DOC_TYPE_LABELS).map(([type, info]) => {
-                  const count = docs.filter(d => d.type === type).length;
-                  if (count === 0) return null;
-                  return (
-                    <Badge
-                      key={type}
-                      className={`cursor-pointer text-[10px] sm:text-xs px-2 py-1 transition-all ${filterType === type ? `${info.color}` : 'bg-white/[0.03] text-white/50 border-white/[0.06] hover:bg-white/[0.06]'}`}
-                      onClick={() => setFilterType(type as DocumentType)}
-                    >
-                      {info.icon} {info.label} ({count})
-                    </Badge>
-                  );
-                })}
-              </div>
-            )}
+            {/* Filter tabs */}
+            <div className="flex gap-1 p-2 border-b border-white/[0.06] overflow-x-auto shrink-0">
+              <Badge
+                className={`cursor-pointer text-[10px] sm:text-xs px-2 py-1 transition-all ${filterType === 'all' ? 'bg-amber-900/50 text-amber-300 border-amber-700/40' : 'bg-white/[0.03] text-white/50 border-white/[0.06] hover:bg-white/[0.06]'}`}
+                onClick={() => setFilterType('all')}
+              >
+                Tutti ({docs.length})
+              </Badge>
+              {Object.entries(DOC_TYPE_LABELS).map(([type, info]) => {
+                const count = docs.filter(d => d.type === type).length;
+                if (count === 0) return null;
+                return (
+                  <Badge
+                    key={type}
+                    className={`cursor-pointer text-[10px] sm:text-xs px-2 py-1 transition-all ${filterType === type ? `${info.color}` : 'bg-white/[0.03] text-white/50 border-white/[0.06] hover:bg-white/[0.06]'}`}
+                    onClick={() => setFilterType(type as DocumentType)}
+                  >
+                    {info.icon} {info.label} ({count})
+                  </Badge>
+                );
+              })}
+            </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 inventory-scrollbar">
@@ -280,10 +377,34 @@ export default function DocumentsPanel() {
                   >
                     ← Torna alla lista
                   </Button>
-                  {selectedDoc.type === 'email' && selectedDoc.emailMeta ? (
-                    <EmailDocumentReader doc={selectedDoc} />
-                  ) : (
-                    <StandardDocumentReader doc={selectedDoc} />
+
+                  {/* Document title & meta */}
+                  <div className="flex items-start gap-3 mb-1">
+                    <span className="text-2xl">{selectedDoc.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-base sm:text-lg font-bold text-white">{selectedDoc.title}</h4>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge className={`text-[9px] ${DOC_TYPE_LABELS[selectedDoc.type].color}`}>
+                          {DOC_TYPE_LABELS[selectedDoc.type].icon} {DOC_TYPE_LABELS[selectedDoc.type].label}
+                        </Badge>
+                        <span className="text-[10px] text-white/30 flex items-center gap-1">
+                          <MapPin className="w-2.5 h-2.5" />
+                          {LOCATIONS[selectedDoc.locationId]?.name}
+                        </span>
+                        <Badge className={`text-[9px] ${RARITY_COLORS[selectedDoc.rarity]} border`}>
+                          {selectedDoc.rarity === 'legendary' ? '⭐' : selectedDoc.rarity === 'rare' ? '💜' : selectedDoc.rarity === 'uncommon' ? '💚' : '⚪'} {selectedDoc.rarity}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Type-specific reader */}
+                  <DocumentReader doc={selectedDoc} />
+
+                  {selectedDoc.isSecret && (
+                    <div className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                      <p className="text-[10px] text-purple-300 font-semibold">🔒 Documento Segreto</p>
+                    </div>
                   )}
                 </motion.div>
               ) : (
@@ -295,37 +416,38 @@ export default function DocumentsPanel() {
                         <MapPin className="w-3 h-3" /> {locName}
                       </div>
                       <div className="space-y-1.5">
-                        {locDocs.map(doc => (
-                          <motion.button
-                            key={doc.id}
-                            whileHover={{ scale: 1.01, x: 3 }}
-                            whileTap={{ scale: 0.99 }}
-                            onClick={() => setSelectedDoc(doc)}
-                            className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer
-                              ${RARITY_COLORS[doc.rarity]}
-                              hover:border-white/20 hover:bg-white/[0.06]`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">{doc.icon}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">{doc.title}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
+                        {locDocs.map(doc => {
+                          const isRead = readDocuments.includes(doc.id);
+                          return (
+                            <motion.button
+                              key={doc.id}
+                              whileHover={{ scale: 1.01, x: 3 }}
+                              whileTap={{ scale: 0.99 }}
+                              onClick={() => handleSelectDoc(doc)}
+                              className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer
+                                ${RARITY_COLORS[doc.rarity]}
+                                ${isRead ? 'opacity-70' : 'hover:border-white/20 hover:bg-white/[0.06]'}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">{doc.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-medium truncate ${isRead ? 'text-white/60' : 'text-white'}`}>{doc.title}</p>
                                   <p className="text-[10px] text-white/40 truncate">
                                     {DOC_TYPE_LABELS[doc.type].icon} {DOC_TYPE_LABELS[doc.type].label}
                                   </p>
-                                  {doc.type === 'email' && doc.emailMeta?.priority === 'urgent' && (
-                                    <span className="text-[9px] text-red-400 animate-pulse">⚠ URGENTE</span>
-                                  )}
                                 </div>
+                                {!isRead && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" />
+                                )}
+                                {isRead && (
+                                  <Eye className="w-3 h-3 text-white/20 shrink-0" />
+                                )}
+                                {doc.isSecret && <span className="text-xs">🔒</span>}
+                                <ChevronDown className="w-3 h-3 text-white/30" />
                               </div>
-                              {doc.isSecret && <span className="text-xs">🔒</span>}
-                              {!readDocuments.includes(doc.id) && (
-                                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0 animate-pulse" />
-                              )}
-                              <ChevronDown className="w-3 h-3 text-white/30" />
-                            </div>
-                          </motion.button>
-                        ))}
+                            </motion.button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
