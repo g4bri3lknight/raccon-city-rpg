@@ -8,6 +8,7 @@ import {
   Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
+import { useGameStore } from '@/game/store';
 import ItemIcon from '@/components/game/ItemIcon';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
@@ -3131,6 +3132,7 @@ export default function AdminPanel() {
     setRefreshing(true);
     try {
       await refreshGameData();
+      useGameStore.getState().bumpDataVersion();
       showStatus('Dati di gioco ricaricati!', 'success');
     } catch (err) {
       showStatus(`Errore refresh: ${err}`, 'error');

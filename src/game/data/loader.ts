@@ -3,12 +3,14 @@ import { STATIC_DYNAMIC_EVENTS } from './dynamic-events';
 import { STATIC_DOCUMENTS } from './documents';
 import { STATIC_LOCATIONS } from './locations';
 import { NPCS as STATIC_NPCS } from './npcs';
-import { CHARACTER_ARCHETYPES as STATIC_CHARACTERS } from './characters';
-import { ALL_SPECIAL_ABILITIES as STATIC_SPECIALS } from './specials';
+import { CHARACTER_ARCHETYPES as STATIC_CHARACTERS, ARCHETYPE_STAT_POINTS as STATIC_STAT_POINTS, getCustomStartingItems as _getCustomStartingItems, getCustomPassiveDescription as _getCustomPassiveDescription } from './characters';
+import { ALL_SPECIAL_ABILITIES as STATIC_SPECIALS, ARCHETYPE_SPECIAL_MAP as STATIC_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP as STATIC_CATEGORY_MAP } from './specials';
+import { ENEMIES as STATIC_ENEMIES, ENEMY_IMAGES, CHARACTER_IMAGES, BOSS_PHASES } from './enemies';
 import type { ItemDefinition, ItemType, Rarity, ItemEffect, LocationDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition } from '../types';
+import type { EnemyDefinition, BossPhase } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
@@ -18,9 +20,29 @@ export let LOCATIONS: Record<string, LocationDefinition> = {};
 export let NPCS_DATA: Record<string, GameNPC> = {};
 export let CHARACTERS_DATA: CharacterArchetype[] = [];
 export let SPECIALS_DATA: SpecialAbilityDefinition[] = [];
+export let ENEMIES_DATA: Record<string, EnemyDefinition> = {};
 
-// Backward compat alias
+// Backward compat aliases
 export { NPCS_DATA as NPCS };
+export { CHARACTERS_DATA as CHARACTER_ARCHETYPES };
+export { SPECIALS_DATA as ALL_SPECIAL_ABILITIES };
+
+// Re-export image maps (these are URL templates, no DB storage)
+export { ENEMY_IMAGES, CHARACTER_IMAGES, BOSS_PHASES };
+
+// Computed config: rebuilt from loaded character data on each load
+export let ARCHETYPE_STAT_POINTS = { ...STATIC_STAT_POINTS };
+export let ARCHETYPE_SPECIAL_MAP = { ...STATIC_SPECIAL_MAP };
+export let ARCHETYPE_CATEGORY_MAP = { ...STATIC_CATEGORY_MAP };
+
+// Re-export helper functions from characters module
+export { _getCustomStartingItems as getCustomStartingItems, _getCustomPassiveDescription as getCustomPassiveDescription };
+
+// Export static-only data (enemies are not editable in admin)
+export { STATIC_ENEMIES as ENEMIES };
+
+// Cache-bust counter: incremented on every refreshGameData() so img src URLs change
+export let DATA_VERSION = 0;
 
 let initialized = false;
 
@@ -325,6 +347,28 @@ function mapDbSpecial(row: DbSpecial): SpecialAbilityDefinition {
   };
 }
 
+// ── Rebuild computed config from loaded data ──
+
+function rebuildStatPoints(): void {
+  const pts: typeof ARCHETYPE_STAT_POINTS = {};
+  for (const char of CHARACTERS_DATA) {
+    const hp = Math.round(char.maxHp / 10);
+    pts[char.id] = { hp, atk: char.atk, def: char.def, spd: char.spd };
+  }
+  // Keep 'custom' fallback from static
+  pts.custom = STATIC_STAT_POINTS.custom;
+  ARCHETYPE_STAT_POINTS = pts;
+}
+
+function rebuildSpecialMap(): void {
+  // Build from loaded specials + character archetype mapping
+  const spMap: typeof ARCHETYPE_SPECIAL_MAP = { ...STATIC_SPECIAL_MAP };
+  ARCHETYPE_SPECIAL_MAP = spMap;
+
+  const catMap: typeof ARCHETYPE_CATEGORY_MAP = { ...STATIC_CATEGORY_MAP };
+  ARCHETYPE_CATEGORY_MAP = catMap;
+}
+
 // ── Load from API ──
 
 async function loadFromApi(): Promise<{
@@ -419,6 +463,8 @@ async function loadCharacters(api: Awaited<ReturnType<typeof loadFromApi>>): Pro
   } else {
     CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
   }
+  // Rebuild stat points from loaded data
+  rebuildStatPoints();
 }
 
 async function loadSpecials(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
@@ -474,6 +520,7 @@ export async function refreshGameData(): Promise<void> {
       loadCharacters(api),
       loadSpecials(api),
     ]);
+    DATA_VERSION++;
     initialized = true;
   } catch (err) {
     console.warn('[DataLoader] API refresh failed:', err);
@@ -490,4 +537,13 @@ export function getSpecialById(id: string): SpecialAbilityDefinition | undefined
     return SPECIALS_DATA.find(s => s.id === id);
   }
   return STATIC_SPECIALS.find(s => s.id === id);
+}
+
+/**
+ * Append cache-bust query param to a media image URL.
+ * Pass the current dataVersion from useGameStore so React re-renders when it changes.
+ */
+export function mediaUrl(idOrPath: string, version: number): string {
+  const sep = idOrPath.includes('?') ? '&' : '?';
+  return `${idOrPath}${sep}_v=${version}`;
 }

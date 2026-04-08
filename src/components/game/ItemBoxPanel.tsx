@@ -6,7 +6,7 @@ import { useGameStore } from '@/game/store';
 import { ItemInstance } from '@/game/types';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
-import { CHARACTER_IMAGES } from '@/game/data/enemies';
+import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -49,6 +49,7 @@ const TYPE_LABELS: Record<string, string> = {
 const ITEM_BOX_MAX_SLOTS = 48;
 
 export default function ItemBoxPanel() {
+  const dataVersion = useGameStore(s => s.dataVersion);
   const party = useGameStore(s => s.party);
   const selectedCharacterId = useGameStore(s => s.selectedCharacterId);
   const itemBoxItems = useGameStore(s => s.itemBoxItems);
@@ -171,7 +172,7 @@ export default function ItemBoxPanel() {
             max={selectedChar.maxHp}
             name={selectedChar.name}
             statusEffects={selectedChar.statusEffects}
-            imageSrc={selectedChar.avatarUrl || CHARACTER_IMAGES[selectedChar.archetype]}
+            imageSrc={mediaUrl(selectedChar.avatarUrl || CHARACTER_IMAGES[selectedChar.archetype] || '', dataVersion)}
           />
           <div className="flex gap-3 text-xs mt-1.5">
             <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + (selectedChar.weapon?.atkBonus || 0)}</span>

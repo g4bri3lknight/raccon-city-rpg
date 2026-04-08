@@ -2,8 +2,7 @@
 
 import { useCallback, useRef } from 'react';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS } from '@/game/data/loader';
-import { ITEMS } from '@/game/data/items';
+import { LOCATIONS, ITEMS } from '@/game/data/loader';
 
 /**
  * AI-2.3/AI-2.4 — Hook that triggers AI content generation for locations.

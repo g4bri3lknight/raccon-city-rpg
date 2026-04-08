@@ -6,12 +6,13 @@ import { useGameStore } from '@/game/store';
 import { ItemInstance } from '@/game/types';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
-import { CHARACTER_IMAGES } from '@/game/data/enemies';
+import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack } from 'lucide-react';
 
 export default function InventoryPanel() {
+  const dataVersion = useGameStore(s => s.dataVersion);
   const state = useGameStore();
   const { party, inventoryOpen, selectedCharacterId, toggleInventory, equipItem, consumeItemOutsideCombat, combineHerbs, selectCharacter, transferItem } = state;
   const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
@@ -111,7 +112,7 @@ export default function InventoryPanel() {
               max={selectedChar.maxHp}
               name={selectedChar.name}
               statusEffects={selectedChar.statusEffects}
-              imageSrc={selectedChar.avatarUrl || CHARACTER_IMAGES[selectedChar.archetype]}
+              imageSrc={mediaUrl(selectedChar.avatarUrl || CHARACTER_IMAGES[selectedChar.archetype] || '', dataVersion)}
             />
             <div className="flex gap-2.5 md:gap-4 text-[10px] md:text-xs mt-1.5 md:mt-2">
               <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + (selectedChar.weapon?.atkBonus || 0)}</span>

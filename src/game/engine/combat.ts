@@ -7,9 +7,7 @@ import {
   Archetype,
   StatusEffect,
 } from '../types';
-import { ENEMIES } from '../data/enemies';
-import { ARCHETYPE_SPECIAL_MAP } from '../data/specials';
-import { getSpecialById } from '../data/loader';
+import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById } from '../data/loader';
 
 // ==========================================
 // UTILITY

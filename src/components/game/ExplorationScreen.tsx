@@ -3,11 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS } from '@/game/data/loader';
+import { LOCATIONS, CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
 import { CompactHpPanel } from './HpBar';
-import { CHARACTER_IMAGES } from '@/game/data/enemies';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,6 +19,7 @@ import MissionsPanel from './MissionsPanel';
 import { getEffectiveLocation } from '@/game/data/randomizer';
 
 export default function ExplorationScreen() {
+  const dataVersion = useGameStore(s => s.dataVersion);
   const state = useGameStore();
   const {
     party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
@@ -144,7 +144,7 @@ export default function ExplorationScreen() {
                     {/* Portrait — small, fixed size */}
                     <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden border shrink-0 relative ${char.currentHp <= 0 ? 'grayscale opacity-40' : 'border-gray-600/40'}`}>
                       {char.avatarUrl || CHARACTER_IMAGES[char.archetype] ? (
-                        <img src={char.avatarUrl || CHARACTER_IMAGES[char.archetype]} alt={char.name} className="w-full h-full object-cover object-[center_15%]" />
+                        <img src={mediaUrl(char.avatarUrl || CHARACTER_IMAGES[char.archetype] || '', dataVersion)} alt={char.name} className="w-full h-full object-cover object-[center_15%]" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-lg bg-white/[0.04]">
                           {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
@@ -261,7 +261,7 @@ export default function ExplorationScreen() {
                       'text-gray-400'
                     }`}
                   >
-                    <LogText text={msg} party={party.map(p => ({ name: p.name, avatarSrc: p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '' }))} />
+                    <LogText text={msg} party={party.map(p => ({ name: p.name, avatarSrc: mediaUrl(p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '', dataVersion) }))} />
                   </p>
                 ))}
                 {messageLog.length === 0 && !activeEvent && (

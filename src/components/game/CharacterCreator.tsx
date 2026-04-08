@@ -26,9 +26,8 @@ import {
   Sparkles,
   Check,
 } from 'lucide-react';
-import { ALL_SPECIAL_ABILITIES, PREDEFINED_AVATARS, CUSTOM_STAT_BUDGET, getCustomPassiveDescription, ARCHETYPE_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP } from '@/game/data/specials';
-import { SPECIALS_DATA } from '@/game/data/loader';
-import { CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS } from '@/game/data/characters';
+import { PREDEFINED_AVATARS, CUSTOM_STAT_BUDGET } from '@/game/data/specials';
+import { ALL_SPECIAL_ABILITIES, SPECIALS_DATA, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomPassiveDescription, ARCHETYPE_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP } from '@/game/data/loader';
 import type { CustomCharacterConfig, Archetype, SpecialCategory } from '@/game/types';
 
 // ==========================================

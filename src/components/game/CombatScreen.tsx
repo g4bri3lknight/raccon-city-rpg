@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CombatAction } from '@/game/types';
 import LogText from '@/components/game/LogText';
-import { ENEMY_IMAGES, CHARACTER_IMAGES } from '@/game/data/enemies';
-import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '@/game/data/specials';
+import { ENEMY_IMAGES, CHARACTER_IMAGES, getSpecialById, ARCHETYPE_SPECIAL_MAP, mediaUrl } from '@/game/data/loader';
 import ItemIcon from './ItemIcon';
 import { WEAPON_AMMO, resolveSpecialId } from '@/game/engine/combat';
 import { audio } from '@/game/engine/sounds';
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react';
 
 export default function CombatScreen() {
+  const dataVersion = useGameStore(s => s.dataVersion);
   const state = useGameStore();
   const { party, combat, enemies, autoCombat,
     selectCombatAction, selectCombatTarget, selectCombatItem, executeCombatTurn,
@@ -661,7 +661,7 @@ export default function CombatScreen() {
                   </span>
                 )}
                 <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
-                  <img src={char.avatarUrl || CHARACTER_IMAGES[char.archetype] || ''} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
+                  <img src={mediaUrl(char.avatarUrl || CHARACTER_IMAGES[char.archetype] || '', dataVersion)} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
                   {/* ── BLEEDING VISUAL: blood drips on left + red pulse ── */}
                   {isBleeding && !isDead && (
                     <>
@@ -984,7 +984,7 @@ export default function CombatScreen() {
             >
               {entry.isCritical && '💥 '}
               {entry.isMiss && '💨 '}
-              <LogText text={entry.message} party={party.map(p => ({ name: p.name, avatarSrc: p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '' }))} />
+              <LogText text={entry.message} party={party.map(p => ({ name: p.name, avatarSrc: mediaUrl(p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '', dataVersion) }))} />
             </motion.p>
           );
         })}

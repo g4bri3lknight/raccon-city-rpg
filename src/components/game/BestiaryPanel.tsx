@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { ENEMIES, ENEMY_IMAGES, BOSS_PHASES } from '@/game/data/enemies';
+import { ENEMIES, ENEMY_IMAGES, BOSS_PHASES } from '@/game/data/loader';
 import { ITEMS } from '@/game/data/loader';
 import { LOCATIONS } from '@/game/data/loader';
 import { EnemyDefinition } from '@/game/types';

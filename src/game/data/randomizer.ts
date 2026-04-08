@@ -4,9 +4,7 @@
 // Ensures the game remains winnable: key items accessible, final boss reachable.
 // ==========================================
 
-import { LOCATIONS } from './loader';
-import { ENEMIES } from './enemies';
-import { ITEMS } from './loader';
+import { LOCATIONS, ENEMIES, ITEMS } from './loader';
 import { RandomizedLocationData } from '../types';
 
 // ── Enemy tier definitions for balanced randomization ──

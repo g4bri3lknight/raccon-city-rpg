@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { GameStatistics } from '@/game/types';
-import { ENEMIES } from '@/game/data/enemies';
+import { ENEMIES } from '@/game/data/loader';
 import { LOCATIONS } from '@/game/data/loader';
 import { Badge } from '@/components/ui/badge';
 import { Sword, Shield, Heart, Pill, Target, Footprints, Skull, MapPin, Backpack, Zap } from 'lucide-react';

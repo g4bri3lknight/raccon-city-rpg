@@ -493,6 +493,8 @@ export interface GameState {
   itemBoxItems: ItemInstance[];
   // Document read tracking
   readDocuments: string[]; // document IDs that have been opened/read
+  // Admin data refresh version (incremented on refreshGameData)
+  dataVersion: number;
 }
 
 // ==========================================

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { ENEMIES } from '@/game/data/enemies';
+import { ENEMIES } from '@/game/data/loader';
 import { LOCATIONS } from '@/game/data/loader';
 import { NPCS } from '@/game/data/loader';
 import {

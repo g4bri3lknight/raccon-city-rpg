@@ -3,15 +3,14 @@
 import { useState, useCallback, lazy, Suspense, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { CHARACTER_ARCHETYPES, getCustomPassiveDescription, getCustomStartingItems, ARCHETYPE_STAT_POINTS } from '@/game/data/characters';
+import { CHARACTER_ARCHETYPES, getCustomPassiveDescription, getCustomStartingItems, ARCHETYPE_STAT_POINTS, CHARACTER_IMAGES, getSpecialById, mediaUrl } from '@/game/data/loader';
 import { CustomCharacterConfig, Archetype } from '@/game/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Shield, Swords, Heart, Zap, ChevronRight, Check, Users, UserPlus, X, User, Crosshair, Settings2, Sparkles, Trash2, Dices } from 'lucide-react';
-import { CHARACTER_IMAGES } from '@/game/data/enemies';
-import { getSpecialById } from '@/game/data/specials';
+// CHARACTER_IMAGES and getSpecialById now imported from loader above
 import ItemIcon from './ItemIcon';
 
 const LazyCharacterCreator = lazy(() => import('./CharacterCreator'));
@@ -143,7 +142,7 @@ function getArchetypeIconColor(id: string | undefined) {
 }
 
 // ── Build a CarouselItem from a preset archetype ──
-function presetToCarouselItem(arch: typeof CHARACTER_ARCHETYPES[number]): CarouselItem {
+function presetToCarouselItem(arch: typeof CHARACTER_ARCHETYPES[number], dataVersion: number): CarouselItem {
   const points = ARCHETYPE_STAT_POINTS[arch.id] || ARCHETYPE_STAT_POINTS.custom;
   return {
     id: arch.id,
@@ -151,7 +150,7 @@ function presetToCarouselItem(arch: typeof CHARACTER_ARCHETYPES[number]): Carous
     displayName: arch.displayName,
     roleName: arch.name,
     description: arch.description,
-    avatarUrl: CHARACTER_IMAGES[arch.id] || '/api/media/image?id=avatar_civilian',
+    avatarUrl: mediaUrl(CHARACTER_IMAGES[arch.id] || '/api/media/image?id=avatar_civilian', dataVersion),
     maxHp: points.hp * 10,
     atk: points.atk,
     def: points.def,
@@ -211,6 +210,7 @@ function customToCarouselItem(config: CustomCharacterConfig, index: number): Car
 
 
 export default function CharacterSelect() {
+  const dataVersion = useGameStore(s => s.dataVersion);
   const startAdventure = useGameStore(s => s.startAdventure);
   const startAdventureWithCustom = useGameStore(s => s.startAdventureWithCustom);
   const goToCharacterCreator = useGameStore(s => s.goToCharacterCreator);
@@ -230,10 +230,10 @@ export default function CharacterSelect() {
 
   // ── Build unified carousel items list: presets first, then customs ──
   const allItems = useMemo(() => {
-    const presets = CHARACTER_ARCHETYPES.map(presetToCarouselItem);
+    const presets = CHARACTER_ARCHETYPES.map(a => presetToCarouselItem(a, dataVersion));
     const customs = customCharacters.map((cc, i) => customToCarouselItem(cc, i));
     return [...presets, ...customs];
-  }, [customCharacters]);
+  }, [customCharacters, dataVersion]);
 
   const current = allItems[currentIndex] || allItems[0];
   const totalSelected = selected.size;

@@ -29,10 +29,8 @@ import {
   DynamicEventChoice,
   RandomizedLocationData,
 } from './types';
-import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems, ARCHETYPE_STAT_POINTS, computeGrowthRates } from './data/characters';
-import { ENEMIES } from './data/enemies';
-import { BOSS_PHASES } from './data/enemies';
-import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData } from './data/loader';
+import { getCharacterStats, computeGrowthRates } from './data/characters';
+import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES } from './data/loader';
 import { generateRandomizedData, getEffectiveLocation } from './data/randomizer';
 import {
   executePlayerAttack,
@@ -447,6 +445,9 @@ interface GameStore extends GameState {
   debugToggleGodMode: () => void;
   debugSpawnCollectible: () => void;
   debugGiveAllRibbons: () => void;
+
+  // Admin data refresh
+  bumpDataVersion: () => void;
 }
 
 // ==========================================
@@ -520,6 +521,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   currentSubArea: null as string | null,
   itemBoxItems: [] as ItemInstance[],
   readDocuments: [] as string[],
+  dataVersion: 0,
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -5263,5 +5265,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       persistentRibbons: 10,
       messageLog: [...state.messageLog, '[DEBUG] 🎀 Tutti e 10 i nastri sbloccati (run + persistenti)!'],
     }));
+  },
+
+  bumpDataVersion: () => {
+    set(state => ({ dataVersion: state.dataVersion + 1 }));
   },
 }));

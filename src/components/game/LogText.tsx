@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { CHARACTER_IMAGES } from '@/game/data/enemies';
+import { useGameStore } from '@/game/store';
+import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 
 const EMOJI_TO_PNG: Record<string, string> = {
   '🎀': '/api/media/image?id=icon_ink_ribbon',
@@ -29,6 +30,7 @@ interface LogTextProps {
 }
 
 export default function LogText({ text, className = '', party }: LogTextProps) {
+  const dataVersion = useGameStore(s => s.dataVersion);
   const segments = useMemo(() => {
     interface Segment {
       type: 'text' | 'emoji' | 'charName';
@@ -85,7 +87,7 @@ export default function LogText({ text, className = '', party }: LogTextProps) {
     }
 
     return parts;
-  }, [text, party]);
+  }, [text, party, dataVersion]);
 
   return (
     <span className={`inline ${className}`}>
@@ -94,7 +96,7 @@ export default function LogText({ text, className = '', party }: LogTextProps) {
           return (
             <img
               key={i}
-              src={EMOJI_TO_PNG[seg.content]}
+              src={mediaUrl(EMOJI_TO_PNG[seg.content], dataVersion)}
               alt=""
               width={18}
               height={18}
