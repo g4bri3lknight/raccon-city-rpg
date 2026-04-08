@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS } from '@/game/data/locations';
+import { LOCATIONS } from '@/game/data/loader';
 import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
 import { CompactHpPanel } from './HpBar';
@@ -83,7 +83,7 @@ export default function ExplorationScreen() {
             </div>
           )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 backdrop-blur-sm">
-            <img src="/icons/items/ink_ribbon.png" alt="Ink Ribbon" className="w-5 h-5" />
+            <img src="/api/media/image?id=icon_ink_ribbon" alt="Ink Ribbon" className="w-5 h-5" />
             <span className="text-xs font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/10</span></span>
             {(persistentRibbons || 0) > 0 && (
               <span className="text-purple-400/40">|</span>

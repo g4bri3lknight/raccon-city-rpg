@@ -1,11 +1,11 @@
 import { LocationDefinition } from './types';
 
-export const LOCATIONS: Record<string, LocationDefinition> = {
+export const STATIC_LOCATIONS: Record<string, LocationDefinition> = {
   city_outskirts: {
     id: 'city_outskirts',
     name: 'Periferia di Raccoon City',
     description: 'Le strade ai margini della città sono piene di veicoli abbandonati. Il fumo denso nasconde il sole. In lontananza si sentono le sirene e le grida.',
-    backgroundImage: '/assets/city-streets.png',
+    backgroundImage: '/api/media/image?id=bg_city_outskirts',
     encounterRate: 40,
     enemyPool: ['zombie', 'zombie_female', 'zombie', 'zombie_dog'],
     itemPool: [
@@ -57,7 +57,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     id: 'rpd_station',
     name: 'Stazione di Polizia R.P.D.',
     description: 'La Raccoon Police Department è un edificio imponente, ora silenzioso e spettrale. Le porte sono spalancate, i vetri rotti. Qualcosa si muove all\'interno.',
-    backgroundImage: '/assets/rpd-station.png',
+    backgroundImage: '/api/media/image?id=bg_rpd_station',
     encounterRate: 35,
     enemyPool: ['zombie', 'zombie_female', 'zombie_dog', 'cerberus_alpha', 'licker'],
     itemPool: [
@@ -120,7 +120,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     id: 'hospital_district',
     name: 'Ospedale di Raccoon City',
     description: 'L\'ospedale è un\'immagine di orrore. Le corsie sono coperte di detriti, le luci fluorescenze lampeggiano in modo ossessivo. I pazienti non sono più... pazienti.',
-    backgroundImage: '/assets/hospital.png',
+    backgroundImage: '/api/media/image?id=bg_hospital_district',
     encounterRate: 45,
     enemyPool: ['zombie_doctor', 'zombie_soldier', 'zombie_dog', 'licker', 'licker_crawler', 'hunter'],
     itemPool: [
@@ -178,7 +178,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     id: 'sewers',
     name: 'Fogne Sottostanti',
     description: 'Le fogne di Raccoon City sono un labirinto oscuro. L\'acqua verde e putrida scorre tra i condotti. Il suolo è scivoloso e il rumore delle gocce amplifica ogni suono.',
-    backgroundImage: '/assets/sewers.png',
+    backgroundImage: '/api/media/image?id=bg_sewers',
     encounterRate: 50,
     enemyPool: ['zombie_dog', 'cerberus_alpha', 'licker', 'licker_smasher', 'hunter'],
     itemPool: [
@@ -234,7 +234,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     id: 'laboratory_entrance',
     name: 'Laboratorio Umbrella - Ingresso',
     description: 'Il quartier generale sotterraneo della Umbrella Corporation. Supercomputer, provette, e creature che non dovrebbero esistere. È qui che è iniziato tutto.',
-    backgroundImage: '/assets/laboratory.png',
+    backgroundImage: '/api/media/image?id=bg_laboratory_entrance',
     encounterRate: 55,
     enemyPool: ['hunter', 'licker', 'licker_smasher', 'licker_crawler', 'zombie_soldier'],
     itemPool: [
@@ -292,7 +292,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     id: 'clock_tower',
     name: 'Torre dell\'Orologio',
     description: 'La torre dell\'orologio si erge maestosa sopra la città distrutta. Da qui si vede l\'elicottero di soccorso... ma qualcosa blocca la via.',
-    backgroundImage: '/assets/clock-tower.png',
+    backgroundImage: '/api/media/image?id=bg_clock_tower',
     encounterRate: 0,
     enemyPool: ['tyrant_boss'],
     itemPool: [],

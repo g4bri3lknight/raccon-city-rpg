@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { getZaiClient } from '@/lib/ai';
 import { aiCache, documentCacheKey } from '@/game/engine/ai-cache';
 import type { GameDocument, DocumentType } from '@/game/types';
 
@@ -27,15 +27,7 @@ const VALID_LOCATIONS = [
   'clock_tower',
 ] as const;
 
-// --- Singleton ZAI instance ---
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getZai() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
+// --- ZAI is managed by shared utility @/lib/ai ---
 
 // --- Request body interface ---
 interface GenerateDocumentRequest {
@@ -193,7 +185,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ documents: [], fallback: true } satisfies GenerateDocumentResponse);
     }
 
-    const zai = await getZai();
+    const zai = await getZaiClient();
+
+    if (!zai) {
+      return NextResponse.json({ documents: [], fallback: true } satisfies GenerateDocumentResponse);
+    }
+
     const systemPrompt = buildSystemPrompt(body);
 
     const completion = await zai.chat.completions.create({
@@ -261,7 +258,7 @@ export async function POST(request: NextRequest) {
       fallback: false,
     } satisfies GenerateDocumentResponse);
   } catch (error) {
-    console.error('[generate-document] Error:', error);
+    console.warn('[generate-document] AI error, using fallback');
     return NextResponse.json({ documents: [], fallback: true } satisfies GenerateDocumentResponse);
   }
 }

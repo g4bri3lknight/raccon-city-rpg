@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { getZaiClient } from '@/lib/ai';
 
 interface NpcChatRequest {
   npcId: string;
@@ -62,41 +62,54 @@ MISSIONE ATTUALE:
 ${req.npcQuest ? `${req.npcQuest.name}: ${req.npcQuest.description} [Progresso: ${req.npcQuest.currentCount}/${req.npcQuest.targetCount}, Completata: ${req.npcQuest.completed}]` : 'Nessuna missione attiva.'}`;
 }
 
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getZai() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
+function pickFallbackDialog(dialogues: string[]): string {
+  if (dialogues && dialogues.length > 0) {
+    return dialogues[Math.floor(Math.random() * dialogues.length)];
   }
-  return zaiInstance;
+  return 'Non posso parlare ora...';
 }
 
 export async function POST(request: NextRequest) {
+  let body: NpcChatRequest;
   try {
-    const body: NpcChatRequest = await request.json();
-    const { playerMessage, conversationHistory, stream } = body;
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Richiesta non valida' }, { status: 400 });
+  }
 
-    if (!playerMessage || playerMessage.trim().length === 0) {
-      return NextResponse.json({ error: 'Messaggio vuoto' }, { status: 400 });
-    }
+  const { playerMessage, conversationHistory, stream, npcDialogues } = body;
 
-    const systemPrompt = buildSystemPrompt(body);
-    const zai = await getZai();
+  if (!playerMessage || playerMessage.trim().length === 0) {
+    return NextResponse.json({ error: 'Messaggio vuoto' }, { status: 400 });
+  }
 
-    // Build messages array with history
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'assistant', content: systemPrompt },
-    ];
+  const systemPrompt = buildSystemPrompt(body);
+  const zai = await getZaiClient();
 
-    // Add conversation history (last 10 messages to keep context manageable)
-    const recentHistory = conversationHistory.slice(-10);
-    for (const msg of recentHistory) {
-      messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
-    }
+  // If AI service is unavailable, return fallback immediately
+  if (!zai) {
+    return NextResponse.json({
+      success: false,
+      response: pickFallbackDialog(npcDialogues),
+      fallback: true,
+    });
+  }
 
-    // Add current player message
-    messages.push({ role: 'user', content: playerMessage });
+  // Build messages array with history
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'assistant', content: systemPrompt },
+  ];
 
+  // Add conversation history (last 10 messages to keep context manageable)
+  const recentHistory = conversationHistory.slice(-10);
+  for (const msg of recentHistory) {
+    messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+  }
+
+  // Add current player message
+  messages.push({ role: 'user', content: playerMessage });
+
+  try {
     // AI-1.7: Streaming response
     if (stream) {
       const completion = await zai.chat.completions.create({
@@ -140,7 +153,7 @@ export async function POST(request: NextRequest) {
               controller.enqueue(encoder.encode(`data: ${doneData}\n\n`));
               controller.close();
             } catch (err) {
-              console.error('Stream error:', err);
+              console.warn('[NPC Chat] Stream error:', err);
               const errorData = JSON.stringify({
                 type: 'error',
                 error: err instanceof Error ? err.message : 'Errore nello streaming',
@@ -161,7 +174,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Fallback if stream wasn't actually a ReadableStream (shouldn't happen but safety)
-      console.warn('Stream requested but SDK did not return ReadableStream, falling back to non-stream');
+      console.warn('[NPC Chat] Stream requested but SDK did not return ReadableStream, falling back to non-stream');
     }
 
     // Non-streaming response (original behavior)
@@ -175,7 +188,7 @@ export async function POST(request: NextRequest) {
     if (!response || response.trim().length === 0) {
       return NextResponse.json({
         success: true,
-        response: body.npcDialogues[Math.floor(Math.random() * body.npcDialogues.length)] || '...',
+        response: pickFallbackDialog(npcDialogues),
         fallback: true,
       });
     }
@@ -186,25 +199,12 @@ export async function POST(request: NextRequest) {
       fallback: false,
     });
   } catch (error) {
-    console.error('NPC Chat API error:', error);
-
-    // Fallback: try to read body for static dialogues
-    let fallbackDialogue = 'Non posso parlare ora...';
-    try {
-      const body: NpcChatRequest = await request.json();
-      const dialogues = body.npcDialogues;
-      if (dialogues && dialogues.length > 0) {
-        fallbackDialogue = dialogues[Math.floor(Math.random() * dialogues.length)];
-      }
-    } catch {
-      // Use default fallback
-    }
-
+    // AI call failed — return fallback dialogue gracefully
+    console.warn('[NPC Chat] AI response failed, using fallback');
     return NextResponse.json({
       success: false,
-      response: fallbackDialogue,
+      response: pickFallbackDialog(npcDialogues),
       fallback: true,
-      error: error instanceof Error ? error.message : 'Errore sconosciuto',
     });
   }
 }

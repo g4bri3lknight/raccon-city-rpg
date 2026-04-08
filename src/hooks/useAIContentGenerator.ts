@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from 'react';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS } from '@/game/data/locations';
+import { LOCATIONS } from '@/game/data/loader';
 import { ITEMS } from '@/game/data/items';
 
 /**

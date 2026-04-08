@@ -2,8 +2,9 @@
 
 import { Rarity } from '@/game/types';
 
-// ── Unified item icon — all items use AI-generated realistic PNGs ──
-// Icons stored in /public/icons/items/{itemId}.png
+// ── Unified item icon — images loaded from DB via /api/media/image ──
+// DB image ID convention: icon_{itemId} (e.g. icon_pistol, icon_herb_green)
+// Falls back to emoji if image not found in DB
 
 const RARITY_BORDER: Record<Rarity, string> = {
   common: 'rgba(160,160,160,0.25)',
@@ -19,7 +20,7 @@ const RARITY_GLOW: Record<Rarity, string> = {
   legendary: 'drop-shadow(0 0 8px rgba(245,158,11,0.45))',
 };
 
-// Fallback emoji map (only used if PNG is missing)
+// Fallback emoji map (only used if image is missing in DB)
 const FALLBACK_ICONS: Record<string, string> = {
   pipe: '⚒️',
   scalpel: '🔪',
@@ -69,7 +70,8 @@ export default function ItemIcon({
   className = '',
   showBorder = false,
 }: ItemIconProps) {
-  const src = `/icons/items/${itemId}.png`;
+  // Load from DB: image ID is icon_{itemId}
+  const src = `/api/media/image?id=icon_${encodeURIComponent(itemId)}`;
   const border = RARITY_BORDER[rarity];
   const glow = RARITY_GLOW[rarity];
   const fallback = FALLBACK_ICONS[itemId] || '❓';
@@ -95,7 +97,7 @@ export default function ItemIcon({
         style={{ objectFit: 'contain', borderRadius: showBorder ? 'inherit' : 4 }}
         draggable={false}
         onError={(e) => {
-          // Fallback to emoji if PNG fails to load
+          // Fallback to emoji if image fails to load from DB
           const target = e.currentTarget;
           if (target.style.display !== 'none') {
             target.style.display = 'none';

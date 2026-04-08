@@ -1,0 +1,82 @@
+import { WeaponMod } from '../types';
+
+export const WEAPON_MODS: Record<string, WeaponMod> = {
+  mod_red_dot: {
+    modId: 'mod_red_dot',
+    name: 'Mirino Rosso',
+    description: '+3 ATK, +10% Critico. Solo armi a distanza.',
+    icon: '🎯',
+    rarity: 'uncommon',
+    atkBonus: 3,
+    critBonus: 10,
+    type: 'ranged',
+  },
+  mod_extended_mag: {
+    modId: 'mod_extended_mag',
+    name: 'Caricatore Esteso',
+    description: '+2 ATK. Solo armi a distanza.',
+    icon: '📦',
+    rarity: 'rare',
+    atkBonus: 2,
+    type: 'ranged',
+  },
+  mod_laser_sight: {
+    modId: 'mod_laser_sight',
+    name: 'Mirino Laser',
+    description: '+15% Critico. Solo armi a distanza.',
+    icon: '🔴',
+    rarity: 'uncommon',
+    critBonus: 15,
+    type: 'ranged',
+  },
+  mod_silencer: {
+    modId: 'mod_silencer',
+    name: 'Silenziatore',
+    description: '+10% Schivata nemica. Solo armi a distanza.',
+    icon: '🔇',
+    rarity: 'uncommon',
+    dodgeBonus: 10,
+    type: 'ranged',
+  },
+  mod_combat_grip: {
+    modId: 'mod_combat_grip',
+    name: 'Impugnatura Tattica',
+    description: '+4 ATK. Tutte le armi.',
+    icon: '✊',
+    rarity: 'rare',
+    atkBonus: 4,
+    type: 'any',
+  },
+  mod_toxic_coating: {
+    modId: 'mod_toxic_coating',
+    name: 'Coating Velenoso',
+    description: '+3 ATK, +30% Veleno. Solo armi bianche.',
+    icon: '☠️',
+    rarity: 'rare',
+    atkBonus: 3,
+    statusBonus: 30,
+    type: 'melee',
+  },
+  mod_electric_coil: {
+    modId: 'mod_electric_coil',
+    name: 'Bobina Elettrica',
+    description: '+5 ATK, +20% Stordimento. Solo armi bianche.',
+    icon: '⚡',
+    rarity: 'rare',
+    atkBonus: 5,
+    statusBonus: 20,
+    type: 'melee',
+  },
+  mod_bio_booster: {
+    modId: 'mod_bio_booster',
+    name: 'Bio-Boost Umbrella',
+    description: '+6 ATK. Tutte le armi. Tecnologia segreta Umbrella.',
+    icon: '🧬',
+    rarity: 'legendary',
+    atkBonus: 6,
+    type: 'any',
+  },
+};
+
+// All mod IDs for random drops
+export const ALL_MOD_IDS = Object.keys(WEAPON_MODS);

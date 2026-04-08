@@ -87,16 +87,17 @@ model Document {
 }
 
 model GameSound {
-  id        String   @id
-  name      String
-  refKey    String?  @unique // Internal reference key: 'playAttack', 'bgm_title', etc.
-  filePath  String   @default("")
-  category  String   @default("ui") // combat | enemy | weapon | ui | ambient | bgm
-  volume    Float    @default(1.0)
-  loopable  Boolean  @default(false)
-  data      Bytes?   // Binary audio data (BLOB)
-  mimeType  String?  // audio/wav, audio/mpeg, audio/ogg, etc.
-  createdAt DateTime @default(now())
+  id           String   @id
+  name         String
+  refKey       String?  @unique // Internal reference key: 'playAttack', 'bgm_title', etc.
+  filePath     String   @default("")
+  category     String   @default("ui") // combat | enemy | weapon | ui | ambient | bgm
+  volume       Float    @default(1.0)
+  loopable     Boolean  @default(false)
+  data         Bytes?   // Binary audio data (BLOB)
+  mimeType     String?  // audio/wav, audio/mpeg, audio/ogg, etc.
+  associatedId String?  // e.g. itemId, eventId, locationId
+  createdAt    DateTime @default(now())
   @@map("game_sounds")
 }
 
@@ -113,4 +114,48 @@ model GameImage {
   mimeType    String?  // image/jpeg, image/png, image/webp, image/svg+xml, etc.
   createdAt   DateTime @default(now())
   @@map("game_images")
+}
+
+model GameLocation {
+  id              String   @id
+  name            String
+  description     String
+  encounterRate   Int      @default(0)
+  enemyPool       String   @default("[]")   // JSON: ["zombie","zombie_dog"]
+  itemPool        String   @default("[]")   // JSON: [{itemId,chance,quantity}]
+  storyEvent      String   @default("")     // JSON: full StoryEvent object
+  nextLocations   String   @default("[]")   // JSON: ["rpd_station","hospital_district"]
+  isBossArea      Boolean  @default(false)
+  bossId          String?
+  ambientText     String   @default("[]")   // JSON: ["text1","text2"]
+  lockedLocations String   @default("[]")   // JSON: [{locationId,requiredItemId,lockedMessage}]
+  subAreas        String   @default("[]")   // JSON: [{id,name,description}]
+  sortOrder       Int      @default(0)
+  // Map layout fields (optional, for GameMap visual positioning)
+  mapRow          Int?
+  mapCol          Int?
+  mapIcon         String?
+  mapDanger       String?
+  createdAt       DateTime @default(now())
+  @@map("game_locations")
+}
+
+model NotificationConfig {
+  id            String   @id
+  type          String   @unique   // encounter, victory, defeat, item_found, bag_expand, collectible_found
+  label         String   @default("")
+  icon          String   @default("")
+  imageRef      String?
+  soundRef      String?
+  cardBg        String   @default("#1a1a2e")
+  borderColor   String   @default("#333333")
+  titleColor    String   @default("#ffffff")
+  titleGlow     String   @default("none")
+  overlayBg     String   @default("rgba(0,0,0,0.8)")
+  scanlineColor String   @default("rgba(255,255,255,0.3)")
+  shake         Boolean  @default(false)
+  duration      Int      @default(2500)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  @@map("notification_configs")
 }

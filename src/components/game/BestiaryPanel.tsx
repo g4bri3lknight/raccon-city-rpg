@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { ENEMIES, ENEMY_IMAGES, BOSS_PHASES } from '@/game/data/enemies';
 import { ITEMS } from '@/game/data/loader';
-import { LOCATIONS } from '@/game/data/locations';
+import { LOCATIONS } from '@/game/data/loader';
 import { EnemyDefinition } from '@/game/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

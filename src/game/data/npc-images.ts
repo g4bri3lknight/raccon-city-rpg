@@ -1,12 +1,12 @@
-// NPC portrait image paths — realistic AI-generated portraits
-// Falls back to emoji if image is missing
+// NPC portrait image URLs — loaded from DB via /api/media/image
+// Falls back to emoji if image is missing in DB
 
 export const NPC_PORTRAIT_URLS: Record<string, string> = {
-  npc_marco: '/images/npcs/marco.png',
-  npc_dr_chen: '/images/npcs/dr_chen.png',
-  npc_soldier_reyes: '/images/npcs/soldier_reyes.png',
-  npc_hannah: '/images/npcs/hannah.png',
-  npc_umbrella_scientist: '/images/npcs/dr_voss.png',
+  npc_marco: '/api/media/image?id=npc_marco',
+  npc_dr_chen: '/api/media/image?id=npc_dr_chen',
+  npc_soldier_reyes: '/api/media/image?id=npc_soldier_reyes',
+  npc_hannah: '/api/media/image?id=npc_hannah',
+  npc_umbrella_scientist: '/api/media/image?id=npc_umbrella_scientist',
 };
 
 // NPC badge labels

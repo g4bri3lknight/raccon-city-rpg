@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS } from '@/game/data/locations';
+import { LOCATIONS } from '@/game/data/loader';
 import { ITEMS } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

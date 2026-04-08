@@ -32,8 +32,7 @@ import {
 import { CHARACTER_ARCHETYPES, getCharacterStats, getCustomStartingItems, ARCHETYPE_STAT_POINTS, computeGrowthRates } from './data/characters';
 import { ENEMIES } from './data/enemies';
 import { BOSS_PHASES } from './data/enemies';
-import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, initGameData } from './data/loader';
-import { LOCATIONS } from './data/locations';
+import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData } from './data/loader';
 import { generateRandomizedData, getEffectiveLocation } from './data/randomizer';
 import {
   executePlayerAttack,
@@ -4743,7 +4742,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     // Play safe room ambient sound
     try {
-      const audio = new Audio('/audio/safe-room-ambient.mp3');
+      const audio = new Audio('/api/media/sound?id=safe_room_ambient');
       audio.loop = true;
       audio.volume = 0.3;
       audio.play().catch(() => {});

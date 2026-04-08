@@ -1,7 +1,8 @@
 import { STATIC_ITEMS } from './items';
 import { STATIC_DYNAMIC_EVENTS } from './dynamic-events';
 import { STATIC_DOCUMENTS } from './documents';
-import type { ItemDefinition, ItemType, Rarity, ItemEffect } from '../types';
+import { STATIC_LOCATIONS } from './locations';
+import type { ItemDefinition, ItemType, Rarity, ItemEffect, LocationDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest } from '../types';
@@ -10,6 +11,7 @@ export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
 export let DOCUMENTS: Record<string, GameDocument> = {};
 export let QUESTS: Record<string, NPCQuest> = {};
+export let LOCATIONS: Record<string, LocationDefinition> = {};
 
 let initialized = false;
 
@@ -78,6 +80,27 @@ interface DbQuest {
   rewardDialogue: string;
   sortOrder: number;
   prerequisiteQuestId: string | null;
+}
+
+interface DbLocation {
+  id: string;
+  name: string;
+  description: string;
+  encounterRate: number;
+  enemyPool: string;
+  itemPool: string;
+  storyEvent: string;
+  nextLocations: string;
+  isBossArea: boolean;
+  bossId: string | null;
+  ambientText: string;
+  lockedLocations: string;
+  subAreas: string;
+  sortOrder: number;
+  mapRow: number | null;
+  mapCol: number | null;
+  mapIcon: string | null;
+  mapDanger: string | null;
 }
 
 // ── Mappers ──
@@ -162,6 +185,25 @@ function mapDbQuest(quest: DbQuest): NPCQuest {
   };
 }
 
+function mapDbLocation(loc: DbLocation): LocationDefinition {
+  return {
+    id: loc.id,
+    name: loc.name,
+    description: loc.description,
+    backgroundImage: `/api/media/image?id=bg_${loc.id}`,
+    encounterRate: loc.encounterRate,
+    enemyPool: JSON.parse(loc.enemyPool || '[]'),
+    itemPool: JSON.parse(loc.itemPool || '[]'),
+    storyEvent: loc.storyEvent ? JSON.parse(loc.storyEvent) : undefined,
+    nextLocations: JSON.parse(loc.nextLocations || '[]'),
+    isBossArea: loc.isBossArea,
+    bossId: loc.bossId ?? undefined,
+    ambientText: JSON.parse(loc.ambientText || '[]'),
+    lockedLocations: JSON.parse(loc.lockedLocations || '[]'),
+    subAreas: JSON.parse(loc.subAreas || '[]'),
+  };
+}
+
 // ── Load from API ──
 
 async function loadFromApi(): Promise<{
@@ -169,6 +211,7 @@ async function loadFromApi(): Promise<{
   events: DbEvent[];
   documents: DbDocument[];
   quests: DbQuest[];
+  locations: DbLocation[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -221,17 +264,29 @@ async function loadQuests(api: Awaited<ReturnType<typeof loadFromApi>>): Promise
   }
 }
 
+async function loadLocations(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  if (api?.locations && api.locations.length > 0) {
+    LOCATIONS = {};
+    for (const loc of api.locations) {
+      LOCATIONS[loc.id] = mapDbLocation(loc);
+    }
+  } else {
+    LOCATIONS = { ...STATIC_LOCATIONS };
+  }
+}
+
 export async function initGameData(): Promise<void> {
   if (initialized) return;
   try {
     const api = await loadFromApi();
-    await Promise.all([loadItems(api), loadEvents(api), loadDocuments(api), loadQuests(api)]);
+    await Promise.all([loadItems(api), loadEvents(api), loadDocuments(api), loadQuests(api), loadLocations(api)]);
     initialized = true;
   } catch (err) {
     console.warn('[DataLoader] API load failed, using static fallback:', err);
     ITEMS = { ...STATIC_ITEMS };
     DYNAMIC_EVENTS = { ...STATIC_DYNAMIC_EVENTS };
     DOCUMENTS = { ...STATIC_DOCUMENTS };
+    LOCATIONS = { ...STATIC_LOCATIONS };
     initialized = true;
   }
 }
@@ -240,7 +295,7 @@ export async function initGameData(): Promise<void> {
 export async function refreshGameData(): Promise<void> {
   try {
     const api = await loadFromApi();
-    await Promise.all([loadItems(api), loadEvents(api), loadDocuments(api), loadQuests(api)]);
+    await Promise.all([loadItems(api), loadEvents(api), loadDocuments(api), loadQuests(api), loadLocations(api)]);
     initialized = true;
   } catch (err) {
     console.warn('[DataLoader] API refresh failed:', err);

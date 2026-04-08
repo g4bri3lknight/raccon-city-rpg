@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { getZaiClient } from '@/lib/ai';
 import { aiCache, eventCacheKey } from '@/game/engine/ai-cache';
 import type { DynamicEvent, DynamicEventType } from '@/game/types';
 
@@ -43,17 +43,8 @@ const VALID_EVENT_TYPES = new Set<DynamicEventType>([
 ]);
 
 // -----------------------------------------------
-// ZAI singleton
+// ZAI is managed by shared utility @/lib/ai
 // -----------------------------------------------
-
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getZai() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
 
 // -----------------------------------------------
 // System prompt
@@ -276,7 +267,11 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt = buildSystemPrompt(body);
-    const zai = await getZai();
+    const zai = await getZaiClient();
+
+    if (!zai) {
+      return NextResponse.json<GenerateEventResponse>({ events: [], fallback: true });
+    }
 
     const completion = await zai.chat.completions.create({
       messages: [
@@ -344,7 +339,7 @@ export async function POST(request: NextRequest) {
       fallback: events.length === 0,
     });
   } catch (error) {
-    console.error('Generate Event API error:', error);
+    console.warn('[generate-event] AI error, using fallback');
     return NextResponse.json<GenerateEventResponse>({ events: [], fallback: true });
   }
 }

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { ENEMIES } from '@/game/data/enemies';
-import { LOCATIONS } from '@/game/data/locations';
+import { LOCATIONS } from '@/game/data/loader';
 import { NPCS } from '@/game/data/npcs';
 import {
   Heart, Package, Key, Crosshair, Bug, Skull, MapPin,

@@ -320,15 +320,15 @@ export const CUSTOM_STARTING_ITEMS: { itemId: string; name: string; description:
   },
 ];
 
-// Predefined avatar options (RE-themed)
+// Predefined avatar options (RE-themed) — images loaded from DB
 export const PREDEFINED_AVATARS = [
-  { id: 'avatar_soldier', name: 'Soldato UBCS', path: '/images/characters/avatar_soldier.png', emoji: '🪖' },
-  { id: 'avatar_medic', name: 'Infermiera', path: '/images/characters/avatar_medic.png', emoji: '🩺' },
-  { id: 'avatar_agent', name: 'Agente Speciale', path: '/images/characters/avatar_agent.png', emoji: '🕵️' },
-  { id: 'avatar_cop', name: 'Poliziotto RPD', path: '/images/characters/avatar_cop.png', emoji: '👮' },
-  { id: 'avatar_scientist', name: 'Scienziato', path: '/images/characters/avatar_scientist.png', emoji: '🔬' },
-  { id: 'avatar_civilian', name: 'Civile', path: '/images/characters/avatar_civilian.png', emoji: '👤' },
-  { id: 'avatar_jax', name: 'Mercenario', path: '/images/characters/jax.png', emoji: '⚔️' },
-  { id: 'avatar_elena', name: 'Medico', path: '/images/characters/elena.png', emoji: '🩺' },
-  { id: 'avatar_marco', name: 'Pilota', path: '/images/characters/marco.png', emoji: '✈️' },
+  { id: 'avatar_soldier', name: 'Soldato UBCS', path: '/api/media/image?id=avatar_soldier', emoji: '🪖' },
+  { id: 'avatar_medic', name: 'Infermiera', path: '/api/media/image?id=avatar_medic', emoji: '🩺' },
+  { id: 'avatar_agent', name: 'Agente Speciale', path: '/api/media/image?id=avatar_agent', emoji: '🕵️' },
+  { id: 'avatar_cop', name: 'Poliziotto RPD', path: '/api/media/image?id=avatar_cop', emoji: '👮' },
+  { id: 'avatar_scientist', name: 'Scienziato', path: '/api/media/image?id=avatar_scientist', emoji: '🔬' },
+  { id: 'avatar_civilian', name: 'Civile', path: '/api/media/image?id=avatar_civilian', emoji: '👤' },
+  { id: 'avatar_jax', name: 'Mercenario', path: '/api/media/image?id=avatar_jax', emoji: '⚔️' },
+  { id: 'avatar_elena', name: 'Medico', path: '/api/media/image?id=avatar_elena', emoji: '🩺' },
+  { id: 'avatar_marco', name: 'Pilota', path: '/api/media/image?id=avatar_marco', emoji: '✈️' },
 ];

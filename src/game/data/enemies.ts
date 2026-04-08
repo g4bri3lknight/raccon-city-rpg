@@ -1,25 +1,25 @@
 import { EnemyDefinition, BossPhase } from './types';
 
 export const ENEMY_IMAGES: Record<string, string> = {
-  zombie: '/images/enemies/zombie.png',
-  zombie_female: '/images/enemies/zombie_female.png',
-  zombie_soldier: '/images/enemies/zombie_soldier.png',
-  zombie_doctor: '/images/enemies/zombie_doctor.png',
-  zombie_dog: '/images/enemies/zombie_dog.png',
-  cerberus_alpha: '/images/enemies/cerberus_alpha.png',
-  licker: '/images/enemies/licker.png',
-  licker_smasher: '/images/enemies/licker_smasher.png',
-  licker_crawler: '/images/enemies/licker_crawler.png',
-  hunter: '/images/enemies/hunter.png',
-  tyrant_boss: '/images/enemies/tyrant.png',
-  nemesis_boss: '/images/enemies/nemesis.png',
+  zombie: '/api/media/image?id=zombie',
+  zombie_female: '/api/media/image?id=zombie_female',
+  zombie_soldier: '/api/media/image?id=zombie_soldier',
+  zombie_doctor: '/api/media/image?id=zombie_doctor',
+  zombie_dog: '/api/media/image?id=zombie_dog',
+  cerberus_alpha: '/api/media/image?id=cerberus_alpha',
+  licker: '/api/media/image?id=licker',
+  licker_smasher: '/api/media/image?id=licker_smasher',
+  licker_crawler: '/api/media/image?id=licker_crawler',
+  hunter: '/api/media/image?id=hunter',
+  tyrant_boss: '/api/media/image?id=tyrant',
+  nemesis_boss: '/api/media/image?id=nemesis',
 };
 
 export const CHARACTER_IMAGES: Record<string, string> = {
-  tank: '/images/characters/tank.png',
-  healer: '/images/characters/healer.png',
-  dps: '/images/characters/dps.png',
-  control: '/images/characters/control.png',
+  tank: '/api/media/image?id=tank',
+  healer: '/api/media/image?id=healer',
+  dps: '/api/media/image?id=dps',
+  control: '/api/media/image?id=control',
 };
 
 

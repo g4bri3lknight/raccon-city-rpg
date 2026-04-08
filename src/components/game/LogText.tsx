@@ -4,8 +4,8 @@ import { useMemo } from 'react';
 import { CHARACTER_IMAGES } from '@/game/data/enemies';
 
 const EMOJI_TO_PNG: Record<string, string> = {
-  '🎀': '/icons/items/ink_ribbon.png',
-  '⚔️': '/icons/items/combat_knife.png',
+  '🎀': '/api/media/image?id=icon_ink_ribbon',
+  '⚔️': '/api/media/image?id=icon_combat_knife',
 };
 
 interface CharacterAvatar {

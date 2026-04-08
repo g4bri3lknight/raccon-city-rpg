@@ -181,7 +181,7 @@ export default function VictoryScreen() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src="/icons/items/ink_ribbon.png" alt="Ink Ribbon" className="w-6 h-6" />
+              <img src="/api/media/image?id=icon_ink_ribbon" alt="Ink Ribbon" className="w-6 h-6" />
               <div className="text-left">
                 <p className="text-xs text-white/50">Collezionabili — Questa Run</p>
                 <p className="text-sm font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/10</span> Nastri d&apos;Inchiostro</p>
