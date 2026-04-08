@@ -176,7 +176,7 @@ export default function BattleEntity({
 
         {/* Damage flash overlay */}
         {isHurt && (
-          <div className="absolute inset-0 z-20 rounded-xl bg-red-500/40 damage-flash pointer-events-none" />
+          <div className={`absolute inset-0 z-20 rounded-xl pointer-events-none damage-flash ${isCritical ? 'bg-orange-500/40' : 'bg-red-500/40'}`} />
         )}
 
         {/* Main portrait */}
@@ -260,14 +260,14 @@ export default function BattleEntity({
         {isHurt && damageValue != null && (
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-30">
             <div className="damage-number whitespace-nowrap">
-              <span className="text-sm sm:text-lg font-black text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+              <span className={`text-sm sm:text-lg font-black drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isCritical ? 'text-orange-400' : 'text-red-400'}`}>
                 -{damageValue}
               </span>
             </div>
             {burstParticles.map(p => (
               <div
                 key={p.id}
-                className="burst-particle bg-red-400"
+                className={`burst-particle ${isCritical ? 'bg-orange-400' : 'bg-red-400'}`}
                 style={{
                   '--tx': `${p.tx}px`,
                   '--ty': `${p.ty}px`,

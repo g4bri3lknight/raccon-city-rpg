@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { ITEMS } from '@/game/data/loader';
+import { NPC_PORTRAIT_URLS, NPC_BADGES } from '@/game/data/npc-images';
+import ItemIcon from './ItemIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, MessageSquare, ScrollText, Handshake, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -18,7 +20,6 @@ interface ChatMessage {
 export default function NPCDialogPanel() {
   const { activeNpc, npcQuestProgress, party, visitedLocations } = useGameStore();
   const { talkToNpc, acceptNpcQuest, tradeWithNpc, closeNpcDialog } = useGameStore();
-  const [showTrade, setShowTrade] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [lastNpcId, setLastNpcId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,11 @@ export default function NPCDialogPanel() {
   const questCompleted = questProgress?.completed || false;
   const hasQuest = quest && !questCompleted;
 
-  // Initialize greeting when NPC changes (tracked via lastNpcId state)
+  // NPC portrait image + fallback emoji
+  const portraitUrl = npc ? NPC_PORTRAIT_URLS[npc.id] : null;
+  const badge = npc ? NPC_BADGES[npc.id] : null;
+
+  // Initialize greeting when NPC changes
   if (npc && lastNpcId !== npc.id) {
     setLastNpcId(npc.id);
     setChatMessages([{
@@ -41,7 +46,6 @@ export default function NPCDialogPanel() {
     setError(null);
   }
 
-  // ── Handle "Parla" button: adds dialogue to the chat panel ──
   const handleTalk = useCallback(() => {
     if (!npc) return;
     const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
@@ -55,12 +59,10 @@ export default function NPCDialogPanel() {
     talkToNpc();
   }, [npc, talkToNpc]);
 
-  // Auto-scroll chat when messages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages.length]);
 
-  // Determine what "Parla" will do based on quest type
   const getTalkLabel = () => {
     if (!hasQuest || !questProgress) return '💬 Parla';
     if (quest!.type === 'fetch') {
@@ -86,7 +88,6 @@ export default function NPCDialogPanel() {
   };
   const talkLabel = getTalkLabel();
 
-  // Check if player can trade
   const canTrade = (tradeIndex: number) => {
     if (!npc?.tradeInventory) return false;
     const trade = npc.tradeInventory[tradeIndex];
@@ -112,20 +113,39 @@ export default function NPCDialogPanel() {
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
         className="relative w-full max-w-lg glass-dark rounded-xl overflow-hidden flex flex-col max-h-[85vh]"
       >
-        {/* Header */}
+        {/* Header — photo + name + badge only */}
         <div className="p-4 sm:p-5 border-b border-amber-900/20 bg-amber-950/10 shrink-0">
-          <div className="flex items-start gap-3">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/[0.06] border border-white/[0.1] flex items-center justify-center text-3xl sm:text-4xl shrink-0">
-              {npc.portrait}
+          <div className="flex items-center gap-3">
+            {/* Portrait — realistic image with emoji fallback */}
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-white/[0.06] border border-white/[0.1] flex items-center justify-center shrink-0">
+              {portraitUrl ? (
+                <img
+                  src={portraitUrl}
+                  alt={npc.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.style.display = 'none';
+                    if (target.nextElementSibling) (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <span
+                className="absolute text-3xl sm:text-4xl items-center justify-center"
+                style={{ display: portraitUrl ? 'none' : 'flex' }}
+              >
+                {npc.portrait}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg sm:text-xl font-bold text-white">{npc.name}</h3>
-                <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 text-[10px]">
-                  👤 Sopravvissuto
-                </Badge>
+                {badge && (
+                  <Badge className={`text-[10px] ${badge.color}`}>
+                    {badge.label}
+                  </Badge>
+                )}
               </div>
-              <p className="text-xs sm:text-sm text-white/50 mt-0.5">{npc.greeting}</p>
             </div>
             <Button
               variant="ghost"
@@ -141,7 +161,7 @@ export default function NPCDialogPanel() {
         {/* Content — Chat + Quest + Trade */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 inventory-scrollbar" ref={chatEndRef as React.RefObject<HTMLDivElement>}>
 
-          {/* Chat Messages */}
+          {/* Chat Messages — no repeated NPC name */}
           <div className="space-y-2">
             <div className="text-[10px] uppercase tracking-wider text-white/30 flex items-center gap-1">
               <MessageSquare className="w-3 h-3" /> Conversazione
@@ -153,26 +173,19 @@ export default function NPCDialogPanel() {
                     key={msg.id}
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`flex flex-col ${msg.role === 'player' ? 'items-end' : 'items-start'}`}
+                    className="flex flex-col items-start"
                   >
-                    <div className="flex items-start gap-2 max-w-[90%]">
-                      <span className="text-base shrink-0 mt-0.5">{npc.portrait}</span>
-                      <div>
-                        <span className="text-[10px] font-bold text-amber-400/70">{npc.name}</span>
-                        <p className="text-sm text-white/80 italic leading-relaxed">
-                          &ldquo;{msg.content}&rdquo;
-                        </p>
-                        {msg.isFallback && (
-                          <span className="text-[9px] text-white/20 italic">risposta predefinita</span>
-                        )}
-                      </div>
-                    </div>
+                    <p className="text-sm text-white/80 italic leading-relaxed">
+                      &ldquo;{msg.content}&rdquo;
+                    </p>
+                    {msg.isFallback && (
+                      <span className="text-[9px] text-white/20 italic mt-0.5">risposta predefinita</span>
+                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
             </div>
 
-            {/* Error message */}
             {error && (
               <div className="flex items-center gap-1.5 p-2 rounded-lg border border-red-900/30 bg-red-950/20">
                 <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
@@ -206,6 +219,26 @@ export default function NPCDialogPanel() {
                     )}
                   </div>
                   <p className="text-xs text-white/60">{quest.description}</p>
+
+                  {/* Reward items with PNG icons */}
+                  {quest.rewardItems && quest.rewardItems.length > 0 && (
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className="text-[10px] text-white/30">Ricompensa:</span>
+                      {quest.rewardItems.map((r, i) => {
+                        const itemDef = ITEMS[r.itemId];
+                        return (
+                          <span key={i} className="flex items-center gap-1 text-[10px] text-amber-300/70 bg-amber-950/30 border border-amber-700/20 rounded px-1.5 py-0.5">
+                            <ItemIcon itemId={r.itemId} rarity="common" size={14} />
+                            {itemDef?.name || r.itemId} x{r.quantity}
+                          </span>
+                        );
+                      })}
+                      {quest.rewardExp > 0 && (
+                        <span className="text-[10px] text-white/30">+{quest.rewardExp} XP</span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2 mt-2">
                     {quest.type === 'fetch' && (
                       <span className="text-[10px] text-white/40">
@@ -228,34 +261,46 @@ export default function NPCDialogPanel() {
             </div>
           )}
 
-          {/* Trade Section */}
-          {npc.tradeInventory && npc.tradeInventory.length > 0 && !showTrade && (
+          {/* Trade Section — enlarged with PNG images */}
+          {npc.tradeInventory && npc.tradeInventory.length > 0 && (
             <div className="space-y-2">
               <div className="text-[10px] uppercase tracking-wider text-white/30 flex items-center gap-1">
                 <Handshake className="w-3 h-3" /> Commercio
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {npc.tradeInventory.map((trade, idx) => {
                   const canDo = canTrade(idx);
                   const itemDef = ITEMS[trade.itemId];
                   const priceDef = ITEMS[trade.priceItemId];
                   return (
-                    <div key={idx} className={`p-2.5 rounded-lg border transition-all ${canDo ? 'border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06]' : 'border-white/[0.04] bg-white/[0.01] opacity-50'}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{itemDef?.icon || '📦'}</span>
-                          <div>
-                            <p className="text-xs font-semibold text-white">{itemDef?.name}</p>
-                            <p className="text-[10px] text-white/40">
-                              Prezzo: {trade.priceQuantity}x {priceDef?.icon} {priceDef?.name}
-                            </p>
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-lg border transition-all ${
+                        canDo
+                          ? 'border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06]'
+                          : 'border-white/[0.04] bg-white/[0.01] opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Item icon (PNG) */}
+                        <div className="w-12 h-12 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0 p-1">
+                          <ItemIcon itemId={trade.itemId} rarity="common" size={36} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white">{itemDef?.name || trade.itemId}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[10px] text-white/40">Prezzo:</span>
+                            <span className="flex items-center gap-1 text-[10px] text-amber-300/70">
+                              <ItemIcon itemId={trade.priceItemId} rarity="common" size={12} />
+                              {trade.priceQuantity}x {priceDef?.name || trade.priceItemId}
+                            </span>
                           </div>
                         </div>
                         <Button
                           size="sm"
                           disabled={!canDo}
                           onClick={() => tradeWithNpc(idx)}
-                          className="h-7 px-2 text-[10px] border-amber-700/40 text-amber-300 hover:bg-amber-950/30 disabled:opacity-30 disabled:cursor-not-allowed bg-transparent"
+                          className="h-9 px-3 text-xs font-semibold border-amber-700/40 text-amber-300 hover:bg-amber-950/30 disabled:opacity-30 disabled:cursor-not-allowed bg-transparent"
                         >
                           Scambia
                         </Button>

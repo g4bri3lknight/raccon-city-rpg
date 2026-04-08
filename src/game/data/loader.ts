@@ -24,6 +24,9 @@ interface DbItem {
   icon: string;
   usable: boolean;
   equippable: boolean;
+  stackable: boolean;
+  maxStack: number;
+  unico: boolean;
   effectType: string | null;
   effectValue: number | null;
   effectTarget: string | null;
@@ -98,6 +101,9 @@ function mapDbItem(item: DbItem): ItemDefinition {
     icon: item.icon,
     usable: item.usable,
     equippable: item.equippable,
+    stackable: item.stackable ?? true,
+    maxStack: item.maxStack ?? 99,
+    unico: item.unico ?? false,
     effect,
   };
 }

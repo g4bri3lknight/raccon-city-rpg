@@ -7,27 +7,28 @@ import { LOCATIONS } from '@/game/data/locations';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Home, LogOut, Save, Package, Hammer,
-  ChevronRight
+  Home, LogOut, Package, Hammer,
+  Save, Upload
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 import ItemBoxPanel from './ItemBoxPanel';
 import CraftingPanel from './CraftingPanel';
 
-type SafeRoomTab = 'save' | 'itembox' | 'crafting';
+type SafeRoomTab = 'itembox' | 'crafting';
+type SaveMode = 'save' | 'load';
 
 export default function SafeRoomPanel() {
   const currentLocationId = useGameStore(s => s.currentLocationId);
   const exitSafeRoom = useGameStore(s => s.exitSafeRoom);
-  const [activeTab, setActiveTab] = useState<SafeRoomTab>('save');
+  const [activeTab, setActiveTab] = useState<SafeRoomTab>('itembox');
+  const [saveModal, setSaveModal] = useState<SaveMode | null>(null);
 
   const location = LOCATIONS[currentLocationId];
   const safeRoomDef = location?.subAreas?.find(sa => sa.id === 'safe_room');
 
   const tabs: { id: SafeRoomTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'save', label: 'Salva', icon: <Save className="w-4 h-4" /> },
-    { id: 'itembox', label: 'Item Box', icon: <Package className="w-4 h-4" /> },
-    { id: 'crafting', label: 'Crafting', icon: <Hammer className="w-4 h-4" /> },
+    { id: 'itembox', label: 'Item Box', icon: <Package className="w-5 h-5" /> },
+    { id: 'crafting', label: 'Crafting', icon: <Hammer className="w-5 h-5" /> },
   ];
 
   return (
@@ -48,17 +49,50 @@ export default function SafeRoomPanel() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <div className="flex items-center gap-2 mb-1">
-              <Home className="w-4 h-4 text-emerald-400" />
-              <Badge className="border-emerald-500/30 text-emerald-400 text-xs bg-emerald-500/10">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <Home className="w-5 h-5 text-emerald-400" />
+              <Badge className="border-emerald-500/30 text-emerald-400 text-sm bg-emerald-500/10 px-2.5 py-0.5">
                 SAFE ROOM
               </Badge>
-              <Badge variant="outline" className="border-white/[0.1] text-white/50 text-xs">
+              <Badge variant="outline" className="border-white/[0.1] text-white/50 text-sm">
                 {location?.name}
               </Badge>
+              {/* Header buttons: Esci first, then Salva/Carica */}
+              <div className="ml-auto flex gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={exitSafeRoom}
+                  className="text-sm border-red-500/20 hover:border-red-400/40 text-red-400/70 hover:text-red-300 bg-red-950/20 hover:bg-red-900/30 h-9 px-3"
+                  title="Esci dalla Safe Room"
+                >
+                  <LogOut className="w-4 h-4 mr-1.5" />
+                  <span className="hidden sm:inline">Esci</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSaveModal('save')}
+                  className="text-sm border-white/10 hover:border-amber-500/30 text-white/50 hover:text-amber-400 bg-white/[0.03] hover:bg-amber-500/[0.06] h-9 px-3"
+                  title="Salva partita"
+                >
+                  <Save className="w-4 h-4 mr-1.5" />
+                  <span className="hidden sm:inline">Salva</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSaveModal('load')}
+                  className="text-sm border-white/10 hover:border-cyan-500/30 text-white/50 hover:text-cyan-400 bg-white/[0.03] hover:bg-cyan-500/[0.06] h-9 px-3"
+                  title="Carica partita"
+                >
+                  <Upload className="w-4 h-4 mr-1.5" />
+                  <span className="hidden sm:inline">Carica</span>
+                </Button>
+              </div>
             </div>
             {safeRoomDef && (
-              <p className="text-xs text-white/40 mt-1 max-w-lg">{safeRoomDef.description}</p>
+              <p className="text-sm text-white/50 mt-1 max-w-lg">{safeRoomDef.description}</p>
             )}
           </motion.div>
         </div>
@@ -71,7 +105,7 @@ export default function SafeRoomPanel() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-t-lg transition-all border-b-2 ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all border-b-2 ${
                 activeTab === tab.id
                   ? 'border-emerald-400 text-emerald-300 bg-emerald-950/20'
                   : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.03]'
@@ -84,61 +118,24 @@ export default function SafeRoomPanel() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 inventory-scrollbar">
-        {activeTab === 'save' && (
-          <motion.div
-            key="save"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-3"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <Save className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-white/90">Salva Partita</h3>
-            </div>
-            <p className="text-xs text-white/40 mb-3">
-              La Safe Room è il luogo ideale per salvare il tuo progresso. Usa la macchina da scrivere per registrare la tua avventura.
-            </p>
-            <SaveLoadPanel mode="both" />
-          </motion.div>
-        )}
-
-        {activeTab === 'itembox' && (
-          <motion.div
-            key="itembox"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <ItemBoxPanel />
-          </motion.div>
-        )}
-
+      {/* Content area — fills remaining space */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === 'itembox' && <ItemBoxPanel />}
         {activeTab === 'crafting' && (
-          <motion.div
-            key="crafting"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
+          <div className="h-full overflow-y-auto p-4 inventory-scrollbar">
             <CraftingPanel />
-          </motion.div>
+          </div>
         )}
       </div>
 
-      {/* Exit button */}
-      <div className="shrink-0 p-3 border-t border-white/[0.06] bg-white/[0.02]">
-        <Button
-          onClick={exitSafeRoom}
-          className="w-full h-11 text-sm font-bold bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all"
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Esci dalla Safe Room
-          <ChevronRight className="w-4 h-4 ml-auto" />
-        </Button>
-      </div>
+      {/* Save/Load Modal */}
+      {saveModal && (
+        <SaveLoadPanel
+          mode={saveModal}
+          defaultOpen={saveModal}
+          onClose={() => setSaveModal(null)}
+        />
+      )}
     </motion.div>
   );
 }

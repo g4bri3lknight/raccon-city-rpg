@@ -551,7 +551,7 @@ export default function CombatScreen() {
                   </span>
                 )}
                 {isHurt && !isCrit && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
-                {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-white/30 damage-flash pointer-events-none" />}
+                {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-orange-500/35 damage-flash pointer-events-none" />}
                 {isMissAnim && <div className="absolute -inset-1 rounded-lg bg-yellow-500/15 pointer-events-none animate-dodge" />}
                 {/* Keyboard shortcut badge */}
                 {isTargetable && (
@@ -577,16 +577,16 @@ export default function CombatScreen() {
                 {/* ── #41 Critical slash overlay ── */}
                 {hitIsCritical && hitTargetId === enemy.id && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
-                    <div className="animate-critical-slash text-red-400 text-3xl font-black" style={{ textShadow: '0 0 10px rgba(239,68,68,0.8)' }}>✕</div>
+                    <div className="animate-critical-slash text-orange-400 text-3xl font-black" style={{ textShadow: '0 0 10px rgba(251,146,60,0.8)' }}>✕</div>
                   </div>
                 )}
-                {/* ── #41 Flash overlay on critical ── */}
+                {/* ── #41 Flash overlay on critical (orange glow) ── */}
                 {hitIsCritical && hitTargetId === enemy.id && (
-                  <div className="absolute inset-0 rounded-lg animate-flash-white pointer-events-none z-30" />
+                  <div className="absolute inset-0 rounded-lg animate-flash-white pointer-events-none z-30" style={{ backgroundColor: 'rgba(251,146,60,0.15)' }} />
                 )}
                 {isHurt && anim.value && (
                   <div className="absolute -top-2 right-0 z-30">
-                    <div className="damage-number"><span className="text-xs font-black text-red-400">-{anim.value}</span></div>
+                    <div className="damage-number"><span className={`text-xs font-black ${isCrit ? 'text-orange-400' : 'text-red-400'}`}>-{anim.value}</span></div>
                   </div>
                 )}
                 {isTargetable && (
@@ -651,7 +651,7 @@ export default function CombatScreen() {
                   </>
                 )}
                 {isHurt && !isCrit && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
-                {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-white/30 damage-flash pointer-events-none" />}
+                {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-orange-500/35 damage-flash pointer-events-none" />}
                 {isMissAnim && <div className="absolute -inset-1 rounded-lg bg-yellow-500/15 pointer-events-none animate-dodge" />}
                 {isHealing && <div className="absolute -inset-1 rounded-lg bg-green-500/20 heal-effect pointer-events-none" />}
                 {/* Keyboard shortcut badge for ally targeting */}
@@ -742,7 +742,7 @@ export default function CombatScreen() {
                 })()}
                 {isHurt && anim.value && (
                   <div className="absolute -top-2 right-0 z-30">
-                    <div className="damage-number"><span className="text-xs font-black text-red-400">-{anim.value}</span></div>
+                    <div className="damage-number"><span className={`text-xs font-black ${isCrit ? 'text-orange-400' : 'text-red-400'}`}>-{anim.value}</span></div>
                   </div>
                 )}
                 {isHealing && anim.value && (

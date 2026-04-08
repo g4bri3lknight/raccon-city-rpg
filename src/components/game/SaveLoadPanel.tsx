@@ -14,13 +14,18 @@ type Mode = 'closed' | 'save' | 'load';
 interface SaveLoadPanelProps {
   mode?: 'both' | 'save' | 'load';
   compact?: boolean;
+  defaultOpen?: 'save' | 'load';
+  onClose?: () => void;
   renderClosed?: (openPanel: (mode: 'save' | 'load') => void) => React.ReactNode;
 }
 
-export default function SaveLoadPanel({ mode = 'both', compact = false, renderClosed }: SaveLoadPanelProps) {
+export default function SaveLoadPanel({ mode = 'both', compact = false, defaultOpen, onClose, renderClosed }: SaveLoadPanelProps) {
   const { saveGame, loadGame, getSaveInfo, deleteSave, phase, messageLog } = useGameStore();
-  const [panelMode, setPanelMode] = useState<Mode>('closed');
-  const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>([null, null, null]);
+  const [panelMode, setPanelMode] = useState<Mode>(defaultOpen || 'closed');
+  const wasOpened = defaultOpen != null;
+  const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>(() => [
+    getSaveInfo(1), getSaveInfo(2), getSaveInfo(3),
+  ]);
   const [justSaved, setJustSaved] = useState<number | null>(null);
   const [justLoaded, setJustLoaded] = useState<number | null>(null);
 
@@ -35,13 +40,18 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
     setPanelMode(m);
   };
 
+  const closePanel = () => {
+    setPanelMode('closed');
+    onClose?.();
+  };
+
   const handleSave = (slot: number) => {
     saveGame(slot);
     refreshSlots();
     setJustSaved(slot);
     setTimeout(() => {
       setJustSaved(null);
-      if (!compact) setPanelMode('closed');
+      if (!compact) closePanel();
     }, 1500);
   };
 
@@ -51,7 +61,7 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
       setJustLoaded(slot);
       setTimeout(() => {
         setJustLoaded(null);
-        setPanelMode('closed');
+        closePanel();
       }, 1000);
     }
   };
@@ -62,6 +72,7 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
   };
 
   if (panelMode === 'closed') {
+    if (wasOpened) return null;
     if (renderClosed) {
       return <>{renderClosed(openPanel)}</>;
     }
@@ -103,7 +114,7 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) setPanelMode('closed'); }}
+      onClick={(e) => { if (e.target === e.currentTarget) closePanel(); }}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -123,7 +134,7 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, renderCl
               {isSave ? 'Salva Partita' : 'Carica Partita'}
             </h2>
           </div>
-          <Button variant="ghost" onClick={() => setPanelMode('closed')} className="text-white/40 hover:text-white hover:bg-white/[0.05] h-8 w-8 p-0">
+          <Button variant="ghost" onClick={closePanel} className="text-white/40 hover:text-white hover:bg-white/[0.05] h-8 w-8 p-0">
             <X className="w-4 h-4" />
           </Button>
         </div>

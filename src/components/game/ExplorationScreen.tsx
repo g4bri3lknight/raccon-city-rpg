@@ -10,15 +10,13 @@ import { CompactHpPanel } from './HpBar';
 import { CHARACTER_IMAGES } from '@/game/data/enemies';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
   Compass, Search, Package, MapPin, ChevronRight,
-  Skull, Flashlight, Shield, Swords, Heart,
-  ArrowRightLeft, AlertTriangle, CheckCircle2, Users, Map, Trophy, BookOpen,
-  FileText, User, Zap, Dices, Home
+  Skull, ArrowRightLeft, AlertTriangle, Users, Map, Trophy, BookOpen,
+  FileText, Zap, Dices, Home, ScrollText
 } from 'lucide-react';
 import SafeRoomPanel from './SafeRoomPanel';
-import { NPCS } from '@/game/data/npcs';
+import MissionsPanel from './MissionsPanel';
 import { getEffectiveLocation } from '@/game/data/randomizer';
 
 export default function ExplorationScreen() {
@@ -30,7 +28,7 @@ export default function ExplorationScreen() {
     npcQuestProgress, readDocuments, randomizerMode, randomizedLocationData, currentSubArea,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
-    toggleAchievements, toggleBestiary, toggleDocuments,
+    toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
     handleDynamicEventChoice,
     startQTE, enterSafeRoom,
   } = state;
@@ -44,8 +42,8 @@ export default function ExplorationScreen() {
       ? 'text-red-400 border-red-800/50 bg-red-950/30'
       : 'text-yellow-400 border-yellow-800/50 bg-yellow-950/30';
   const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
-  const [showEventChoice, setShowEventChoice] = useState(false);
-  const [showMissions, setShowMissions] = useState(false);
+  const activeMissions = Object.entries(npcQuestProgress)
+    .filter(([_, progress]) => !progress.completed).length;
   const explorationLogRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll exploration log to bottom
@@ -65,17 +63,7 @@ export default function ExplorationScreen() {
   const aliveParty = party.filter(p => p.currentHp > 0);
   const hasSafeRoom = !location.isBossArea && !!location.subAreas?.some(sa => sa.id === 'safe_room');
 
-  // Active missions (accepted, not completed)
-  const activeMissions = Object.entries(npcQuestProgress)
-    .filter(([_, progress]) => !progress.completed)
-    .map(([questId, progress]) => {
-      const npc = Object.values(NPCS).find(n => n.quest?.id === questId);
-      return npc ? { npc, progress } : null;
-    })
-    .filter(Boolean);
-  const completedMissions = Object.entries(npcQuestProgress)
-    .filter(([_, progress]) => progress.completed)
-    .length;
+  
 
   return (
     <div className="h-screen game-horror flex flex-col overflow-hidden">
@@ -389,50 +377,7 @@ export default function ExplorationScreen() {
                 )}
               </div>
             )}
-            {/* Mission Tracker */}
-            <AnimatePresence>
-              {showMissions && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden mb-2"
-                >
-                  <div className="p-2.5 rounded-lg border border-cyan-800/20 bg-cyan-950/10 space-y-1.5 max-h-40 overflow-y-auto inventory-scrollbar">
-                    {activeMissions.length === 0 ? (
-                      <p className="text-xs text-white/30 text-center py-2 italic">Nessuna missione attiva</p>
-                    ) : (
-                      activeMissions.map(({ npc, progress }) => {
-                      if (!npc?.quest) return null;
-                      const q = npc.quest;
-                      const typeLabel = q.type === 'fetch' ? '📦 Recupera' : q.type === 'kill' ? '⚔️ Uccidi' : '🗺️ Esplora';
-                      const isComplete = progress.currentCount >= q.targetCount;
-                      return (
-                        <div key={q.id} className={`flex items-center justify-between p-2 rounded-lg border transition-all ${isComplete ? 'border-green-700/30 bg-green-950/20' : 'border-white/[0.06] bg-white/[0.03]'}`}>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                              <span className="text-xs">{npc.portrait}</span>
-                              <span className={`text-xs font-semibold truncate ${isComplete ? 'text-green-300' : 'text-cyan-200'}`}>{q.name}</span>
-                            </div>
-                            <p className="text-[10px] text-white/40">
-                              {typeLabel} · {progress.currentCount}/{q.targetCount}
-                              {!isComplete && q.type === 'fetch' && <span className="text-amber-400/60 ml-1">(parla con {npc.name} quando hai gli oggetti)</span>}
-                              {!isComplete && q.type === 'explore' && <span className="text-amber-400/60 ml-1">(parla con {npc.name} dopo aver esplorato)</span>}
-                            </p>
-                          </div>
-                          {isComplete && (
-                            <Badge className="bg-green-900/40 text-green-300 border-green-700/30 text-[9px] shrink-0 ml-2">
-                              Pronto ✓
-                            </Badge>
-                          )}
-                        </div>
-                      );
-                    })
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            
             <div className={`grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
               <Button
                 onClick={explore}
@@ -488,13 +433,13 @@ export default function ExplorationScreen() {
                 })()}
               </Button>
               <Button
-                onClick={() => setShowMissions(!showMissions)}
-                className={`relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5 ${showMissions ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-300' : ''}`}
+                onClick={toggleMissions}
+                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-xs sm:text-sm py-2.5"
               >
-                <BookOpen className="w-4 h-4 mr-1.5" /> Missioni
-                {activeMissions.length > 0 && (
+                <ScrollText className="w-4 h-4 mr-1.5" /> Missioni
+                {activeMissions > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-bold flex items-center justify-center border border-black/30">
-                    {activeMissions.length}
+                    {activeMissions}
                   </span>
                 )}
               </Button>
@@ -560,6 +505,8 @@ export default function ExplorationScreen() {
         </div>
       </div>
 
+      {/* Missions Dialog */}
+      <MissionsPanel />
     </div>
   );
 }

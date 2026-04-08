@@ -29,6 +29,7 @@ model Item {
   effectStatusCured String? // JSON array: ["poison","bleeding"]
   // Slots (for bags)
   addSlots         Int?
+  unico            Boolean  @default(false) // true = can only be dropped/obtained once per game
   createdAt        DateTime @default(now())
   @@map("items")
 }

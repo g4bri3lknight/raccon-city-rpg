@@ -145,6 +145,9 @@ export interface ItemDefinition {
   icon: string;
   usable: boolean;
   equippable: boolean;
+  stackable: boolean;
+  maxStack: number;
+  unico: boolean;
   effect?: ItemEffect;
 }
 
@@ -464,6 +467,7 @@ export interface GameState {
   npcQuestProgress: Record<string, { currentCount: number; completed: boolean }>; // questId → progress
   npcsEncountered: string[]; // NPC IDs met
   npcsOpen: boolean;
+  missionsOpen: boolean;
   // #20 Dynamic Events
   activeDynamicEvent: DynamicEvent | null;
   dynamicEventTurnsLeft: number;

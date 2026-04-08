@@ -100,6 +100,14 @@ function addItemToParty(
   const itemDef = ITEMS[itemId];
   if (!itemDef) return { party, added: false, characterName: '', characterId: '' };
 
+  // Unique items can only be obtained once per game
+  if (itemDef.unico) {
+    const alreadyOwned = party.some(c =>
+      c.inventory.some(i => i.itemId === itemId) || c.weapon?.itemId === itemId
+    );
+    if (alreadyOwned) return { party, added: false, characterName: '', characterId: '' };
+  }
+
   const isStackable = itemDef.type === 'ammo' || itemDef.type === 'healing' || itemDef.type === 'antidote';
   const uid = `${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const newItem: ItemInstance = {
@@ -403,6 +411,7 @@ interface GameStore extends GameState {
   acceptNpcQuest: () => void;
   tradeWithNpc: (tradeIndex: number) => boolean;
   closeNpcDialog: () => void;
+  toggleMissions: () => void;
 
   // #20 Dynamic Events
   triggerDynamicEvent: (eventId: string) => void;
@@ -496,6 +505,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   newAchievementNotification: null,
   collectedDocuments: [],
   documentsOpen: false,
+  missionsOpen: false,
   activeNpc: null,
   npcQuestProgress: {},
   npcsEncountered: [],
@@ -520,7 +530,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], documentsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], readDocuments: [] });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], readDocuments: [] });
   },
 
   goToCharacterCreator: () => {
@@ -563,6 +573,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       difficulty: activeDifficulty,
       collectedDocuments: [],
       documentsOpen: false,
+      missionsOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -621,6 +632,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       difficulty: activeDifficulty,
       collectedDocuments: [],
       documentsOpen: false,
+      missionsOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -687,6 +699,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       qteState: null,
       collectedDocuments: [],
       documentsOpen: false,
+      missionsOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -4106,6 +4119,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         endingType: data.endingType || null,
         exploredSubAreas: data.exploredSubAreas || {},
         documentsOpen: false,
+        missionsOpen: false,
         npcsOpen: false,
         randomizerMode: data.randomizerMode || false,
         randomizedLocationData: data.randomizedLocationData || null,
@@ -4250,6 +4264,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       qteState: null,
       collectedDocuments: [],
       documentsOpen: false,
+      missionsOpen: false,
       activeNpc: null,
       npcQuestProgress: {},
       npcsEncountered: [],
@@ -4683,6 +4698,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (!isOpen) playMenuOpen(); else playMenuClose();
     } catch {}
     set(state => ({ documentsOpen: !state.documentsOpen }));
+  },
+
+  toggleMissions: () => {
+    try {
+      const isOpen = get().missionsOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
+    set(state => ({ missionsOpen: !state.missionsOpen }));
   },
 
   markDocumentRead: (docId: string) => {

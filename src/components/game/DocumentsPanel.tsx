@@ -330,7 +330,8 @@ export default function DocumentsPanel() {
               </Button>
             </div>
 
-            {/* Filter tabs */}
+            {/* Filter tabs — hidden when reading a document */}
+            {!selectedDoc && (
             <div className="flex gap-1 p-2 border-b border-white/[0.06] overflow-x-auto shrink-0">
               <Badge
                 className={`cursor-pointer text-[10px] sm:text-xs px-2 py-1 transition-all ${filterType === 'all' ? 'bg-amber-900/50 text-amber-300 border-amber-700/40' : 'bg-white/[0.03] text-white/50 border-white/[0.06] hover:bg-white/[0.06]'}`}
@@ -352,6 +353,7 @@ export default function DocumentsPanel() {
                 );
               })}
             </div>
+            )}
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 inventory-scrollbar">
@@ -373,7 +375,7 @@ export default function DocumentsPanel() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedDoc(null)}
-                    className="text-amber-400 hover:text-amber-300 text-xs"
+                    className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-2"
                   >
                     ← Torna alla lista
                   </Button>
