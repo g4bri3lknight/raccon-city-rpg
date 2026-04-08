@@ -27,6 +27,7 @@ import {
   Check,
 } from 'lucide-react';
 import { ALL_SPECIAL_ABILITIES, PREDEFINED_AVATARS, CUSTOM_STAT_BUDGET, getCustomPassiveDescription, ARCHETYPE_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP } from '@/game/data/specials';
+import { SPECIALS_DATA } from '@/game/data/loader';
 import { CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS } from '@/game/data/characters';
 import type { CustomCharacterConfig, Archetype, SpecialCategory } from '@/game/types';
 
@@ -336,15 +337,17 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
   // ── Filtered abilities ──
   // Preset: show the 5 specials of the archetype's category. Custom: show all with optional filter.
   const filteredAbilities = useMemo(() => {
+    // Use SPECIALS_DATA from loader when available, fallback to static
+    const pool = SPECIALS_DATA.length > 0 ? SPECIALS_DATA : ALL_SPECIAL_ABILITIES;
     if (isPresetArchetype && selectedArchetype) {
       const category = ARCHETYPE_CATEGORY_MAP[selectedArchetype];
       if (category) {
-        return ALL_SPECIAL_ABILITIES.filter(a => a.category === category);
+        return pool.filter(a => a.category === category);
       }
     }
     // Custom archetype: show all with optional category filter
-    if (abilityFilter === 'all') return ALL_SPECIAL_ABILITIES;
-    return ALL_SPECIAL_ABILITIES.filter(a => a.category === abilityFilter);
+    if (abilityFilter === 'all') return pool;
+    return pool.filter(a => a.category === abilityFilter);
   }, [abilityFilter, selectedArchetype, isPresetArchetype]);
 
   // ==========================================

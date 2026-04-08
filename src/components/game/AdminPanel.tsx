@@ -24,7 +24,7 @@ import type { Rarity } from '@/game/types';
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters';
+type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials';
 
 interface TabConfig {
   id: TabId;
@@ -45,6 +45,7 @@ const TABS: TabConfig[] = [
   { id: 'locations', label: 'Location', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location' },
   { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC' },
   { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio' },
+  { id: 'specials', label: 'Speciali', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità Speciale' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -130,6 +131,24 @@ const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: string }>>
     control: { it: 'Controllo' },
     custom:  { it: 'Personalizzato' },
   },
+  specialCategory: {
+    offensive: { it: 'Offensivo' },
+    defensive: { it: 'Difensivo' },
+    support:   { it: 'Supporto' },
+    control:   { it: 'Controllo' },
+  },
+  specialTargetType: {
+    self:       { it: 'Sé Stesso' },
+    enemy:      { it: 'Nemico' },
+    ally:       { it: 'Alleato' },
+    all_allies: { it: 'Tutti gli Alleati' },
+  },
+  statusEffect: {
+    poison:   { it: 'Avvelenamento' },
+    bleeding: { it: 'Sanguinamento' },
+    stunned:  { it: 'Stordimento' },
+    adrenaline: { it: 'Adrenalina' },
+  },
 };
 
 // Helper: get Italian label for an enum value
@@ -148,7 +167,7 @@ function getEnumHint(enumGroup: string, value: string): string | undefined {
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
@@ -279,6 +298,20 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'mapCol', label: 'Mappa Colonna', type: 'number', placeholder: '0-3' },
     { key: 'mapIcon', label: 'Icona Mappa', type: 'text', placeholder: 'es: 🏙️' },
     { key: 'mapDanger', label: 'Pericolo Mappa', type: 'text', placeholder: 'es: basso, medio, alto, critico' },
+  ],
+  specials: [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: colpo_mortale' },
+    { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Colpo Mortale' },
+    { key: 'icon', label: 'Icona', type: 'text', placeholder: 'es: 💀', colSpan: 2 },
+    { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione dell\'abilità...', colSpan: 3 },
+    { key: 'category', label: 'Categoria', type: 'select', options: ['offensive', 'defensive', 'support', 'control'], enumGroup: 'specialCategory' },
+    { key: 'targetType', label: 'Bersaglio', type: 'select', options: ['self', 'enemy', 'ally', 'all_allies'], enumGroup: 'specialTargetType' },
+    { key: 'cooldown', label: 'Cooldown (turni)', type: 'number', defaultValue: 2 },
+    { key: 'executionType', label: 'Tipo Esecuzione', type: 'text', placeholder: 'es: colpo_mortale (stesso dell\'ID)', colSpan: 2 },
+    { key: 'powerMultiplier', label: 'Moltiplicatore Potere', type: 'number', placeholder: 'es: 1.6 (solo offensive)' },
+    { key: 'healAmount', label: 'Quantità Cura', type: 'number', placeholder: 'es: 50 (solo healing/support)' },
+    { key: 'statusToApply', label: 'Status Applicato', type: 'status-apply', colSpan: 3 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
   ],
 };
 
@@ -423,6 +456,18 @@ const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
       idTemplate: 'char_{entityId}',
       nameTemplate: 'Char: {entityId}',
       helpText: 'Immagine ritratto del personaggio mostrata nella selezione (256×256 consigliato)',
+    },
+  ],
+  specials: [
+    {
+      key: 'icon',
+      label: 'Icona Abilità',
+      mediaType: 'image' as const,
+      category: 'icon',
+      accept: 'image/png,image/jpeg,image/webp',
+      idTemplate: 'special_{entityId}',
+      nameTemplate: 'Special: {entityId}',
+      helpText: 'Immagine icona dell\'abilità speciale (64×64 consigliato)',
     },
   ],
 };
@@ -820,6 +865,85 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'SPD',
       width: 'w-14',
       render: (row) => <span className="text-[10px] text-cyan-400/70 font-mono">{row.spd}</span>,
+    },
+  ],
+  specials: [
+    {
+      key: '_icon',
+      label: '',
+      width: 'w-12',
+      render: (row) => <span className="text-sm">{String(row.icon ?? '⚡')}</span>,
+    },
+    { key: 'id', label: 'ID', width: 'w-44' },
+    { key: 'name', label: 'Nome', width: 'w-40' },
+    {
+      key: 'category',
+      label: 'Categoria',
+      width: 'w-28',
+      render: (row) => {
+        const cat = String(row.category ?? '');
+        const catColors: Record<string, string> = {
+          offensive: 'border-red-500/30 text-red-400 bg-red-500/10',
+          defensive: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+          support: 'border-green-500/30 text-green-400 bg-green-500/10',
+          control: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+        };
+        return (
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${catColors[cat] ?? ''}`}>
+            {getEnumLabel('specialCategory', cat)}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'targetType',
+      label: 'Bersaglio',
+      width: 'w-28',
+      render: (row) => (
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+          {getEnumLabel('specialTargetType', String(row.targetType))}
+        </Badge>
+      ),
+    },
+    {
+      key: 'cooldown',
+      label: 'CD',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-white/40 font-mono">{row.cooldown}t</span>,
+    },
+    {
+      key: 'powerMultiplier',
+      label: 'Potere',
+      width: 'w-14',
+      render: (row) => {
+        const pm = row.powerMultiplier;
+        if (pm == null) return <span className="text-[10px] text-white/10">—</span>;
+        return <span className="text-[10px] text-red-400/70 font-mono">×{Number(pm).toFixed(1)}</span>;
+      },
+    },
+    {
+      key: 'healAmount',
+      label: 'Cura',
+      width: 'w-14',
+      render: (row) => {
+        const ha = row.healAmount;
+        if (ha == null) return <span className="text-[10px] text-white/10">—</span>;
+        return <span className="text-[10px] text-green-400/70 font-mono">+{ha}</span>;
+      },
+    },
+    {
+      key: 'hasStatus',
+      label: 'Status',
+      width: 'w-16',
+      render: (row) => {
+        const st = row.statusToApply;
+        const hasStatus = st && typeof st === 'object' && st !== null && 'type' in st && (st as Record<string, unknown>).type;
+        return (
+          <span className={hasStatus ? 'text-orange-400 text-[10px]' : 'text-white/15 text-[10px]'}>
+            {hasStatus ? '✓' : '—'}
+          </span>
+        );
+      },
     },
   ],
 };
@@ -1291,6 +1415,99 @@ function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { i
   );
 }
 
+/** Status Apply Editor — for special ability status effects {type, chance} */
+function StatusApplyEditor({ value, onChange }: { value: unknown; onChange: (v: { type: string; chance: number } | null) => void }) {
+  let current: { type: string; chance: number } | null = null;
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const o = value as Record<string, unknown>;
+    current = { type: String(o.type ?? ''), chance: Number(o.chance ?? 0) };
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== '{}' && trimmed !== '[]') {
+      try { const parsed = JSON.parse(trimmed); if (parsed?.type) current = { type: String(parsed.type), chance: Number(parsed.chance ?? 0) }; } catch { /* empty */ }
+    }
+  }
+
+  const [enabled, setEnabled] = useState(!!current);
+  const [statusType, setStatusType] = useState(current?.type ?? '');
+  const [chance, setChance] = useState(current?.chance ?? 50);
+
+  useEffect(() => {
+    if (current) {
+      setEnabled(true);
+      setStatusType(current.type);
+      setChance(current.chance);
+    }
+  }, [current]);
+
+  const toggleEnabled = () => {
+    if (enabled) {
+      setEnabled(false);
+      onChange(null);
+    } else {
+      setEnabled(true);
+      const newVal = { type: statusType || 'poison', chance };
+      onChange(newVal);
+    }
+  };
+
+  const handleTypeChange = (t: string) => {
+    setStatusType(t);
+    onChange({ type: t, chance });
+  };
+
+  const handleChanceChange = (c: number) => {
+    setChance(c);
+    onChange({ type: statusType, chance: c });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={toggleEnabled}
+            className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-orange-500"
+          />
+          <span className="text-[9px] text-white/40">Applica status negativo al bersaglio</span>
+        </label>
+      </div>
+      {enabled && (
+        <div className="rounded-md border border-orange-500/15 bg-orange-500/[0.02] p-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[8px] text-white/30 mb-0.5 block">Tipo Status</label>
+              <select
+                value={statusType}
+                onChange={e => handleTypeChange(e.target.value)}
+                className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-orange-500/40 cursor-pointer"
+              >
+                <option value="poison">Avvelenamento</option>
+                <option value="bleeding">Sanguinamento</option>
+                <option value="stunned">Stordimento</option>
+                <option value="adrenaline">Adrenalina</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[8px] text-white/30 mb-0.5 block">Probabilità %</label>
+              <input
+                type="number"
+                value={chance}
+                onChange={e => handleChanceChange(Number(e.target.value))}
+                min={1}
+                max={100}
+                className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-orange-500/40"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Story Event Editor
 // ═══════════════════════════════════════════════════════════════
@@ -1707,8 +1924,8 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                 <div>
                   <label className="text-[8px] text-white/30 mb-0.5 block">Descrizione Successo</label>
                   <textarea
-                    value={event.puzzle.successOutcome?.description ?? ''}
-                    onChange={e => updatePuzzle('successOutcome', { ...event.puzzle.successOutcome, description: e.target.value })}
+                    value={event.puzzle?.successOutcome?.description ?? ''}
+                    onChange={e => updatePuzzle('successOutcome', { ...(event.puzzle?.successOutcome ?? {}), description: e.target.value })}
                     placeholder="La serratura si apre con un click..."
                     rows={2}
                     className="w-full text-[10px] bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-white/60 placeholder-white/10 resize-y italic focus:outline-none focus:border-purple-500/30"
@@ -1760,7 +1977,7 @@ function EntityForm({
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(f => {
           const val = data[f.key] ?? f.defaultValue ?? '';
-          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || (f.colSpan === 3);
+          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || (f.colSpan === 3);
           const isDoubleWidth = f.colSpan === 2 && !isFullWidth;
 
           if (isEdit && f.key === 'id') {
@@ -1856,6 +2073,11 @@ function EntityForm({
                 />
               ) : f.type === 'story-event' ? (
                 <StoryEventEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'status-apply' ? (
+                <StatusApplyEditor
                   value={val}
                   onChange={v => handleChange(f.key, v)}
                 />
@@ -2714,7 +2936,7 @@ export default function AdminPanel() {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<Record<TabId, number>>({
-    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0,
+    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0,
   });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2813,7 +3035,7 @@ export default function AdminPanel() {
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -2824,6 +3046,10 @@ export default function AdminPanel() {
         }
         // story-event is an object, not array — serialize it
         if (f.type === 'story-event' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // status-apply is an object {type, chance} — serialize it
+        if (f.type === 'status-apply' && processed[f.key] != null && typeof processed[f.key] === 'object') {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
         if (processed[f.key] === '' || processed[f.key] === undefined) {
@@ -2848,7 +3074,11 @@ export default function AdminPanel() {
   const handleUpdate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event']);
+      // Ensure id is always included in the update body
+      if (editingId && !processed.id) {
+        processed.id = editingId;
+      }
+      const ARRAY_TYPES = new Set(['tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -2859,6 +3089,10 @@ export default function AdminPanel() {
         }
         // story-event is an object, not array — serialize it
         if (f.type === 'story-event' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // status-apply is an object {type, chance} — serialize it
+        if (f.type === 'status-apply' && processed[f.key] != null && typeof processed[f.key] === 'object') {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
         if (processed[f.key] === '' || processed[f.key] === undefined) {

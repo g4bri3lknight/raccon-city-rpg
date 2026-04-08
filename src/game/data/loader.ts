@@ -4,10 +4,11 @@ import { STATIC_DOCUMENTS } from './documents';
 import { STATIC_LOCATIONS } from './locations';
 import { NPCS as STATIC_NPCS } from './npcs';
 import { CHARACTER_ARCHETYPES as STATIC_CHARACTERS } from './characters';
+import { ALL_SPECIAL_ABILITIES as STATIC_SPECIALS } from './specials';
 import type { ItemDefinition, ItemType, Rarity, ItemEffect, LocationDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
-import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance } from '../types';
+import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
@@ -16,6 +17,7 @@ export let QUESTS: Record<string, NPCQuest> = {};
 export let LOCATIONS: Record<string, LocationDefinition> = {};
 export let NPCS_DATA: Record<string, GameNPC> = {};
 export let CHARACTERS_DATA: CharacterArchetype[] = [];
+export let SPECIALS_DATA: SpecialAbilityDefinition[] = [];
 
 // Backward compat alias
 export { NPCS_DATA as NPCS };
@@ -144,6 +146,22 @@ interface DbCharacter {
   passiveDescription: string;
   portraitEmoji: string;
   startingItems: string;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbSpecial {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  targetType: string;
+  cooldown: number;
+  category: string;
+  executionType: string;
+  powerMultiplier: number | null;
+  healAmount: number | null;
+  statusToApply: Record<string, unknown> | null;
   sortOrder: number;
   createdAt: Date;
 }
@@ -291,6 +309,22 @@ function mapDbCharacter(row: DbCharacter): CharacterArchetype {
   };
 }
 
+function mapDbSpecial(row: DbSpecial): SpecialAbilityDefinition {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    icon: row.icon,
+    targetType: row.targetType as SpecialAbilityDefinition['targetType'],
+    cooldown: row.cooldown,
+    category: row.category as SpecialAbilityDefinition['category'],
+    executionType: row.executionType,
+    ...(row.powerMultiplier != null ? { powerMultiplier: row.powerMultiplier } : {}),
+    ...(row.healAmount != null ? { healAmount: row.healAmount } : {}),
+    ...(row.statusToApply ? { statusToApply: row.statusToApply as SpecialAbilityDefinition['statusToApply'] } : {}),
+  };
+}
+
 // ── Load from API ──
 
 async function loadFromApi(): Promise<{
@@ -301,6 +335,7 @@ async function loadFromApi(): Promise<{
   locations: DbLocation[];
   npcs: DbNPC[];
   characters: DbCharacter[];
+  specials: DbSpecial[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -386,6 +421,17 @@ async function loadCharacters(api: Awaited<ReturnType<typeof loadFromApi>>): Pro
   }
 }
 
+async function loadSpecials(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  if (api?.specials && api.specials.length > 0) {
+    SPECIALS_DATA = [];
+    for (const row of api.specials) {
+      SPECIALS_DATA.push(mapDbSpecial(row));
+    }
+  } else {
+    SPECIALS_DATA = [...STATIC_SPECIALS];
+  }
+}
+
 export async function initGameData(): Promise<void> {
   if (initialized) return;
   try {
@@ -398,6 +444,7 @@ export async function initGameData(): Promise<void> {
       loadLocations(api),
       loadNpcs(api),
       loadCharacters(api),
+      loadSpecials(api),
     ]);
     initialized = true;
   } catch (err) {
@@ -408,6 +455,7 @@ export async function initGameData(): Promise<void> {
     LOCATIONS = { ...STATIC_LOCATIONS };
     NPCS_DATA = { ...STATIC_NPCS };
     CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
+    SPECIALS_DATA = [...STATIC_SPECIALS];
     initialized = true;
   }
 }
@@ -424,6 +472,7 @@ export async function refreshGameData(): Promise<void> {
       loadLocations(api),
       loadNpcs(api),
       loadCharacters(api),
+      loadSpecials(api),
     ]);
     initialized = true;
   } catch (err) {
@@ -433,4 +482,12 @@ export async function refreshGameData(): Promise<void> {
 
 export function isGameDataLoaded(): boolean {
   return initialized;
+}
+
+/** Get a special ability by ID from loaded data (prefers DB data, falls back to static) */
+export function getSpecialById(id: string): SpecialAbilityDefinition | undefined {
+  if (SPECIALS_DATA.length > 0) {
+    return SPECIALS_DATA.find(s => s.id === id);
+  }
+  return STATIC_SPECIALS.find(s => s.id === id);
 }

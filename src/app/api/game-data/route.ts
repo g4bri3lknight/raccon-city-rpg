@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
  */
 export async function GET() {
   try {
-    const [items, events, documents, quests, locations, npcs, characters] = await Promise.all([
+    const [items, events, documents, quests, locations, npcs, characters, specials] = await Promise.all([
       db.item.findMany({ orderBy: { createdAt: 'asc' } }),
       db.dynamicEvent.findMany({ orderBy: { createdAt: 'asc' } }),
       db.document.findMany({ orderBy: { createdAt: 'asc' } }),
@@ -16,9 +16,10 @@ export async function GET() {
       db.gameLocation.findMany({ orderBy: { createdAt: 'asc' } }),
       db.gameNPC.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
       db.gameCharacter.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
+      db.gameSpecial.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
     ]);
 
-    return NextResponse.json({ items, events, documents, quests, locations, npcs, characters });
+    return NextResponse.json({ items, events, documents, quests, locations, npcs, characters, specials });
   } catch (error) {
     console.error('[game-data] Failed to load:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });

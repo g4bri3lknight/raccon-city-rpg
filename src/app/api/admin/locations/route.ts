@@ -1,6 +1,13 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+/** Serialize a value to JSON string — skip if already a string (handleCreate already serializes) */
+function jsonStr(val: unknown, fallback: string): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  try { return JSON.stringify(val); } catch { return fallback; }
+}
+
 /**
  * GET /api/admin/locations — list all locations from DB
  */
@@ -58,15 +65,15 @@ export async function POST(request: NextRequest) {
         name: body.name,
         description: body.description ?? '',
         encounterRate: body.encounterRate ?? 0,
-        enemyPool: JSON.stringify(body.enemyPool ?? []),
-        itemPool: JSON.stringify(body.itemPool ?? []),
-        storyEvent: body.storyEvent ? JSON.stringify(body.storyEvent) : '',
-        nextLocations: JSON.stringify(body.nextLocations ?? []),
+        enemyPool: jsonStr(body.enemyPool, '[]'),
+        itemPool: jsonStr(body.itemPool, '[]'),
+        storyEvent: body.storyEvent ? jsonStr(body.storyEvent, '') : '',
+        nextLocations: jsonStr(body.nextLocations, '[]'),
         isBossArea: body.isBossArea ?? false,
         bossId: body.bossId ?? null,
-        ambientText: JSON.stringify(body.ambientText ?? []),
-        lockedLocations: JSON.stringify(body.lockedLocations ?? []),
-        subAreas: JSON.stringify(body.subAreas ?? []),
+        ambientText: jsonStr(body.ambientText, '[]'),
+        lockedLocations: jsonStr(body.lockedLocations, '[]'),
+        subAreas: jsonStr(body.subAreas, '[]'),
         sortOrder: body.sortOrder ?? 0,
         mapRow: body.mapRow ?? null,
         mapCol: body.mapCol ?? null,
@@ -88,33 +95,34 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
+    const { id, ...updateFields } = body;
 
-    if (!body.id) {
+    if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    // Build update data from provided fields
+    // Build update data from provided fields, safely serializing JSON values
     const data: Record<string, unknown> = {};
-    if (body.name !== undefined) data.name = body.name;
-    if (body.description !== undefined) data.description = body.description;
-    if (body.encounterRate !== undefined) data.encounterRate = body.encounterRate;
-    if (body.enemyPool !== undefined) data.enemyPool = JSON.stringify(body.enemyPool);
-    if (body.itemPool !== undefined) data.itemPool = JSON.stringify(body.itemPool);
-    if (body.storyEvent !== undefined) data.storyEvent = body.storyEvent ? JSON.stringify(body.storyEvent) : '';
-    if (body.nextLocations !== undefined) data.nextLocations = JSON.stringify(body.nextLocations);
-    if (body.isBossArea !== undefined) data.isBossArea = body.isBossArea;
-    if (body.bossId !== undefined) data.bossId = body.bossId;
-    if (body.ambientText !== undefined) data.ambientText = JSON.stringify(body.ambientText);
-    if (body.lockedLocations !== undefined) data.lockedLocations = JSON.stringify(body.lockedLocations);
-    if (body.subAreas !== undefined) data.subAreas = JSON.stringify(body.subAreas);
-    if (body.sortOrder !== undefined) data.sortOrder = body.sortOrder;
-    if (body.mapRow !== undefined) data.mapRow = body.mapRow;
-    if (body.mapCol !== undefined) data.mapCol = body.mapCol;
-    if (body.mapIcon !== undefined) data.mapIcon = body.mapIcon;
-    if (body.mapDanger !== undefined) data.mapDanger = body.mapDanger;
+    if (updateFields.name !== undefined) data.name = updateFields.name;
+    if (updateFields.description !== undefined) data.description = updateFields.description;
+    if (updateFields.encounterRate !== undefined) data.encounterRate = updateFields.encounterRate;
+    if (updateFields.enemyPool !== undefined) data.enemyPool = jsonStr(updateFields.enemyPool, '[]');
+    if (updateFields.itemPool !== undefined) data.itemPool = jsonStr(updateFields.itemPool, '[]');
+    if (updateFields.storyEvent !== undefined) data.storyEvent = updateFields.storyEvent ? jsonStr(updateFields.storyEvent, '') : '';
+    if (updateFields.nextLocations !== undefined) data.nextLocations = jsonStr(updateFields.nextLocations, '[]');
+    if (updateFields.isBossArea !== undefined) data.isBossArea = updateFields.isBossArea;
+    if (updateFields.bossId !== undefined) data.bossId = updateFields.bossId;
+    if (updateFields.ambientText !== undefined) data.ambientText = jsonStr(updateFields.ambientText, '[]');
+    if (updateFields.lockedLocations !== undefined) data.lockedLocations = jsonStr(updateFields.lockedLocations, '[]');
+    if (updateFields.subAreas !== undefined) data.subAreas = jsonStr(updateFields.subAreas, '[]');
+    if (updateFields.sortOrder !== undefined) data.sortOrder = updateFields.sortOrder;
+    if (updateFields.mapRow !== undefined) data.mapRow = updateFields.mapRow;
+    if (updateFields.mapCol !== undefined) data.mapCol = updateFields.mapCol;
+    if (updateFields.mapIcon !== undefined) data.mapIcon = updateFields.mapIcon;
+    if (updateFields.mapDanger !== undefined) data.mapDanger = updateFields.mapDanger;
 
     const location = await db.gameLocation.update({
-      where: { id: body.id },
+      where: { id },
       data,
     });
 
@@ -142,7 +150,6 @@ export async function DELETE(request: NextRequest) {
       where: { associatedId: id },
     });
 
-    // Delete the location
     await db.gameLocation.delete({
       where: { id },
     });

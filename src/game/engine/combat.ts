@@ -8,7 +8,8 @@ import {
   StatusEffect,
 } from '../types';
 import { ENEMIES } from '../data/enemies';
-import { getSpecialById, ARCHETYPE_SPECIAL_MAP } from '../data/specials';
+import { ARCHETYPE_SPECIAL_MAP } from '../data/specials';
+import { getSpecialById } from '../data/loader';
 
 // ==========================================
 // UTILITY

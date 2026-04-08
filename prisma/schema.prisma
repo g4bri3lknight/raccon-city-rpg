@@ -180,6 +180,23 @@ model GameCharacter {
   @@map("game_characters")
 }
 
+model GameSpecial {
+  id               String   @id
+  name             String
+  description      String
+  icon             String   @default("")
+  targetType       String   @default("enemy")   // self | enemy | ally | all_allies
+  cooldown         Int      @default(2)
+  category         String   @default("offensive") // offensive | defensive | support | control
+  executionType    String   @default("")         // maps to combat execution logic
+  powerMultiplier  Float?                        // for offensive abilities
+  healAmount       Int?                          // for healing abilities
+  statusToApply    String   @default("")         // JSON: {type:"poison",chance:60} or null
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  @@map("game_specials")
+}
+
 model NotificationConfig {
   id            String   @id
   type          String   @unique   // encounter, victory, defeat, item_found, bag_expand, collectible_found

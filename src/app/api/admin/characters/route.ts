@@ -1,6 +1,13 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+/** Serialize a value to JSON string — skip if already a string */
+function jsonStr(val: unknown, fallback: string): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  try { return JSON.stringify(val); } catch { return fallback; }
+}
+
 /**
  * GET /api/admin/characters — list all characters from DB
  */
@@ -70,7 +77,7 @@ export async function POST(request: NextRequest) {
         special2Cost: body.special2Cost ?? 15,
         passiveDescription: body.passiveDescription ?? '',
         portraitEmoji: body.portraitEmoji ?? '🎮',
-        startingItems: JSON.stringify(body.startingItems ?? []),
+        startingItems: jsonStr(body.startingItems, '[]'),
         sortOrder: body.sortOrder ?? 0,
       },
     });
@@ -83,38 +90,21 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/admin/characters?id=xxx — update an existing character
+ * PUT /api/admin/characters — update an existing character
  */
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const { id, ...data } = body;
 
     if (!id) {
-      return NextResponse.json({ error: 'id query param is required' }, { status: 400 });
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    // Build update data from provided fields
-    const data: Record<string, unknown> = {};
-    if (body.archetype !== undefined) data.archetype = body.archetype;
-    if (body.name !== undefined) data.name = body.name;
-    if (body.displayName !== undefined) data.displayName = body.displayName;
-    if (body.description !== undefined) data.description = body.description;
-    if (body.maxHp !== undefined) data.maxHp = body.maxHp;
-    if (body.atk !== undefined) data.atk = body.atk;
-    if (body.def !== undefined) data.def = body.def;
-    if (body.spd !== undefined) data.spd = body.spd;
-    if (body.specialName !== undefined) data.specialName = body.specialName;
-    if (body.specialDescription !== undefined) data.specialDescription = body.specialDescription;
-    if (body.specialCost !== undefined) data.specialCost = body.specialCost;
-    if (body.special2Name !== undefined) data.special2Name = body.special2Name;
-    if (body.special2Description !== undefined) data.special2Description = body.special2Description;
-    if (body.special2Cost !== undefined) data.special2Cost = body.special2Cost;
-    if (body.passiveDescription !== undefined) data.passiveDescription = body.passiveDescription;
-    if (body.portraitEmoji !== undefined) data.portraitEmoji = body.portraitEmoji;
-    if (body.startingItems !== undefined) data.startingItems = JSON.stringify(body.startingItems);
-    if (body.sortOrder !== undefined) data.sortOrder = body.sortOrder;
+    // Serialize startingItems if it's not already a string
+    if (data.startingItems !== undefined) {
+      data.startingItems = jsonStr(data.startingItems, '[]');
+    }
 
     const character = await db.gameCharacter.update({
       where: { id },

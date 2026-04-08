@@ -1,6 +1,13 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+/** Serialize a value to JSON string — skip if already a string (handleCreate already serializes) */
+function jsonStr(val: unknown, fallback: string): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  try { return JSON.stringify(val); } catch { return fallback; }
+}
+
 /**
  * GET /api/admin/npcs — list all NPCs from DB
  */
@@ -50,11 +57,11 @@ export async function POST(request: NextRequest) {
         portrait: body.portrait ?? '',
         locationId: body.locationId ?? '',
         greeting: body.greeting ?? '',
-        dialogues: JSON.stringify(body.dialogues ?? []),
+        dialogues: jsonStr(body.dialogues, '[]'),
         farewell: body.farewell ?? '',
         questId: body.questId ?? null,
-        tradeInventory: JSON.stringify(body.tradeInventory ?? []),
-        questCompletedDialogue: JSON.stringify(body.questCompletedDialogue ?? []),
+        tradeInventory: jsonStr(body.tradeInventory, '[]'),
+        questCompletedDialogue: jsonStr(body.questCompletedDialogue, '[]'),
         sortOrder: body.sortOrder ?? 0,
       },
     });
@@ -67,30 +74,29 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/admin/npcs?id=xxx — update an existing NPC
+ * PUT /api/admin/npcs — update an existing NPC
  */
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const { id, ...updateFields } = body;
 
     if (!id) {
-      return NextResponse.json({ error: 'id query param is required' }, { status: 400 });
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
     // Build update data from provided fields
     const data: Record<string, unknown> = {};
-    if (body.name !== undefined) data.name = body.name;
-    if (body.portrait !== undefined) data.portrait = body.portrait;
-    if (body.locationId !== undefined) data.locationId = body.locationId;
-    if (body.greeting !== undefined) data.greeting = body.greeting;
-    if (body.dialogues !== undefined) data.dialogues = JSON.stringify(body.dialogues);
-    if (body.farewell !== undefined) data.farewell = body.farewell;
-    if (body.questId !== undefined) data.questId = body.questId;
-    if (body.tradeInventory !== undefined) data.tradeInventory = JSON.stringify(body.tradeInventory);
-    if (body.questCompletedDialogue !== undefined) data.questCompletedDialogue = JSON.stringify(body.questCompletedDialogue);
-    if (body.sortOrder !== undefined) data.sortOrder = body.sortOrder;
+    if (updateFields.name !== undefined) data.name = updateFields.name;
+    if (updateFields.portrait !== undefined) data.portrait = updateFields.portrait;
+    if (updateFields.locationId !== undefined) data.locationId = updateFields.locationId;
+    if (updateFields.greeting !== undefined) data.greeting = updateFields.greeting;
+    if (updateFields.dialogues !== undefined) data.dialogues = jsonStr(updateFields.dialogues, '[]');
+    if (updateFields.farewell !== undefined) data.farewell = updateFields.farewell;
+    if (updateFields.questId !== undefined) data.questId = updateFields.questId;
+    if (updateFields.tradeInventory !== undefined) data.tradeInventory = jsonStr(updateFields.tradeInventory, '[]');
+    if (updateFields.questCompletedDialogue !== undefined) data.questCompletedDialogue = jsonStr(updateFields.questCompletedDialogue, '[]');
+    if (updateFields.sortOrder !== undefined) data.sortOrder = updateFields.sortOrder;
 
     const npc = await db.gameNPC.update({
       where: { id },

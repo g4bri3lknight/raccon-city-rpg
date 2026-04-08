@@ -239,9 +239,12 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
   },
 ];
 
-export function getSpecialById(id: string): SpecialAbilityDefinition | undefined {
+export function getSpecialByIdStatic(id: string): SpecialAbilityDefinition | undefined {
   return ALL_SPECIAL_ABILITIES.find(s => s.id === id);
 }
+
+// Alias for backward compatibility (used by CombatScreen & CharacterSelect)
+export const getSpecialById = getSpecialByIdStatic;
 
 // Map predefined archetype specials to the pool IDs (for backward compatibility)
 export const ARCHETYPE_SPECIAL_MAP: Record<string, { special1: string; special2: string }> = {
