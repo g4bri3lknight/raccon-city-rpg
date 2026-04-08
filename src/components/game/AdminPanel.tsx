@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Plus, Pencil, Trash2, Save, RotateCcw,
   Package, Scroll, Zap, FileText, Volume2, ImageIcon, RefreshCw, Loader2, Search, Play, Pause, Eye,
-  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin
+  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
 import ItemIcon from '@/components/game/ItemIcon';
@@ -24,7 +24,7 @@ import type { Rarity } from '@/game/types';
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations';
+type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters';
 
 interface TabConfig {
   id: TabId;
@@ -43,6 +43,8 @@ const TABS: TabConfig[] = [
   { id: 'images', label: 'Immagini', icon: <ImageIcon className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Immagine' },
   { id: 'notifications', label: 'Notifiche', icon: <Bell className="w-4 h-4" />, endpoint: '/api/admin/notifications', entityLabel: 'Notifica' },
   { id: 'locations', label: 'Location', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location' },
+  { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC' },
+  { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -120,6 +122,13 @@ const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: string }>>
     one_ally:     { it: 'Un Alleato' },
     all_allies:   { it: 'Tutti gli Alleati' },
     all_enemies:  { it: 'Tutti i Nemici' },
+  },
+  archetype: {
+    tank:    { it: 'Tank' },
+    healer:  { it: 'Medico' },
+    dps:     { it: 'DPS' },
+    control: { it: 'Controllo' },
+    custom:  { it: 'Personalizzato' },
   },
 };
 
@@ -218,6 +227,39 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
   sounds: [],
   images: [],
   notifications: [],
+  npcs: [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: npc_marco' },
+    { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Marco' },
+    { key: 'portrait', label: 'Emoji Ritratto', type: 'text', placeholder: 'es: 🔧' },
+    { key: 'locationId', label: 'Location ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/locations', entitySearchLabelKey: 'name', placeholder: 'es: city_outskirts', required: true, colSpan: 2 },
+    { key: 'greeting', label: 'Saluto', type: 'textarea', placeholder: 'Primo messaggio quando il giocatore incontra l\'NPC...', colSpan: 3 },
+    { key: 'dialogues', label: 'Dialoghi', type: 'text-list', colSpan: 3 },
+    { key: 'farewell', label: 'Saluto Finale', type: 'textarea', placeholder: 'Messaggio quando il giocatore chiude la conversazione...', colSpan: 3 },
+    { key: 'questId', label: 'Quest ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/quests', entitySearchLabelKey: 'name', placeholder: 'es: quest_marco_firstaid', colSpan: 2 },
+    { key: 'tradeInventory', label: 'Inventario Scambi', type: 'textarea', placeholder: '[{"itemId":"ammo_pistol","priceItemId":"bandage","priceQuantity":3}]', colSpan: 3 },
+    { key: 'questCompletedDialogue', label: 'Dialogo Post-Quest', type: 'text-list', colSpan: 3 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+  ],
+  characters: [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: tank, healer, dps, control' },
+    { key: 'archetype', label: 'Archetipo', type: 'select', options: ['tank', 'healer', 'dps', 'control', 'custom'], enumGroup: 'archetype' },
+    { key: 'name', label: 'Nome Ruolo', type: 'text', required: true, placeholder: 'es: Tank, Medico, DPS, Controllo' },
+    { key: 'displayName', label: 'Nome Personaggio', type: 'text', required: true, placeholder: 'es: Viktor Stahl, Maren Voss' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione del personaggio...', colSpan: 3 },
+    { key: 'maxHp', label: 'HP Massimo', type: 'number', defaultValue: 100 },
+    { key: 'atk', label: 'ATK', type: 'number', defaultValue: 10 },
+    { key: 'def', label: 'DEF', type: 'number', defaultValue: 10 },
+    { key: 'spd', label: 'SPD', type: 'number', defaultValue: 10 },
+    { key: 'specialName', label: 'Nome Speciale 1', type: 'text', placeholder: 'es: Barricata' },
+    { key: 'specialDescription', label: 'Desc. Speciale 1', type: 'textarea', placeholder: 'Descrizione abilità speciale...', colSpan: 3 },
+    { key: 'specialCost', label: 'Costo Speciale 1', type: 'number', defaultValue: 15 },
+    { key: 'special2Name', label: 'Nome Speciale 2', type: 'text', placeholder: 'es: Immolazione' },
+    { key: 'special2Description', label: 'Desc. Speciale 2', type: 'textarea', placeholder: 'Descrizione abilità speciale 2...', colSpan: 3 },
+    { key: 'special2Cost', label: 'Costo Speciale 2', type: 'number', defaultValue: 15 },
+    { key: 'passiveDescription', label: 'Passiva', type: 'textarea', placeholder: 'Descrizione abilità passiva...', colSpan: 3 },
+    { key: 'portraitEmoji', label: 'Emoji Ritratto', type: 'text', placeholder: 'es: 🛡️' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+  ],
   locations: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: city_outskirts' },
     { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Periferia della Città' },
@@ -357,6 +399,30 @@ const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
       idTemplate: 'bg_{entityId}',
       nameTemplate: 'BG: {entityId}',
       helpText: 'Immagine di sfondo mostrata nell\'header della schermata di esplorazione (1920×600 consigliato)',
+    },
+  ],
+  npcs: [
+    {
+      key: 'portrait',
+      label: 'Ritratto NPC',
+      mediaType: 'image' as const,
+      category: 'portrait',
+      accept: 'image/png,image/jpeg,image/webp',
+      idTemplate: 'portrait_{entityId}',
+      nameTemplate: 'Ritratto: {entityId}',
+      helpText: 'Immagine ritratto dell\'NPC mostrata nel dialogo (256×256 consigliato)',
+    },
+  ],
+  characters: [
+    {
+      key: 'portrait',
+      label: 'Ritratto Personaggio',
+      mediaType: 'image' as const,
+      category: 'portrait',
+      accept: 'image/png,image/jpeg,image/webp',
+      idTemplate: 'char_{entityId}',
+      nameTemplate: 'Char: {entityId}',
+      helpText: 'Immagine ritratto del personaggio mostrata nella selezione (256×256 consigliato)',
     },
   ],
 };
@@ -673,6 +739,87 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
           </span>
         );
       },
+    },
+  ],
+  npcs: [
+    { key: 'id', label: 'ID', width: 'w-40' },
+    { key: 'name', label: 'Nome', width: 'w-36' },
+    {
+      key: 'portrait',
+      label: 'Ritratto',
+      width: 'w-12',
+      render: (row) => <span className="text-sm">{String(row.portrait ?? '❓')}</span>,
+    },
+    {
+      key: 'locationId',
+      label: 'Location',
+      width: 'w-40',
+      render: (row) => <span className="text-[10px] text-white/50 font-mono">{String(row.locationId ?? '')}</span>,
+    },
+    {
+      key: 'questId',
+      label: 'Quest',
+      width: 'w-16',
+      render: (row) => (
+        <span className={row.questId ? 'text-cyan-400 text-[10px]' : 'text-white/15 text-[10px]'}>
+          {row.questId ? '✓' : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'dialogues',
+      label: 'Dialoghi',
+      width: 'w-16',
+      render: (row) => {
+        let count = 0;
+        try { count = typeof row.dialogues === 'string' ? JSON.parse(row.dialogues).length : Array.isArray(row.dialogues) ? row.dialogues.length : 0; } catch { count = 0; }
+        return <span className="text-[10px] text-white/40 font-mono">{count}</span>;
+      },
+    },
+  ],
+  characters: [
+    { key: 'id', label: 'ID', width: 'w-28' },
+    { key: 'displayName', label: 'Nome', width: 'w-36' },
+    {
+      key: 'archetype',
+      label: 'Ruolo',
+      width: 'w-28',
+      render: (row) => (
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+          {getEnumLabel('archetype', String(row.archetype))}
+        </Badge>
+      ),
+    },
+    {
+      key: 'portraitEmoji',
+      label: '',
+      width: 'w-12',
+      render: (row) => <span className="text-sm">{String(row.portraitEmoji ?? '🎮')}</span>,
+    },
+    { key: 'name', label: 'Classe', width: 'w-28' },
+    {
+      key: 'maxHp',
+      label: 'HP',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-green-400/70 font-mono">{row.maxHp}</span>,
+    },
+    {
+      key: 'atk',
+      label: 'ATK',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-red-400/70 font-mono">{row.atk}</span>,
+    },
+    {
+      key: 'def',
+      label: 'DEF',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-amber-400/70 font-mono">{row.def}</span>,
+    },
+    {
+      key: 'spd',
+      label: 'SPD',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-cyan-400/70 font-mono">{row.spd}</span>,
     },
   ],
 };
@@ -2963,6 +3110,70 @@ export default function AdminPanel() {
                   onClick={async () => {
                     try {
                       const res = await fetch('/api/admin/seed-locations', { method: 'POST' });
+                      if (!res.ok) throw new Error(await res.text());
+                      const result = await res.json();
+                      showStatus(result.message, 'success');
+                      fetchData();
+                      fetchCounts();
+                    } catch (err) {
+                      showStatus(`Errore seed: ${err}`, 'error');
+                    }
+                  }}
+                  className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
+                >
+                  <Upload className="w-3 h-3" />
+                  Seed Default
+                </Button>
+              </div>
+            )}
+
+            {/* NPCs banner */}
+            {activeTab === 'npcs' && (
+              <div className="px-4 py-2.5 flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
+                  <Users className="w-4 h-4 text-white/25 shrink-0" />
+                  <p className="text-[11px] text-white/30">
+                    Gestione <span className="text-white/50 font-medium">NPC</span> — aggiungi, modifica o rimuovi personaggi non giocanti. Ogni NPC ha dialoghi, quest e scambi personalizzati.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/admin/seed-npcs', { method: 'POST' });
+                      if (!res.ok) throw new Error(await res.text());
+                      const result = await res.json();
+                      showStatus(result.message, 'success');
+                      fetchData();
+                      fetchCounts();
+                    } catch (err) {
+                      showStatus(`Errore seed: ${err}`, 'error');
+                    }
+                  }}
+                  className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
+                >
+                  <Upload className="w-3 h-3" />
+                  Seed Default
+                </Button>
+              </div>
+            )}
+
+            {/* Characters banner */}
+            {activeTab === 'characters' && (
+              <div className="px-4 py-2.5 flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
+                  <Swords className="w-4 h-4 text-white/25 shrink-0" />
+                  <p className="text-[11px] text-white/30">
+                    Gestione <span className="text-white/50 font-medium">personaggi</span> — aggiungi, modifica o rimuovi archetipi giocabili. Ogni personaggio ha statistiche, abilità speciali e oggetti iniziali.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/admin/seed-characters', { method: 'POST' });
                       if (!res.ok) throw new Error(await res.text());
                       const result = await res.json();
                       showStatus(result.message, 'success');

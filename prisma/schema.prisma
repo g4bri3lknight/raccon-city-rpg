@@ -140,6 +140,46 @@ model GameLocation {
   @@map("game_locations")
 }
 
+model GameNPC {
+  id                     String   @id
+  name                   String
+  portrait               String   @default("")     // emoji or custom
+  locationId             String
+  greeting               String
+  dialogues              String   @default("[]")   // JSON: ["line1","line2"]
+  farewell               String   @default("")
+  questId                String?                   // references SideQuest.id
+  tradeInventory         String   @default("[]")   // JSON: [{itemId,priceItemId,priceQuantity}]
+  questCompletedDialogue String   @default("[]")   // JSON: ["line1"]
+  sortOrder              Int      @default(0)
+  createdAt              DateTime @default(now())
+  @@map("game_npcs")
+}
+
+model GameCharacter {
+  id                    String   @id
+  archetype             String   @default("custom")  // tank | healer | dps | control | custom
+  name                  String                      // role name (e.g. "Tank")
+  displayName           String                      // character name (e.g. "Viktor Stahl")
+  description           String   @default("")
+  maxHp                 Int      @default(100)
+  atk                   Int      @default(10)
+  def                   Int      @default(10)
+  spd                   Int      @default(10)
+  specialName           String   @default("")
+  specialDescription    String   @default("")
+  specialCost           Int      @default(15)
+  special2Name          String   @default("")
+  special2Description   String   @default("")
+  special2Cost          Int      @default(15)
+  passiveDescription    String   @default("")
+  portraitEmoji         String   @default("🎮")
+  startingItems         String   @default("[]")   // JSON: [{uid,itemId,name,...}]
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+  @@map("game_characters")
+}
+
 model NotificationConfig {
   id            String   @id
   type          String   @unique   // encounter, victory, defeat, item_found, bag_expand, collectible_found

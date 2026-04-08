@@ -67,7 +67,7 @@ import {
   playMenuOpen,
   playMenuClose,
 } from './engine/sounds';
-import { NPCS } from './data/npcs';
+import { NPCS } from './data/loader';
 import { SECRET_ROOMS } from './data/secrets';
 import { ENDINGS } from './data/endings';
 

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { ENEMIES } from '@/game/data/enemies';
 import { LOCATIONS } from '@/game/data/loader';
-import { NPCS } from '@/game/data/npcs';
+import { NPCS } from '@/game/data/loader';
 import {
   Heart, Package, Key, Crosshair, Bug, Skull, MapPin,
   Shield, Zap, ChevronDown, ChevronUp, X, Flame, Users, Settings

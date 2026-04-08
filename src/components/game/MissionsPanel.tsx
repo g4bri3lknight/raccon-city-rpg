@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { NPCS } from '@/game/data/npcs';
+import { NPCS } from '@/game/data/loader';
 import { QUESTS } from '@/game/data/loader';
 import { ITEMS } from '@/game/data/loader';
 import { NPC_PORTRAIT_URLS } from '@/game/data/npc-images';

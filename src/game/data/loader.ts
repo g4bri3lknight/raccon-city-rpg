@@ -2,16 +2,23 @@ import { STATIC_ITEMS } from './items';
 import { STATIC_DYNAMIC_EVENTS } from './dynamic-events';
 import { STATIC_DOCUMENTS } from './documents';
 import { STATIC_LOCATIONS } from './locations';
+import { NPCS as STATIC_NPCS } from './npcs';
+import { CHARACTER_ARCHETYPES as STATIC_CHARACTERS } from './characters';
 import type { ItemDefinition, ItemType, Rarity, ItemEffect, LocationDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
-import type { NPCQuest } from '../types';
+import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
 export let DOCUMENTS: Record<string, GameDocument> = {};
 export let QUESTS: Record<string, NPCQuest> = {};
 export let LOCATIONS: Record<string, LocationDefinition> = {};
+export let NPCS_DATA: Record<string, GameNPC> = {};
+export let CHARACTERS_DATA: CharacterArchetype[] = [];
+
+// Backward compat alias
+export { NPCS_DATA as NPCS };
 
 let initialized = false;
 
@@ -101,6 +108,44 @@ interface DbLocation {
   mapCol: number | null;
   mapIcon: string | null;
   mapDanger: string | null;
+}
+
+interface DbNPC {
+  id: string;
+  name: string;
+  portrait: string;
+  locationId: string;
+  greeting: string;
+  dialogues: string;
+  farewell: string;
+  questId: string | null;
+  tradeInventory: string;
+  questCompletedDialogue: string;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbCharacter {
+  id: string;
+  archetype: string;
+  name: string;
+  displayName: string;
+  description: string;
+  maxHp: number;
+  atk: number;
+  def: number;
+  spd: number;
+  specialName: string;
+  specialDescription: string;
+  specialCost: number;
+  special2Name: string;
+  special2Description: string;
+  special2Cost: number;
+  passiveDescription: string;
+  portraitEmoji: string;
+  startingItems: string;
+  sortOrder: number;
+  createdAt: Date;
 }
 
 // ── Mappers ──
@@ -204,6 +249,48 @@ function mapDbLocation(loc: DbLocation): LocationDefinition {
   };
 }
 
+function mapDbNpc(row: DbNPC): GameNPC {
+  const dialogues: string[] = JSON.parse(row.dialogues || '[]');
+  const tradeInventory: NPCTradeItem[] = JSON.parse(row.tradeInventory || '[]');
+  const questCompletedDialogue: string[] = JSON.parse(row.questCompletedDialogue || '[]');
+
+  return {
+    id: row.id,
+    name: row.name,
+    portrait: row.portrait,
+    locationId: row.locationId,
+    greeting: row.greeting,
+    dialogues,
+    farewell: row.farewell,
+    tradeInventory: tradeInventory.length > 0 ? tradeInventory : undefined,
+    questCompletedDialogue: questCompletedDialogue.length > 0 ? questCompletedDialogue : undefined,
+  };
+}
+
+function mapDbCharacter(row: DbCharacter): CharacterArchetype {
+  const startingItems: ItemInstance[] = JSON.parse(row.startingItems || '[]');
+
+  return {
+    id: row.archetype as CharacterArchetype['id'],
+    name: row.name,
+    displayName: row.displayName,
+    description: row.description,
+    maxHp: row.maxHp,
+    atk: row.atk,
+    def: row.def,
+    spd: row.spd,
+    specialName: row.specialName,
+    specialDescription: row.specialDescription,
+    specialCost: row.specialCost,
+    special2Name: row.special2Name,
+    special2Description: row.special2Description,
+    special2Cost: row.special2Cost,
+    passiveDescription: row.passiveDescription,
+    portraitEmoji: row.portraitEmoji,
+    startingItems,
+  };
+}
+
 // ── Load from API ──
 
 async function loadFromApi(): Promise<{
@@ -212,6 +299,8 @@ async function loadFromApi(): Promise<{
   documents: DbDocument[];
   quests: DbQuest[];
   locations: DbLocation[];
+  npcs: DbNPC[];
+  characters: DbCharacter[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -275,11 +364,41 @@ async function loadLocations(api: Awaited<ReturnType<typeof loadFromApi>>): Prom
   }
 }
 
+async function loadNpcs(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  if (api?.npcs && api.npcs.length > 0) {
+    NPCS_DATA = {};
+    for (const row of api.npcs) {
+      NPCS_DATA[row.id] = mapDbNpc(row);
+    }
+  } else {
+    NPCS_DATA = { ...STATIC_NPCS };
+  }
+}
+
+async function loadCharacters(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  if (api?.characters && api.characters.length > 0) {
+    CHARACTERS_DATA = [];
+    for (const row of api.characters) {
+      CHARACTERS_DATA.push(mapDbCharacter(row));
+    }
+  } else {
+    CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
+  }
+}
+
 export async function initGameData(): Promise<void> {
   if (initialized) return;
   try {
     const api = await loadFromApi();
-    await Promise.all([loadItems(api), loadEvents(api), loadDocuments(api), loadQuests(api), loadLocations(api)]);
+    await Promise.all([
+      loadItems(api),
+      loadEvents(api),
+      loadDocuments(api),
+      loadQuests(api),
+      loadLocations(api),
+      loadNpcs(api),
+      loadCharacters(api),
+    ]);
     initialized = true;
   } catch (err) {
     console.warn('[DataLoader] API load failed, using static fallback:', err);
@@ -287,6 +406,8 @@ export async function initGameData(): Promise<void> {
     DYNAMIC_EVENTS = { ...STATIC_DYNAMIC_EVENTS };
     DOCUMENTS = { ...STATIC_DOCUMENTS };
     LOCATIONS = { ...STATIC_LOCATIONS };
+    NPCS_DATA = { ...STATIC_NPCS };
+    CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
     initialized = true;
   }
 }
@@ -295,7 +416,15 @@ export async function initGameData(): Promise<void> {
 export async function refreshGameData(): Promise<void> {
   try {
     const api = await loadFromApi();
-    await Promise.all([loadItems(api), loadEvents(api), loadDocuments(api), loadQuests(api), loadLocations(api)]);
+    await Promise.all([
+      loadItems(api),
+      loadEvents(api),
+      loadDocuments(api),
+      loadQuests(api),
+      loadLocations(api),
+      loadNpcs(api),
+      loadCharacters(api),
+    ]);
     initialized = true;
   } catch (err) {
     console.warn('[DataLoader] API refresh failed:', err);
