@@ -2106,9 +2106,23 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
     isInternalChange.current = false;
   }, [value]);
 
+  // Save/restore selection so toolbar buttons don't lose the user's text selection
+  const saveSelection = (): Range | null => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) return sel.getRangeAt(0).cloneRange();
+    return null;
+  };
+  const restoreSelection = (range: Range | null) => {
+    if (!range) return;
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+  };
+
   const execCmd = (cmd: string, val?: string) => {
+    const saved = saveSelection();
+    if (editorRef.current) editorRef.current.focus();
+    if (saved) restoreSelection(saved);
     document.execCommand(cmd, false, val);
-    editorRef.current?.focus();
     syncContent();
   };
 
@@ -2134,6 +2148,73 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
     execCmd('removeFormat');
   };
 
+  // Toggle bullet list manually — document.execCommand('insertUnorderedList') is unreliable
+  const toggleUnorderedList = () => {
+    const saved = saveSelection();
+    if (!editorRef.current || !saved) return;
+    editorRef.current.focus();
+    restoreSelection(saved);
+
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+
+    const range = sel.getRangeAt(0);
+    const content = range.extractContents();
+
+    // Build list items from extracted content
+    const fragment = document.createDocumentFragment();
+    const items: Node[] = [];
+
+    const collectBlockNodes = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || '';
+        text.split(/\n/).forEach((line, i) => {
+          if (line.trim() || i === 0) {
+            const li = document.createElement('li');
+            li.textContent = line;
+            items.push(li);
+          }
+        });
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'li') {
+          items.push(el);
+        } else if (tag === 'br') {
+          // br → new list item on next text
+          const li = document.createElement('li');
+          items.push(li);
+        } else {
+          // Wrap other block/inline elements in <li>
+          const li = document.createElement('li');
+          li.appendChild(el.cloneNode(true));
+          items.push(li);
+        }
+      }
+    };
+
+    if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+      content.childNodes.forEach(collectBlockNodes);
+    } else {
+      collectBlockNodes(content);
+    }
+
+    // If no items extracted, use the selected text as a single item
+    if (items.length === 0) {
+      const li = document.createElement('li');
+      li.textContent = sel.toString();
+      items.push(li);
+    }
+
+    const ul = document.createElement('ul');
+    items.forEach(li => ul.appendChild(li));
+
+    range.insertNode(ul);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    syncContent();
+  };
+
   return (
     <div className="space-y-1.5">
       {/* Toolbar */}
@@ -2144,7 +2225,7 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
         <div className="w-px h-4 bg-white/[0.1] mx-1" />
         <ToolbarBtn onClick={() => execCmd('formatBlock', '<h3>')} title="Titolo 3" className="font-bold text-[10px]">H3</ToolbarBtn>
         <ToolbarBtn onClick={() => execCmd('formatBlock', '<p>')} title="Paragrafo" className="text-[10px]">¶</ToolbarBtn>
-        <ToolbarBtn onClick={() => execCmd('insertUnorderedList')} title="Lista" className="text-[10px]">•≡</ToolbarBtn>
+        <ToolbarBtn onClick={toggleUnorderedList} title="Lista" className="text-[10px]">•≡</ToolbarBtn>
         <div className="w-px h-4 bg-white/[0.1] mx-1" />
         {/* Color picker */}
         <PickerDropdown
@@ -2210,6 +2291,19 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
         }
         [contenteditable][data-placeholder]:focus::before {
           content: none;
+        }
+        [contenteditable] ul {
+          list-style-type: disc !important;
+          margin-left: 1.2em !important;
+          padding-left: 0.5em !important;
+        }
+        [contenteditable] ul li {
+          display: list-item !important;
+          margin-left: 0.3em;
+          padding-left: 0.2em;
+        }
+        [contenteditable] ul li::marker {
+          color: rgba(255,255,255,0.6);
         }
       `}</style>
     </div>

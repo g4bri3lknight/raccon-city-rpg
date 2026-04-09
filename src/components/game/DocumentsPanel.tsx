@@ -7,7 +7,7 @@ import { DOCUMENTS } from '@/game/data/loader';
 import { LOCATIONS } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, X, FileText, MapPin, Filter, ChevronDown, Mail, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, X, FileText, MapPin, Filter, ChevronDown, Mail, Eye } from 'lucide-react';
 import type { DocumentType, GameDocument } from '@/game/types';
 
 const DOC_TYPE_LABELS: Record<DocumentType, { label: string; icon: string; color: string }> = {
@@ -19,11 +19,11 @@ const DOC_TYPE_LABELS: Record<DocumentType, { label: string; icon: string; color
   email: { label: 'Email', icon: '📧', color: 'text-blue-300 border-blue-700/30 bg-blue-950/20' },
 };
 
-const RARITY_COLORS = {
-  common: 'border-gray-700/40 bg-gray-900/30',
-  uncommon: 'border-green-700/40 bg-green-950/20',
-  rare: 'border-purple-700/40 bg-purple-950/20',
-  legendary: 'border-amber-500/40 bg-amber-950/20 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
+const RARITY_COLORS: Record<string, string> = {
+  common: 'border-gray-500/30 bg-gray-800/40 text-gray-300',
+  uncommon: 'border-green-600/30 bg-green-950/30 text-green-300',
+  rare: 'border-purple-500/30 bg-purple-950/30 text-purple-200',
+  legendary: 'border-amber-400/40 bg-amber-900/30 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
 };
 
 /** Check if content contains HTML tags */
@@ -104,7 +104,6 @@ function parseReportContent(content: string) {
       }
       continue;
     }
-    // Check if it looks like a header line (UPPERCASE or starts with known prefixes)
     if (
       line === line.toUpperCase() ||
       line.startsWith('REGISTRO') ||
@@ -128,7 +127,7 @@ function parseReportContent(content: string) {
   };
 }
 
-// Email-styled document reader
+// ─── EMAIL ───
 function EmailDocumentReader({ doc }: { doc: GameDocument }) {
   const email = parseEmailContent(doc.content);
 
@@ -174,84 +173,195 @@ function EmailDocumentReader({ doc }: { doc: GameDocument }) {
   );
 }
 
-// Diary-styled document reader
+// ─── DIARY ───
 function DiaryDocumentReader({ doc }: { doc: GameDocument }) {
+  // Try to extract a date from the first line for the diary header
+  const firstLine = doc.content.split('\n')[0]?.trim() || '';
+  const dateMatch = firstLine.match(/^(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}|\d{1,2}\s+(?:Gennaio|Febbraio|Marzo|Aprile|Maggio|Giugno|Luglio|Agosto|Settembre|Ottobre|Novembre|Dicembre|January|February|March|April|May|June|July|August|September|October|November|December))/i);
+  const hasDateHeader = !!dateMatch;
+  const bodyContent = hasDateHeader ? doc.content.split('\n').slice(1).join('\n').trim() : doc.content;
+
   return (
-    <div className="rounded-lg border border-amber-700/30 bg-amber-950/10 overflow-hidden">
-      <div className="px-4 py-2 border-b border-amber-800/30 bg-amber-950/20 flex items-center gap-2">
-        <span className="text-base">📔</span>
-        <span className="text-xs font-bold text-amber-300 italic">Pagine scritte a mano</span>
-      </div>
-      <div className="p-4 bg-[repeating-linear-gradient(transparent,transparent_27px,rgba(180,140,80,0.06)_27px,rgba(180,140,80,0.06)_28px)]">
-        <DocumentContent content={doc.content} className="text-sm text-amber-100/70 leading-relaxed italic whitespace-pre-line font-serif prose prose-invert prose-sm" />
+    <div className="rounded-lg overflow-hidden">
+      {/* Leather cover effect */}
+      <div className="relative rounded-lg border-2 border-amber-900/40 overflow-hidden shadow-[inset_0_0_30px_rgba(80,50,10,0.15)]">
+        {/* Worn page header */}
+        <div className="px-4 py-2 border-b border-amber-800/20 flex items-center gap-2 bg-[repeating-linear-gradient(135deg,rgba(139,90,43,0.04)_0px,rgba(139,90,43,0.04)_1px,transparent_1px,transparent_4px)]">
+          <span className="text-base">📔</span>
+          <span className="text-[11px] font-bold text-amber-400/70 italic tracking-wide">Pagine di diario</span>
+        </div>
+        {/* Lined page with handwriting feel */}
+        <div className="p-5 bg-[linear-gradient(transparent,transparent_27px,rgba(160,120,60,0.08)_27px,rgba(160,120,60,0.08)_28px)]">
+          {hasDateHeader && (
+            <p className="text-xs text-amber-400/50 font-semibold mb-3 uppercase tracking-wider">{dateMatch[0]}</p>
+          )}
+          <DocumentContent
+            content={bodyContent}
+            className="text-sm text-amber-100/70 leading-[1.85] whitespace-pre-line font-serif italic prose prose-invert prose-sm prose-p:text-amber-100/70 prose-strong:text-amber-200/90 prose-headings:text-amber-200/80"
+          />
+        </div>
+        {/* Page edge decoration */}
+        <div className="h-3 bg-gradient-to-r from-transparent via-amber-900/10 to-transparent" />
       </div>
     </div>
   );
 }
 
-// Report-styled document reader
+// ─── REPORT ───
 function ReportDocumentReader({ doc }: { doc: GameDocument }) {
   const report = parseReportContent(doc.content);
 
   return (
-    <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 overflow-hidden">
-      <div className="px-4 py-2 border-b border-cyan-800/30 bg-cyan-950/20 flex items-center gap-2">
-        <span className="text-base">📋</span>
-        <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">Rapporto Ufficiale</span>
-      </div>
-      {report.header && (
-        <div className="px-4 py-2 border-b border-cyan-800/20 bg-cyan-950/10">
-          <p className="text-xs font-bold text-cyan-200/60 uppercase tracking-wide whitespace-pre-line">{report.header}</p>
+    <div className="rounded-lg overflow-hidden">
+      <div className="relative border border-cyan-700/30 bg-cyan-950/10 rounded-lg overflow-hidden">
+        {/* Top classified stripe */}
+        <div className="h-1 bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
+        {/* Header */}
+        <div className="px-4 py-2.5 border-b border-cyan-800/20 bg-cyan-950/20 flex items-center gap-2">
+          <span className="text-base">📋</span>
+          <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">Rapporto Ufficiale</span>
+          <Badge className="text-[7px] bg-cyan-900/40 text-cyan-400/70 border-cyan-700/30 ml-auto uppercase tracking-widest">Confidenziale</Badge>
         </div>
-      )}
-      <div className="p-4">
-        <DocumentContent content={report.body} className="text-sm text-white/70 leading-relaxed whitespace-pre-line prose prose-invert prose-sm" />
+        {/* Report header block */}
+        {report.header && (
+          <div className="px-4 py-2 border-b border-cyan-800/15 bg-cyan-950/10">
+            <p className="text-[11px] font-bold text-cyan-200/50 uppercase tracking-wide whitespace-pre-line">{report.header}</p>
+          </div>
+        )}
+        {/* Body */}
+        <div className="p-4">
+          <DocumentContent
+            content={report.body}
+            className="text-sm text-white/65 leading-relaxed whitespace-pre-line font-mono prose prose-invert prose-sm prose-p:text-white/65"
+          />
+        </div>
+        {/* Bottom stripe */}
+        <div className="h-0.5 bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
       </div>
     </div>
   );
 }
 
-// Umbrella file reader
+// ─── UMBRELLA FILE ───
 function UmbrellaFileReader({ doc }: { doc: GameDocument }) {
   return (
-    <div className="rounded-lg border border-red-700/30 bg-red-950/10 overflow-hidden">
-      <div className="px-4 py-2 border-b border-red-800/30 bg-red-950/20 flex items-center gap-2">
-        <span className="text-base">📁</span>
-        <span className="text-xs font-bold text-red-300 uppercase tracking-wider">Umbrella Corp — CLASSIFICATO</span>
-        <Badge className="text-[8px] bg-red-900/60 text-red-400 border-red-700/40 ml-auto uppercase">Top Secret</Badge>
-      </div>
-      <div className="p-4">
-        <DocumentContent content={doc.content} className="text-sm text-red-100/70 leading-relaxed whitespace-pre-line prose prose-invert prose-sm" />
+    <div className="rounded-lg overflow-hidden">
+      <div className="relative border border-red-700/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(220,38,38,0.08)]">
+        {/* Red danger stripe */}
+        <div className="h-1 bg-gradient-to-r from-red-900/40 via-red-500/40 to-red-900/40" />
+        {/* Header */}
+        <div className="px-4 py-2.5 border-b border-red-800/20 bg-red-950/20 flex items-center gap-2">
+          <span className="text-base">📁</span>
+          <span className="text-[11px] font-bold text-red-300 uppercase tracking-wider">Umbrella Corp — CLASSIFICATO</span>
+          <Badge className="text-[7px] bg-red-900/60 text-red-300 border-red-700/40 ml-auto uppercase tracking-widest">Top Secret</Badge>
+        </div>
+        {/* Warning banner */}
+        <div className="px-4 py-1.5 bg-red-950/15 border-b border-red-800/10">
+          <p className="text-[9px] text-red-400/50 uppercase tracking-[0.15em] text-center">
+            ⚠️ Divieto di riproduzione — Livello di accesso: Alpha
+          </p>
+        </div>
+        {/* Body */}
+        <div className="p-4 bg-[repeating-linear-gradient(0deg,transparent,transparent_25px,rgba(220,38,38,0.03)_25px,rgba(220,38,38,0.03)_26px)]">
+          <DocumentContent
+            content={doc.content}
+            className="text-sm text-red-100/60 leading-relaxed whitespace-pre-line font-mono prose prose-invert prose-sm prose-p:text-red-100/60"
+          />
+        </div>
+        {/* Bottom */}
+        <div className="h-0.5 bg-gradient-to-r from-red-900/30 via-red-500/30 to-red-900/30" />
       </div>
     </div>
   );
 }
 
-// Photo reader
+// ─── PHOTO ───
 function PhotoDocumentReader({ doc }: { doc: GameDocument }) {
+  const [imgSrc, setImgSrc] = useState(`/api/media/image?ref=doc_img_${doc.id}`);
+  const [imgError, setImgError] = useState(false);
+
+  const handleImgError = () => {
+    // First attempt failed, try associatedId lookup
+    if (!imgSrc.includes('associatedId')) {
+      setImgSrc(`/api/media/image?associatedId=${doc.id}`);
+    } else {
+      setImgError(true);
+    }
+  };
+
   return (
-    <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/10 overflow-hidden">
-      <div className="px-4 py-2 border-b border-emerald-800/30 bg-emerald-950/20 flex items-center gap-2">
-        <span className="text-base">📷</span>
-        <span className="text-xs font-bold text-emerald-300">Fotografia</span>
-      </div>
-      <div className="p-4">
-        <DocumentContent content={doc.content} className="text-sm text-emerald-100/70 leading-relaxed whitespace-pre-line italic prose prose-invert prose-sm" />
+    <div className="rounded-lg overflow-hidden">
+      <div className="relative border border-emerald-700/20 rounded-lg overflow-hidden bg-black/40">
+        {/* Header */}
+        <div className="px-4 py-2 border-b border-emerald-800/20 bg-emerald-950/15 flex items-center gap-2">
+          <span className="text-base">📷</span>
+          <span className="text-[11px] font-bold text-emerald-300">Fotografia</span>
+        </div>
+        {/* Image area */}
+        <div className="p-4">
+          {!imgError ? (
+            <img
+              src={imgSrc}
+              alt={doc.title}
+              className="w-full h-auto max-h-[400px] object-contain rounded-sm"
+              onError={handleImgError}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-40 bg-black/30 rounded-md border border-dashed border-white/[0.06]">
+              <div className="text-center">
+                <span className="text-3xl mb-2 block opacity-30">📷</span>
+                <p className="text-[10px] text-white/20">Nessuna immagine associata</p>
+              </div>
+            </div>
+          )}
+          {/* Caption / description below the photo */}
+          {doc.content && (
+            <div className="mt-3 px-1">
+              <DocumentContent
+                content={doc.content}
+                className="text-[12px] text-emerald-100/50 leading-relaxed whitespace-pre-line italic text-center prose prose-invert prose-sm prose-p:text-emerald-100/50"
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// Note reader
+// ─── NOTE ───
 function NoteDocumentReader({ doc }: { doc: GameDocument }) {
   return (
-    <div className="rounded-lg border border-gray-700/30 bg-gray-950/10 overflow-hidden">
-      <div className="px-4 py-2 border-b border-gray-700/30 bg-gray-950/20 flex items-center gap-2">
-        <span className="text-base">📝</span>
-        <span className="text-xs font-bold text-gray-300">Nota</span>
-      </div>
-      <div className="p-4">
-        <DocumentContent content={doc.content} className="text-sm text-white/70 leading-relaxed whitespace-pre-line prose prose-invert prose-sm" />
+    <div className="rounded-lg overflow-hidden">
+      {/* Sticky-note / torn paper style */}
+      <div className="relative">
+        {/* Tape/pin decoration */}
+        <div className="flex justify-center -mb-1 relative z-10">
+          <div className="w-10 h-3 bg-yellow-200/70 rounded-sm rotate-[-2deg] shadow-sm" />
+        </div>
+
+        <div className="relative rounded-md border border-gray-600/20 bg-gradient-to-b from-gray-100/[0.07] to-gray-100/[0.03] p-5 shadow-[4px_4px_15px_rgba(0,0,0,0.3)]
+          before:absolute before:top-0 before:right-0 before:w-6 before:h-6 before:bg-gradient-to-br before:from-transparent before:via-transparent before:to-gray-800/10 before:rounded-bl-[20px] before:content-['']
+          after:absolute after:bottom-0 after:left-0 after:w-4 after:h-4 after:bg-gradient-to-tr after:from-transparent after:via-transparent after:to-gray-800/10 after:rounded-tr-[15px] after:content-['']
+        ">
+          {/* Note header */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">📝</span>
+            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Nota</span>
+            {/* Pencil underline decoration */}
+            <div className="flex-1 h-px bg-gradient-to-r from-gray-500/20 via-gray-500/30 to-transparent" />
+          </div>
+          {/* Content */}
+          <DocumentContent
+            content={doc.content}
+            className="text-sm text-white/60 leading-[1.8] whitespace-pre-line prose prose-invert prose-sm prose-p:text-white/60
+              [&_p]:indent-0"
+          />
+          {/* Ink smudge decoration */}
+          <div className="mt-4 flex justify-end">
+            <div className="w-6 h-1 bg-gray-500/10 rounded-full blur-[1px]" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -413,7 +523,7 @@ export default function DocumentsPanel() {
                           <MapPin className="w-2.5 h-2.5" />
                           {LOCATIONS[selectedDoc.locationId]?.name}
                         </span>
-                        <Badge className={`text-[9px] ${RARITY_COLORS[selectedDoc.rarity]} border`}>
+                        <Badge className={`text-[9px] ${RARITY_COLORS[selectedDoc.rarity] || RARITY_COLORS.common} border`}>
                           {selectedDoc.rarity === 'legendary' ? '⭐' : selectedDoc.rarity === 'rare' ? '💜' : selectedDoc.rarity === 'uncommon' ? '💚' : '⚪'} {selectedDoc.rarity}
                         </Badge>
                       </div>
@@ -447,7 +557,7 @@ export default function DocumentsPanel() {
                               whileTap={{ scale: 0.99 }}
                               onClick={() => handleSelectDoc(doc)}
                               className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer
-                                ${RARITY_COLORS[doc.rarity]}
+                                ${RARITY_COLORS[doc.rarity] || RARITY_COLORS.common}
                                 ${isRead ? 'opacity-70' : 'hover:border-white/20 hover:bg-white/[0.06]'}`}
                             >
                               <div className="flex items-center gap-2">

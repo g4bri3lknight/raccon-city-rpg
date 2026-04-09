@@ -5711,6 +5711,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }));
   },
 
+  debugSpawnItem: (itemId: string, quantity: number = 1) => {
+    const state = get();
+    if (state.party.length === 0) {
+      set({ messageLog: [...state.messageLog, '[DEBUG] ⚠️ Nessun personaggio — avvia una partita prima.'] });
+      return;
+    }
+    const result = addItemToParty([...state.party], itemId, quantity);
+    if (result.added) {
+      set({
+        party: result.party,
+        messageLog: [...state.messageLog, `[DEBUG] 📦 Spawnato ${ITEMS[itemId]?.name || itemId} x${quantity} → ${result.characterName}`],
+      });
+    } else {
+      set({ messageLog: [...state.messageLog, `[DEBUG] ⚠️ Impossibile spawnare ${ITEMS[itemId]?.name || itemId} (unico già posseduto o inventario pieno)`] });
+    }
+  },
+
+  debugSpawnDocument: (docId: string) => {
+    const state = get();
+    if (state.collectedDocuments.includes(docId)) {
+      set({ messageLog: [...state.messageLog, `[DEBUG] ⚠️ Documento ${docId} già raccolto.`] });
+      return;
+    }
+    const doc = DOCUMENTS[docId];
+    if (!doc) {
+      set({ messageLog: [...state.messageLog, `[DEBUG] ⚠️ Documento ${docId} non trovato.`] });
+      return;
+    }
+    set({
+      collectedDocuments: [...state.collectedDocuments, docId],
+      messageLog: [...state.messageLog, `[DEBUG] 📄 Documento spawnato: "${doc.title}"`],
+    });
+  },
+
   bumpDataVersion: () => {
     set(state => ({ dataVersion: state.dataVersion + 1 }));
   },

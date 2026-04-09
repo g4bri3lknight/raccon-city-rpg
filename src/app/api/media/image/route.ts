@@ -4,15 +4,19 @@ import { NextRequest, NextResponse } from 'next/server';
 // Serve an image BLOB from the database
 // GET /api/media/image?ref=img_city_bg
 // GET /api/media/image?id=img_city_bg
+// GET /api/media/image?associatedId=doc_locker_photo  (first match)
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const ref = searchParams.get('ref');
   const id = searchParams.get('id');
+  const associatedId = searchParams.get('associatedId');
 
   try {
     let image = null;
     if (ref) {
       image = await db.gameImage.findUnique({ where: { refKey: ref } });
+    } else if (associatedId) {
+      image = await db.gameImage.findFirst({ where: { associatedId } });
     } else if (id) {
       image = await db.gameImage.findUnique({ where: { id } });
     }
