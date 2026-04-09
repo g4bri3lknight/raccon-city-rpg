@@ -598,6 +598,7 @@ const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
     },
   ],
   'enemy-abilities': [],
+  'secret-rooms': [],
   'avatars': [],
   'start-screen': [],
 };
@@ -2073,18 +2074,36 @@ function EventChoicesEditor({ value, onChange }: {
   );
 }
 
+/** Convert plain text to safe HTML for contentEditable */
+function plainTextToHtml(text: string): string {
+  if (!text) return '';
+  // If value already contains HTML tags, return as-is
+  if (/<[a-z][\s\S]*?>/i.test(text)) return text;
+  // Escape HTML entities, then convert newlines
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+}
+
 /** Rich Text Editor — contentEditable-based editor with formatting toolbar */
 function RichTextEditor({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const isInternalChange = useRef(false);
+  const isFirstMount = useRef(true);
 
-  // Sync external value changes (e.g. loading edit data) via ref, not state
-  const prevValueRef = useRef(value);
+  // Sync external value into contentEditable div
   useEffect(() => {
-    if (value !== prevValueRef.current && editorRef.current && !isInternalChange.current) {
-      editorRef.current.innerHTML = value;
+    if (editorRef.current) {
+      // Always set on first mount, then only when value changes externally
+      if (isFirstMount.current || !isInternalChange.current) {
+        editorRef.current.innerHTML = plainTextToHtml(value);
+      }
     }
-    prevValueRef.current = value;
+    isFirstMount.current = false;
+    isInternalChange.current = false;
   }, [value]);
 
   const execCmd = (cmd: string, val?: string) => {
@@ -2128,45 +2147,40 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
         <ToolbarBtn onClick={() => execCmd('insertUnorderedList')} title="Lista" className="text-[10px]">•≡</ToolbarBtn>
         <div className="w-px h-4 bg-white/[0.1] mx-1" />
         {/* Color picker */}
-        <div className="relative group/color">
-          <ToolbarBtn title="Colore testo">
-            <span className="text-[11px]">A</span>
-            <span className="w-2.5 h-2.5 rounded-sm bg-yellow-500 block" />
-          </ToolbarBtn>
-          <div className="absolute top-full left-0 mt-1 p-1.5 rounded-md bg-gray-900 border border-white/[0.12] shadow-xl hidden group-hover/color:flex flex-wrap gap-1 z-50">
-            {['#22c55e', '#ef4444', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#ffffff', '#94a3b8'].map(c => (
-              <button key={c} type="button" onMouseDown={e => { e.preventDefault(); handleColor(c); }}
-                className="w-5 h-5 rounded-sm border border-white/20 hover:scale-110 transition-transform"
-                style={{ backgroundColor: c }}
-                title={c}
-              />
-            ))}
-          </div>
-        </div>
+        <PickerDropdown
+          trigger={<><span className="text-[11px]">A</span><span className="w-2.5 h-2.5 rounded-sm bg-yellow-500 block" /></>}
+          title="Colore testo"
+        >
+          {['#22c55e', '#ef4444', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#ffffff', '#94a3b8'].map(c => (
+            <button key={c} type="button" onMouseDown={e => { e.preventDefault(); handleColor(c); }}
+              className="w-5 h-5 rounded-sm border border-white/20 hover:scale-110 transition-transform"
+              style={{ backgroundColor: c }}
+              title={c}
+            />
+          ))}
+        </PickerDropdown>
         {/* Highlight picker */}
-        <div className="relative group/highlight">
-          <ToolbarBtn title="Evidenzia">
-            <span className="text-[11px]">🖌</span>
-          </ToolbarBtn>
-          <div className="absolute top-full left-0 mt-1 p-1.5 rounded-md bg-gray-900 border border-white/[0.12] shadow-xl hidden group-hover/highlight:flex flex-wrap gap-1 z-50">
-            {[
-              { c: 'rgba(34,197,94,0.3)', l: 'Verde' },
-              { c: 'rgba(251,191,36,0.3)', l: 'Giallo' },
-              { c: 'rgba(239,68,68,0.3)', l: 'Rosso' },
-              { c: 'rgba(59,130,246,0.3)', l: 'Blu' },
-              { c: 'rgba(168,85,247,0.3)', l: 'Viola' },
-              { c: 'transparent', l: 'Rimuovi' },
-            ].map(h => (
-              <button key={h.l} type="button" onMouseDown={e => { e.preventDefault(); handleHighlight(h.c); }}
-                className="px-1.5 py-0.5 text-[9px] rounded border border-white/10 hover:bg-white/10 transition-colors"
-                style={h.c !== 'transparent' ? { backgroundColor: h.c } : {}}
-                title={h.l}
-              >
-                {h.l}
-              </button>
-            ))}
-          </div>
-        </div>
+        <PickerDropdown
+          trigger={<span className="text-[11px]">🖌</span>}
+          title="Evidenzia"
+        >
+          {[
+            { c: 'rgba(34,197,94,0.3)', l: 'Verde' },
+            { c: 'rgba(251,191,36,0.3)', l: 'Giallo' },
+            { c: 'rgba(239,68,68,0.3)', l: 'Rosso' },
+            { c: 'rgba(59,130,246,0.3)', l: 'Blu' },
+            { c: 'rgba(168,85,247,0.3)', l: 'Viola' },
+            { c: 'transparent', l: 'Rimuovi' },
+          ].map(h => (
+            <button key={h.l} type="button" onMouseDown={e => { e.preventDefault(); handleHighlight(h.c); }}
+              className="px-1.5 py-0.5 text-[9px] rounded border border-white/10 hover:bg-white/10 transition-colors"
+              style={h.c !== 'transparent' ? { backgroundColor: h.c } : {}}
+              title={h.l}
+            >
+              {h.l}
+            </button>
+          ))}
+        </PickerDropdown>
         <div className="w-px h-4 bg-white/[0.1] mx-1" />
         <ToolbarBtn onClick={clearFormatting} title="Rimuovi formattazione" className="text-[10px]">✕</ToolbarBtn>
       </div>
@@ -2198,6 +2212,41 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
           content: none;
         }
       `}</style>
+    </div>
+  );
+}
+
+/** Click-toggle dropdown for toolbar pickers */
+function PickerDropdown({ children, trigger, title }: { children: React.ReactNode; trigger: React.ReactNode; title?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onMouseDown={e => { e.preventDefault(); setOpen(v => !v); }}
+        title={title}
+        className={`flex items-center gap-0.5 px-1.5 py-1 rounded text-white/50 hover:text-white/80 hover:bg-white/[0.08] transition-colors text-center ${open ? 'text-white/80 bg-white/[0.12]' : ''}`}
+      >
+        {trigger}
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 p-1.5 rounded-md bg-gray-900 border border-white/[0.12] shadow-xl flex flex-wrap gap-1 z-[9999]">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
