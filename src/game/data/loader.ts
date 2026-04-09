@@ -1,5 +1,6 @@
 import { STATIC_ITEMS } from './items';
-import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS } from './equipment';
+import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS, EQUIPMENT_STATS } from './equipment';
+import { WEAPON_MODS } from './weapon-mods';
 import { STATIC_DYNAMIC_EVENTS } from './dynamic-events';
 import { STATIC_DOCUMENTS } from './documents';
 import { STATIC_LOCATIONS } from './locations';
@@ -369,7 +370,32 @@ function mapDbNpc(row: DbNPC): GameNPC {
 }
 
 function mapDbCharacter(row: DbCharacter): CharacterArchetype {
-  const startingItems: ItemInstance[] = JSON.parse(row.startingItems || '[]');
+  const rawItems = JSON.parse(row.startingItems || '[]');
+  // Support both full ItemInstance[] and simplified {itemId, quantity, isEquipped}[]
+  const startingItems: ItemInstance[] = rawItems.map((r: Record<string, unknown>) => {
+    // If it has a uid and itemId, treat as full ItemInstance
+    if (r.uid && r.itemId && r.name) return r as ItemInstance;
+    // Simplified format: expand using ITEMS lookup
+    const itemId = String(r.itemId ?? r.id ?? '');
+    const itemDef = ITEMS[itemId];
+    if (!itemDef) return null;
+    const qty = typeof r.quantity === 'number' ? r.quantity : 1;
+    const isEquipped = !!r.isEquipped;
+    return {
+      uid: `${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      itemId: itemDef.id,
+      name: itemDef.name,
+      description: itemDef.description,
+      type: itemDef.type,
+      rarity: itemDef.rarity,
+      icon: itemDef.icon,
+      usable: itemDef.usable,
+      equippable: itemDef.equippable,
+      quantity: qty,
+      effect: (itemDef as Record<string, unknown>).effect || undefined,
+      isEquipped,
+    } as ItemInstance;
+  }).filter(Boolean) as ItemInstance[];
 
   return {
     id: row.archetype as CharacterArchetype['id'],

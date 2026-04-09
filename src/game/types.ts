@@ -301,6 +301,7 @@ export interface SubAreaDefinition {
   id: string;
   name: string;
   description: string;
+  defaultItems?: { itemId: string; quantity: number }[]; // items available in safe room item box on first visit
 }
 
 export interface LocationDefinition {
@@ -545,6 +546,7 @@ export interface GameState {
   // Safe Room & Item Box
   currentSubArea: string | null;
   itemBoxItems: ItemInstance[];
+  searchedSafeRooms: string[]; // location IDs whose safe room has been searched
   // Document read tracking
   readDocuments: string[]; // document IDs that have been opened/read
   // Admin data refresh version (incremented on refreshGameData)

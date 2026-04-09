@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Home, LogOut, Package, Hammer, Wrench,
-  Save, Upload
+  Save, Upload, Search, CheckCircle2, Eye
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 import ItemBoxPanel from './ItemBoxPanel';
@@ -20,12 +20,16 @@ type SaveMode = 'save' | 'load';
 
 export default function SafeRoomPanel() {
   const currentLocationId = useGameStore(s => s.currentLocationId);
+  const searchedSafeRooms = useGameStore(s => s.searchedSafeRooms);
+  const searchSafeRoom = useGameStore(s => s.searchSafeRoom);
   const exitSafeRoom = useGameStore(s => s.exitSafeRoom);
   const [activeTab, setActiveTab] = useState<SafeRoomTab>('itembox');
   const [saveModal, setSaveModal] = useState<SaveMode | null>(null);
 
   const location = LOCATIONS[currentLocationId];
   const safeRoomDef = location?.subAreas?.find(sa => sa.id === 'safe_room');
+  const hasBeenSearched = searchedSafeRooms.includes(currentLocationId);
+  const hasItemPool = (location?.itemPool?.length ?? 0) > 0;
 
   const tabs: { id: SafeRoomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'itembox', label: 'Item Box', icon: <Package className="w-5 h-5" /> },
@@ -99,6 +103,32 @@ export default function SafeRoomPanel() {
           </motion.div>
         </div>
       </div>
+
+      {/* Search bar */}
+      {hasItemPool && (
+        <div className="shrink-0 px-3 py-2.5 border-b border-white/[0.06] bg-white/[0.01]">
+          <div className="flex items-center gap-3">
+            {hasBeenSearched ? (
+              <div className="flex items-center gap-2 text-xs text-white/30">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500/40" />
+                <span>Area già perlustrata</span>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                onClick={searchSafeRoom}
+                className="text-sm border-amber-500/20 hover:border-amber-400/40 text-amber-400/80 hover:text-amber-300 bg-amber-950/20 hover:bg-amber-900/30 h-9 px-4 gap-2"
+              >
+                <Search className="w-4 h-4" />
+                Cerca nella stanza
+              </Button>
+            )}
+            {!hasBeenSearched && (
+              <span className="text-[10px] text-white/20 italic">Una sola volta per Safe Room</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tab navigation */}
       <div className="shrink-0 px-3 pt-3 pb-0 border-b border-white/[0.06] bg-white/[0.02]">

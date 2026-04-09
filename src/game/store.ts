@@ -534,6 +534,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   randomizedLocationData: null as RandomizedLocationData | null,
   currentSubArea: null as string | null,
   itemBoxItems: [] as ItemInstance[],
+  searchedSafeRooms: [] as string[],
   readDocuments: [] as string[],
   dataVersion: 0,
 
@@ -545,7 +546,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], readDocuments: [] });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], searchedSafeRooms: [], readDocuments: [] });
   },
 
   goToCharacterCreator: () => {
@@ -603,6 +604,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       randomizedLocationData: state.randomizerMode ? generateRandomizedData() : null,
       currentSubArea: null,
       itemBoxItems: [],
+      searchedSafeRooms: [],
       readDocuments: [],
       // persistentRibbons is preserved (set externally for New Game+)
     });
@@ -662,6 +664,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       randomizedLocationData: state.randomizerMode ? generateRandomizedData() : null,
       currentSubArea: null,
       itemBoxItems: [],
+      searchedSafeRooms: [],
       readDocuments: [],
       // persistentRibbons is preserved (set externally for New Game+)
     });
@@ -733,6 +736,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       randomizedLocationData: null,
       currentSubArea: null,
       itemBoxItems: [],
+      searchedSafeRooms: [],
       readDocuments: [],
     });
   },
@@ -1351,6 +1355,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       visitedLocations: newVisited,
       party: updatedParty,
       skipNextEncounter: true, // Prevent immediate combat after traveling
+      currentSubArea: null, // Exit safe room / sub-area on travel
     });
     setTimeout(() => get().checkAchievements(), 100);
   },
@@ -4565,6 +4570,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       exploredSubAreas: {},
       currentSubArea: null,
       itemBoxItems: [],
+      searchedSafeRooms: [],
       readDocuments: [],
     });
   },
@@ -5022,11 +5028,46 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   enterSafeRoom: () => {
     const state = get();
-    const location = LOCATIONS[state.currentLocationId];
+    const locId = state.currentLocationId;
+    const location = LOCATIONS[locId];
     if (!location || !location.subAreas?.some(sa => sa.id === 'safe_room')) return;
     if (state.currentSubArea === 'safe_room') return;
+
+    // Populate item box with default items on first visit to this safe room
+    let updatedItemBox = [...state.itemBoxItems];
+    const safeRoomDef = location.subAreas.find(sa => sa.id === 'safe_room');
+    if (safeRoomDef?.defaultItems && safeRoomDef.defaultItems.length > 0 && !state.searchedSafeRooms.includes(locId)) {
+      // Don't add items already in the box
+      const existingIds = new Set(updatedItemBox.map(i => i.itemId));
+      const newDefaults: ItemInstance[] = [];
+      for (const def of safeRoomDef.defaultItems) {
+        if (existingIds.has(def.itemId)) continue;
+        const itemDef = ITEMS[def.itemId];
+        if (!itemDef) continue;
+        const newUid = `${def.itemId}_default_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        newDefaults.push({
+          uid: newUid,
+          itemId: itemDef.id,
+          name: itemDef.name,
+          description: itemDef.description,
+          type: itemDef.type,
+          rarity: itemDef.rarity,
+          icon: itemDef.icon,
+          usable: itemDef.usable,
+          equippable: itemDef.equippable,
+          quantity: def.quantity || 1,
+          effect: (itemDef as any).effect ? { ...(itemDef as any).effect } : undefined,
+        });
+        existingIds.add(def.itemId);
+      }
+      if (newDefaults.length > 0) {
+        updatedItemBox = [...updatedItemBox, ...newDefaults];
+      }
+    }
+
     set({
       currentSubArea: 'safe_room',
+      itemBoxItems: updatedItemBox,
       messageLog: [...state.messageLog, `[${state.turnCount}] 🏠 Entrate nella Safe Room. È un luogo sicuro — nessun nemico può attaccarvi qui.`],
     });
     // Play safe room ambient sound
@@ -5056,6 +5097,122 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentSubArea: null,
       messageLog: [...state.messageLog, `[${state.turnCount}] 🚪 Usciti dalla Safe Room. Fate attenzione...`],
     });
+  },
+
+  searchSafeRoom: () => {
+    const state = get();
+    const locId = state.currentLocationId;
+    const location = LOCATIONS[locId];
+
+    // Guard: must be in safe room
+    if (state.currentSubArea !== 'safe_room') return;
+    // Guard: location must exist and have a safe room
+    if (!location || !location.subAreas?.some(sa => sa.id === 'safe_room')) return;
+    // Guard: already searched this safe room
+    if (state.searchedSafeRooms.includes(locId)) return;
+
+    // Play search sound
+    try { playSearch(); } catch {}
+
+    const searcherName = state.party.find(p => p.id === state.selectedCharacterId)?.name || 'Qualcuno';
+    const newLog = [...state.messageLog, `[${state.turnCount}] 🔍 ${searcherName} cerca nella Safe Room...`];
+
+    // Roll items from location's item pool (100% chance — safe rooms always have something)
+    const itemPool = location.itemPool || [];
+    const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
+    const foundItems: string[] = [];
+
+    for (const entry of itemPool) {
+      // Skip key items already owned by the party
+      if (KEY_ITEM_IDS.has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
+      // Safe room search: 100% chance (guaranteed loot)
+      if (Math.random() * 100 < (entry.chance || 100)) {
+        foundItems.push(entry.itemId);
+      }
+    }
+
+    // Mark safe room as searched
+    const newSearchedSafeRooms = [...state.searchedSafeRooms, locId];
+
+    if (foundItems.length === 0) {
+      const msg = `${searcherName} perquisisce ogni angolo della stanza, ma non trova nulla di utile.`;
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] ${msg}`],
+        searchedSafeRooms: newSearchedSafeRooms,
+      });
+      return;
+    }
+
+    // Add found items to the selected character's inventory
+    const targetCharId = state.selectedCharacterId || state.party[0]?.id;
+    let updatedParty = [...state.party];
+    const foundNames: string[] = [];
+    const foundNotifItems: { name: string; icon?: string }[] = [];
+
+    for (const itemId of foundItems) {
+      const itemDef = ITEMS[itemId];
+      if (!itemDef) continue;
+
+      const poolEntry = itemPool.find(e => e.itemId === itemId);
+      const qty = poolEntry?.quantity || 1;
+      const newUid = `${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const newItem: ItemInstance = {
+        uid: newUid,
+        itemId: itemDef.id,
+        name: itemDef.name,
+        description: itemDef.description,
+        type: itemDef.type,
+        rarity: itemDef.rarity,
+        icon: itemDef.icon,
+        usable: itemDef.usable,
+        equippable: itemDef.equippable,
+        quantity: qty,
+        effect: (itemDef as any).effect ? { ...(itemDef as any).effect } : undefined,
+        isEquipped: false,
+      };
+
+      // Add to target character
+      const charIdx = updatedParty.findIndex(p => p.id === targetCharId);
+      if (charIdx >= 0) {
+        const char = updatedParty[charIdx];
+        const existingIdx = char.inventory.findIndex(i => i.itemId === itemId && i.type !== 'weapon' && i.type !== 'armor' && i.type !== 'accessory' && i.type !== 'weapon_mod');
+        if (existingIdx >= 0 && itemDef.stackable) {
+          updatedParty[charIdx] = {
+            ...char,
+            inventory: char.inventory.map((inv, i) =>
+              i === existingIdx ? { ...inv, quantity: inv.quantity + qty } : inv
+            ),
+          };
+        } else {
+          updatedParty[charIdx] = {
+            ...char,
+            inventory: [...char.inventory, newItem],
+          };
+        }
+      }
+
+      foundNames.push(`${itemDef.icon || ''} ${itemDef.name}${qty > 1 ? ` x${qty}` : ''}`);
+      foundNotifItems.push({ name: itemDef.name, icon: itemDef.icon });
+    }
+
+    const summaryMsg = foundNames.length > 1
+      ? `${searcherName} trova: ${foundNames.join(', ')}`
+      : `${searcherName} trova: ${foundNames[0]}`;
+
+    set({
+      messageLog: [...newLog, `[${state.turnCount}] 🎁 ${summaryMsg}`],
+      party: updatedParty,
+      searchedSafeRooms: newSearchedSafeRooms,
+      notification: {
+        id: `notif_sr_${Date.now()}`,
+        type: 'item_found',
+        message: foundNames.join(', '),
+        icon: foundNotifItems[0]?.icon || '🎁',
+        subMessage: `Safe Room: ${location.name}`,
+      },
+    });
+
+    setTimeout(() => get().checkAchievements(), 100);
   },
 
   depositToItemBox: (charId: string, itemUid: string, quantity: number): boolean => {

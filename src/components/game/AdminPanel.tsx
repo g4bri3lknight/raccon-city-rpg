@@ -224,7 +224,7 @@ function getEnumHint(enumGroup: string, value: string): string | undefined {
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
@@ -343,6 +343,7 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'special2Name', label: 'Abilità Speciale 2', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Immolazione', colSpan: 2 },
     { key: 'passiveDescription', label: 'Passiva', type: 'textarea', placeholder: 'Descrizione abilità passiva...', colSpan: 3 },
     { key: 'portraitEmoji', label: 'Emoji Ritratto', type: 'text', placeholder: 'es: 🛡️' },
+    { key: 'startingItems', label: 'Oggetti Iniziali', type: 'starting-items', colSpan: 3, helpText: 'Oggetti che il personaggio ha all\'inizio del gioco. Ogni entry è un oggetto con itemId, quantity e opzionalmente isEquipped (per armi/armature/accessori).' },
     { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella schermata selezione personaggi (non usato dal motore di gioco)' },
   ],
   locations: [
@@ -2428,13 +2429,13 @@ function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: {
 }
 
 /** Sub Areas Editor — table with id, name, description */
-function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { id: string; name: string; description: string }[]) => void }) {
-  let areas: { id: string; name: string; description: string }[] = [];
+function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { id: string; name: string; description: string; defaultItems?: { itemId: string; quantity: number }[] }[]) => void }) {
+  let areas: { id: string; name: string; description: string; defaultItems?: { itemId: string; quantity: number }[] }[] = [];
   if (Array.isArray(value)) {
     areas = value.map((r: unknown) => {
       if (typeof r === 'object' && r !== null) {
         const o = r as Record<string, unknown>;
-        return { id: String(o.id ?? ''), name: String(o.name ?? ''), description: String(o.description ?? '') };
+        return { id: String(o.id ?? ''), name: String(o.name ?? ''), description: String(o.description ?? ''), defaultItems: Array.isArray(o.defaultItems) ? (o.defaultItems as { itemId: string; quantity: number }[]) : undefined };
       }
       return { id: String(r), name: '', description: '' };
     });
@@ -2447,45 +2448,79 @@ function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { i
   const update = (idx: number, field: string, val: string) => {
     onChange(areas.map((a, i) => i === idx ? { ...a, [field]: val } : a));
   };
+  const updateDefaultItem = (areaIdx: number, itemIdx: number, field: string, val: string | number) => {
+    const di = areas[areaIdx].defaultItems ?? [];
+    const updated = di.map((item, j) => j === itemIdx ? { ...item, [field]: val } : item);
+    onChange(areas.map((a, i) => i === areaIdx ? { ...a, defaultItems: updated } : a));
+  };
+
+  const addDefaultItem = (areaIdx: number) => {
+    const di = areas[areaIdx].defaultItems ?? [];
+    onChange(areas.map((a, i) => i === areaIdx ? { ...a, defaultItems: [...di, { itemId: '', quantity: 1 }] } : a));
+  };
+
+  const removeDefaultItem = (areaIdx: number, itemIdx: number) => {
+    const di = areas[areaIdx].defaultItems ?? [];
+    onChange(areas.map((a, i) => i === areaIdx ? { ...a, defaultItems: di.filter((_, j) => j !== itemIdx) } : a));
+  };
 
   return (
-    <div className="space-y-1.5">
-      <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-gray-900/95">
-            <tr className="border-b border-white/[0.06]">
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium">ID</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Nome</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Descrizione</th>
-              <th className="w-8"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {areas.map((area, i) => (
-              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
-                <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
-                <td className="px-1 py-1">
-                  <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40" />
-                </td>
-                <td className="px-1 py-1">
-                  <input type="text" value={area.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Safe Room" className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
-                </td>
-                <td className="px-1 py-1">
-                  <input type="text" value={area.description} onChange={e => update(i, 'description', e.target.value)} placeholder="Un rifugio sicuro..." className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
-                </td>
-                <td className="px-1 py-1">
-                  <button type="button" onClick={() => remove(i)} className="text-white/15 hover:text-red-400 transition-colors">
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {areas.length === 0 && (
-              <tr><td colSpan={5} className="px-2 py-4 text-center text-white/15 italic">Nessuna sotto-area</td></tr>
-            )}
-          </tbody>
-        </table>
+    <div className="space-y-2">
+      <div className="max-h-[28rem] overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
+        {areas.map((area, i) => (
+          <div key={i} className="border-b border-white/[0.06] bg-gray-900 last:border-b-0">
+            {/* Subarea header row */}
+            <div className="flex items-center gap-2 px-3 py-2">
+              <span className="shrink-0 text-[9px] text-white/20 font-mono">{i + 1}.</span>
+              <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-28 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40" />
+              <input type="text" value={area.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Safe Room" className="w-32 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
+              <input type="text" value={area.description} onChange={e => update(i, 'description', e.target.value)} placeholder="Un rifugio sicuro..." className="flex-1 min-w-0 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
+              <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+            {/* Default Items pool */}
+            <div className="px-3 pb-2 pl-10">
+              <div className="text-[9px] text-white/30 mb-1 flex items-center gap-1">
+                <Package className="w-2.5 h-2.5" /> Oggetti Default
+              </div>
+              {(area.defaultItems && area.defaultItems.length > 0) ? (
+                <div className="space-y-0.5">
+                  {area.defaultItems.map((di, j) => (
+                    <div key={j} className="flex items-center gap-1.5">
+                      <MiniEntitySearch
+                        value={di.itemId}
+                        onChange={v => updateDefaultItem(i, j, 'itemId', v)}
+                        endpoint="/api/admin/items"
+                        labelKey="name"
+                        iconKey="icon"
+                      />
+                      <input
+                        type="number"
+                        value={di.quantity}
+                        onChange={e => updateDefaultItem(i, j, 'quantity', Number(e.target.value))}
+                        min={1}
+                        className="w-14 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-0.5 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                        title="Quantità"
+                      />
+                      <button type="button" onClick={() => removeDefaultItem(i, j)} className="text-white/15 hover:text-red-400 transition-colors">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[9px] text-white/10 italic">Nessun oggetto</div>
+              )}
+              <button type="button" onClick={() => addDefaultItem(i)} className="flex items-center gap-0.5 text-[9px] text-cyan-400/60 hover:text-cyan-400 transition-colors mt-1">
+                <Plus className="w-2.5 h-2.5" /> Aggiungi oggetto
+              </button>
+            </div>
+          </div>
+        ))}
+        {areas.length === 0 && (
+          <div className="px-2 py-4 text-center text-white/15 italic text-[10px]">Nessuna sotto-area</div>
+        )}
       </div>
       <button type="button" onClick={add} className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors">
         <Plus className="w-3 h-3" /> Aggiungi sotto-area
@@ -2999,6 +3034,178 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Starting Items Editor — for character starting items
+// ═══════════════════════════════════════════════════════════════
+
+interface StartingItemEntry {
+  itemId: string;
+  quantity: number;
+  isEquipped?: boolean;
+}
+
+function StartingItemsEditor({ value, onChange }: { value: unknown; onChange: (v: StartingItemEntry[]) => void }) {
+  const [items, setItems] = useState<StartingItemEntry[]>(parseStartingItems(value));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [availableItems, setAvailableItems] = useState<{ id: string; name: string; icon?: string; type?: string }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/items');
+        if (!res.ok) return;
+        const data: Record<string, unknown>[] = await res.json();
+        setAvailableItems(data.map(r => ({
+          id: String(r.id),
+          name: String(r.name ?? r.id),
+          icon: String(r.icon ?? ''),
+          type: String(r.type ?? ''),
+        })));
+      } catch { /* silent */ }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const update = (newItems: StartingItemEntry[]) => {
+    setItems(newItems);
+    onChange(newItems);
+  };
+
+  const addItem = (itemId: string) => {
+    if (items.find(i => i.itemId === itemId)) return;
+    const item = availableItems.find(a => a.id === itemId);
+    const isAutoEquip = item?.type === 'weapon';
+    update([...items, { itemId, quantity: 1, isEquipped: isAutoEquip }]);
+    setSearchQuery('');
+  };
+
+  const removeItem = (idx: number) => update(items.filter((_, i) => i !== idx));
+  const updateQty = (idx: number, qty: number) => update(items.map((it, i) => i === idx ? { ...it, quantity: Math.max(1, qty) } : it));
+  const toggleEquip = (idx: number) => update(items.map((it, i) => i === idx ? { ...it, isEquipped: !it.isEquipped } : it));
+
+  const filtered = searchQuery.trim()
+    ? availableItems.filter(a => !items.find(i => i.itemId === a.id) && (a.id.toLowerCase().includes(searchQuery.toLowerCase()) || a.name.toLowerCase().includes(searchQuery.toLowerCase()))).slice(0, 10)
+    : [];
+
+  const getItemName = (itemId: string) => availableItems.find(a => a.id === itemId)?.name ?? itemId;
+  const getItemIcon = (itemId: string) => availableItems.find(a => a.id === itemId)?.icon ?? '';
+  const getItemType = (itemId: string) => availableItems.find(a => a.id === itemId)?.type ?? '';
+
+  return (
+    <div className="space-y-2">
+      {/* Current items */}
+      <div className="max-h-36 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[10px]">
+          <thead className="sticky top-0 bg-gray-900/95 z-10">
+            <tr className="border-b border-white/[0.06]">
+              <th className="text-left px-2 py-1 text-white/40 font-medium w-6">#</th>
+              <th className="text-left px-2 py-1 text-white/40 font-medium">Oggetto</th>
+              <th className="text-left px-2 py-1 text-white/40 font-medium w-14">Qtà</th>
+              <th className="text-left px-2 py-1 text-white/40 font-medium w-16">Equip.</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((entry, i) => {
+              const type = getItemType(entry.itemId);
+              const canEquip = ['weapon', 'armor', 'accessory'].includes(type);
+              return (
+                <tr key={entry.itemId + '-' + i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+                  <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
+                  <td className="px-2 py-1 text-white/70">
+                    <span className="mr-1">{getItemIcon(entry.itemId)}</span>
+                    <span className="font-mono text-white/40 mr-1">{entry.itemId}</span>
+                    <span className="text-white/60">{getItemName(entry.itemId)}</span>
+                  </td>
+                  <td className="px-1 py-1">
+                    <input
+                      type="number"
+                      min={1}
+                      value={entry.quantity}
+                      onChange={e => updateQty(i, parseInt(e.target.value) || 1)}
+                      className="w-12 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-0.5 text-white/70 text-center focus:outline-none focus:border-yellow-500/40"
+                    />
+                  </td>
+                  <td className="px-1 py-1">
+                    {canEquip ? (
+                      <button type="button" onClick={() => toggleEquip(i)} className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${entry.isEquipped ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/[0.04] text-white/30 border border-white/[0.08] hover:border-white/20'}`}>
+                        {entry.isEquipped ? 'Sì' : 'No'}
+                      </button>
+                    ) : (
+                      <span className="text-[9px] text-white/15">—</span>
+                    )}
+                  </td>
+                  <td className="px-1 py-1">
+                    <button type="button" onClick={() => removeItem(i)} className="text-white/15 hover:text-red-400 transition-colors">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {items.length === 0 && (
+              <tr><td colSpan={5} className="px-2 py-3 text-center text-white/15 italic">Nessun oggetto iniziale</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add item search */}
+      {loaded && (
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Cerca oggetto da aggiungere..."
+            className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40"
+          />
+          {searchQuery && filtered.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-32 overflow-y-auto rounded-lg border border-white/[0.12] bg-gray-900/98 shadow-xl admin-scrollbar">
+              {filtered.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => addItem(item.id)}
+                  className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-white/[0.06] transition-colors text-white/70"
+                >
+                  <span className="mr-1">{item.icon}</span>
+                  <span className="font-mono text-white/40 mr-1">{item.id}</span>
+                  <span>{item.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function parseStartingItems(value: unknown): StartingItemEntry[] {
+  if (Array.isArray(value)) {
+    return value.map((r: unknown) => {
+      if (typeof r === 'object' && r !== null) {
+        const o = r as Record<string, unknown>;
+        return {
+          itemId: String(o.itemId ?? o.id ?? ''),
+          quantity: typeof o.quantity === 'number' ? o.quantity : 1,
+          isEquipped: !!o.isEquipped,
+        };
+      }
+      return { itemId: String(r), quantity: 1 };
+    }).filter(e => e.itemId);
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parseStartingItems(parsed);
+    } catch { /* ignore */ }
+  }
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Entity Form (for create/edit dialog)
 // ═══════════════════════════════════════════════════════════════
 function EntityForm({
@@ -3035,7 +3242,7 @@ function EntityForm({
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(f => {
           const val = data[f.key] ?? f.defaultValue ?? '';
-          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || (f.colSpan === 3);
+          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || f.type === 'starting-items' || (f.colSpan === 3);
           const isDoubleWidth = f.colSpan === 2 && !isFullWidth;
 
           if (isEdit && f.key === 'id') {
@@ -3169,6 +3376,11 @@ function EntityForm({
                 />
               ) : f.type === 'trade-inventory' ? (
                 <TradeInventoryEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'starting-items' ? (
+                <StartingItemsEditor
                   value={val}
                   onChange={v => handleChange(f.key, v)}
                 />
