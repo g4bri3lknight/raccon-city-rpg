@@ -8,7 +8,7 @@ import { EQUIPMENT_STATS } from '@/game/data/equipment';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp, getCharacterCritBonus } from '@/game/engine/combat';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Wrench, Plus, Minus, Shield, Shirt, Ring, Swords, ChevronRight } from 'lucide-react';
+import { X, Wrench, Plus, Minus, Shield, Shirt, Gem, Swords, ChevronRight } from 'lucide-react';
 
 export default function EquipmentPanel() {
   const party = useGameStore(s => s.party);
@@ -45,9 +45,12 @@ export default function EquipmentPanel() {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Wrench className="w-5 h-5 text-amber-400" />
-        <h3 className="text-base font-bold text-white/90">Equipaggiamento</h3>
+      <div>
+        <div className="flex items-center gap-2">
+          <Wrench className="w-5 h-5 text-amber-400" />
+          <h3 className="text-base font-bold text-white/90">Mod/Potenziamenti</h3>
+        </div>
+        <p className="text-xs text-white/40 mt-1 ml-7">Qui puoi modificare e potenziare le tue armi/armature/accessori</p>
       </div>
 
       {/* Character selector */}
@@ -92,7 +95,7 @@ export default function EquipmentPanel() {
           onClick={() => setActiveTab('armor')}
         />
         <TabButton
-          icon={<Ring className="w-3.5 h-3.5" />}
+          icon={<Gem className="w-3.5 h-3.5" />}
           label="Accessorio"
           active={activeTab === 'accessory'}
           onClick={() => setActiveTab('accessory')}
@@ -199,12 +202,13 @@ function WeaponModSection({
     );
   }
 
-  const installedMods = weapon.modSlots.map((modId: string, idx: number) => WEAPON_MODS[modId]).filter(Boolean);
+  const modSlots = weapon.modSlots || [];
+  const installedMods = modSlots.map((modId: string) => WEAPON_MODS[modId]).filter(Boolean);
   const availableMods = relevantItems.filter(i => {
     if (!i.modStats) return false;
     const mod = i.modStats;
     if (mod.type !== 'any' && mod.type !== weapon.type) return false;
-    if (weapon.modSlots.includes(mod.modId)) return false;
+    if (modSlots.includes(mod.modId)) return false;
     return true;
   });
 
@@ -229,9 +233,9 @@ function WeaponModSection({
         {/* Mod Slots */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs text-white/50">
-            <span>Slot Mod ({weapon.modSlots.length}/2)</span>
+            <span>Slot Mod ({modSlots.length}/2)</span>
           </div>
-          {weapon.modSlots.length === 0 && (
+          {modSlots.length === 0 && (
             <div className="text-xs text-white/30 italic">Nessun mod installato</div>
           )}
           {installedMods.map((mod: any, idx: number) => (
@@ -260,7 +264,7 @@ function WeaponModSection({
           ))}
 
           {/* Empty slots */}
-          {Array.from({ length: 2 - weapon.modSlots.length }).map((_, i) => (
+          {Array.from({ length: 2 - modSlots.length }).map((_, i) => (
             <div
               key={`empty_${i}`}
               className="p-2 rounded border border-dashed border-white/[0.08] bg-white/[0.01] flex items-center justify-center text-white/20 text-xs"

@@ -68,7 +68,7 @@ import {
   playMenuClose,
 } from './engine/sounds';
 import { NPCS } from './data/loader';
-import { SECRET_ROOMS } from './data/secrets';
+import { SECRET_ROOMS } from './data/loader';
 import { ENDINGS } from './data/endings';
 
 const MAX_INVENTORY_SLOTS = 12;
@@ -1505,9 +1505,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Play search sound (#36)
     try { playSearch(); } catch {}
 
-    // Determine max searches for this location (random 1-3, set once on first search)
-    const maxSearches = state.searchMaxes[locId] || (Math.floor(Math.random() * 3) + 1);
-    const newSearchMaxes = state.searchMaxes[locId] ? state.searchMaxes : { ...state.searchMaxes, [locId]: maxSearches };
+    // ── Search configuration from DB (with defaults) ──
+    const baseSearchChance = location.searchChance ?? 60; // 0-100, default 60
+    const baseDocChance = location.docChance ?? 35;       // 0-100, default 35
+    const locSearchMax = location.searchMax;              // null=random 1-3, 0=unlimited
+
+    // ── searchBonus from active dynamic event (e.g. Blackout) ──
+    const activeEvent = state.activeDynamicEvent
+      ? DYNAMIC_EVENTS[state.activeDynamicEvent.eventId]
+      : null;
+    const hasSearchBonus = activeEvent?.effect?.searchBonus === true;
+    const searchBoost = hasSearchBonus ? 20 : 0; // +20% boost when searchBonus active
+
+    const effectiveSearchChance = Math.min(100, baseSearchChance + searchBoost);
+    const effectiveDocChance = Math.min(100, baseDocChance + searchBoost);
+
+    // Determine max searches for this location
+    // Priority: already-set state value > DB config > random 1-3
+    const maxSearches = state.searchMaxes[locId]
+      || (locSearchMax != null
+        ? (locSearchMax === 0 ? Infinity : locSearchMax)
+        : (Math.floor(Math.random() * 3) + 1));
+    const newSearchMaxes = state.searchMaxes[locId]
+      ? state.searchMaxes
+      : { ...state.searchMaxes, [locId]: maxSearches };
 
     // Area exhausted — player doesn't know the limit, just show nothing
     if (searchCount >= maxSearches) {
@@ -1531,7 +1552,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Increment search count
     const newSearchCounts = { ...state.searchCounts, [locId]: searchCount + 1 };
 
-    // ~60% chance to find something at all (search is more thorough than explore, but not guaranteed)
     const searchFlavourTexts = [
       `${searcherName} ispeziona gli scaffali...`,
       `${searcherName} rovista tra i detriti...`,
@@ -1541,8 +1561,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     ];
     const flavourText = searchFlavourTexts[Math.floor(Math.random() * searchFlavourTexts.length)];
 
-    if (Math.random() < 0.4) {
-      // Nothing found
+    // ── PHASE 1: Miss check (clean funnel) ──
+    // effectiveSearchChance is 0-100: if roll > chance, miss
+    if (Math.random() * 100 >= effectiveSearchChance) {
       const missMessages = [
         `${flavourText} Nulla di utile.`,
         `${flavourText} Solo polvere e ragnatele.`,
@@ -1559,7 +1580,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    // Find items from pool (exclude key items already in party inventory)
+    // ── PHASE 2: Roll items from pool ──
     const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
     const foundItems: string[] = [];
     for (const entry of effectiveItemPool) {
@@ -1570,6 +1591,39 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
+    // ── PHASE 3: Document vs Items (mutually exclusive) ──
+    // Roll document chance first — if found, award document instead of items
+    const searchDocs = [
+      ...Object.values(DOCUMENTS).filter(d =>
+        d.locationId === locId &&
+        !state.collectedDocuments.includes(d.id) &&
+        (!d.hintRequired || state.collectedDocuments.includes(d.hintRequired))
+      ),
+    ];
+    if (searchDocs.length > 0 && Math.random() * 100 < effectiveDocChance) {
+      const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
+      const newDocs = [...state.collectedDocuments, doc.id];
+      // Play document found sound (#36)
+      try { playDocumentFound(); } catch {}
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] 📖 ${flavourText} ${searcherName} trova un documento: "${doc.title}"`],
+        collectedDocuments: newDocs,
+        turnCount: state.turnCount + 1,
+        searchCounts: newSearchCounts,
+        searchMaxes: newSearchMaxes,
+        notification: {
+          id: `notif_${++notifId}`,
+          type: 'item_found',
+          message: doc.title,
+          icon: doc.icon,
+          subMessage: doc.type === 'umbrella_file' ? '📄 File Umbrella' : `📝 ${doc.type}`,
+        },
+      });
+      setTimeout(() => get().checkAchievements(), 100);
+      return;
+    }
+
+    // ── PHASE 4: Award items (if no document found) ──
     if (foundItems.length === 0) {
       set({
         messageLog: [...newLog, `[${state.turnCount}] ${flavourText} Non trovate nulla di utile qui.`],
@@ -1652,19 +1706,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
         continue;
       }
 
-      // ── KEY ITEM CHECK: prevent duplicate keys (safety net, should not trigger due to pre-filter) ──
+      // ── KEY ITEM CHECK: prevent duplicate keys ──
       if (KEY_ITEM_IDS.has(itemId)) {
         const partyAlreadyHasKey = updatedParty.some(p =>
           p.inventory.some(i => i.itemId === itemId)
         );
         if (partyAlreadyHasKey) {
-          continue; // Skip silently — already filtered above, this is just a safety net
+          continue;
         }
       }
 
       // ── NORMAL ITEM (auto-stack if same item exists) ──
       const finderChar = updatedParty.find(p => p.id === targetId);
-      // Try to add to existing stack first
       const existingIdx = finderChar ? finderChar.inventory.findIndex(i => i.itemId === itemId) : -1;
       if (existingIdx >= 0) {
         updatedParty = updatedParty.map(p => {
@@ -1703,14 +1756,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // Build bundled notification for multiple items found, or single item notification
-    // Play item pickup sound if any items were found (#36)
     if (foundNotifItems.length > 0) {
       try { playItemPickup(); } catch {}
     }
     const finderChar = updatedParty.find(p => p.id === targetId);
     if (!lastNotif && foundNotifItems.length > 0) {
       if (foundNotifItems.length === 1) {
-        // Single item — show standard single-item notification
         const item = foundNotifItems[0];
         lastNotif = {
           id: `notif_${++notifId}`,
@@ -1722,7 +1773,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           characterId: targetId,
         };
       } else {
-        // Multiple items — bundled notification showing all items
         lastNotif = {
           id: `notif_${++notifId}`,
           type: 'item_found' as const,
@@ -1733,37 +1783,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           items: foundNotifItems,
         };
       }
-    }
-
-    // ── DOCUMENT DISCOVERY IN SEARCH ──
-    const searchDocs = [
-      ...Object.values(DOCUMENTS).filter(d =>
-        d.locationId === locId &&
-        !state.collectedDocuments.includes(d.id) &&
-        (!d.hintRequired || state.collectedDocuments.includes(d.hintRequired))
-      ),
-    ];
-    if (searchDocs.length > 0 && Math.random() < 0.35) {
-      const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
-      const newDocs = [...state.collectedDocuments, doc.id];
-      // Play document found sound (#36)
-      try { playDocumentFound(); } catch {}
-      set({
-        messageLog: [...newLog, `[${state.turnCount}] 🎒 ${flavourText}`, `[${state.turnCount}] 📖 ${searcherName} trova un documento: "${doc.title}"`],
-        collectedDocuments: newDocs,
-        turnCount: state.turnCount + 1,
-        searchCounts: newSearchCounts,
-        searchMaxes: newSearchMaxes,
-        notification: {
-          id: `notif_${++notifId}`,
-          type: 'item_found',
-          message: doc.title,
-          icon: doc.icon,
-          subMessage: doc.type === 'umbrella_file' ? '📄 File Umbrella' : `📝 ${doc.type}`,
-        },
-      });
-      setTimeout(() => get().checkAchievements(), 100);
-      return;
     }
 
     // ── SECRET ROOM DISCOVERY ──

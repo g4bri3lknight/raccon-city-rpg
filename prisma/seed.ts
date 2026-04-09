@@ -110,6 +110,38 @@ async function main() {
     { id: 'umbrella_keycard', name: 'Tessera Umbrella Oro', description: "Una tessera d'accesso dorata con il logo dell'Umbrella Corp. Livello di autorizzazione: ORO — accesso illimitato a tutte le strutture.", type: 'key', rarity: 'rare', icon: '💳', usable: false, equippable: false, stackable: false, maxStack: 1 },
   ];
 
+  // ── Armor items (from equipment.ts) ──
+  const armorItems = [
+    { id: 'vest_light', name: 'Gilet Leggero', description: 'Un gilet di protezione leggero. +3 DEF.', type: 'armor', rarity: 'common', icon: '🦺', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 3 },
+    { id: 'vest_police', name: 'Giubbotto RPD', description: 'Un giubbotto antiproiettile del dipartimento di polizia. +5 DEF, +15 HP.', type: 'armor', rarity: 'uncommon', icon: '🦺', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 5, hpBonus: 15 },
+    { id: 'vest_tactical', name: 'Giubbotto Tattico', description: 'Un giubbotto militare con piastra ceramica. +8 DEF, +25 HP.', type: 'armor', rarity: 'rare', icon: '🦺', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 8, hpBonus: 25 },
+    { id: 'vest_umbrella', name: 'Armatura Umbrella', description: 'Armatura sperimentale Umbrella. +12 DEF, +40 HP, 50% resistenza veleno.', type: 'armor', rarity: 'legendary', icon: '🦺', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 12, hpBonus: 40, specialEffect: '{"type":"poison_resist","value":50}' },
+    { id: 'lab_coat', name: 'Camice da Laboratorio', description: 'Un camice da laboratorio resistente. +2 DEF, +10 HP.', type: 'armor', rarity: 'common', icon: '🥼', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 2, hpBonus: 10 },
+    { id: 'swat_armor', name: 'Armatura SWAT', description: 'Armatura completa della SWAT. +10 DEF, +30 HP, 40% resistenza sanguinamento.', type: 'armor', rarity: 'rare', icon: '🦺', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 10, hpBonus: 30, specialEffect: '{"type":"bleed_resist","value":40}' },
+  ];
+
+  // ── Accessory items (from equipment.ts) ──
+  const accessoryItems = [
+    { id: 'watch', name: 'Orologio da Polso', description: 'Un orologio che migliora i riflessi. +2 SPD.', type: 'accessory', rarity: 'common', icon: '⌚', usable: false, equippable: true, stackable: false, maxStack: 1, spdBonus: 2 },
+    { id: 'amulet', name: 'Amuleto Benedetto', description: 'Un amuleto che infonde coraggio. +20 HP, +2 DEF.', type: 'accessory', rarity: 'uncommon', icon: '📿', usable: false, equippable: true, stackable: false, maxStack: 1, hpBonus: 20, defBonus: 2 },
+    { id: 'compass', name: 'Bussola Militare', description: 'Una bussola che aumenta la precisione. +3 SPD, +2 ATK.', type: 'accessory', rarity: 'uncommon', icon: '🧭', usable: false, equippable: true, stackable: false, maxStack: 1, spdBonus: 3, atkBonus: 2 },
+    { id: 'first_aid_badge', name: 'Distintivo Croce Rossa', description: 'Un distintivo che ispira cura. +30 HP, rigenera 3 HP/turno.', type: 'accessory', rarity: 'uncommon', icon: '🎖️', usable: false, equippable: true, stackable: false, maxStack: 1, hpBonus: 30, specialEffect: '{"type":"hp_regen","value":3}' },
+    { id: 'dog_tags', name: 'Piastre Militari', description: 'Piastre di un soldato caduto. +3 ATK, +5% critico.', type: 'accessory', rarity: 'rare', icon: '🏷️', usable: false, equippable: true, stackable: false, maxStack: 1, atkBonus: 3, critBonus: 5 },
+    { id: 'ring_virus', name: 'Anello del Virus-T', description: 'Un anello contaminato dal T-Virus. +5 ATK, +15 HP, riflette 5 danni.', type: 'accessory', rarity: 'legendary', icon: '💍', usable: false, equippable: true, stackable: false, maxStack: 1, atkBonus: 5, hpBonus: 15, specialEffect: '{"type":"thorns","value":5}' },
+    { id: 'goggles', name: 'Occhiali Tattici', description: 'Lenti tattiche per una migliore mira. +8% critico.', type: 'accessory', rarity: 'uncommon', icon: '🥽', usable: false, equippable: true, stackable: false, maxStack: 1, critBonus: 8 },
+    { id: 'gas_mask', name: 'Maschera Antigas', description: 'Protezione contro agenti chimici. +3 DEF, +15 HP, 80% resistenza veleno.', type: 'accessory', rarity: 'rare', icon: '😷', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 3, hpBonus: 15, specialEffect: '{"type":"poison_resist","value":80}' },
+  ];
+
+  // ── Weapon mod items (from weapon-mods.ts) ──
+  const weaponModItems = [
+    { id: 'mod_red_dot', name: 'Mirino Red Dot', description: 'Un mirino a punto rosso. +8% probabilità critico.', type: 'weapon_mod', rarity: 'common', icon: '🔴', usable: false, equippable: false, stackable: false, maxStack: 1, critBonus: 8, modType: 'ranged' },
+    { id: 'mod_laser_sight', name: 'Laser Sight', description: 'Un mirino laser che riduce la dodge nemica. -15% dodge nemico.', type: 'weapon_mod', rarity: 'uncommon', icon: '🔴', usable: false, equippable: false, stackable: false, maxStack: 1, dodgeBonus: 15, modType: 'ranged' },
+    { id: 'mod_hollow_point', name: 'Proiettili Hollow Point', description: 'Proiettili espansivi che aumentano i danni critici. +15% critico.', type: 'weapon_mod', rarity: 'rare', icon: '🔶', usable: false, equippable: false, stackable: false, maxStack: 1, critBonus: 15, modType: 'ranged' },
+    { id: 'mod_bio_rounds', description: 'Munizioni bio-contaminate. +20% probabilità status.', type: 'weapon_mod', rarity: 'rare', icon: '🧪', usable: false, equippable: false, stackable: false, maxStack: 1, statusBonus: 20, modType: 'any', name: 'Munizioni Bio-Contaminate' },
+    { id: 'mod_titanium_blade', name: 'Lama in Titanio', description: 'Una lama di titanio ultra-affilata. +5 ATK, +10% critico.', type: 'weapon_mod', rarity: 'rare', icon: '🗡️', usable: false, equippable: false, stackable: false, maxStack: 1, atkBonus: 5, critBonus: 10, modType: 'melee' },
+    { id: 'mod_shock_module', name: 'Modulo Shock', description: 'Un modulo elettrico che stordisce i bersagli. +30% status, solo corpo a corpo.', type: 'weapon_mod', rarity: 'uncommon', icon: '⚡', usable: false, equippable: false, stackable: false, maxStack: 1, statusBonus: 30, modType: 'melee' },
+  ];
+
   for (const item of existingItems) {
     const ws = weaponStats[item.id];
     const ef = itemEffects[item.id];
@@ -162,7 +194,79 @@ async function main() {
     });
   }
 
-  console.log(`✅ Items seeded: ${existingItems.length} existing + ${newItems.length} new = ${existingItems.length + newItems.length} total.\n`);
+  // Seed armor items
+  for (const item of armorItems) {
+    await prisma.item.create({
+      data: {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        type: item.type,
+        rarity: item.rarity,
+        icon: item.icon,
+        usable: item.usable,
+        equippable: item.equippable,
+        stackable: item.stackable,
+        maxStack: item.maxStack,
+        defBonus: (item as any).defBonus ?? null,
+        hpBonus: (item as any).hpBonus ?? null,
+        specialEffect: (item as any).specialEffect ?? null,
+        unico: true,
+      },
+    });
+  }
+
+  // Seed accessory items
+  for (const item of accessoryItems) {
+    await prisma.item.create({
+      data: {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        type: item.type,
+        rarity: item.rarity,
+        icon: item.icon,
+        usable: item.usable,
+        equippable: item.equippable,
+        stackable: item.stackable,
+        maxStack: item.maxStack,
+        atkBonus: (item as any).atkBonus ?? null,
+        defBonus: (item as any).defBonus ?? null,
+        hpBonus: (item as any).hpBonus ?? null,
+        spdBonus: (item as any).spdBonus ?? null,
+        critBonus: (item as any).critBonus ?? null,
+        specialEffect: (item as any).specialEffect ?? null,
+        unico: true,
+      },
+    });
+  }
+
+  // Seed weapon mod items
+  for (const item of weaponModItems) {
+    await prisma.item.create({
+      data: {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        type: item.type,
+        rarity: item.rarity,
+        icon: item.icon,
+        usable: item.usable,
+        equippable: item.equippable,
+        stackable: item.stackable,
+        maxStack: item.maxStack,
+        atkBonus: (item as any).atkBonus ?? null,
+        critBonus: (item as any).critBonus ?? null,
+        dodgeBonus: (item as any).dodgeBonus ?? null,
+        statusBonus: (item as any).statusBonus ?? null,
+        modType: (item as any).modType ?? null,
+        unico: true,
+      },
+    });
+  }
+
+  const totalItems = existingItems.length + newItems.length + armorItems.length + accessoryItems.length + weaponModItems.length;
+  console.log(`✅ Items seeded: ${existingItems.length} existing + ${newItems.length} new + ${armorItems.length} armor + ${accessoryItems.length} accessory + ${weaponModItems.length} weapon_mod = ${totalItems} total.\n`);
 
   // ==========================================
   // 2. SIDE QUESTS — 4 EXISTING + 12 NEW = 16 TOTAL

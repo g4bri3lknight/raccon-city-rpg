@@ -3,6 +3,7 @@ import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS } from './equipment';
 import { STATIC_DYNAMIC_EVENTS } from './dynamic-events';
 import { STATIC_DOCUMENTS } from './documents';
 import { STATIC_LOCATIONS } from './locations';
+import { SECRET_ROOMS as STATIC_SECRET_ROOMS } from './secrets';
 import { NPCS as STATIC_NPCS } from './npcs';
 import { CHARACTER_ARCHETYPES as STATIC_CHARACTERS, ARCHETYPE_STAT_POINTS as STATIC_STAT_POINTS, getCustomStartingItems as _getCustomStartingItems, getCustomPassiveDescription as _getCustomPassiveDescription } from './characters';
 import { ALL_SPECIAL_ABILITIES as STATIC_SPECIALS, ARCHETYPE_SPECIAL_MAP as STATIC_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP as STATIC_CATEGORY_MAP } from './specials';
@@ -11,7 +12,7 @@ import type { ItemDefinition, ItemType, Rarity, ItemEffect, LocationDefinition }
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition } from '../types';
-import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, StatusEffect } from '../types';
+import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, StatusEffect, SecretRoom } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
@@ -23,11 +24,15 @@ export let CHARACTERS_DATA: CharacterArchetype[] = [];
 export let SPECIALS_DATA: SpecialAbilityDefinition[] = [];
 export let ENEMIES_DATA: Record<string, EnemyDefinition> = {};
 export let ENEMY_ABILITIES_DATA: Record<string, EnemyAbility> = {};
+export let SECRET_ROOMS_DATA: Record<string, SecretRoom> = {};
 
 // Backward compat aliases
 export { NPCS_DATA as NPCS };
 export { CHARACTERS_DATA as CHARACTER_ARCHETYPES };
 export { SPECIALS_DATA as ALL_SPECIAL_ABILITIES };
+
+// Re-export secret rooms (DB-loaded with static fallback)
+export { SECRET_ROOMS_DATA as SECRET_ROOMS };
 
 // Re-export image maps (these are URL templates, no DB storage)
 export { ENEMY_IMAGES, CHARACTER_IMAGES, BOSS_PHASES };
@@ -130,6 +135,9 @@ interface DbLocation {
   lockedLocations: string;
   subAreas: string;
   sortOrder: number;
+  searchChance: number | null;
+  docChance: number | null;
+  searchMax: number | null;
   mapRow: number | null;
   mapCol: number | null;
   mapIcon: string | null;
@@ -217,6 +225,23 @@ interface DbEnemyAbility {
   statusType: string;
   statusChance: number;
   statusDuration: number;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbSecretRoom {
+  id: string;
+  locationId: string;
+  name: string;
+  description: string;
+  discoveryMethod: string;
+  requiredDocumentId: string | null;
+  requiredNpcQuestId: string | null;
+  searchChance: number;
+  hint: string;
+  lootTable: string;
+  uniqueItemId: string | null;
+  uniqueItemQuantity: number | null;
   sortOrder: number;
   createdAt: Date;
 }
@@ -319,6 +344,9 @@ function mapDbLocation(loc: DbLocation): LocationDefinition {
     ambientText: JSON.parse(loc.ambientText || '[]'),
     lockedLocations: JSON.parse(loc.lockedLocations || '[]'),
     subAreas: JSON.parse(loc.subAreas || '[]'),
+    ...(loc.searchChance != null ? { searchChance: loc.searchChance } : {}),
+    ...(loc.docChance != null ? { docChance: loc.docChance } : {}),
+    ...(loc.searchMax != null ? { searchMax: loc.searchMax } : {}),
   };
 }
 
@@ -439,6 +467,35 @@ function loadEnemyAbilities(api: Awaited<ReturnType<typeof loadFromApi>>): void 
   }
 }
 
+function mapDbSecretRoom(row: DbSecretRoom): SecretRoom {
+  let lootTable: SecretRoom['lootTable'] = [];
+  try { lootTable = JSON.parse(row.lootTable || '[]'); } catch { lootTable = []; }
+  return {
+    id: row.id,
+    locationId: row.locationId,
+    name: row.name,
+    description: row.description,
+    discoveryMethod: row.discoveryMethod as SecretRoom['discoveryMethod'],
+    ...(row.requiredDocumentId ? { requiredDocumentId: row.requiredDocumentId } : {}),
+    ...(row.requiredNpcQuestId ? { requiredNpcQuestId: row.requiredNpcQuestId } : {}),
+    searchChance: row.searchChance,
+    hint: row.hint,
+    lootTable,
+    ...(row.uniqueItemId ? { uniqueItem: { itemId: row.uniqueItemId, quantity: row.uniqueItemQuantity || 1 } } : {}),
+  };
+}
+
+function loadSecretRooms(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  if (api?.secretRooms && api.secretRooms.length > 0) {
+    SECRET_ROOMS_DATA = {};
+    for (const row of api.secretRooms) {
+      SECRET_ROOMS_DATA[row.id] = mapDbSecretRoom(row as DbSecretRoom);
+    }
+  } else {
+    SECRET_ROOMS_DATA = { ...STATIC_SECRET_ROOMS };
+  }
+}
+
 // ── Rebuild computed config from loaded data ──
 
 function rebuildStatPoints(): void {
@@ -473,6 +530,8 @@ async function loadFromApi(): Promise<{
   characters: DbCharacter[];
   specials: DbSpecial[];
   enemies: DbEnemy[];
+  enemyAbilities: DbEnemyAbility[];
+  secretRooms: DbSecretRoom[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -597,6 +656,7 @@ export async function initGameData(): Promise<void> {
       loadSpecials(api),
       loadEnemyAbilities(api),
       loadEnemies(api),
+      loadSecretRooms(api),
     ]);
     initialized = true;
   } catch (err) {
@@ -609,6 +669,7 @@ export async function initGameData(): Promise<void> {
     CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
     SPECIALS_DATA = [...STATIC_SPECIALS];
     ENEMIES_DATA = { ...STATIC_ENEMIES };
+    SECRET_ROOMS_DATA = { ...STATIC_SECRET_ROOMS };
     initialized = true;
   }
 }
@@ -628,6 +689,7 @@ export async function refreshGameData(): Promise<void> {
       loadSpecials(api),
       loadEnemyAbilities(api),
       loadEnemies(api),
+      loadSecretRooms(api),
     ]);
     DATA_VERSION++;
     initialized = true;

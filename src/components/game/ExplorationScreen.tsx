@@ -34,7 +34,10 @@ export default function ExplorationScreen() {
   } = state;
 
   const location = LOCATIONS[currentLocationId];
-  const searchExhausted = (searchCounts[currentLocationId] || 0) >= (searchMaxes[currentLocationId] || 0) && (searchMaxes[currentLocationId] || 0) > 0;
+  // searchMax: DB config (null=random 1-3, 0=unlimited) → searchMaxes: runtime state
+  const effectiveMax = searchMaxes[currentLocationId]
+    ?? (location.searchMax != null ? (location.searchMax === 0 ? Infinity : location.searchMax) : 0);
+  const searchExhausted = (searchCounts[currentLocationId] || 0) >= effectiveMax && effectiveMax > 0;
   const diffLabel = difficulty === 'sopravvissuto' ? 'Sopravvissuto' : difficulty === 'incubo' ? 'Incubo' : 'Normale';
   const diffStyle = difficulty === 'sopravvissuto'
     ? 'text-green-400 border-green-800/50 bg-green-950/30'

@@ -11,7 +11,7 @@ model Item {
   id               String   @id
   name             String
   description      String
-  type             String   // weapon | healing | ammo | utility | antidote | bag | collectible | key
+  type             String   // weapon | healing | ammo | utility | antidote | bag | collectible | key | armor | accessory | weapon_mod
   rarity           String   // common | uncommon | rare | legendary
   icon             String
   usable           Boolean  @default(false)
@@ -29,6 +29,15 @@ model Item {
   effectStatusCured String? // JSON array: ["poison","bleeding"]
   // Slots (for bags)
   addSlots         Int?
+  // Equipment fields (nullable, for armor/accessory/weapon_mod)
+  defBonus         Int?
+  hpBonus          Int?
+  spdBonus         Int?
+  critBonus        Int?     // % extra crit chance (weapon_mod & accessory)
+  dodgeBonus       Int?     // % enemy dodge reduction (weapon_mod)
+  statusBonus      Int?     // % extra status apply chance (weapon_mod)
+  modType          String?  // melee | ranged | any (weapon_mod compatibility)
+  specialEffect    String?  // JSON: {"type":"poison_resist","value":50}
   unico            Boolean  @default(false) // true = can only be dropped/obtained once per game
   createdAt        DateTime @default(now())
   @@map("items")
@@ -131,6 +140,10 @@ model GameLocation {
   lockedLocations String   @default("[]")   // JSON: [{locationId,requiredItemId,lockedMessage}]
   subAreas        String   @default("[]")   // JSON: [{id,name,description}]
   sortOrder       Int      @default(0)
+  // Search configuration (optional, defaults to hardcoded values if null)
+  searchChance    Int?     // 0-100 base success chance (default 60 if null)
+  docChance       Int?     // 0-100 document find chance (default 35 if null), only rolled when search succeeds
+  searchMax       Int?     // max searches per location (null=random 1-3, 0=unlimited)
   // Map layout fields (optional, for GameMap visual positioning)
   mapRow          Int?
   mapCol          Int?
@@ -192,6 +205,8 @@ model GameSpecial {
   powerMultiplier  Float?                        // for offensive abilities
   healAmount       Int?                          // for healing abilities
   statusToApply    String   @default("")         // JSON: {type:"poison",chance:60} or null
+  duration         Int?                          // turns the effect lasts (DoT/HoT/buff/debuff)
+  tickAmount       Int?                          // damage/heal per turn for duration effects
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
   @@map("game_specials")
@@ -258,4 +273,22 @@ model GameEnemyAbility {
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   @@map("game_enemy_abilities")
+}
+
+model SecretRoom {
+  id                  String   @id
+  locationId          String
+  name                String
+  description         String
+  discoveryMethod     String   @default("search")   // search | document | npc_hint
+  requiredDocumentId  String?                         // document ID required for discovery
+  requiredNpcQuestId  String?                         // quest ID required for discovery (not NPC ID)
+  searchChance        Int      @default(15)           // 0-100, discovery probability
+  hint                String   @default("")
+  lootTable           String   @default("[]")         // JSON: [{itemId,chance,quantity}]
+  uniqueItemId        String?                         // guaranteed unique item
+  uniqueItemQuantity  Int?
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  @@map("secret_rooms")
 }

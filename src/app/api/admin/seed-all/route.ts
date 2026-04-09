@@ -8,6 +8,8 @@ import { NPCS } from '@/game/data/npcs';
 import { CHARACTER_ARCHETYPES } from '@/game/data/characters';
 import { ALL_SPECIAL_ABILITIES } from '@/game/data/specials';
 import { ENEMIES as STATIC_ENEMIES } from '@/game/data/enemies';
+import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '@/game/data/equipment';
+import { WEAPON_MODS } from '@/game/data/weapon-mods';
 
 const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; danger: string }> = {
   city_outskirts: { row: 2, col: 1, icon: '🏚️', danger: 'bassa' },
@@ -212,6 +214,46 @@ async function seedEnemies(): Promise<SeedResult> {
   return { entity: 'enemies', total: entries.length, created, updated };
 }
 
+async function seedEquipment(): Promise<SeedResult> {
+  let created = 0, updated = 0, total = 0;
+  // Seed armor & accessories
+  for (const id of ALL_EQUIPMENT_IDS) {
+    const eq = EQUIPMENT_STATS[id];
+    if (!eq) continue;
+    total++;
+    const existing = await db.item.findUnique({ where: { id } });
+    const data: Record<string, unknown> = {
+      name: eq.name, description: eq.description, type: eq.slot,
+      rarity: eq.rarity, icon: eq.icon, usable: false, equippable: true,
+      stackable: false, maxStack: 1, unico: true,
+      defBonus: eq.defBonus ?? null, hpBonus: eq.hpBonus ?? null,
+      spdBonus: eq.spdBonus ?? null, atkBonus: eq.atkBonus ?? null,
+      critBonus: eq.critBonus ?? null,
+      specialEffect: eq.specialEffect ? JSON.stringify(eq.specialEffect) : null,
+    };
+    if (existing) { await db.item.update({ where: { id }, data }); updated++; }
+    else { await db.item.create({ data: { id, ...data } }); created++; }
+  }
+  // Seed weapon mods
+  for (const modId of ALL_MOD_ITEM_IDS) {
+    const mod = WEAPON_MODS[modId];
+    if (!mod) continue;
+    total++;
+    const existing = await db.item.findUnique({ where: { id: modId } });
+    const data: Record<string, unknown> = {
+      name: mod.name, description: mod.description, type: 'weapon_mod',
+      rarity: mod.rarity, icon: mod.icon, usable: false, equippable: false,
+      stackable: false, maxStack: 1, unico: true,
+      atkBonus: mod.atkBonus ?? null, critBonus: mod.critBonus ?? null,
+      dodgeBonus: mod.dodgeBonus ?? null, statusBonus: mod.statusBonus ?? null,
+      modType: mod.type,
+    };
+    if (existing) { await db.item.update({ where: { id: modId }, data }); updated++; }
+    else { await db.item.create({ data: { id: modId, ...data } }); created++; }
+  }
+  return { entity: 'equipment', total, created, updated };
+}
+
 /**
  * POST /api/admin/seed-all
  * Master seed endpoint — populates ALL game data from static definitions.
@@ -221,6 +263,7 @@ export async function POST() {
   try {
     const results: SeedResult[] = await Promise.all([
       seedItems(),
+      seedEquipment(),
       seedEvents(),
       seedDocuments(),
       seedLocations(),

@@ -30,7 +30,7 @@ export default function SafeRoomPanel() {
   const tabs: { id: SafeRoomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'itembox', label: 'Item Box', icon: <Package className="w-5 h-5" /> },
     { id: 'crafting', label: 'Crafting', icon: <Hammer className="w-5 h-5" /> },
-    { id: 'equipment', label: 'Equip', icon: <Wrench className="w-5 h-5" /> },
+    { id: 'equipment', label: 'Mod/Potenziamenti', icon: <Wrench className="w-5 h-5" /> },
   ];
 
   return (

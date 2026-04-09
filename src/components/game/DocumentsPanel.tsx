@@ -26,6 +26,28 @@ const RARITY_COLORS = {
   legendary: 'border-amber-500/40 bg-amber-950/20 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
 };
 
+/** Check if content contains HTML tags */
+function isHtmlContent(content: string): boolean {
+  return /<[a-z][\s\S]*?>/i.test(content);
+}
+
+/** Render document content — supports both plain text and rich HTML */
+function DocumentContent({ content, className }: { content: string; className?: string }) {
+  if (isHtmlContent(content)) {
+    return (
+      <div
+        className={className}
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    );
+  }
+  return (
+    <p className={className}>
+      {content}
+    </p>
+  );
+}
+
 // Parse email content into structured fields
 function parseEmailContent(content: string) {
   const lines = content.split('\n');
@@ -146,7 +168,7 @@ function EmailDocumentReader({ doc }: { doc: GameDocument }) {
       </div>
       {/* Email body */}
       <div className="p-4">
-        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{email.body}</p>
+        <DocumentContent content={email.body} className="text-sm text-white/70 leading-relaxed whitespace-pre-line prose prose-invert prose-sm" />
       </div>
     </div>
   );
@@ -161,9 +183,7 @@ function DiaryDocumentReader({ doc }: { doc: GameDocument }) {
         <span className="text-xs font-bold text-amber-300 italic">Pagine scritte a mano</span>
       </div>
       <div className="p-4 bg-[repeating-linear-gradient(transparent,transparent_27px,rgba(180,140,80,0.06)_27px,rgba(180,140,80,0.06)_28px)]">
-        <p className="text-sm text-amber-100/70 leading-relaxed italic whitespace-pre-line font-serif">
-          {doc.content}
-        </p>
+        <DocumentContent content={doc.content} className="text-sm text-amber-100/70 leading-relaxed italic whitespace-pre-line font-serif prose prose-invert prose-sm" />
       </div>
     </div>
   );
@@ -185,7 +205,7 @@ function ReportDocumentReader({ doc }: { doc: GameDocument }) {
         </div>
       )}
       <div className="p-4">
-        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{report.body}</p>
+        <DocumentContent content={report.body} className="text-sm text-white/70 leading-relaxed whitespace-pre-line prose prose-invert prose-sm" />
       </div>
     </div>
   );
@@ -201,7 +221,7 @@ function UmbrellaFileReader({ doc }: { doc: GameDocument }) {
         <Badge className="text-[8px] bg-red-900/60 text-red-400 border-red-700/40 ml-auto uppercase">Top Secret</Badge>
       </div>
       <div className="p-4">
-        <p className="text-sm text-red-100/70 leading-relaxed whitespace-pre-line">{doc.content}</p>
+        <DocumentContent content={doc.content} className="text-sm text-red-100/70 leading-relaxed whitespace-pre-line prose prose-invert prose-sm" />
       </div>
     </div>
   );
@@ -216,7 +236,7 @@ function PhotoDocumentReader({ doc }: { doc: GameDocument }) {
         <span className="text-xs font-bold text-emerald-300">Fotografia</span>
       </div>
       <div className="p-4">
-        <p className="text-sm text-emerald-100/70 leading-relaxed whitespace-pre-line italic">{doc.content}</p>
+        <DocumentContent content={doc.content} className="text-sm text-emerald-100/70 leading-relaxed whitespace-pre-line italic prose prose-invert prose-sm" />
       </div>
     </div>
   );
@@ -231,7 +251,7 @@ function NoteDocumentReader({ doc }: { doc: GameDocument }) {
         <span className="text-xs font-bold text-gray-300">Nota</span>
       </div>
       <div className="p-4">
-        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">{doc.content}</p>
+        <DocumentContent content={doc.content} className="text-sm text-white/70 leading-relaxed whitespace-pre-line prose prose-invert prose-sm" />
       </div>
     </div>
   );

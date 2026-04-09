@@ -33,6 +33,9 @@ export async function GET() {
       lockedLocations: JSON.parse(loc.lockedLocations || '[]'),
       subAreas: JSON.parse(loc.subAreas || '[]'),
       sortOrder: loc.sortOrder,
+      searchChance: loc.searchChance,
+      docChance: loc.docChance,
+      searchMax: loc.searchMax,
       mapRow: loc.mapRow,
       mapCol: loc.mapCol,
       mapIcon: loc.mapIcon,
@@ -75,6 +78,9 @@ export async function POST(request: NextRequest) {
         lockedLocations: jsonStr(body.lockedLocations, '[]'),
         subAreas: jsonStr(body.subAreas, '[]'),
         sortOrder: body.sortOrder ?? 0,
+        searchChance: body.searchChance != null ? body.searchChance : null,
+        docChance: body.docChance != null ? body.docChance : null,
+        searchMax: body.searchMax != null ? body.searchMax : null,
         mapRow: body.mapRow ?? null,
         mapCol: body.mapCol ?? null,
         mapIcon: body.mapIcon ?? null,
@@ -116,6 +122,9 @@ export async function PUT(request: NextRequest) {
     if (updateFields.lockedLocations !== undefined) data.lockedLocations = jsonStr(updateFields.lockedLocations, '[]');
     if (updateFields.subAreas !== undefined) data.subAreas = jsonStr(updateFields.subAreas, '[]');
     if (updateFields.sortOrder !== undefined) data.sortOrder = updateFields.sortOrder;
+    if (updateFields.searchChance !== undefined) data.searchChance = updateFields.searchChance != null ? updateFields.searchChance : null;
+    if (updateFields.docChance !== undefined) data.docChance = updateFields.docChance != null ? updateFields.docChance : null;
+    if (updateFields.searchMax !== undefined) data.searchMax = updateFields.searchMax != null ? updateFields.searchMax : null;
     if (updateFields.mapRow !== undefined) data.mapRow = updateFields.mapRow;
     if (updateFields.mapCol !== undefined) data.mapCol = updateFields.mapCol;
     if (updateFields.mapIcon !== undefined) data.mapIcon = updateFields.mapIcon;

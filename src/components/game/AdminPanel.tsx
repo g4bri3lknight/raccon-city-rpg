@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Plus, Pencil, Trash2, Save, RotateCcw,
+  X, Plus, Minus, Pencil, Trash2, Save, RotateCcw,
   Package, Scroll, Zap, FileText, Volume2, ImageIcon, RefreshCw, Loader2, Search, Play, Pause, Eye,
-  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database, Monitor, Skull,
+  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database, Monitor, Skull, DoorOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
@@ -26,7 +26,7 @@ import type { Rarity } from '@/game/types';
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'avatars' | 'start-screen';
+type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'secret-rooms' | 'avatars' | 'start-screen';
 
 interface TabConfig {
   id: TabId;
@@ -51,6 +51,7 @@ const TABS: TabConfig[] = [
   { id: 'specials', label: 'Speciali', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità Speciale' },
   { id: 'enemies', label: 'Nemici', icon: <Skull className="w-4 h-4" />, endpoint: '/api/admin/enemies', entityLabel: 'Nemico' },
   { id: 'enemy-abilities', label: 'Abilità Nemici', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/enemy-abilities', entityLabel: 'Abilità Nemica' },
+  { id: 'secret-rooms', label: 'Stanze Segrete', icon: <DoorOpen className="w-4 h-4" />, endpoint: '/api/admin/secret-rooms', entityLabel: 'Stanza Segreta' },
   { id: 'avatars', label: 'Avatar', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Avatar', custom: true },
   { id: 'start-screen', label: 'Schermata Iniziale', icon: <Monitor className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true },
 ];
@@ -79,6 +80,7 @@ const SEED_BANNERS: Record<TabId, SeedBannerConfig | null> = {
   specials:     { icon: Zap,      label: 'Speciali',    description: 'Gestione <span className="text-white/50 font-medium">abilità speciali</span> — configura poteri offensivi, difensivi, di supporto e controllo per i personaggi', seedEndpoint: '/api/admin/seed-specials' },
   enemies:      { icon: Skull,    label: 'Nemici',      description: 'Gestione <span className="text-white/50 font-medium">nemici</span> — aggiungi, modifica o rimuovi creature e boss. Ogni nemico ha statistiche, abilità e tabelle loot.', seedEndpoint: '/api/admin/seed-enemies' },
   'enemy-abilities': { icon: Swords, label: 'Abilità Nemici', description: 'Gestione <span className="text-white/50 font-medium">abilità nemici</span> — configura attacchi, potenza, probabilità d\'uso ed effetti di status per i nemici', seedEndpoint: '/api/admin/seed-enemy-abilities' },
+  'secret-rooms': { icon: DoorOpen, label: 'Stanze Segrete', description: 'Gestione <span className="text-white/50 font-medium">stanze segrete</span> — aggiungi, modifica o rimuovi stanze nascoste scopribili durante l\'esplorazione', seedEndpoint: '/api/admin/seed-secret-rooms' },
   avatars:      null,
   'start-screen': null,
 };
@@ -96,6 +98,9 @@ const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: string }>>
     bag:         { it: 'Zaino' },
     collectible: { it: 'Collezionabile' },
     key:         { it: 'Chiave' },
+    armor:       { it: 'Armatura', hint: 'Equipaggiabile: DEF, HP, effetto speciale' },
+    accessory:   { it: 'Accessorio', hint: 'Equipaggiabile: ATK, DEF, HP, SPD, crit, effetto speciale' },
+    weapon_mod:  { it: 'Mod Arma', hint: 'Da installare nell\'arma: ATK, crit, status' },
   },
   rarity: {
     common:    { it: 'Comune' },
@@ -159,6 +164,11 @@ const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: string }>>
     all_allies:   { it: 'Tutti gli Alleati' },
     all_enemies:  { it: 'Tutti i Nemici' },
   },
+  discoveryMethod: {
+    search:     { it: 'Ricerca', hint: 'scopribile tramite il pulsante Cerca' },
+    document:   { it: 'Documento', hint: 'richiede un documento specifico' },
+    npc_hint:   { it: 'Suggerimento NPC', hint: 'richiede una quest NPC completata' },
+  },
   archetype: {
     tank:    { it: 'Tank' },
     healer:  { it: 'Medico' },
@@ -173,16 +183,28 @@ const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: string }>>
     control:   { it: 'Controllo' },
   },
   specialTargetType: {
-    self:       { it: 'Sé Stesso' },
-    enemy:      { it: 'Nemico' },
-    ally:       { it: 'Alleato' },
-    all_allies: { it: 'Tutti gli Alleati' },
+    self:        { it: 'Sé Stesso' },
+    enemy:       { it: 'Nemico Singolo' },
+    all_enemies: { it: 'Tutti i Nemici', hint: 'Colpisce tutti i nemici in combattimento' },
+    ally:        { it: 'Alleato' },
+    all_allies:  { it: 'Tutti gli Alleati' },
   },
   statusEffect: {
     poison:   { it: 'Avvelenamento' },
     bleeding: { it: 'Sanguinamento' },
     stunned:  { it: 'Stordimento' },
     adrenaline: { it: 'Adrenalina' },
+  },
+  modType: {
+    melee:  { it: 'Corpo a Corpo', hint: 'Solo per armi melee' },
+    ranged: { it: 'A Distanza', hint: 'Solo per armi a distanza' },
+    any:    { it: 'Universale', hint: 'Compatibile con tutti i tipi di arma' },
+  },
+  mapDangerLevel: {
+    basso:    { it: 'Basso', hint: 'poche minacce, area sicura' },
+    medio:    { it: 'Medio', hint: 'minacce moderate, attenzione' },
+    alto:     { it: 'Alto', hint: 'pericoloso, preparati al combattimento' },
+    critico:  { it: 'Critico', hint: 'molto pericoloso, rischio morte' },
   },
 };
 
@@ -202,7 +224,7 @@ function getEnumHint(enumGroup: string, value: string): string | undefined {
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
@@ -220,7 +242,7 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: pistol' },
     { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Pistola M1911' },
     { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione oggetto', colSpan: 3 },
-    { key: 'type', label: 'Tipo', type: 'select', options: ['weapon', 'healing', 'ammo', 'utility', 'antidote', 'bag', 'collectible', 'key'], enumGroup: 'itemType' },
+    { key: 'type', label: 'Tipo', type: 'select', options: ['weapon', 'healing', 'ammo', 'utility', 'antidote', 'bag', 'collectible', 'key', 'armor', 'accessory', 'weapon_mod'], enumGroup: 'itemType' },
     { key: 'rarity', label: 'Rarità', type: 'select', options: ['common', 'uncommon', 'rare', 'legendary'], enumGroup: 'rarity' },
     { key: 'icon', label: 'Icona', type: 'text', placeholder: 'es: 🔫' },
     { key: 'usable', label: 'Usabile', type: 'boolean', defaultValue: false },
@@ -228,27 +250,38 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'stackable', label: 'Impilabile', type: 'boolean', defaultValue: true },
     { key: 'unico', label: 'Unico', type: 'boolean', defaultValue: false },
     { key: 'maxStack', label: 'Stack Max', type: 'number', defaultValue: 99 },
+    // Weapon fields
     { key: 'weaponType', label: 'Tipo Arma', type: 'select', options: ['melee', 'ranged'], enumGroup: 'weaponType' },
-    { key: 'atkBonus', label: 'Bonus ATK', type: 'number' },
+    { key: 'atkBonus', label: 'Bonus ATK', type: 'number', helpText: 'Arma, Accessorio, Weapon Mod' },
     { key: 'ammoType', label: 'Tipo Munizione', type: 'text', placeholder: 'es: ammo_pistol' },
+    // Effect fields (usable items)
     { key: 'effectType', label: 'Tipo Effetto', type: 'select', options: ['heal', 'heal_full', 'cure', 'damage_boost', 'defense_boost', 'add_ammo', 'add_slots', 'kill_all'], enumGroup: 'effectType' },
     { key: 'effectValue', label: 'Valore Effetto', type: 'number' },
     { key: 'effectTarget', label: 'Bersaglio Effetto', type: 'select', options: ['self', 'one_ally', 'all_allies', 'all_enemies'], enumGroup: 'effectTarget' },
     { key: 'effectStatusCured', label: 'Status Curati (JSON)', type: 'text', placeholder: '["poison","bleeding"]', colSpan: 3 },
     { key: 'addSlots', label: 'Slot Aggiunti', type: 'number' },
+    // Equipment fields (armor/accessory/weapon_mod)
+    { key: 'defBonus', label: 'Bonus DEF', type: 'number', helpText: 'Armatura, Accessorio' },
+    { key: 'hpBonus', label: 'Bonus HP', type: 'number', helpText: 'Armatura, Accessorio' },
+    { key: 'spdBonus', label: 'Bonus SPD', type: 'number', helpText: 'Accessorio' },
+    { key: 'critBonus', label: 'Bonus Crit %', type: 'number', helpText: 'Accessorio, Weapon Mod: % probabilità critico extra' },
+    { key: 'dodgeBonus', label: 'Bonus Dodge %', type: 'number', helpText: 'Weapon Mod: % riduzione dodge nemico' },
+    { key: 'statusBonus', label: 'Bonus Status %', type: 'number', helpText: 'Weapon Mod: % probabilità status extra' },
+    { key: 'modType', label: 'Compatibilità Mod', type: 'select', options: ['melee', 'ranged', 'any'], enumGroup: 'modType', helpText: 'Weapon Mod: tipo arma compatibile' },
+    { key: 'specialEffect', label: 'Effetto Speciale', type: 'text', placeholder: '{"type":"poison_resist","value":50}', helpText: 'JSON con tipo e valore. Tipi: poison_resist, bleed_resist, stun_resist, hp_regen, thorns, crit_shield', colSpan: 3 },
   ],
   quests: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: quest_marco_firstaid' },
-    { key: 'npcId', label: 'NPC ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/items', entitySearchLabelKey: 'name', placeholder: 'es: npc_marco', required: true, colSpan: 2 },
+    { key: 'npcId', label: 'NPC ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/npcs', entitySearchLabelKey: 'name', placeholder: 'es: npc_marco', required: true, colSpan: 2 },
     { key: 'name', label: 'Nome', type: 'text', required: true },
     { key: 'description', label: 'Descrizione', type: 'textarea', colSpan: 3 },
     { key: 'type', label: 'Tipo', type: 'select', options: ['fetch', 'kill', 'explore'], enumGroup: 'questType' },
     { key: 'targetId', label: 'Target ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/items', entitySearchLabelKey: 'name', placeholder: 'es: first_aid', required: true, colSpan: 2 },
     { key: 'targetCount', label: 'Target Count', type: 'number', defaultValue: 1 },
-    { key: 'rewardItems', label: 'Ricompense (JSON)', type: 'textarea', placeholder: '[{"itemId":"ammo_pistol","quantity":6}]', colSpan: 3 },
+    { key: 'rewardItems', label: 'Ricompense', type: 'quest-rewards', colSpan: 3 },
     { key: 'rewardExp', label: 'EXP Ricompensa', type: 'number', defaultValue: 0 },
-    { key: 'rewardDialogue', label: 'Dialogo Ricompensa (JSON)', type: 'textarea', placeholder: '["Grazie!"]', colSpan: 3 },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+    { key: 'rewardDialogue', label: 'Dialogo Ricompensa', type: 'text-list', colSpan: 3 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista missioni (non usato dal motore di gioco)' },
     { key: 'prerequisiteQuestId', label: 'Prerequisito Quest ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/quests', entitySearchLabelKey: 'name', placeholder: 'es: quest_prev', colSpan: 2 },
   ],
   events: [
@@ -264,21 +297,21 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'damagePerTurn', label: 'Danni/Turno', type: 'number', defaultValue: 0 },
     { key: 'triggerChance', label: 'Prob. Trigger', type: 'number', defaultValue: 5 },
     { key: 'minTurn', label: 'Turno Minimo', type: 'number', defaultValue: 5 },
-    { key: 'locationIds', label: 'Location IDs (JSON)', type: 'textarea', placeholder: '["city_outskirts","rpd_station"]', colSpan: 3 },
+    { key: 'locationIds', label: 'Location IDs', type: 'entity-tag-editor', entitySearchEndpoint: '/api/admin/locations', entitySearchLabelKey: 'name', placeholder: 'Cerca e seleziona location...', colSpan: 3 },
     { key: 'onTriggerMessage', label: 'Msg Trigger', type: 'textarea', colSpan: 3 },
     { key: 'onEndMessage', label: 'Msg Fine', type: 'textarea', colSpan: 3 },
-    { key: 'choices', label: 'Scelte (JSON)', type: 'textarea', placeholder: '[{"text":"Scelta","outcome":{"description":"...","endEvent":true,"hpChange":0}}]', colSpan: 3 },
+    { key: 'choices', label: 'Scelte', type: 'event-choices', colSpan: 3 },
   ],
   documents: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: doc_survivor_note' },
     { key: 'title', label: 'Titolo', type: 'text', required: true },
-    { key: 'content', label: 'Contenuto', type: 'textarea', required: true, colSpan: 3 },
+    { key: 'content', label: 'Contenuto', type: 'rich-text-editor', required: true, colSpan: 3 },
     { key: 'type', label: 'Tipo', type: 'select', options: ['diary', 'umbrella_file', 'note', 'photo', 'report', 'email'], enumGroup: 'documentType' },
-    { key: 'locationId', label: 'Location ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/events', entitySearchLabelKey: 'title', required: true, colSpan: 2 },
+    { key: 'locationId', label: 'Location ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/locations', entitySearchLabelKey: 'name', placeholder: 'es: city_outskirts', required: true, colSpan: 2 },
     { key: 'icon', label: 'Icona', type: 'text', placeholder: 'es: 📝' },
     { key: 'rarity', label: 'Rarità', type: 'select', options: ['common', 'uncommon', 'rare', 'legendary'], enumGroup: 'rarity', defaultValue: 'common' },
     { key: 'isSecret', label: 'Segreto', type: 'boolean', defaultValue: false },
-    { key: 'hintRequired', label: 'Hint Richiesto (Doc ID)', type: 'text' },
+    { key: 'hintRequired', label: 'Hint Richiesto', type: 'entity-search', entitySearchEndpoint: '/api/admin/documents', entitySearchLabelKey: 'title', placeholder: 'es: doc_chief_diary', helpText: 'Il giocatore deve aver trovato questo documento prima di poter trovare quello corrente', colSpan: 2 },
   ],
   sounds: [],
   images: [],
@@ -291,10 +324,10 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'greeting', label: 'Saluto', type: 'textarea', placeholder: 'Primo messaggio quando il giocatore incontra l\'NPC...', colSpan: 3 },
     { key: 'dialogues', label: 'Dialoghi', type: 'text-list', colSpan: 3 },
     { key: 'farewell', label: 'Saluto Finale', type: 'textarea', placeholder: 'Messaggio quando il giocatore chiude la conversazione...', colSpan: 3 },
-    { key: 'questId', label: 'Quest ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/quests', entitySearchLabelKey: 'name', placeholder: 'es: quest_marco_firstaid', colSpan: 2 },
-    { key: 'tradeInventory', label: 'Inventario Scambi', type: 'textarea', placeholder: '[{"itemId":"ammo_pistol","priceItemId":"bandage","priceQuantity":3}]', colSpan: 3 },
+    { key: 'questId', label: 'Quest ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/quests', entitySearchLabelKey: 'name', placeholder: 'es: quest_marco_firstaid', helpText: 'La missione che questo NPC assegna al giocatore', colSpan: 2 },
+    { key: 'tradeInventory', label: 'Inventario Scambi', type: 'trade-inventory', colSpan: 3 },
     { key: 'questCompletedDialogue', label: 'Dialogo Post-Quest', type: 'text-list', colSpan: 3 },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella mappa e nella lista NPC (non usato dal motore di gioco)' },
   ],
   characters: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: tank, healer, dps, control' },
@@ -306,21 +339,20 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'atk', label: 'ATK', type: 'number', defaultValue: 10 },
     { key: 'def', label: 'DEF', type: 'number', defaultValue: 10 },
     { key: 'spd', label: 'SPD', type: 'number', defaultValue: 10 },
-    { key: 'specialName', label: 'Nome Speciale 1', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Barricata', colSpan: 2 },
-    { key: 'specialDescription', label: 'Desc. Speciale 1', type: 'textarea', placeholder: 'Descrizione abilità speciale...', colSpan: 3 },
-    { key: 'specialCost', label: 'Costo Speciale 1', type: 'number', defaultValue: 15 },
-    { key: 'special2Name', label: 'Nome Speciale 2', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Immolazione', colSpan: 2 },
-    { key: 'special2Description', label: 'Desc. Speciale 2', type: 'textarea', placeholder: 'Descrizione abilità speciale 2...', colSpan: 3 },
-    { key: 'special2Cost', label: 'Costo Speciale 2', type: 'number', defaultValue: 15 },
+    { key: 'specialName', label: 'Abilità Speciale 1', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Barricata', colSpan: 2 },
+    { key: 'special2Name', label: 'Abilità Speciale 2', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Immolazione', colSpan: 2 },
     { key: 'passiveDescription', label: 'Passiva', type: 'textarea', placeholder: 'Descrizione abilità passiva...', colSpan: 3 },
     { key: 'portraitEmoji', label: 'Emoji Ritratto', type: 'text', placeholder: 'es: 🛡️' },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella schermata selezione personaggi (non usato dal motore di gioco)' },
   ],
   locations: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: city_outskirts' },
     { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Periferia della Città' },
     { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione della location', colSpan: 3 },
-    { key: 'encounterRate', label: 'Prob. Incontri %', type: 'number', defaultValue: 0 },
+    { key: 'encounterRate', label: 'Prob. Incontri %', type: 'number', defaultValue: 0, helpText: 'Probabilità (0-100) di incontro nemico per azione' },
+    { key: 'searchChance', label: 'Prob. Ricerca %', type: 'number', placeholder: '60 (default)', helpText: 'Probabilità base (0-100) di trovare qualcosa. Default: 60% se vuoto.' },
+    { key: 'docChance', label: 'Prob. Documento %', type: 'number', placeholder: '35 (default)', helpText: 'Probabilità (0-100) di trovare un documento quando la ricerca ha successo. Default: 35% se vuoto. Documento e oggetti sono mutualmente esclusivi.' },
+    { key: 'searchMax', label: 'Max Ricerche', type: 'number', placeholder: 'Random 1-3', helpText: 'Max ricerche per location. Vuoto = random 1-3, 0 = illimitate, N = max N ricerche.' },
     { key: 'isBossArea', label: 'Area Boss', type: 'boolean', defaultValue: false },
     { key: 'bossId', label: 'Boss', type: 'entity-search', entitySearchEndpoint: '/api/admin/enemies', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: nemesis, tyrant', colSpan: 2 },
     { key: 'enemyPool', label: 'Pool Nemici', type: 'entity-tag-editor', entitySearchEndpoint: '/api/admin/enemies', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'Cerca e seleziona nemici...', colSpan: 3 },
@@ -330,11 +362,11 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'ambientText', label: 'Testi Ambientali', type: 'text-list', colSpan: 3 },
     { key: 'lockedLocations', label: 'Location Bloccate', type: 'locked-locs', colSpan: 3 },
     { key: 'subAreas', label: 'Sotto-Aree', type: 'sub-areas', colSpan: 3 },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
-    { key: 'mapRow', label: 'Mappa Riga', type: 'number', placeholder: '0-3' },
-    { key: 'mapCol', label: 'Mappa Colonna', type: 'number', placeholder: '0-3' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella mappa e nella lista location (non usato dal motore di gioco)' },
+    { key: 'mapRow', label: 'Mappa Riga', type: 'number', placeholder: '0-3', helpText: 'Posizione verticale della location sulla mappa di gioco (0 = in alto, 3 = in basso)' },
+    { key: 'mapCol', label: 'Mappa Colonna', type: 'number', placeholder: '0-3', helpText: 'Posizione orizzontale della location sulla mappa di gioco (0 = sinistra, 3 = destra)' },
     { key: 'mapIcon', label: 'Icona Mappa', type: 'text', placeholder: 'es: 🏙️' },
-    { key: 'mapDanger', label: 'Pericolo Mappa', type: 'text', placeholder: 'es: basso, medio, alto, critico' },
+    { key: 'mapDanger', label: 'Pericolo Mappa', type: 'select', options: ['basso', 'medio', 'alto', 'critico'], enumGroup: 'mapDangerLevel' },
   ],
   specials: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: colpo_mortale' },
@@ -342,13 +374,14 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'icon', label: 'Icona', type: 'text', placeholder: 'es: 💀', colSpan: 2 },
     { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione dell\'abilità...', colSpan: 3 },
     { key: 'category', label: 'Categoria', type: 'select', options: ['offensive', 'defensive', 'support', 'control'], enumGroup: 'specialCategory' },
-    { key: 'targetType', label: 'Bersaglio', type: 'select', options: ['self', 'enemy', 'ally', 'all_allies'], enumGroup: 'specialTargetType' },
-    { key: 'cooldown', label: 'Cooldown (turni)', type: 'number', defaultValue: 2 },
-    // executionType is auto-managed: always copies from id
-    { key: 'powerMultiplier', label: 'Moltiplicatore Potere', type: 'number', placeholder: 'es: 1.6 (solo offensive)' },
-    { key: 'healAmount', label: 'Quantità Cura', type: 'number', placeholder: 'es: 50 (solo healing/support)' },
+    { key: 'targetType', label: 'Bersaglio', type: 'select', options: ['self', 'enemy', 'all_enemies', 'ally', 'all_allies'], enumGroup: 'specialTargetType' },
+    { key: 'cooldown', label: 'Cooldown (turni)', type: 'number', defaultValue: 2, helpText: 'Turni di attesa prima di poter riutilizzare l\'abilità' },
+    { key: 'powerMultiplier', label: 'Moltiplicatore Potere', type: 'number', placeholder: 'es: 1.6 (solo offensive)', helpText: 'Moltiplica l\'ATK del personaggio per questo valore' },
+    { key: 'healAmount', label: 'Quantità Cura', type: 'number', placeholder: 'es: 50 (solo healing/support)', helpText: 'HP curati immediatamente (solo abilità di supporto/cura)' },
+    { key: 'duration', label: 'Durata (turni)', type: 'number', placeholder: 'es: 3', helpText: 'Quanti turni dura l\'effetto (DoT/HoT/buff/debuff)' },
+    { key: 'tickAmount', label: 'Danno/Cura per Turno', type: 'number', placeholder: 'es: 10', helpText: 'Danno o cura applicata ad ogni turno per effetti a durata' },
     { key: 'statusToApply', label: 'Status Applicato', type: 'status-apply', colSpan: 3 },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista abilità (non usato dal motore di gioco)' },
   ],
   enemies: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: zombie, zombie_dog' },
@@ -364,7 +397,7 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'abilities', label: 'Abilità', type: 'entity-tag-editor', entitySearchEndpoint: '/api/admin/enemy-abilities', entitySearchLabelKey: 'name', placeholder: 'Cerca e seleziona abilità nemiche...', colSpan: 3 },
     { key: 'isBoss', label: 'Boss', type: 'boolean', defaultValue: false },
     { key: 'variantGroup', label: 'Gruppo Variante', type: 'text', placeholder: 'es: zombie, licker, cerberus, hunter, tyrant, nemesis' },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista nemici. Valori più alti = nemici mostrati dopo (progressione)' },
   ],
   'enemy-abilities': [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: morso, artigliata, carica_brutale' },
@@ -375,7 +408,22 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'statusType', label: 'Status Effect', type: 'select', options: ['', 'poison', 'bleeding', 'stunned', 'adrenaline'], enumGroup: 'statusEffect', helpText: 'Effetto di status applicato dal colpo (vuoto = nessuno)' },
     { key: 'statusChance', label: 'Prob. Status %', type: 'number', defaultValue: 0, helpText: 'Probabilità di applicare lo status (0-100)' },
     { key: 'statusDuration', label: 'Durata Status', type: 'number', defaultValue: 0, helpText: 'Turni di durata dello status (0 = 3 turni default dal motore)' },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista abilità nemiche' },
+  ],
+  'secret-rooms': [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: secret_rpd_evidence_room' },
+    { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Stanza Prove Nascosta' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', colSpan: 3, placeholder: 'Descrizione narrativa della stanza segreta...' },
+    { key: 'locationId', label: 'Location', type: 'entity-search', entitySearchEndpoint: '/api/admin/locations', entitySearchLabelKey: 'name', placeholder: 'es: rpd_station', required: true, colSpan: 2 },
+    { key: 'discoveryMethod', label: 'Metodo Scoperta', type: 'select', options: ['search', 'document', 'npc_hint'], enumGroup: 'discoveryMethod' },
+    { key: 'searchChance', label: 'Prob. Scoperta %', type: 'number', defaultValue: 15, helpText: 'Probabilità (0-100) di scoprire la stanza. Usato per "search" e "npc_hint". Per "document" è 50% fisso se il documento è posseduto.' },
+    { key: 'requiredDocumentId', label: 'Documento Richiesto', type: 'entity-search', entitySearchEndpoint: '/api/admin/documents', entitySearchLabelKey: 'title', placeholder: 'es: doc_patient_record', helpText: 'Solo per metodo "document": documento necessario per scoprire la stanza', colSpan: 2 },
+    { key: 'requiredNpcQuestId', label: 'Quest NPC Richiesta', type: 'entity-search', entitySearchEndpoint: '/api/admin/quests', entitySearchLabelKey: 'name', placeholder: 'es: quest_hannah_sewers', helpText: 'Solo per metodo "npc_hint": quest ID (non NPC ID) necessaria', colSpan: 2 },
+    { key: 'hint', label: 'Suggerimento', type: 'textarea', placeholder: 'Testo del suggerimento mostrato al giocatore...', helpText: 'Mostrato come indizio nel log di gioco quando i requisiti sono quasi soddisfatti', colSpan: 3 },
+    { key: 'lootTable', label: 'Loot Garantito', type: 'item-pool', colSpan: 3, helpText: 'Oggetti garantiti (usa chance 100 per essere sicuro). Tiro individuale per ogni entry.' },
+    { key: 'uniqueItemId', label: 'Oggetto Unico', type: 'entity-search', entitySearchEndpoint: '/api/admin/items', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: lockpick, magnum, rocket_launcher', helpText: 'Oggetto unico garantito aggiunto al loot (opzionale)', colSpan: 2 },
+    { key: 'uniqueItemQuantity', label: 'Quantità Unico', type: 'number', defaultValue: 1, helpText: 'Quantità dell\'oggetto unico' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista stanze segrete' },
   ],
   'avatars': [],
   'start-screen': [],
@@ -617,6 +665,23 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
           {row.unico ? '★' : '—'}
         </span>
       ),
+    },
+    {
+      key: '_stats',
+      label: 'Stats',
+      width: 'w-48',
+      render: (row) => {
+        const type = String(row.type);
+        const parts: string[] = [];
+        if (row.atkBonus) parts.push(`⚔️${row.atkBonus}`);
+        if (row.defBonus) parts.push(`🛡️${row.defBonus}`);
+        if (row.hpBonus) parts.push(`❤️${row.hpBonus}`);
+        if (row.spdBonus) parts.push(`💨${row.spdBonus}`);
+        if (row.critBonus) parts.push(`💥${row.critBonus}%`);
+        if (row.effectValue) parts.push(`✨${row.effectValue}`);
+        if (parts.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
+        return <span className="text-[10px] text-white/50 flex flex-wrap gap-x-2">{parts.map(p => <span key={p}>{p}</span>)}</span>;
+      },
     },
   ],
   quests: [
@@ -1137,6 +1202,31 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       },
     },
   ],
+  'secret-rooms': [
+    { key: 'id', label: 'ID', width: 'w-52' },
+    { key: 'name', label: 'Nome', width: 'w-44' },
+    { key: 'locationId', label: 'Location', width: 'w-36' },
+    {
+      key: 'discoveryMethod',
+      label: 'Scoperta',
+      width: 'w-28',
+      render: (row) => {
+        const m = String(row.discoveryMethod ?? 'search');
+        const colors: Record<string, string> = {
+          search: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+          document: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
+          npc_hint: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+        };
+        return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${colors[m] ?? ''}`}>{getEnumLabel('discoveryMethod', m)}</Badge>;
+      },
+    },
+    {
+      key: 'searchChance',
+      label: 'Prob %',
+      width: 'w-18',
+      render: (row) => <span className="text-[10px] text-white/50 font-mono">{row.searchChance}%</span>,
+    },
+  ],
   'avatars': [],
   'start-screen': [],
 };
@@ -1356,7 +1446,7 @@ function EntityTagEditor({ value, onChange, endpoint, labelKey, iconKey, placeho
           <span className="text-[10px] text-white/20 italic">{placeholder ?? 'Cerca e seleziona...'}</span>
         )}
         {selected.map((entity, i) => (
-          <span key={entity.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-[10px] text-yellow-300 group/tag">
+          <span key={entity.id + '-' + i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-[10px] text-yellow-300 group/tag">
             {entity.icon && <span className="mr-0.5">{entity.icon}</span>}
             <span className="font-mono text-yellow-400/60">{entity.id}</span>
             <span className="text-white/50">{entity.label}</span>
@@ -1483,10 +1573,10 @@ function MiniEntitySearch({ value, onChange, endpoint, labelKey, iconKey }: {
           if (query.length > 0) handleInputChange(query);
         }}
         placeholder="Cerca..."
-        className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40"
+        className="w-full text-[10px] bg-gray-900 border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40"
       />
       {showDropdown && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-40 overflow-y-auto rounded-md border border-white/[0.12] bg-gray-900/98 shadow-xl admin-scrollbar">
+        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-40 overflow-y-auto rounded-md border border-white/[0.12] bg-gray-950 shadow-xl admin-scrollbar">
           {results.map(r => (
             <button
               key={r.id}
@@ -1615,7 +1705,7 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
           </thead>
           <tbody>
             {items.map((item, i) => (
-              <tr key={i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
                   <MiniEntitySearch
@@ -1717,7 +1807,560 @@ function TextListEditor({ value, onChange }: { value: unknown; onChange: (v: str
   );
 }
 
-/** Locked Locations Editor — table with locationId, requiredItemId, lockedMessage */
+/** Quest Rewards Editor — table with itemId + quantity for quest rewards */
+function QuestRewardsEditor({ value, onChange }: { value: unknown; onChange: (v: { itemId: string; quantity: number }[]) => void }) {
+  let rewards: { itemId: string; quantity: number }[] = [];
+  if (Array.isArray(value)) {
+    rewards = value.map((r: unknown) => {
+      if (typeof r === 'object' && r !== null) {
+        const o = r as Record<string, unknown>;
+        return { itemId: String(o.itemId ?? ''), quantity: Number(o.quantity ?? 1) };
+      }
+      return { itemId: String(r), quantity: 1 };
+    });
+  } else if (typeof value === 'string') {
+    try { rewards = JSON.parse(value) || []; } catch { rewards = []; }
+  }
+
+  const add = () => onChange([...rewards, { itemId: '', quantity: 1 }]);
+  const remove = (idx: number) => onChange(rewards.filter((_, i) => i !== idx));
+  const update = (idx: number, field: string, val: string | number) => {
+    onChange(rewards.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[10px]">
+          <thead className="sticky top-0 bg-gray-900/95">
+            <tr className="border-b border-white/[0.06]">
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Oggetto</th>
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-24">Quantità</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rewards.map((reward, i) => (
+              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+                <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
+                <td className="px-1 py-1">
+                  <MiniEntitySearch
+                    value={reward.itemId}
+                    onChange={v => update(i, 'itemId', v)}
+                    endpoint="/api/admin/items"
+                    labelKey="name"
+                    iconKey="icon"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <input
+                    type="number"
+                    value={reward.quantity}
+                    onChange={e => update(i, 'quantity', Number(e.target.value))}
+                    min={1}
+                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <button type="button" onClick={() => remove(i)} className="text-white/15 hover:text-red-400 transition-colors">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {rewards.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-2 py-4 text-center text-white/15 italic">
+                  Nessuna ricompensa — clicca + per aggiungere
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+      >
+        <Plus className="w-3 h-3" /> Aggiungi ricompensa
+      </button>
+    </div>
+  );
+}
+
+/** Event Choices Editor — table with text + outcome fields for event choices */
+function EventChoicesEditor({ value, onChange }: {
+  value: unknown;
+  onChange: (v: { text: string; outcome: { description: string; endEvent: boolean; hpChange: number; receiveItems?: { itemId: string; quantity: number }[] } }[]) => void;
+}) {
+  interface EventChoice {
+    text: string;
+    outcome: {
+      description: string;
+      endEvent: boolean;
+      hpChange: number;
+      receiveItems?: { itemId: string; quantity: number }[];
+    };
+  }
+
+  let choices: EventChoice[] = [];
+  if (Array.isArray(value)) {
+    choices = value.map((r: unknown) => {
+      if (typeof r === 'object' && r !== null) {
+        const o = r as Record<string, unknown>;
+        const outcome = typeof o.outcome === 'object' && o.outcome !== null
+          ? o.outcome as Record<string, unknown>
+          : {};
+        return {
+          text: String(o.text ?? ''),
+          outcome: {
+            description: String(outcome.description ?? ''),
+            endEvent: Boolean(outcome.endEvent),
+            hpChange: Number(outcome.hpChange ?? 0),
+            ...(Array.isArray(outcome.receiveItems) ? { receiveItems: outcome.receiveItems as { itemId: string; quantity: number }[] } : {}),
+          },
+        };
+      }
+      return { text: String(r), outcome: { description: '', endEvent: false, hpChange: 0 } };
+    });
+  } else if (typeof value === 'string') {
+    try { choices = JSON.parse(value) || []; } catch { choices = []; }
+  }
+
+  const add = () => onChange([...choices, { text: '', outcome: { description: '', endEvent: false, hpChange: 0, receiveItems: [] } }]);
+  const remove = (idx: number) => onChange(choices.filter((_, i) => i !== idx));
+  const updateText = (idx: number, val: string) => {
+    const updated = choices.map((c, i) => i === idx ? { ...c, text: val } : c);
+    onChange(updated);
+  };
+  const updateOutcome = (idx: number, field: string, val: unknown) => {
+    const updated = choices.map((c, i) =>
+      i === idx ? { ...c, outcome: { ...c.outcome, [field]: val } } : c
+    );
+    onChange(updated);
+  };
+  const updateRewardItem = (choiceIdx: number, itemIdx: number, field: 'itemId' | 'quantity', val: string | number) => {
+    const items = [...(choices[choiceIdx].outcome.receiveItems || [])];
+    if (field === 'itemId') {
+      items[itemIdx] = { ...items[itemIdx], itemId: val as string };
+    } else {
+      items[itemIdx] = { ...items[itemIdx], quantity: Math.max(1, val as number) };
+    }
+    updateOutcome(choiceIdx, 'receiveItems', items);
+  };
+  const addRewardItem = (choiceIdx: number) => {
+    const items = [...(choices[choiceIdx].outcome.receiveItems || []), { itemId: '', quantity: 1 }];
+    updateOutcome(choiceIdx, 'receiveItems', items);
+  };
+  const removeRewardItem = (choiceIdx: number, itemIdx: number) => {
+    const items = (choices[choiceIdx].outcome.receiveItems || []).filter((_, i) => i !== itemIdx);
+    updateOutcome(choiceIdx, 'receiveItems', items.length > 0 ? items : []);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="space-y-2 max-h-72 overflow-y-auto admin-scrollbar">
+        {choices.map((choice, i) => (
+          <div key={i} className="rounded-md border border-white/[0.08] overflow-hidden">
+            {/* Choice header */}
+            <div className="flex items-center gap-2 bg-white/[0.03] px-2 py-1.5 border-b border-white/[0.06]">
+              <span className="shrink-0 text-[9px] text-white/25 font-mono w-4">{i + 1}.</span>
+              <input
+                type="text"
+                value={choice.text}
+                onChange={e => updateText(i, e.target.value)}
+                placeholder="Testo della scelta (es: 'Esplorare l'edificio')..."
+                className="flex-1 text-[11px] bg-transparent border-none outline-none text-yellow-300/80 placeholder-white/15 font-medium"
+              />
+              <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {/* Outcome fields */}
+            <div className="p-2 space-y-1.5">
+              <div>
+                <label className="text-[9px] text-white/30 mb-0.5 block">Descrizione Risultato</label>
+                <textarea
+                  value={choice.outcome.description}
+                  onChange={e => updateOutcome(i, 'description', e.target.value)}
+                  placeholder="Cosa succede quando il giocatore fa questa scelta..."
+                  rows={2}
+                  className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 resize-y focus:outline-none focus:border-yellow-500/40"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[9px] text-white/30 mb-0.5 block">Cambio HP</label>
+                  <input
+                    type="number"
+                    value={choice.outcome.hpChange}
+                    onChange={e => updateOutcome(i, 'hpChange', Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40"
+                  />
+                </div>
+                <div className="flex items-end pb-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={choice.outcome.endEvent}
+                      onChange={e => updateOutcome(i, 'endEvent', e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/[0.04] border-white/[0.2] text-yellow-500 focus:ring-yellow-500/50 accent-yellow-500"
+                    />
+                    <span className="text-[10px] text-white/50">Termina Evento</span>
+                  </label>
+                </div>
+              </div>
+              {/* Receive Items sub-section */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[9px] text-white/30">Oggetti Ricevuti (Ricompensa)</label>
+                  <button
+                    type="button"
+                    onClick={() => addRewardItem(i)}
+                    className="text-[9px] text-emerald-400/60 hover:text-emerald-400 flex items-center gap-0.5 transition-colors"
+                  >
+                    <Plus className="w-2.5 h-2.5" /> Agg.
+                  </button>
+                </div>
+                {(choice.outcome.receiveItems || []).length > 0 && (
+                  <div className="space-y-1">
+                    {(choice.outcome.receiveItems || []).map((item, ri) => (
+                      <div key={ri} className="flex items-center gap-1 bg-white/[0.02] rounded px-1.5 py-1 border border-white/[0.04]">
+                        <input
+                          type="text"
+                          value={item.itemId}
+                          onChange={e => updateRewardItem(i, ri, 'itemId', e.target.value)}
+                          placeholder="itemId (es: ammo_pistol)"
+                          className="flex-1 text-[9px] bg-transparent border-none outline-none text-emerald-300/80 placeholder-white/10 font-mono min-w-0"
+                        />
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={e => updateRewardItem(i, ri, 'quantity', Number(e.target.value))}
+                          min={1}
+                          className="w-10 text-[9px] bg-white/[0.04] border border-white/[0.06] rounded px-1 py-0.5 text-white/60 text-center font-mono focus:outline-none focus:border-emerald-500/40"
+                        />
+                        <button type="button" onClick={() => removeRewardItem(i, ri)} className="text-white/15 hover:text-red-400 transition-colors shrink-0">
+                          <Minus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(choice.outcome.receiveItems || []).length === 0 && (
+                  <p className="text-[9px] text-white/10 italic">Nessun oggetto</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        {choices.length === 0 && (
+          <p className="text-[10px] text-white/15 italic text-center py-3">Nessuna scelta — clicca + per aggiungere</p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+      >
+        <Plus className="w-3 h-3" /> Aggiungi scelta
+      </button>
+    </div>
+  );
+}
+
+/** Rich Text Editor — contentEditable-based editor with formatting toolbar */
+function RichTextEditor({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const isInternalChange = useRef(false);
+
+  // Sync external value changes (e.g. loading edit data) via ref, not state
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (value !== prevValueRef.current && editorRef.current && !isInternalChange.current) {
+      editorRef.current.innerHTML = value;
+    }
+    prevValueRef.current = value;
+  }, [value]);
+
+  const execCmd = (cmd: string, val?: string) => {
+    document.execCommand(cmd, false, val);
+    editorRef.current?.focus();
+    syncContent();
+  };
+
+  const syncContent = () => {
+    if (editorRef.current) {
+      isInternalChange.current = true;
+      const newHtml = editorRef.current.innerHTML;
+      onChange(newHtml);
+      // Reset flag after a tick so the effect doesn't overwrite
+      setTimeout(() => { isInternalChange.current = false; }, 0);
+    }
+  };
+
+  const handleColor = (color: string) => {
+    execCmd('foreColor', color);
+  };
+
+  const handleHighlight = (color: string) => {
+    execCmd('hiliteColor', color);
+  };
+
+  const clearFormatting = () => {
+    execCmd('removeFormat');
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-0.5 p-1.5 rounded-t-md bg-white/[0.06] border border-white/[0.08] border-b-0">
+        <ToolbarBtn onClick={() => execCmd('bold')} title="Grassetto"><b className="text-[11px]">B</b></ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('italic')} title="Corsivo"><i className="text-[11px]">I</i></ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('underline')} title="Sottolineato"><u className="text-[11px]">S</u></ToolbarBtn>
+        <div className="w-px h-4 bg-white/[0.1] mx-1" />
+        <ToolbarBtn onClick={() => execCmd('formatBlock', '<h3>')} title="Titolo 3" className="font-bold text-[10px]">H3</ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('formatBlock', '<p>')} title="Paragrafo" className="text-[10px]">¶</ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('insertUnorderedList')} title="Lista" className="text-[10px]">•≡</ToolbarBtn>
+        <div className="w-px h-4 bg-white/[0.1] mx-1" />
+        {/* Color picker */}
+        <div className="relative group/color">
+          <ToolbarBtn title="Colore testo">
+            <span className="text-[11px]">A</span>
+            <span className="w-2.5 h-2.5 rounded-sm bg-yellow-500 block" />
+          </ToolbarBtn>
+          <div className="absolute top-full left-0 mt-1 p-1.5 rounded-md bg-gray-900 border border-white/[0.12] shadow-xl hidden group-hover/color:flex flex-wrap gap-1 z-50">
+            {['#22c55e', '#ef4444', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#ffffff', '#94a3b8'].map(c => (
+              <button key={c} type="button" onMouseDown={e => { e.preventDefault(); handleColor(c); }}
+                className="w-5 h-5 rounded-sm border border-white/20 hover:scale-110 transition-transform"
+                style={{ backgroundColor: c }}
+                title={c}
+              />
+            ))}
+          </div>
+        </div>
+        {/* Highlight picker */}
+        <div className="relative group/highlight">
+          <ToolbarBtn title="Evidenzia">
+            <span className="text-[11px]">🖌</span>
+          </ToolbarBtn>
+          <div className="absolute top-full left-0 mt-1 p-1.5 rounded-md bg-gray-900 border border-white/[0.12] shadow-xl hidden group-hover/highlight:flex flex-wrap gap-1 z-50">
+            {[
+              { c: 'rgba(34,197,94,0.3)', l: 'Verde' },
+              { c: 'rgba(251,191,36,0.3)', l: 'Giallo' },
+              { c: 'rgba(239,68,68,0.3)', l: 'Rosso' },
+              { c: 'rgba(59,130,246,0.3)', l: 'Blu' },
+              { c: 'rgba(168,85,247,0.3)', l: 'Viola' },
+              { c: 'transparent', l: 'Rimuovi' },
+            ].map(h => (
+              <button key={h.l} type="button" onMouseDown={e => { e.preventDefault(); handleHighlight(h.c); }}
+                className="px-1.5 py-0.5 text-[9px] rounded border border-white/10 hover:bg-white/10 transition-colors"
+                style={h.c !== 'transparent' ? { backgroundColor: h.c } : {}}
+                title={h.l}
+              >
+                {h.l}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="w-px h-4 bg-white/[0.1] mx-1" />
+        <ToolbarBtn onClick={clearFormatting} title="Rimuovi formattazione" className="text-[10px]">✕</ToolbarBtn>
+      </div>
+      {/* Editor area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={syncContent}
+        onPaste={e => {
+          // Allow paste but strip external styles, keep basic formatting
+          e.preventDefault();
+          const text = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
+          document.execCommand('insertHTML', false, text);
+          syncContent();
+        }}
+        data-placeholder={placeholder ?? 'Scrivi il contenuto del documento...'}
+        className="min-h-[120px] max-h-[240px] overflow-y-auto admin-scrollbar text-[11px] bg-white/[0.04] border border-white/[0.1] rounded-b-md px-3 py-2.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 prose prose-invert prose-sm prose-p:text-white/80 prose-h3:text-yellow-300/80 prose-strong:text-white/90 prose-em:text-white/70 prose-li:text-white/70 [&_*]:text-[11px] [&_h3]:text-[13px] [&_li]:text-[10px]"
+        style={{ lineHeight: '1.7' }}
+      />
+      <style>{`
+        [contenteditable][data-placeholder]:empty::before {
+          content: attr(data-placeholder);
+          color: rgba(255,255,255,0.2);
+          pointer-events: none;
+          font-style: italic;
+        }
+        [contenteditable][data-placeholder]:focus::before {
+          content: none;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/** Toolbar Button for RichTextEditor */
+function ToolbarBtn({ children, onClick, title, className }: { children: React.ReactNode; onClick?: () => void; title?: string; className?: string }) {
+  return (
+    <button
+      type="button"
+      onMouseDown={e => { e.preventDefault(); onClick?.(); }}
+      title={title}
+      className={`flex items-center gap-0.5 px-1.5 py-1 rounded text-white/50 hover:text-white/80 hover:bg-white/[0.08] transition-colors text-center ${className ?? ''}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Trade Inventory Editor — table with itemId, priceItemId, priceQuantity for NPC trades */
+function TradeInventoryEditor({ value, onChange }: { value: unknown; onChange: (v: { itemId: string; priceItemId: string; priceQuantity: number }[]) => void }) {
+  let trades: { itemId: string; priceItemId: string; priceQuantity: number }[] = [];
+  if (Array.isArray(value)) {
+    trades = value.map((r: unknown) => {
+      if (typeof r === 'object' && r !== null) {
+        const o = r as Record<string, unknown>;
+        return { itemId: String(o.itemId ?? ''), priceItemId: String(o.priceItemId ?? ''), priceQuantity: Number(o.priceQuantity ?? 1) };
+      }
+      return { itemId: String(r), priceItemId: '', priceQuantity: 1 };
+    });
+  } else if (typeof value === 'string') {
+    try { trades = JSON.parse(value) || []; } catch { trades = []; }
+  }
+
+  const add = () => onChange([...trades, { itemId: '', priceItemId: '', priceQuantity: 1 }]);
+  const remove = (idx: number) => onChange(trades.filter((_, i) => i !== idx));
+  const update = (idx: number, field: string, val: string | number) => {
+    onChange(trades.map((t, i) => i === idx ? { ...t, [field]: val } : t));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[10px]">
+          <thead className="sticky top-0 bg-gray-900/95">
+            <tr className="border-b border-white/[0.06]">
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Oggetto in Vendita</th>
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Prezzo (Oggetto)</th>
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-20">Quantità</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((trade, i) => (
+              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+                <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
+                <td className="px-1 py-1">
+                  <MiniEntitySearch
+                    value={trade.itemId}
+                    onChange={v => update(i, 'itemId', v)}
+                    endpoint="/api/admin/items"
+                    labelKey="name"
+                    iconKey="icon"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <MiniEntitySearch
+                    value={trade.priceItemId}
+                    onChange={v => update(i, 'priceItemId', v)}
+                    endpoint="/api/admin/items"
+                    labelKey="name"
+                    iconKey="icon"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <input
+                    type="number"
+                    value={trade.priceQuantity}
+                    onChange={e => update(i, 'priceQuantity', Number(e.target.value))}
+                    min={1}
+                    className="w-full text-[10px] bg-gray-900 border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <button type="button" onClick={() => remove(i)} className="text-white/15 hover:text-red-400 transition-colors">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {trades.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-2 py-4 text-center text-white/15 italic">
+                  Nessuno scambio — clicca + per aggiungere
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+      >
+        <Plus className="w-3 h-3" /> Aggiungi scambio
+      </button>
+    </div>
+  );
+}
+
+/** Sequence Pattern Editor — visual direction buttons for puzzle sequence */
+function SequencePatternEditor({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const directions = ['up', 'down', 'left', 'right'];
+  const dirIcons: Record<string, string> = { up: '▲', down: '▼', left: '◀', right: '▶' };
+  const dirColors: Record<string, string> = { up: 'border-purple-500/30 bg-purple-500/10 text-purple-300', down: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300', left: 'border-amber-500/30 bg-amber-500/10 text-amber-300', right: 'border-green-500/30 bg-green-500/10 text-green-300' };
+  const pattern = Array.isArray(value) ? value : [];
+
+  const add = (dir: string) => onChange([...pattern, dir]);
+  const remove = (idx: number) => onChange(pattern.filter((_, i) => i !== idx));
+  const clear = () => onChange([]);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-1 mb-1">
+        {directions.map(dir => (
+          <button
+            key={dir}
+            type="button"
+            onClick={() => add(dir)}
+            className={`flex items-center gap-1 px-2 py-1 rounded border ${dirColors[dir]} hover:opacity-80 transition-opacity text-[10px]`}
+          >
+            <span className="text-xs">{dirIcons[dir]}</span>
+            <span className="uppercase">{dir}</span>
+          </button>
+        ))}
+        {pattern.length > 0 && (
+          <button type="button" onClick={clear} className="text-[9px] text-red-400/50 hover:text-red-400 transition-colors ml-1">
+            <Trash2 className="w-3 h-3 inline mr-0.5" />Cancella
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1 min-h-[28px]">
+        {pattern.map((dir, i) => (
+          <span
+            key={i}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${dirColors[dir] ?? 'border-white/10 bg-white/[0.04] text-white/60'} text-[10px] group/seq`}
+          >
+            <span className="text-[8px] text-white/25 font-mono">{i + 1}</span>
+            <span className="text-xs">{dirIcons[dir] ?? '·'}</span>
+            <button type="button" onClick={() => remove(i)} className="text-white/20 hover:text-red-400 transition-colors">
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </span>
+        ))}
+        {pattern.length === 0 && (
+          <span className="text-[9px] text-white/15 italic py-0.5">Clicca le frecce per creare la sequenza...</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Locked Locations Editor — table with locationId (entity search), requiredItemId (entity search), lockedMessage */
 function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: { locationId: string; requiredItemId: string; lockedMessage: string }[]) => void }) {
   let locs: { locationId: string; requiredItemId: string; lockedMessage: string }[] = [];
   if (Array.isArray(value)) {
@@ -1753,13 +2396,13 @@ function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: {
           </thead>
           <tbody>
             {locs.map((loc, i) => (
-              <tr key={i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
-                  <input type="text" value={loc.locationId} onChange={e => update(i, 'locationId', e.target.value)} placeholder="lab" className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40" />
+                  <MiniEntitySearch value={loc.locationId} onChange={v => update(i, 'locationId', v)} endpoint="/api/admin/locations" labelKey="name" />
                 </td>
                 <td className="px-1 py-1">
-                  <input type="text" value={loc.requiredItemId} onChange={e => update(i, 'requiredItemId', e.target.value)} placeholder="key_lab" className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40" />
+                  <MiniEntitySearch value={loc.requiredItemId} onChange={v => update(i, 'requiredItemId', v)} endpoint="/api/admin/items" labelKey="name" iconKey="icon" />
                 </td>
                 <td className="px-1 py-1">
                   <input type="text" value={loc.lockedMessage} onChange={e => update(i, 'lockedMessage', e.target.value)} placeholder="La porta è chiusa a chiave..." className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
@@ -1820,7 +2463,7 @@ function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { i
           </thead>
           <tbody>
             {areas.map((area, i) => (
-              <tr key={i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
                   <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40" />
@@ -2210,13 +2853,15 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                         <span className="text-[8px] text-white/30">Combattimento</span>
                       </label>
                       {choice.outcome?.triggerCombat && (
-                        <input
-                          type="text"
-                          value={(choice.outcome?.combatEnemyIds ?? []).join(', ')}
-                          onChange={e => updateChoice(ci, 'outcome.combatEnemyIds', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                          placeholder="nemico1, nemico2"
-                          className="flex-1 text-[9px] bg-white/[0.04] border border-white/[0.06] rounded px-1.5 py-0.5 text-white/50 placeholder-white/10 font-mono focus:outline-none focus:border-yellow-500/30"
-                        />
+                        <div className="flex-1">
+                          <MiniEntitySearch
+                            value={(choice.outcome?.combatEnemyIds ?? []).join(', ')}
+                            onChange={v => updateChoice(ci, 'outcome.combatEnemyIds', v.split(',').map(s => s.trim()).filter(Boolean))}
+                            endpoint="/api/admin/enemies"
+                            labelKey="name"
+                            iconKey="icon"
+                          />
+                        </div>
                       )}
                     </div>
 
@@ -2230,19 +2875,19 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                       </div>
                       {(choice.outcome?.receiveItems ?? []).map((ri, riIdx) => (
                         <div key={riIdx} className="flex items-center gap-1">
-                          <input
-                            type="text"
+                          <MiniEntitySearch
                             value={ri.itemId}
-                            onChange={e => updateRewardItem(ci, riIdx, 'itemId', e.target.value)}
-                            placeholder="itemId"
-                            className="flex-1 text-[9px] bg-white/[0.03] border border-white/[0.06] rounded px-1.5 py-0.5 text-white/50 placeholder-white/10 font-mono focus:outline-none focus:border-green-500/30"
+                            onChange={v => updateRewardItem(ci, riIdx, 'itemId', v)}
+                            endpoint="/api/admin/items"
+                            labelKey="name"
+                            iconKey="icon"
                           />
                           <input
                             type="number"
                             value={ri.quantity}
                             onChange={e => updateRewardItem(ci, riIdx, 'quantity', Number(e.target.value))}
                             min={1}
-                            className="w-14 text-[9px] bg-white/[0.03] border border-white/[0.06] rounded px-1 py-0.5 text-white/50 font-mono focus:outline-none focus:border-green-500/30"
+                            className="w-14 text-[9px] bg-gray-900 border border-white/[0.06] rounded px-1 py-0.5 text-white/50 font-mono focus:outline-none focus:border-green-500/30"
                           />
                           <button type="button" onClick={() => removeRewardItem(ci, riIdx)} className="text-white/10 hover:text-red-400 transition-colors">
                             <X className="w-2.5 h-2.5" />
@@ -2302,46 +2947,23 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                   )}
                   {event.puzzle.type === 'sequence' && (
                     <div>
-                      <label className="text-[8px] text-white/30 mb-0.5 block">Pattern Sequenza (JSON)</label>
-                      <input
-                        type="text"
-                        value={JSON.stringify(event.puzzle.sequencePattern ?? [])}
-                        onChange={e => {
-                          try {
-                            const arr = JSON.parse(e.target.value);
-                            if (Array.isArray(arr)) updatePuzzle('sequencePattern', arr);
-                          } catch { /* ignore */ }
-                        }}
-                        placeholder='["up","down","left","right"]'
-                        className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/60 font-mono placeholder-white/10 focus:outline-none focus:border-purple-500/40"
+                      <label className="text-[8px] text-white/30 mb-0.5 block">Pattern Sequenza</label>
+                      <SequencePatternEditor
+                        value={event.puzzle.sequencePattern ?? []}
+                        onChange={v => updatePuzzle('sequencePattern', v)}
                       />
                     </div>
                   )}
                   {event.puzzle.type === 'key_required' && (
                     <>
-                      <div className="col-span-1">
+                      <div className="col-span-2">
                         <label className="text-[8px] text-white/30 mb-0.5 block">Item Richiesto</label>
-                        <input
-                          type="text"
+                        <MiniEntitySearch
                           value={event.puzzle.requiredItemId ?? ''}
-                          onChange={e => updatePuzzle('requiredItemId', e.target.value)}
-                          placeholder="key_lab"
-                          className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/60 font-mono placeholder-white/10 focus:outline-none focus:border-purple-500/40"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <label className="text-[8px] text-white/30 mb-0.5 block">Oppure Items Multipli (JSON)</label>
-                        <input
-                          type="text"
-                          value={JSON.stringify(event.puzzle.requiredItemIds ?? [])}
-                          onChange={e => {
-                            try {
-                              const arr = JSON.parse(e.target.value);
-                              if (Array.isArray(arr)) updatePuzzle('requiredItemIds', arr);
-                            } catch { /* ignore */ }
-                          }}
-                          placeholder='["key_lab","key_red"]'
-                          className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/60 font-mono placeholder-white/10 focus:outline-none focus:border-purple-500/40"
+                          onChange={v => updatePuzzle('requiredItemId', v)}
+                          endpoint="/api/admin/items"
+                          labelKey="name"
+                          iconKey="icon"
                         />
                       </div>
                     </>
@@ -2413,7 +3035,7 @@ function EntityForm({
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(f => {
           const val = data[f.key] ?? f.defaultValue ?? '';
-          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || (f.colSpan === 3);
+          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || (f.colSpan === 3);
           const isDoubleWidth = f.colSpan === 2 && !isFullWidth;
 
           if (isEdit && f.key === 'id') {
@@ -2526,6 +3148,27 @@ function EntityForm({
                 />
               ) : f.type === 'status-apply' ? (
                 <StatusApplyEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'quest-rewards' ? (
+                <QuestRewardsEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'event-choices' ? (
+                <EventChoicesEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'rich-text-editor' ? (
+                <RichTextEditor
+                  value={typeof val === 'string' ? val : ''}
+                  onChange={v => handleChange(f.key, v)}
+                  placeholder={f.placeholder}
+                />
+              ) : f.type === 'trade-inventory' ? (
+                <TradeInventoryEditor
                   value={val}
                   onChange={v => handleChange(f.key, v)}
                 />
@@ -3874,7 +4517,7 @@ export default function AdminPanel() {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<Record<TabId, number>>({
-    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, avatars: 0, 'start-screen': 0,
+    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'secret-rooms': 0, avatars: 0, 'start-screen': 0,
   });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -3973,7 +4616,7 @@ export default function AdminPanel() {
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -4020,7 +4663,7 @@ export default function AdminPanel() {
       if (editingId && !processed.id) {
         processed.id = editingId;
       }
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);

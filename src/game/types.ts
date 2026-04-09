@@ -318,6 +318,10 @@ export interface LocationDefinition {
   ambientText: string[];
   lockedLocations?: { locationId: string; requiredItemId: string; lockedMessage: string }[];
   subAreas?: SubAreaDefinition[];
+  // Search configuration (optional, defaults apply if null)
+  searchChance?: number; // 0-100 base success chance (default 60)
+  docChance?: number;    // 0-100 document find chance (default 35)
+  searchMax?: number;    // max searches per location (null=random 1-3, 0=unlimited)
 }
 
 export interface StoryEvent {
