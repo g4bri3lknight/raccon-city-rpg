@@ -24,6 +24,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { data: _d, mimeType: _m, ...safeBody } = body;
+    // Auto-set refKey to id if not provided
+    if (!safeBody.refKey && safeBody.id) {
+      safeBody.refKey = safeBody.id;
+    }
     const image = await db.gameImage.create({ data: safeBody });
     return NextResponse.json(image, { status: 201 });
   } catch (error) {

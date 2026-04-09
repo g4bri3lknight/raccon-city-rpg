@@ -241,22 +241,25 @@ export default function CombatScreen() {
     }
   }, [isPlayerTurn, scrollToBottom]);
 
-  // ── AI action prediction: moved AFTER derived data declarations to avoid TDZ ──
-
-  // Close overlays when turn changes (React pattern: derive from changing prop)
-  const [prevIsPlayerTurn, setPrevIsPlayerTurn] = useState(isPlayerTurn);
-  if (isPlayerTurn !== prevIsPlayerTurn) {
-    setPrevIsPlayerTurn(isPlayerTurn);
-    setShowMenu(false);
-    setTargetingMode(null);
-    setShowItemSelect(false);
-    setPendingAction(null);
-  }
-
-  // Auto-open menu on every player turn change (manual only)
+  // ── Menu management: reset overlays + auto-open on player turn ──
   useEffect(() => {
     if (isPlayerTurn && !autoCombat) {
-      const t = setTimeout(() => setShowMenu(true), 400);
+      // Reset overlays and open menu after a short delay (async to satisfy lint)
+      const t = setTimeout(() => {
+        setTargetingMode(null);
+        setShowItemSelect(false);
+        setPendingAction(null);
+        setShowMenu(true);
+      }, 350);
+      return () => clearTimeout(t);
+    } else {
+      // Not player turn or auto-combat enabled — close everything
+      const t = setTimeout(() => {
+        setShowMenu(false);
+        setTargetingMode(null);
+        setShowItemSelect(false);
+        setPendingAction(null);
+      }, 50);
       return () => clearTimeout(t);
     }
   }, [isPlayerTurn, autoCombat, combat?.currentActorId]);
@@ -353,13 +356,23 @@ export default function CombatScreen() {
       if (s2Cd === 0 && aliveEnemies.length >= 2) return 'special2' as CombatAction;
       if (sCd === 0) return 'special' as CombatAction;
     }
+    if (ch.archetype === 'control' || (s1?.category === 'control')) {
+      if (s2Cd === 0 && aliveEnemies.length >= 2) return 'special2' as CombatAction;
+      if (sCd === 0) return 'special' as CombatAction;
+    }
     if (ch.archetype === 'custom') {
       // Custom character AI logic based on first special
       if (s1?.category === 'support' && aliveParty.some(p => p.currentHp < p.maxHp * 0.5) && sCd === 0) return 'special' as CombatAction;
       if (s1?.category === 'defensive' && ch.currentHp < ch.maxHp * 0.5 && sCd === 0) return 'special' as CombatAction;
       if (s1?.category === 'offensive' && sCd === 0) return 'special' as CombatAction;
     }
-    if (ch.currentHp < ch.maxHp * 0.4 && ch.inventory.some(i => i.usable && i.effect?.type === 'heal')) return 'use_item' as CombatAction;
+    // Predict item usage: cure status, heal_full for critical, or regular heal
+    const myUsable = currentCharacter.inventory.filter(i => i.usable);
+    const hasStatusCure = aliveParty.some(p => p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'));
+    if (hasStatusCure && myUsable.some(i => i.effect?.statusCured)) return 'use_item' as CombatAction;
+    const worstAlly = aliveParty.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
+    if (worstAlly.currentHp / worstAlly.maxHp < 0.35 && myUsable.some(i => i.effect?.type === 'heal_full')) return 'use_item' as CombatAction;
+    if (worstAlly.currentHp / worstAlly.maxHp < 0.55 && myUsable.some(i => i.effect?.type === 'heal' || i.effect?.type === 'heal_full')) return 'use_item' as CombatAction;
     return 'attack' as CombatAction;
   })();
 
@@ -560,7 +573,16 @@ export default function CombatScreen() {
                   </span>
                 )}
                 <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor} ${bossGlowClass}`}>
-                  <img src={ENEMY_IMAGES[enemy.definitionId] || ''} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
+                  <img src={mediaUrl(ENEMY_IMAGES[enemy.definitionId] || '', dataVersion)} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} onError={(e) => {
+                    const t = e.currentTarget;
+                    if (t.style.display !== 'none') {
+                      t.style.display = 'none';
+                      const fb = document.createElement('div');
+                      fb.className = 'w-full h-full flex items-center justify-center bg-gray-900/80';
+                      fb.innerHTML = `<span style="font-size:2.5rem">${enemy.icon || '🧟'}</span>`;
+                      t.parentElement?.appendChild(fb);
+                    }
+                  }} />
                 </div>
                 <span className={`text-[9px] sm:text-[10px] font-bold ${isDead ? 'text-gray-700' : enemy.isBoss ? 'text-red-300' : 'text-gray-300'}`}>
                   {enemy.name}

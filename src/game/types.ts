@@ -27,7 +27,7 @@ export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'custom';
 
 export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'none';
 
-export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible';
+export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible' | 'armor' | 'accessory' | 'weapon_mod';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
@@ -95,6 +95,9 @@ export interface Character {
   inventory: ItemInstance[];
   maxInventorySlots: number;
   weapon: WeaponInstance | null;
+  // #29 Equipment slots
+  armor: EquipmentInstance | null;
+  accessory: EquipmentInstance | null;
   // Custom character fields:
   special1Id?: string;  // ID of first special ability (from ALL_SPECIAL_ABILITIES)
   special2Id?: string;  // ID of second special ability
@@ -109,6 +112,49 @@ export interface WeaponInstance {
   type: 'melee' | 'ranged';
   special?: string;
   ammoType?: string; // itemId of required ammo (e.g. 'ammo_pistol')
+  // #3 Weapon mods
+  modSlots: string[]; // installed mod IDs (max 2)
+}
+
+// ==========================================
+// #3 - WEAPON MODS
+// ==========================================
+
+export interface WeaponMod {
+  modId: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: Rarity;
+  atkBonus?: number;
+  critBonus?: number; // % extra crit chance
+  dodgeBonus?: number; // % enemy dodge chance reduction
+  statusBonus?: number; // % extra status effect apply chance
+  type: 'melee' | 'ranged' | 'any'; // weapon type compatibility
+}
+
+// ==========================================
+// #29 - EQUIPMENT (ARMOR & ACCESSORIES)
+// ==========================================
+
+export type EquipmentSlot = 'armor' | 'accessory';
+
+export interface EquipmentInstance {
+  itemId: string;
+  name: string;
+  slot: EquipmentSlot;
+  icon: string;
+  rarity: Rarity;
+  defBonus?: number;
+  hpBonus?: number;
+  spdBonus?: number;
+  atkBonus?: number;
+  critBonus?: number;
+  description: string;
+  specialEffect?: {
+    type: 'poison_resist' | 'bleed_resist' | 'stun_resist' | 'hp_regen' | 'thorns' | 'crit_shield';
+    value: number; // percentage or flat value depending on type
+  };
 }
 
 // ==========================================
@@ -172,6 +218,10 @@ export interface ItemInstance {
   quantity: number;
   isEquipped?: boolean;
   weaponStats?: WeaponInstance;
+  // #29 Equipment data carried in inventory items (armor/accessories)
+  equipmentStats?: EquipmentInstance;
+  // #3 Mod data carried in inventory items (weapon mods)
+  modStats?: WeaponMod;
 }
 
 // ==========================================

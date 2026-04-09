@@ -216,3 +216,46 @@ model NotificationConfig {
   createdAt     DateTime @default(now())
   @@map("notification_configs")
 }
+
+model GameSetting {
+  key       String   @id    // e.g. "titleScreen.title"
+  value     String   @default("")
+  label     String   @default("")
+  group     String   @default("titleScreen")
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+  @@map("game_settings")
+}
+
+model GameEnemy {
+  id            String   @id
+  name          String
+  description   String   @default("")
+  maxHp         Int      @default(60)
+  atk           Int      @default(10)
+  def           Int      @default(5)
+  spd           Int      @default(5)
+  icon          String   @default("🧟")
+  expReward     Int      @default(15)
+  lootTable     String   @default("[]")     // JSON: [{itemId:"herb_green",chance:30,quantity:1}]
+  abilities     String   @default("[]")     // JSON array of ability IDs: ["morso","artigliata"]
+  isBoss        Boolean  @default(false)
+  variantGroup  String   @default("")       // for grouping variants: "zombie", "licker", etc.
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  @@map("game_enemies")
+}
+
+model GameEnemyAbility {
+  id            String   @id
+  name          String
+  description   String   @default("")
+  power         Float    @default(1.0)
+  chance        Int      @default(50)       // 0-100, probability to use
+  statusType    String   @default("")       // StatusEffect type: "poison","bleeding","stunned","adrenaline"
+  statusChance  Int      @default(0)        // 0-100, chance to apply status
+  statusDuration Int     @default(0)        // turns
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  @@map("game_enemy_abilities")
+}

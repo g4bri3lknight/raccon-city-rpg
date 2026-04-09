@@ -518,6 +518,16 @@ export default function CharacterSelect() {
                       src={current.avatarUrl}
                       alt={current.displayName}
                       className="w-full h-full object-cover object-[center_20%]"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (target.style.display !== 'none') {
+                          target.style.display = 'none';
+                          const fallback = document.createElement('div');
+                          fallback.className = 'w-full h-full flex items-center justify-center bg-gray-900/80';
+                          fallback.innerHTML = `<span style="font-size:4rem;filter:saturate(0.3) brightness(0.75)">${current.kind === 'preset' ? getArchetypeIcon(current.archetypeId).toString().replace('Icon', '🎮') : '🎮'}</span>`;
+                          target.parentElement?.appendChild(fallback);
+                        }
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-black/40" />
                     {/* Custom badge overlay */}

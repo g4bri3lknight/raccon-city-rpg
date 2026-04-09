@@ -44,7 +44,9 @@ import {
   addExp,
   WEAPON_AMMO,
 } from './engine/combat';
-import { WeaponInstance } from './types';
+import { WeaponInstance, WeaponMod } from './types';
+import { WEAPON_MODS } from './data/weapon-mods';
+import { createModItemInstance, EQUIPMENT_STATS } from './data/equipment';
 import { ACHIEVEMENTS } from './data/achievements';
 import { getFirstAvailableQuest } from './data/quest-helper';
 import { audioEngine as audio } from './engine/sounds';
@@ -168,16 +170,16 @@ function newEnemyId() { return `enemy_${++enemyUid}`; }
 
 // ── Weapon stats for all equippable weapons (used when equipping found loot) ──
 const WEAPON_STATS: Record<string, WeaponInstance> = {
-  pipe: { itemId: 'pipe', name: 'Tubo di Piombo', atkBonus: 5, type: 'melee' },
-  scalpel: { itemId: 'scalpel', name: 'Bisturi', atkBonus: 4, type: 'melee' },
-  pistol: { itemId: 'pistol', name: 'Pistola M1911', atkBonus: 8, type: 'ranged', special: 'pierce', ammoType: 'ammo_pistol' },
-  shotgun: { itemId: 'shotgun', name: 'Fucile a Pompa', atkBonus: 14, type: 'ranged', ammoType: 'ammo_shotgun' },
-  combat_knife: { itemId: 'combat_knife', name: 'Coltello da Combattimento', atkBonus: 7, type: 'melee' },
-  magnum: { itemId: 'magnum', name: 'Magnum .357', atkBonus: 18, type: 'ranged', ammoType: 'ammo_magnum' },
-  machinegun: { itemId: 'machinegun', name: 'Mitragliatrice MP5', atkBonus: 13, type: 'ranged', ammoType: 'ammo_machinegun' },
-  grenade_launcher: { itemId: 'grenade_launcher', name: 'Lanciagranate M79', atkBonus: 24, type: 'ranged', ammoType: 'ammo_grenade' },
-  tazer: { itemId: 'tazer', name: 'Tazer', atkBonus: 8, type: 'melee' },
-  railgun: { itemId: 'railgun', name: 'Railgun', atkBonus: 25, type: 'ranged', ammoType: 'ammo_magnum' },
+  pipe: { itemId: 'pipe', name: 'Tubo di Piombo', atkBonus: 5, type: 'melee', modSlots: [] },
+  scalpel: { itemId: 'scalpel', name: 'Bisturi', atkBonus: 4, type: 'melee', modSlots: [] },
+  pistol: { itemId: 'pistol', name: 'Pistola M1911', atkBonus: 8, type: 'ranged', special: 'pierce', ammoType: 'ammo_pistol', modSlots: [] },
+  shotgun: { itemId: 'shotgun', name: 'Fucile a Pompa', atkBonus: 14, type: 'ranged', ammoType: 'ammo_shotgun', modSlots: [] },
+  combat_knife: { itemId: 'combat_knife', name: 'Coltello da Combattimento', atkBonus: 7, type: 'melee', modSlots: [] },
+  magnum: { itemId: 'magnum', name: 'Magnum .357', atkBonus: 18, type: 'ranged', ammoType: 'ammo_magnum', modSlots: [] },
+  machinegun: { itemId: 'machinegun', name: 'Mitragliatrice MP5', atkBonus: 13, type: 'ranged', ammoType: 'ammo_machinegun', modSlots: [] },
+  grenade_launcher: { itemId: 'grenade_launcher', name: 'Lanciagranate M79', atkBonus: 24, type: 'ranged', ammoType: 'ammo_grenade', modSlots: [] },
+  tazer: { itemId: 'tazer', name: 'Tazer', atkBonus: 8, type: 'melee', modSlots: [] },
+  railgun: { itemId: 'railgun', name: 'Railgun', atkBonus: 25, type: 'ranged', ammoType: 'ammo_magnum', modSlots: [] },
 };
 
 // ── Difficulty configuration ──
@@ -226,6 +228,8 @@ function createCharacter(archetypeId: Archetype): Character {
     })),
     maxInventorySlots: 6,
     weapon: archetype.startingItems.find(i => i.weaponStats)?.weaponStats || null,
+    armor: null,
+    accessory: null,
     statGrowth: growth,
   };
 }
@@ -269,6 +273,8 @@ function createCustomCharacter(config: CustomCharacterConfig): Character {
     })),
     maxInventorySlots: 6,
     weapon: startingItems.find(i => i.weaponStats)?.weaponStats || null,
+    armor: null,
+    accessory: null,
     special1Id: config.special1Id,
     special2Id: config.special2Id,
     passiveDescription: config.passiveDescription,
@@ -347,6 +353,14 @@ interface GameStore extends GameState {
   toggleInventory: () => void;
   equipItem: (characterId: string, itemUid: string) => void;
   unequipItem: (characterId: string, itemUid: string) => void;
+  // #29 Equipment management
+  equipArmor: (characterId: string, itemUid: string) => void;
+  unequipArmor: (characterId: string) => void;
+  equipAccessory: (characterId: string, itemUid: string) => void;
+  unequipAccessory: (characterId: string) => void;
+  // #3 Weapon mod management
+  installMod: (characterId: string, modItemUid: string) => void;
+  removeMod: (characterId: string, modIndex: number) => void;
   consumeItemOutsideCombat: (characterId: string, itemUid: string) => void;
   combineHerbs: (characterId: string, redHerbUid: string) => boolean;
   selectCharacter: (characterId: string) => void;
@@ -2015,6 +2029,172 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  // #29 — Equip armor from inventory
+  equipArmor: (characterId: string, itemUid: string) => {
+    set(state => {
+      const party = state.party.map(p => {
+        if (p.id !== characterId) return p;
+        const item = p.inventory.find(i => i.uid === itemUid);
+        if (!item || item.type !== 'armor' || !item.equipmentStats) return p;
+
+        // If already wearing armor, put it back in inventory
+        let newInventory = p.inventory.map(i => ({ ...i, isEquipped: false }));
+        if (p.armor) {
+          const oldArmorItem = p.inventory.find(i => i.itemId === p.armor!.itemId);
+          if (oldArmorItem) {
+            // Already in inventory, just un-equip
+          } else {
+            // Not in inventory — shouldn't happen, but handle gracefully
+            newInventory = newInventory;
+          }
+        }
+
+        // Mark new armor as equipped
+        newInventory = newInventory.map(i =>
+          i.uid === itemUid ? { ...i, isEquipped: true } : i
+        );
+
+        return {
+          ...p,
+          armor: item.equipmentStats,
+          inventory: newInventory,
+        };
+      });
+      return { party };
+    });
+  },
+
+  // #29 — Unequip armor (put back in inventory, already there)
+  unequipArmor: (characterId: string) => {
+    set(state => {
+      const party = state.party.map(p => {
+        if (p.id !== characterId) return p;
+        if (!p.armor) return p;
+
+        const newInventory = p.inventory.map(i =>
+          i.equipmentStats?.slot === 'armor' ? { ...i, isEquipped: false } : i
+        );
+
+        return { ...p, armor: null, inventory: newInventory };
+      });
+      return { party };
+    });
+  },
+
+  // #29 — Equip accessory from inventory
+  equipAccessory: (characterId: string, itemUid: string) => {
+    set(state => {
+      const party = state.party.map(p => {
+        if (p.id !== characterId) return p;
+        const item = p.inventory.find(i => i.uid === itemUid);
+        if (!item || item.type !== 'accessory' || !item.equipmentStats) return p;
+
+        let newInventory = p.inventory.map(i => ({ ...i, isEquipped: false }));
+        if (p.accessory) {
+          // Already wearing accessory, un-equip old one in inventory
+        }
+
+        newInventory = newInventory.map(i =>
+          i.uid === itemUid ? { ...i, isEquipped: true } : i
+        );
+
+        return {
+          ...p,
+          accessory: item.equipmentStats,
+          inventory: newInventory,
+        };
+      });
+      return { party };
+    });
+  },
+
+  // #29 — Unequip accessory
+  unequipAccessory: (characterId: string) => {
+    set(state => {
+      const party = state.party.map(p => {
+        if (p.id !== characterId) return p;
+        if (!p.accessory) return p;
+
+        const newInventory = p.inventory.map(i =>
+          i.equipmentStats?.slot === 'accessory' ? { ...i, isEquipped: false } : i
+        );
+
+        return { ...p, accessory: null, inventory: newInventory };
+      });
+      return { party };
+    });
+  },
+
+  // #3 — Install a weapon mod
+  installMod: (characterId: string, modItemUid: string) => {
+    set(state => {
+      const party = state.party.map(p => {
+        if (p.id !== characterId) return p;
+        if (!p.weapon) return p; // need a weapon equipped
+
+        const modItem = p.inventory.find(i => i.uid === modItemUid);
+        if (!modItem || !modItem.modStats) return p;
+
+        // Check mod compatibility with weapon type
+        const mod = modItem.modStats;
+        if (mod.type !== 'any' && mod.type !== p.weapon.type) return p;
+
+        // Check if mod slots are full (max 2)
+        if (p.weapon.modSlots.length >= 2) return p;
+
+        // Check if same mod already installed
+        if (p.weapon.modSlots.includes(mod.modId)) return p;
+
+        // Install mod
+        const updatedWeapon = {
+          ...p.weapon,
+          modSlots: [...p.weapon.modSlots, mod.modId],
+          // Add ATK bonus from mod
+          atkBonus: p.weapon.atkBonus + (mod.atkBonus || 0),
+        };
+
+        // Remove mod item from inventory
+        const newInventory = p.inventory.filter(i => i.uid !== modItemUid);
+
+        return { ...p, weapon: updatedWeapon, inventory: newInventory };
+      });
+      return { party };
+    });
+  },
+
+  // #3 — Remove a weapon mod and return it to inventory
+  removeMod: (characterId: string, modIndex: number) => {
+    set(state => {
+      const party = state.party.map(p => {
+        if (p.id !== characterId) return p;
+        if (!p.weapon) return p;
+        if (modIndex < 0 || modIndex >= p.weapon.modSlots.length) return p;
+
+        const modId = p.weapon.modSlots[modIndex];
+        const mod = WEAPON_MODS[modId];
+        if (!mod) return p;
+
+        // Remove mod from weapon
+        const updatedModSlots = p.weapon.modSlots.filter((_, i) => i !== modIndex);
+        const updatedWeapon = {
+          ...p.weapon,
+          modSlots: updatedModSlots,
+          // Remove ATK bonus from mod
+          atkBonus: p.weapon.atkBonus - (mod.atkBonus || 0),
+        };
+
+        // Return mod to inventory
+        const modItem = createModItemInstance(modId);
+
+        // Check inventory space
+        if (p.inventory.length >= p.maxInventorySlots) return p;
+
+        return { ...p, weapon: updatedWeapon, inventory: [...p.inventory, modItem] };
+      });
+      return { party };
+    });
+  },
+
   consumeItemOutsideCombat: (characterId: string, itemUid: string) => {
     const MAX_SLOTS = 12;
     let logMsg = `[Turno ${get().turnCount}] 🎒 Oggetto usato.`;
@@ -2711,7 +2891,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
         let added = false;
         updatedParty = updatedParty.map(p => {
           if (added) return p;
-          // Try to add to existing stack first
+          // Equipment and mods are unique — don't stack
+          if (itemDef.type === 'armor' || itemDef.type === 'accessory' || itemDef.type === 'weapon_mod') {
+            if (p.inventory.length < p.maxInventorySlots) {
+              added = true;
+              const equipStats = EQUIPMENT_STATS[itemId];
+              const modStats = WEAPON_MODS[itemId];
+              const newItem: ItemInstance = {
+                uid: `${itemId}_${Date.now()}_${Math.random()}`,
+                itemId,
+                name: itemDef.name,
+                description: itemDef.description,
+                type: itemDef.type,
+                rarity: itemDef.rarity,
+                icon: itemDef.icon,
+                usable: itemDef.usable,
+                equippable: itemDef.equippable,
+                effect: itemDef.effect,
+                quantity: 1,
+                equipmentStats: equipStats || undefined,
+                modStats: modStats || undefined,
+              };
+              return { ...p, inventory: [...p.inventory, newItem] };
+            }
+            return p;
+          }
+          // Try to add to existing stack first (stackable items)
           const existingIdx = p.inventory.findIndex(i => i.itemId === itemId);
           if (existingIdx >= 0) {
             added = true;
@@ -3033,30 +3238,93 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    // 4. All archetypes: use healing item if HP < 40%
-    if (character.currentHp < character.maxHp * 0.4) {
-      const healItem = character.inventory.find(i => i.usable && i.effect?.type === 'heal' && i.itemId !== 'herb_red');
-      if (healItem) {
+    // 5. Universal item usage — healing, curing, emergency items
+    // Only use items from the CURRENT character's inventory (consistent with manual play)
+    const myUsableItems = character.inventory.filter(i => i.usable);
+
+    // 5a. Cure status effects (poison/bleeding) — high priority
+    const statusCuredAlly = aliveParty.find(p =>
+      p.currentHp > 0 && (p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'))
+    );
+    if (statusCuredAlly) {
+      // Prefer herb_mixed (heals + cures) if the ally's HP is also low
+      const mixedHerb = myUsableItems.find(i => i.itemId === 'herb_mixed');
+      if (mixedHerb && statusCuredAlly.currentHp < statusCuredAlly.maxHp * 0.7) {
         get().selectCombatAction('use_item');
-        get().selectCombatItem(healItem.uid);
-        const target = healItem.effect?.target === 'one_ally'
-          ? aliveParty.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b)
-          : character;
-        get().selectCombatTarget(target.id);
+        get().selectCombatItem(mixedHerb.uid);
+        get().selectCombatTarget(statusCuredAlly.id);
         setTimeout(() => get().executeCombatTurn(), 600);
         return;
       }
-      const mixedHerb = character.inventory.find(i => i.itemId === 'herb_mixed');
-      if (mixedHerb) {
+      // Use antidote for poison-only
+      if (statusCuredAlly.statusEffects.includes('poison')) {
+        const antidote = myUsableItems.find(i => i.itemId === 'antidote');
+        if (antidote) {
+          get().selectCombatAction('use_item');
+          get().selectCombatItem(antidote.uid);
+          get().selectCombatTarget(statusCuredAlly.id);
+          setTimeout(() => get().executeCombatTurn(), 600);
+          return;
+        }
+      }
+      // Use first_aid (heal_full + cures) on status-afflicted ally
+      const firstAidKit = myUsableItems.find(i => i.effect?.type === 'heal_full' && i.effect?.statusCured);
+      if (firstAidKit) {
         get().selectCombatAction('use_item');
-        get().selectCombatItem(mixedHerb.uid);
-        get().selectCombatTarget(character.id);
+        get().selectCombatItem(firstAidKit.uid);
+        get().selectCombatTarget(statusCuredAlly.id);
         setTimeout(() => get().executeCombatTurn(), 600);
         return;
       }
     }
 
-    // 5. Default: attack — target lowest HP% enemy
+    // 5b. Find the most critical ally (lowest HP%)
+    const mostCriticalAlly = aliveParty.reduce((a, b) =>
+      (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b
+    );
+    const criticalPct = mostCriticalAlly.currentHp / mostCriticalAlly.maxHp;
+
+    // 5c. Use heal_full items (first_aid) on critically wounded ally (< 35%)
+    if (criticalPct < 0.35) {
+      const fullHealItem = myUsableItems.find(i =>
+        i.effect?.type === 'heal_full' &&
+        (i.effect?.target === 'one_ally' || i.effect?.target === 'all_allies')
+      );
+      if (fullHealItem) {
+        const target = fullHealItem.effect?.target === 'all_allies'
+          ? character
+          : mostCriticalAlly;
+        get().selectCombatAction('use_item');
+        get().selectCombatItem(fullHealItem.uid);
+        get().selectCombatTarget(target.id);
+        setTimeout(() => get().executeCombatTurn(), 600);
+        return;
+      }
+    }
+
+    // 5d. Use regular healing items on anyone below 55% HP
+    if (criticalPct < 0.55) {
+      // Find the best healing item in current character's inventory
+      const healItems = myUsableItems.filter(i =>
+        i.effect?.type === 'heal' &&
+        (i.effect?.target === 'one_ally' || i.effect?.target === 'self' || i.effect?.target === 'all_allies')
+      ).sort((a, b) => (b.effect?.value || 0) - (a.effect?.value || 0));
+
+      const allyNeedingHeal = aliveParty.find(p => p.currentHp < p.maxHp * 0.55);
+      if (allyNeedingHeal && healItems.length > 0) {
+        const chosen = healItems[0];
+        const target = chosen.effect?.target === 'one_ally' || chosen.effect?.target === 'all_allies'
+          ? allyNeedingHeal
+          : character;
+        get().selectCombatAction('use_item');
+        get().selectCombatItem(chosen.uid);
+        get().selectCombatTarget(target.id);
+        setTimeout(() => get().executeCombatTurn(), 600);
+        return;
+      }
+    }
+
+    // 6. Default: attack — target lowest HP% enemy
     const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
     get().selectCombatAction('attack');
     get().selectCombatTarget(weakest.id);

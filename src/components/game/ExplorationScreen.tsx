@@ -144,12 +144,15 @@ export default function ExplorationScreen() {
                     {/* Portrait — small, fixed size */}
                     <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden border shrink-0 relative ${char.currentHp <= 0 ? 'grayscale opacity-40' : 'border-gray-600/40'}`}>
                       {char.avatarUrl || CHARACTER_IMAGES[char.archetype] ? (
-                        <img src={mediaUrl(char.avatarUrl || CHARACTER_IMAGES[char.archetype] || '', dataVersion)} alt={char.name} className="w-full h-full object-cover object-[center_15%]" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-lg bg-white/[0.04]">
+                        <img src={mediaUrl(char.avatarUrl || CHARACTER_IMAGES[char.archetype] || '', dataVersion)} alt={char.name} className="w-full h-full object-cover object-[center_15%]" onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const fb = (e.target as HTMLImageElement).nextElementSibling;
+                          if (fb) (fb as HTMLElement).classList.remove('hidden');
+                        }} />
+                      ) : null}
+                      <div className={`absolute inset-0 flex items-center justify-center text-lg bg-white/[0.04] ${char.avatarUrl || CHARACTER_IMAGES[char.archetype] ? 'hidden' : ''}`}>
                           {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
-                        </div>
-                      )}
+                      </div>
                       {/* ── BLEEDING VISUAL ── */}
                       {char.currentHp > 0 && char.statusEffects?.includes('bleeding') && (
                         <>

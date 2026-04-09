@@ -43,23 +43,23 @@ export const STATIC_ITEMS: Record<string, ItemDefinition> = {
 
   // Healing
   bandage: {
-    id: 'bandage', name: 'Benda', description: 'Ripristina 25 HP.',
+    id: 'bandage', name: 'Benda', description: 'Ripristina 25 HP a un alleato.',
     type: 'healing', rarity: 'common', icon: '🩹', usable: true, equippable: false,
-    effect: { type: 'heal', value: 25, target: 'self' },
+    effect: { type: 'heal', value: 25, target: 'one_ally' },
   },
   herb_green: {
-    id: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP. Può essere miscelata con un\'erba rossa.',
+    id: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP a un alleato. Può essere miscelata con un\'erba rossa.',
     type: 'healing', rarity: 'common', icon: '🍃', usable: true, equippable: false,
-    effect: { type: 'heal', value: 30, target: 'self' },
+    effect: { type: 'heal', value: 30, target: 'one_ally' },
   },
   herb_red: {
     id: 'herb_red', name: 'Erba Rossa', description: 'Un\'erba potente che da sola non ha effetto. Miscelala con un\'Erba Verde per potenziare la cura.',
     type: 'utility', rarity: 'uncommon', icon: '🩸', usable: false, equippable: false,
   },
   herb_mixed: {
-    id: 'herb_mixed', name: 'Erba Mista', description: 'Un miscuglio di erba verde e rossa. Ripristina 70 HP e cura status negativi.',
+    id: 'herb_mixed', name: 'Erba Mista', description: 'Un miscuglio di erba verde e rossa. Ripristina 70 HP a un alleato e cura status negativi.',
     type: 'healing', rarity: 'uncommon', icon: '🌿', usable: true, equippable: false,
-    effect: { type: 'heal', value: 70, target: 'self', statusCured: ['poison', 'bleeding'] },
+    effect: { type: 'heal', value: 70, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
   },
   first_aid: {
     id: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Un kit medico completo. Ripristina tutti gli HP e cura veleno/sanguinamento a un alleato.',
@@ -74,9 +74,9 @@ export const STATIC_ITEMS: Record<string, ItemDefinition> = {
 
   // Antidote
   antidote: {
-    id: 'antidote', name: 'Antidoto', description: 'Cura avvelenamento.',
+    id: 'antidote', name: 'Antidoto', description: 'Cura avvelenamento su un alleato.',
     type: 'antidote', rarity: 'common', icon: '💉', usable: true, equippable: false,
-    effect: { type: 'cure', value: 0, target: 'self', statusCured: ['poison'] },
+    effect: { type: 'cure', value: 0, target: 'one_ally', statusCured: ['poison'] },
   },
 
   // Ammo

@@ -10,6 +10,7 @@ import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack } from 'lucide-react';
+import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 
 export default function InventoryPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
@@ -50,6 +51,9 @@ export default function InventoryPanel() {
     utility: 'Utilità',
     antidote: 'Antidoto',
     bag: 'Borsa',
+    armor: 'Armatura',
+    accessory: 'Accessorio',
+    weapon_mod: 'Mod Arma',
   };
 
   // Build icon grid (always show all slots)
@@ -115,10 +119,19 @@ export default function InventoryPanel() {
               imageSrc={mediaUrl(selectedChar.avatarUrl || CHARACTER_IMAGES[selectedChar.archetype] || '', dataVersion)}
             />
             <div className="flex gap-2.5 md:gap-4 text-[10px] md:text-xs mt-1.5 md:mt-2">
-              <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + (selectedChar.weapon?.atkBonus || 0)}</span>
-              <span className="text-white/40">🛡️ DEF {selectedChar.baseDef}</span>
-              <span className="text-white/40">💨 SPD {selectedChar.baseSpd}</span>
+              <span className="text-white/40">⚔️ ATK {getCharacterAtk(selectedChar)}</span>
+              <span className="text-white/40">🛡️ DEF {getCharacterDef(selectedChar)}</span>
+              <span className="text-white/40">💨 SPD {getCharacterSpd(selectedChar)}</span>
+              <span className="text-white/30">HP {getCharacterMaxHp(selectedChar)}</span>
               <span className="text-white/30">Lv.{selectedChar.level} · {selectedChar.archetype.toUpperCase()}</span>
+            </div>
+            {/* Equipment summary */}
+            <div className="flex gap-2 mt-1 text-[10px] text-white/30">
+              {selectedChar.armor && <span>🦺 {selectedChar.armor.name}</span>}
+              {selectedChar.accessory && <span>📿 {selectedChar.accessory.name}</span>}
+              {selectedChar.weapon?.modSlots && selectedChar.weapon.modSlots.length > 0 && (
+                <span>🔧 {selectedChar.weapon.modSlots.length}/2 mod</span>
+              )}
             </div>
           </div>
         )}
@@ -206,6 +219,32 @@ export default function InventoryPanel() {
                 <div className="flex gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm">
                   <span className="text-amber-400/80">⚔️ ATK +{selectedItem.weaponStats.atkBonus}</span>
                   <span className="text-white/40">{selectedItem.weaponStats.type === 'melee' ? 'Corpo a Corpo' : 'A Distanza'}</span>
+                  {selectedItem.weaponStats.modSlots && selectedItem.weaponStats.modSlots.length > 0 && (
+                    <span className="text-cyan-400/60">🔧 {selectedItem.weaponStats.modSlots.length}/2 mod</span>
+                  )}
+                </div>
+              )}
+              {/* #29 Equipment stats */}
+              {selectedItem.equipmentStats && (
+                <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4 text-xs md:text-sm">
+                  {selectedItem.equipmentStats.defBonus && <span className="text-blue-400/80">🛡️ +{selectedItem.equipmentStats.defBonus} DEF</span>}
+                  {selectedItem.equipmentStats.hpBonus && <span className="text-green-400/80">❤️ +{selectedItem.equipmentStats.hpBonus} HP</span>}
+                  {selectedItem.equipmentStats.spdBonus && <span className="text-yellow-400/80">💨 +{selectedItem.equipmentStats.spdBonus} SPD</span>}
+                  {selectedItem.equipmentStats.atkBonus && <span className="text-amber-400/80">⚔️ +{selectedItem.equipmentStats.atkBonus} ATK</span>}
+                  {selectedItem.equipmentStats.critBonus && <span className="text-orange-400/80">💥 +{selectedItem.equipmentStats.critBonus}% Crit</span>}
+                  {selectedItem.equipmentStats.specialEffect && (
+                    <span className="text-purple-400/80">✨ {formatEquipEffect(selectedItem.equipmentStats.specialEffect.type, selectedItem.equipmentStats.specialEffect.value)}</span>
+                  )}
+                </div>
+              )}
+              {/* #3 Mod stats */}
+              {selectedItem.modStats && (
+                <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4 text-xs md:text-sm">
+                  {selectedItem.modStats.atkBonus && <span className="text-amber-400/80">⚔️ +{selectedItem.modStats.atkBonus} ATK</span>}
+                  {selectedItem.modStats.critBonus && <span className="text-orange-400/80">💥 +{selectedItem.modStats.critBonus}% Crit</span>}
+                  {selectedItem.modStats.statusBonus && <span className="text-purple-400/80">☠️ +{selectedItem.modStats.statusBonus}% Status</span>}
+                  {selectedItem.modStats.dodgeBonus && <span className="text-cyan-400/80">💨 +{selectedItem.modStats.dodgeBonus}% Dodge</span>}
+                  <span className="text-white/40">{selectedItem.modStats.type === 'any' ? 'Tutte le armi' : selectedItem.modStats.type === 'ranged' ? 'A distanza' : 'Corpo a corpo'}</span>
                 </div>
               )}
               {selectedItem.effect && (
@@ -385,4 +424,16 @@ export default function InventoryPanel() {
       </AnimatePresence>
     </motion.div>
   );
+}
+
+function formatEquipEffect(type: string, value: number): string {
+  const labels: Record<string, string> = {
+    poison_resist: `${value}% resistenza veleno`,
+    bleed_resist: `${value}% resistenza sanguinamento`,
+    stun_resist: `${value}% resistenza stordimento`,
+    hp_regen: `Rigenera ${value} HP/turno`,
+    thorns: `Riflette ${value} danni`,
+    crit_shield: `${value}% riduzione critici`,
+  };
+  return labels[type] || type;
 }

@@ -7,6 +7,7 @@ import { STATIC_LOCATIONS } from '@/game/data/locations';
 import { NPCS } from '@/game/data/npcs';
 import { CHARACTER_ARCHETYPES } from '@/game/data/characters';
 import { ALL_SPECIAL_ABILITIES } from '@/game/data/specials';
+import { ENEMIES as STATIC_ENEMIES } from '@/game/data/enemies';
 
 const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; danger: string }> = {
   city_outskirts: { row: 2, col: 1, icon: '🏚️', danger: 'bassa' },
@@ -190,6 +191,27 @@ async function seedSpecials(): Promise<SeedResult> {
   return { entity: 'specials', total: entries.length, created, updated };
 }
 
+async function seedEnemies(): Promise<SeedResult> {
+  const entries = Object.values(STATIC_ENEMIES);
+  let created = 0, updated = 0;
+  for (let i = 0; i < entries.length; i++) {
+    const enemy = entries[i];
+    const existing = await db.gameEnemy.findUnique({ where: { id: enemy.id } });
+    const data = {
+      name: enemy.name, description: enemy.description,
+      maxHp: enemy.maxHp, atk: enemy.atk, def: enemy.def, spd: enemy.spd,
+      icon: enemy.icon, expReward: enemy.expReward,
+      lootTable: JSON.stringify(enemy.lootTable ?? []),
+      abilities: JSON.stringify(enemy.abilities ?? []),
+      isBoss: enemy.isBoss, variantGroup: enemy.variantGroup ?? '',
+      sortOrder: i,
+    };
+    if (existing) { await db.gameEnemy.update({ where: { id: enemy.id }, data }); updated++; }
+    else { await db.gameEnemy.create({ data: { id: enemy.id, ...data } }); created++; }
+  }
+  return { entity: 'enemies', total: entries.length, created, updated };
+}
+
 /**
  * POST /api/admin/seed-all
  * Master seed endpoint — populates ALL game data from static definitions.
@@ -206,7 +228,13 @@ export async function POST() {
       seedNpcs(),
       seedCharacters(),
       seedSpecials(),
+      seedEnemies(),
     ]);
+
+    // Seed enemy-abilities after enemies (it also updates enemy ability references)
+    const abilitiesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-enemy-abilities`, { method: 'POST' });
+    const abilitiesData = await abilitiesRes.json();
+    results.push({ entity: 'enemy-abilities', total: abilitiesData.abilitiesCount ?? 0, created: abilitiesData.result?.created ?? 0, updated: abilitiesData.result?.updated ?? 0 });
 
     const summary = results.map(r => `${r.entity}: ${r.created} nuovi, ${r.updated} agg. (totale ${r.total})`).join('\n');
 

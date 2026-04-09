@@ -8,6 +8,77 @@ import {
   StatusEffect,
 } from '../types';
 import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById } from '../data/loader';
+import { WEAPON_MODS } from '../data/weapon-mods';
+import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '../data/equipment';
+
+// ==========================================
+// #3+#29 — STAT BONUS HELPERS
+// ==========================================
+
+/** Get total DEF for a character including armor + accessories */
+export function getCharacterDef(char: Character): number {
+  let def = char.baseDef;
+  if (char.armor?.defBonus) def += char.armor.defBonus;
+  if (char.accessory?.defBonus) def += char.accessory.defBonus;
+  return def;
+}
+
+/** Get total ATK for a character including weapon + accessories */
+export function getCharacterAtk(char: Character): number {
+  let atk = char.baseAtk + (char.weapon?.atkBonus || 0);
+  if (char.accessory?.atkBonus) atk += char.accessory.atkBonus;
+  return atk;
+}
+
+/** Get total maxHP for a character including equipment */
+export function getCharacterMaxHp(char: Character): number {
+  let hp = char.maxHp;
+  if (char.armor?.hpBonus) hp += char.armor.hpBonus;
+  if (char.accessory?.hpBonus) hp += char.accessory.hpBonus;
+  return hp;
+}
+
+/** Get total SPD for a character including equipment */
+export function getCharacterSpd(char: Character): number {
+  let spd = char.baseSpd;
+  if (char.accessory?.spdBonus) spd += char.accessory.spdBonus;
+  return spd;
+}
+
+/** Get extra crit chance from weapon mods + accessories */
+export function getCharacterCritBonus(char: Character): number {
+  let crit = 0;
+  // #3 Weapon mod crit bonuses
+  if (char.weapon?.modSlots) {
+    for (const modId of char.weapon.modSlots) {
+      const mod = WEAPON_MODS[modId];
+      if (mod?.critBonus) crit += mod.critBonus;
+    }
+  }
+  // #29 Accessory crit bonus
+  if (char.accessory?.critBonus) crit += char.accessory.critBonus;
+  return crit;
+}
+
+/** Get status effect apply chance bonus from weapon mods */
+export function getCharacterStatusBonus(char: Character): number {
+  let statusBonus = 0;
+  if (char.weapon?.modSlots) {
+    for (const modId of char.weapon.modSlots) {
+      const mod = WEAPON_MODS[modId];
+      if (mod?.statusBonus) statusBonus += mod.statusBonus;
+    }
+  }
+  return statusBonus;
+}
+
+/** Check if character has specific resistance from equipment */
+export function getCharacterResistance(char: Character, effectType: string): number {
+  let resist = 0;
+  if (char.armor?.specialEffect?.type === effectType) resist += char.armor.specialEffect.value;
+  if (char.accessory?.specialEffect?.type === effectType) resist += char.accessory.specialEffect.value;
+  return resist;
+}
 
 // ==========================================
 // UTILITY
@@ -39,8 +110,9 @@ export function calculateDamage(
   isDefending: boolean,
   attackerArchetype?: Archetype,
   attackerHasAdrenaline?: boolean,
+  critBonus: number = 0, // #3+#29 extra crit from mods/accessories
 ): { damage: number; isCritical: boolean; isMiss: boolean } {
-  // Miss chance
+  // Miss chance (reduced by dodge bonus from mods — effectively increases hit rate)
   const missChance = 8;
   if (chance(missChance)) {
     return { damage: 0, isCritical: false, isMiss: true };
@@ -64,9 +136,9 @@ export function calculateDamage(
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
-  // Critical hit
-  let critChance = 10;
-  if (attackerArchetype === 'dps') critChance = 25;
+  // Critical hit (base + archetype + #3 mods + #29 accessories)
+  let critChance = 10 + critBonus;
+  if (attackerArchetype === 'dps') critChance = 25 + critBonus;
   const isCritical = chance(critChance);
   if (isCritical) {
     damage = Math.floor(damage * 1.8);
@@ -81,6 +153,7 @@ export function calculateDamageNoMiss(
   isDefending: boolean,
   attackerArchetype?: Archetype,
   attackerHasAdrenaline?: boolean,
+  critBonus: number = 0,
 ): { damage: number; isCritical: boolean; isMiss: false } {
   // Guaranteed hit (for Sparo Mirato)
   let baseDamage = attackerAtk * random(90, 110) / 100;
@@ -98,8 +171,8 @@ export function calculateDamageNoMiss(
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
-  let critChance = 10;
-  if (attackerArchetype === 'dps') critChance = 25;
+  let critChance = 10 + critBonus;
+  if (attackerArchetype === 'dps') critChance = 25 + critBonus;
   const isCritical = chance(critChance);
   if (isCritical) {
     damage = Math.floor(damage * 1.8);
@@ -185,7 +258,8 @@ export function executePlayerAttack(
     weaponBonus = weapon?.atkBonus || 0;
   }
 
-  const totalAtk = character.baseAtk + weaponBonus;
+  const totalAtk = getCharacterAtk(character);
+  const critBonus = getCharacterCritBonus(character);
   const hasAdrenaline = character.statusEffects.includes('adrenaline');
   const { damage, isCritical, isMiss } = calculateDamage(
     totalAtk,
@@ -193,6 +267,7 @@ export function executePlayerAttack(
     enemy.isDefending,
     character.archetype,
     hasAdrenaline,
+    critBonus,
   );
 
   const newHp = Math.max(0, enemy.currentHp - damage);
@@ -314,10 +389,10 @@ function executeSpecialAbility(
     case 'colpo_mortale': {
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 1.6;
+      const totalAtk = getCharacterAtk(character) * 1.6;
+      const critBonus = getCharacterCritBonus(character);
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       result.log = {
@@ -332,21 +407,21 @@ function executeSpecialAbility(
     case 'raffica': {
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 1.3;
+      const totalAtk = getCharacterAtk(character) * 1.3;
+      const critBonus = getCharacterCritBonus(character);
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
 
-      const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
+      const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
       const primaryHp = Math.max(0, enemyTarget.currentHp - primary.damage);
       let updatedEnemies = enemies.map(e =>
         e.id === enemyTarget.id ? { ...e, currentHp: primaryHp, isDefending: false } : e
       );
 
       const splashLog: string[] = [];
-      const splashAtk = (character.baseAtk + weaponBonus) * 0.6;
+      const splashAtk = getCharacterAtk(character) * 0.6;
       updatedEnemies = updatedEnemies.map(e => {
         if (e.id !== enemyTarget.id && e.currentHp > 0) {
-          const splash = calculateDamage(splashAtk, e.def, e.isDefending, undefined, hasAdrenaline);
+          const splash = calculateDamage(splashAtk, e.def, e.isDefending, undefined, hasAdrenaline, critBonus);
           const newHp = Math.max(0, e.currentHp - splash.damage);
           if (!splash.isMiss) {
             splashLog.push(`${e.name}: -${splash.damage}`);
@@ -376,11 +451,11 @@ function executeSpecialAbility(
     case 'sparo_mirato': {
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 2.0;
+      const totalAtk = getCharacterAtk(character) * 2.0;
+      const critBonus = getCharacterCritBonus(character);
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
       // Guaranteed hit - no miss
-      const { damage, isCritical } = calculateDamageNoMiss(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
+      const { damage, isCritical } = calculateDamageNoMiss(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       let message = `${character.name} esegue uno SPARO MIRATO su ${enemyTarget.name} per ${damage} danni!`;
@@ -397,10 +472,9 @@ function executeSpecialAbility(
     case 'veleno_acido': {
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 0.9;
+      const totalAtk = getCharacterAtk(character) * 0.9;
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, undefined, hasAdrenaline);
+      const { damage, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, undefined, hasAdrenaline, getCharacterCritBonus(character));
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       
@@ -427,10 +501,10 @@ function executeSpecialAbility(
     case 'attacco_carica': {
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 1.4;
+      const totalAtk = getCharacterAtk(character) * 1.4;
+      const critBonus = getCharacterCritBonus(character);
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline);
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
       
@@ -455,13 +529,13 @@ function executeSpecialAbility(
 
     case 'gas_venefico': {
       // AOE poison - damages ALL living enemies
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 0.7;
+      const totalAtk = getCharacterAtk(character) * 0.7;
+      const critBonus = getCharacterCritBonus(character);
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
       const livingEnemies = enemies.filter(e => e.currentHp > 0);
       let totalDmg = 0;
       const updatedEnemies = livingEnemies.map(e => {
-        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline);
+        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline, critBonus);
         if (isMiss) return { ...e, isDefending: false };
         totalDmg += damage;
         const newHp = Math.max(0, e.currentHp - damage);
@@ -487,9 +561,10 @@ function executeSpecialAbility(
     case 'cristalli_sonici': {
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 1.1;
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, character.statusEffects.includes('adrenaline'));
+      const totalAtk = getCharacterAtk(character) * 1.1;
+      const critBonus = getCharacterCritBonus(character);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
 
@@ -515,9 +590,10 @@ function executeSpecialAbility(
     case 'frecce_etiche': {
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * 0.9;
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, character.statusEffects.includes('adrenaline'));
+      const totalAtk = getCharacterAtk(character) * 0.9;
+      const critBonus = getCharacterCritBonus(character);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
 
@@ -711,14 +787,14 @@ function executeSpecialAbility(
 
     case 'granata_stordente': {
       // AOE stun - damages ALL living enemies + high stun chance
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 0.8);
+      const totalAtk = getCharacterAtk(character) * (special.powerMultiplier || 0.8);
+      const critBonus = getCharacterCritBonus(character);
       const hasAdrenaline = character.statusEffects.includes('adrenaline');
       const livingEnemies = enemies.filter(e => e.currentHp > 0);
       let totalDmg = 0;
       let stunnedCount = 0;
       const updatedEnemies = livingEnemies.map(e => {
-        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline);
+        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline, critBonus);
         if (isMiss) return { ...e, isDefending: false };
         totalDmg += damage;
         const newHp = Math.max(0, e.currentHp - damage);
@@ -749,9 +825,10 @@ function executeSpecialAbility(
       // Single target: moderate damage + poison AND stun
       if (target.id === character.id) break;
       const enemyTarget = target as EnemyInstance;
-      const weaponBonus = character.weapon?.atkBonus || 0;
-      const totalAtk = (character.baseAtk + weaponBonus) * (special.powerMultiplier || 1.0);
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, character.statusEffects.includes('adrenaline'));
+      const totalAtk = getCharacterAtk(character) * (special.powerMultiplier || 1.0);
+      const critBonus = getCharacterCritBonus(character);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
+      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
       const newHp = Math.max(0, enemyTarget.currentHp - damage);
       const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
 
@@ -841,10 +918,10 @@ function executePlayerSpecialLegacy(
     case 'dps': {
       if (target.id !== character.id) {
         const enemyTarget = target as EnemyInstance;
-        const weaponBonus = character.weapon?.atkBonus || 0;
-        const totalAtk = (character.baseAtk + weaponBonus) * 1.6;
+        const totalAtk = getCharacterAtk(character) * 1.6;
+        const critBonus = getCharacterCritBonus(character);
         const { damage, isCritical, isMiss } = calculateDamage(
-          totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype,
+          totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus,
         );
         const newHp = Math.max(0, enemyTarget.currentHp - damage);
         const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
@@ -860,10 +937,10 @@ function executePlayerSpecialLegacy(
     case 'control': {
       if (target.id !== character.id) {
         const enemyTarget = target as EnemyInstance;
-        const weaponBonus = character.weapon?.atkBonus || 0;
-        const totalAtk = (character.baseAtk + weaponBonus) * 0.7;
+        const totalAtk = getCharacterAtk(character) * 0.7;
+        const critBonus = getCharacterCritBonus(character);
 
-        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus);
         let newHp = Math.max(0, enemyTarget.currentHp - calc.damage);
         const statusLog: string[] = [];
 
@@ -936,20 +1013,20 @@ function executePlayerSpecial2Legacy(
     case 'dps': {
       if (target.id !== character.id) {
         const enemyTarget = target as EnemyInstance;
-        const weaponBonus = character.weapon?.atkBonus || 0;
-        const totalAtk = (character.baseAtk + weaponBonus) * 1.3;
+        const totalAtk = getCharacterAtk(character) * 1.3;
+        const critBonus = getCharacterCritBonus(character);
 
-        const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+        const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus);
         const primaryHp = Math.max(0, enemyTarget.currentHp - primary.damage);
         let updatedEnemies = enemies.map(e =>
           e.id === enemyTarget.id ? { ...e, currentHp: primaryHp, isDefending: false } : e
         );
 
         const splashLog: string[] = [];
-        const splashAtk = (character.baseAtk + weaponBonus) * 0.6;
+        const splashAtk = getCharacterAtk(character) * 0.6;
         updatedEnemies = updatedEnemies.map(e => {
           if (e.id !== enemyTarget.id && e.currentHp > 0) {
-            const splash = calculateDamage(splashAtk, e.def, e.isDefending);
+            const splash = calculateDamage(splashAtk, e.def, e.isDefending, undefined, undefined, critBonus);
             const newHp = Math.max(0, e.currentHp - splash.damage);
             if (!splash.isMiss) {
               splashLog.push(`${e.name}: -${splash.damage}`);
@@ -979,10 +1056,10 @@ function executePlayerSpecial2Legacy(
     case 'control': {
       if (target.id !== character.id) {
         const enemyTarget = target as EnemyInstance;
-        const weaponBonus = character.weapon?.atkBonus || 0;
-        const totalAtk = (character.baseAtk + weaponBonus) * 1.1;
+        const totalAtk = getCharacterAtk(character) * 1.1;
+        const critBonus = getCharacterCritBonus(character);
 
-        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype);
+        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus);
         let newHp = Math.max(0, enemyTarget.currentHp - calc.damage);
         const statusLog: string[] = [];
 
@@ -1207,7 +1284,7 @@ export function executeEnemyAttack(
 
   const { damage, isCritical, isMiss } = calculateDamage(
     enemy.atk * ability.power,
-    target.baseDef + (target.isDefending ? 5 : 0),
+    getCharacterDef(target) + (target.isDefending ? 5 : 0),
     target.isDefending,
   );
 
@@ -1278,7 +1355,7 @@ export function calculateFleeChance(party: Character[], enemies: EnemyInstance[]
 export function generateLoot(enemyDefId: string, lootMult: number = 1): string[] {
   const enemyDef = ENEMIES[enemyDefId];
   if (!enemyDef) return [];
-  
+
   const loot: string[] = [];
   for (const entry of enemyDef.lootTable) {
     const adjustedChance = Math.min(entry.chance * lootMult, 100);
@@ -1289,6 +1366,48 @@ export function generateLoot(enemyDefId: string, lootMult: number = 1): string[]
       }
     }
   }
+
+  // #3+#29 Random equipment/mod drops (rare)
+  if (enemyDef.isBoss) {
+    // Bosses have higher chance of dropping equipment or mods
+    if (chance(25)) {
+      if (chance(50)) {
+        // Drop equipment
+        const pick = ALL_EQUIPMENT_IDS[Math.floor(Math.random() * ALL_EQUIPMENT_IDS.length)];
+        loot.push(pick);
+      } else {
+        // Drop weapon mod
+        const pick = ALL_MOD_ITEM_IDS[Math.floor(Math.random() * ALL_MOD_ITEM_IDS.length)];
+        loot.push(pick);
+      }
+    }
+  } else {
+    // Regular enemies have a small chance
+    if (chance(5)) {
+      if (chance(50)) {
+        // More likely common equipment
+        const commonEq = ALL_EQUIPMENT_IDS.filter(id => {
+          const eq = EQUIPMENT_STATS[id];
+          return eq && (eq.rarity === 'common' || eq.rarity === 'uncommon');
+        });
+        if (commonEq.length > 0) {
+          const pick = commonEq[Math.floor(Math.random() * commonEq.length)];
+          loot.push(pick);
+        }
+      } else {
+        // Common mods
+        const commonMods = ALL_MOD_ITEM_IDS.filter(id => {
+          const mod = WEAPON_MODS[id];
+          return mod && (mod.rarity === 'common' || mod.rarity === 'uncommon');
+        });
+        if (commonMods.length > 0) {
+          const pick = commonMods[Math.floor(Math.random() * commonMods.length)];
+          loot.push(pick);
+        }
+      }
+    }
+  }
+
   return loot;
 }
 

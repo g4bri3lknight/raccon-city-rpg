@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Plus, Pencil, Trash2, Save, RotateCcw,
   Package, Scroll, Zap, FileText, Volume2, ImageIcon, RefreshCw, Loader2, Search, Play, Pause, Eye,
-  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database
+  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database, Monitor, Skull,
+  type LucideIcon,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
 import { useGameStore } from '@/game/store';
@@ -25,7 +26,7 @@ import type { Rarity } from '@/game/types';
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials';
+type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'avatars' | 'start-screen';
 
 interface TabConfig {
   id: TabId;
@@ -33,6 +34,7 @@ interface TabConfig {
   icon: React.ReactNode;
   endpoint: string;
   entityLabel: string; // singular label for "Aggiungi Nuovo ..."
+  custom?: boolean; // if true, renders a custom panel instead of CRUD table
 }
 
 const TABS: TabConfig[] = [
@@ -47,7 +49,39 @@ const TABS: TabConfig[] = [
   { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC' },
   { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio' },
   { id: 'specials', label: 'Speciali', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità Speciale' },
+  { id: 'enemies', label: 'Nemici', icon: <Skull className="w-4 h-4" />, endpoint: '/api/admin/enemies', entityLabel: 'Nemico' },
+  { id: 'enemy-abilities', label: 'Abilità Nemici', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/enemy-abilities', entityLabel: 'Abilità Nemica' },
+  { id: 'avatars', label: 'Avatar', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Avatar', custom: true },
+  { id: 'start-screen', label: 'Schermata Iniziale', icon: <Monitor className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true },
 ];
+
+// ═══════════════════════════════════════════════════════════════
+// Seed Banner Configuration (data-driven)
+// ═══════════════════════════════════════════════════════════════
+interface SeedBannerConfig {
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  seedEndpoint: string;
+}
+
+const SEED_BANNERS: Record<TabId, SeedBannerConfig | null> = {
+  items:        { icon: Package,   label: 'Oggetti',    description: 'Gestione <span className="text-white/50 font-medium">oggetti</span> — aggiungi, modifica o rimuovi armi, cure, munizioni, chiavi e altro dal gioco', seedEndpoint: '/api/admin/seed-items' },
+  quests:       { icon: Scroll,   label: 'Missioni',    description: 'Gestione <span className="text-white/50 font-medium">missioni</span> — configura le quest associate agli NPC con obiettivi e ricompense', seedEndpoint: '/api/admin/seed-quests' },
+  events:       { icon: Zap,      label: 'Eventi',      description: 'Gestione <span className="text-white/50 font-medium">eventi dinamici</span> — blackout, allarmi, incendi e altri eventi casuali che colpiscono l\'esplorazione', seedEndpoint: '/api/admin/seed-events' },
+  documents:    { icon: FileText, label: 'Documenti',   description: 'Gestione <span className="text-white/50 font-medium">documenti</span> — diari, file Umbrella, note e foto ritrovabili durante l\'esplorazione', seedEndpoint: '/api/admin/seed-documents' },
+  sounds:       null,
+  images:       null,
+  notifications:{ icon: Bell,     label: 'Notifiche',   description: 'Configurazione <span className="text-white/50 font-medium">notifiche</span> — personalizza colori, label, animazioni e media per ogni tipo di notifica', seedEndpoint: '/api/admin/seed-notifications' },
+  locations:    { icon: MapPin,   label: 'Location',    description: 'Gestione <span className="text-white/50 font-medium">location</span> — aggiungi, modifica o rimuovi aree di gioco. Ogni location può avere sfondo, nemici, oggetti e eventi personalizzati.', seedEndpoint: '/api/admin/seed-locations' },
+  npcs:         { icon: Users,    label: 'NPC',         description: 'Gestione <span className="text-white/50 font-medium">NPC</span> — aggiungi, modifica o rimuovi personaggi non giocanti. Ogni NPC ha dialoghi, quest e scambi personalizzati.', seedEndpoint: '/api/admin/seed-npcs' },
+  characters:   { icon: Swords,   label: 'Personaggi',  description: 'Gestione <span className="text-white/50 font-medium">personaggi</span> — aggiungi, modifica o rimuovi archetipi giocabili. Ogni personaggio ha statistiche, abilità speciali e oggetti iniziali.', seedEndpoint: '/api/admin/seed-characters' },
+  specials:     { icon: Zap,      label: 'Speciali',    description: 'Gestione <span className="text-white/50 font-medium">abilità speciali</span> — configura poteri offensivi, difensivi, di supporto e controllo per i personaggi', seedEndpoint: '/api/admin/seed-specials' },
+  enemies:      { icon: Skull,    label: 'Nemici',      description: 'Gestione <span className="text-white/50 font-medium">nemici</span> — aggiungi, modifica o rimuovi creature e boss. Ogni nemico ha statistiche, abilità e tabelle loot.', seedEndpoint: '/api/admin/seed-enemies' },
+  'enemy-abilities': { icon: Swords, label: 'Abilità Nemici', description: 'Gestione <span className="text-white/50 font-medium">abilità nemici</span> — configura attacchi, potenza, probabilità d\'uso ed effetti di status per i nemici', seedEndpoint: '/api/admin/seed-enemy-abilities' },
+  avatars:      null,
+  'start-screen': null,
+};
 
 // ═══════════════════════════════════════════════════════════════
 // Enum Italian Translations
@@ -168,15 +202,17 @@ function getEnumHint(enumGroup: string, value: string): string | undefined {
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
   entitySearchLabelKey?: string; // which field to show as label
+  entityIconKey?: string; // optional icon field to show alongside labels
   placeholder?: string;
   required?: boolean;
   defaultValue?: string | number | boolean;
   colSpan?: number; // 1 or 2 for grid layout
+  helpText?: string; // optional tooltip
 }
 
 const FIELD_MAP: Record<TabId, FieldDef[]> = {
@@ -270,10 +306,10 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'atk', label: 'ATK', type: 'number', defaultValue: 10 },
     { key: 'def', label: 'DEF', type: 'number', defaultValue: 10 },
     { key: 'spd', label: 'SPD', type: 'number', defaultValue: 10 },
-    { key: 'specialName', label: 'Nome Speciale 1', type: 'text', placeholder: 'es: Barricata' },
+    { key: 'specialName', label: 'Nome Speciale 1', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Barricata', colSpan: 2 },
     { key: 'specialDescription', label: 'Desc. Speciale 1', type: 'textarea', placeholder: 'Descrizione abilità speciale...', colSpan: 3 },
     { key: 'specialCost', label: 'Costo Speciale 1', type: 'number', defaultValue: 15 },
-    { key: 'special2Name', label: 'Nome Speciale 2', type: 'text', placeholder: 'es: Immolazione' },
+    { key: 'special2Name', label: 'Nome Speciale 2', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Immolazione', colSpan: 2 },
     { key: 'special2Description', label: 'Desc. Speciale 2', type: 'textarea', placeholder: 'Descrizione abilità speciale 2...', colSpan: 3 },
     { key: 'special2Cost', label: 'Costo Speciale 2', type: 'number', defaultValue: 15 },
     { key: 'passiveDescription', label: 'Passiva', type: 'textarea', placeholder: 'Descrizione abilità passiva...', colSpan: 3 },
@@ -286,10 +322,10 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione della location', colSpan: 3 },
     { key: 'encounterRate', label: 'Prob. Incontri %', type: 'number', defaultValue: 0 },
     { key: 'isBossArea', label: 'Area Boss', type: 'boolean', defaultValue: false },
-    { key: 'bossId', label: 'Boss ID', type: 'text', placeholder: 'es: nemesis, tyrant' },
-    { key: 'enemyPool', label: 'Pool Nemici', type: 'tag-editor', placeholder: 'es: zombie, zombie_dog, crow', colSpan: 3 },
+    { key: 'bossId', label: 'Boss', type: 'entity-search', entitySearchEndpoint: '/api/admin/enemies', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: nemesis, tyrant', colSpan: 2 },
+    { key: 'enemyPool', label: 'Pool Nemici', type: 'entity-tag-editor', entitySearchEndpoint: '/api/admin/enemies', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'Cerca e seleziona nemici...', colSpan: 3 },
     { key: 'itemPool', label: 'Pool Oggetti', type: 'item-pool', colSpan: 3 },
-    { key: 'nextLocations', label: 'Location Uscite', type: 'tag-editor', placeholder: 'es: rpd_station, hospital_district', colSpan: 3 },
+    { key: 'nextLocations', label: 'Location Uscite', type: 'entity-tag-editor', entitySearchEndpoint: '/api/admin/locations', entitySearchLabelKey: 'name', placeholder: 'Cerca e seleziona location...', colSpan: 3 },
     { key: 'storyEvent', label: 'Evento Storia', type: 'story-event', colSpan: 3 },
     { key: 'ambientText', label: 'Testi Ambientali', type: 'text-list', colSpan: 3 },
     { key: 'lockedLocations', label: 'Location Bloccate', type: 'locked-locs', colSpan: 3 },
@@ -308,12 +344,41 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'category', label: 'Categoria', type: 'select', options: ['offensive', 'defensive', 'support', 'control'], enumGroup: 'specialCategory' },
     { key: 'targetType', label: 'Bersaglio', type: 'select', options: ['self', 'enemy', 'ally', 'all_allies'], enumGroup: 'specialTargetType' },
     { key: 'cooldown', label: 'Cooldown (turni)', type: 'number', defaultValue: 2 },
-    { key: 'executionType', label: 'Tipo Esecuzione', type: 'text', placeholder: 'es: colpo_mortale (stesso dell\'ID)', colSpan: 2 },
+    // executionType is auto-managed: always copies from id
     { key: 'powerMultiplier', label: 'Moltiplicatore Potere', type: 'number', placeholder: 'es: 1.6 (solo offensive)' },
     { key: 'healAmount', label: 'Quantità Cura', type: 'number', placeholder: 'es: 50 (solo healing/support)' },
     { key: 'statusToApply', label: 'Status Applicato', type: 'status-apply', colSpan: 3 },
     { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
   ],
+  enemies: [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: zombie, zombie_dog' },
+    { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Zombie' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione del nemico...', colSpan: 3 },
+    { key: 'maxHp', label: 'HP Massimo', type: 'number', defaultValue: 60 },
+    { key: 'atk', label: 'ATK', type: 'number', defaultValue: 10 },
+    { key: 'def', label: 'DEF', type: 'number', defaultValue: 5 },
+    { key: 'spd', label: 'SPD', type: 'number', defaultValue: 5 },
+    { key: 'icon', label: 'Icona', type: 'text', placeholder: 'es: 🧟' },
+    { key: 'expReward', label: 'EXP Ricompensa', type: 'number', defaultValue: 15 },
+    { key: 'lootTable', label: 'Tabella Loot', type: 'item-pool', colSpan: 3 },
+    { key: 'abilities', label: 'Abilità', type: 'entity-tag-editor', entitySearchEndpoint: '/api/admin/enemy-abilities', entitySearchLabelKey: 'name', placeholder: 'Cerca e seleziona abilità nemiche...', colSpan: 3 },
+    { key: 'isBoss', label: 'Boss', type: 'boolean', defaultValue: false },
+    { key: 'variantGroup', label: 'Gruppo Variante', type: 'text', placeholder: 'es: zombie, licker, cerberus, hunter, tyrant, nemesis' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+  ],
+  'enemy-abilities': [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: morso, artigliata, carica_brutale' },
+    { key: 'name', label: 'Nome Abilità', type: 'text', required: true, placeholder: 'es: Morso, Artigliata, Carica Brutale' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione dell\'attacco...', colSpan: 3 },
+    { key: 'power', label: 'Potenza', type: 'number', defaultValue: 1.0, helpText: 'Moltiplicatore del danno (1.0 = normale, 2.0 = doppio)' },
+    { key: 'chance', label: 'Prob. Uso %', type: 'number', defaultValue: 50, helpText: 'Probabilità che il nemico usi questa abilità (0-100)' },
+    { key: 'statusType', label: 'Status Effect', type: 'select', options: ['', 'poison', 'bleeding', 'stunned', 'adrenaline'], enumGroup: 'statusEffect', helpText: 'Effetto di status applicato dal colpo (vuoto = nessuno)' },
+    { key: 'statusChance', label: 'Prob. Status %', type: 'number', defaultValue: 0, helpText: 'Probabilità di applicare lo status (0-100)' },
+    { key: 'statusDuration', label: 'Durata Status', type: 'number', defaultValue: 0, helpText: 'Turni di durata dello status (0 = 3 turni default dal motore)' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+  ],
+  'avatars': [],
+  'start-screen': [],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -454,7 +519,7 @@ const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
       mediaType: 'image' as const,
       category: 'portrait',
       accept: 'image/png,image/jpeg,image/webp',
-      idTemplate: 'char_{entityId}',
+      idTemplate: '{entityId}',
       nameTemplate: 'Char: {entityId}',
       helpText: 'Immagine ritratto del personaggio mostrata nella selezione (256×256 consigliato)',
     },
@@ -471,6 +536,21 @@ const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
       helpText: 'Immagine icona dell\'abilità speciale (64×64 consigliato)',
     },
   ],
+  enemies: [
+    {
+      key: 'portrait',
+      label: 'Immagine Nemico',
+      mediaType: 'image' as const,
+      category: 'sprite',
+      accept: 'image/png,image/jpeg,image/webp',
+      idTemplate: '{entityId}',
+      nameTemplate: 'Enemy: {entityId}',
+      helpText: 'Immagine sprite del nemico mostrata in combattimento (256×256 consigliato)',
+    },
+  ],
+  'enemy-abilities': [],
+  'avatars': [],
+  'start-screen': [],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -947,8 +1027,119 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       },
     },
   ],
+  enemies: [
+    {
+      key: '_icon',
+      label: '',
+      width: 'w-12',
+      render: (row) => <span className="text-sm">{String(row.icon ?? '🧟')}</span>,
+    },
+    { key: 'id', label: 'ID', width: 'w-40' },
+    { key: 'name', label: 'Nome', width: 'w-36' },
+    {
+      key: 'maxHp',
+      label: 'HP',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-green-400/70 font-mono">{row.maxHp}</span>,
+    },
+    {
+      key: 'atk',
+      label: 'ATK',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-red-400/70 font-mono">{row.atk}</span>,
+    },
+    {
+      key: 'def',
+      label: 'DEF',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-amber-400/70 font-mono">{row.def}</span>,
+    },
+    {
+      key: 'spd',
+      label: 'SPD',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-cyan-400/70 font-mono">{row.spd}</span>,
+    },
+    {
+      key: 'expReward',
+      label: 'EXP',
+      width: 'w-14',
+      render: (row) => <span className="text-[10px] text-yellow-400/70 font-mono">{row.expReward}</span>,
+    },
+    {
+      key: 'isBoss',
+      label: 'Boss',
+      width: 'w-16',
+      render: (row) => (
+        <span className={row.isBoss ? 'text-red-400 text-[10px] font-bold' : 'text-white/15 text-[10px]'}>
+          {row.isBoss ? 'BOSS' : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'variantGroup',
+      label: 'Variante',
+      width: 'w-24',
+      render: (row) => {
+        const vg = String(row.variantGroup ?? '');
+        if (!vg) return <span className="text-white/15 text-[10px]">—</span>;
+        return <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">{vg}</Badge>;
+      },
+    },
+    {
+      key: 'abilities',
+      label: 'Abilità',
+      width: 'w-16',
+      render: (row) => {
+        let count = 0;
+        try { count = typeof row.abilities === 'string' ? JSON.parse(row.abilities).length : Array.isArray(row.abilities) ? row.abilities.length : 0; } catch { count = 0; }
+        return <span className="text-[10px] text-white/40 font-mono">{count}</span>;
+      },
+    },
+  ],
+  'enemy-abilities': [
+    { key: 'id', label: 'ID', width: 'w-44' },
+    { key: 'name', label: 'Nome', width: 'w-40' },
+    {
+      key: 'power',
+      label: 'Potenza',
+      width: 'w-20',
+      render: (row) => {
+        const p = Number(row.power);
+        const color = p >= 2.0 ? 'text-red-400' : p >= 1.5 ? 'text-amber-400' : p >= 1.0 ? 'text-white/70' : 'text-green-400/70';
+        return <span className={`text-[11px] font-mono ${color}`}>{p.toFixed(1)}x</span>;
+      },
+    },
+    {
+      key: 'chance',
+      label: 'Prob. %',
+      width: 'w-18',
+      render: (row) => <span className="text-[10px] text-white/50 font-mono">{row.chance}%</span>,
+    },
+    {
+      key: 'statusType',
+      label: 'Status',
+      width: 'w-28',
+      render: (row) => {
+        const st = String(row.statusType ?? '');
+        if (!st) return <span className="text-white/15 text-[10px]">—</span>;
+        const statusColors: Record<string, string> = {
+          poison: 'border-green-500/30 text-green-400 bg-green-500/10',
+          bleeding: 'border-red-500/30 text-red-400 bg-red-500/10',
+          stunned: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+          adrenaline: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
+        };
+        return (
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColors[st] ?? ''}`}>
+            {getEnumLabel('statusEffect', st)} {row.statusChance ? `(${row.statusChance}%)` : ''}
+          </Badge>
+        );
+      },
+    },
+  ],
+  'avatars': [],
+  'start-screen': [],
 };
-
 // ═══════════════════════════════════════════════════════════════
 // Entity Search Input (searchable ID reference fields)
 // ═══════════════════════════════════════════════════════════════
@@ -957,6 +1148,7 @@ function EntitySearchInput({
   onChange,
   endpoint,
   labelKey,
+  iconKey,
   placeholder,
   disabled,
 }: {
@@ -964,11 +1156,12 @@ function EntitySearchInput({
   onChange: (val: string) => void;
   endpoint: string;
   labelKey: string;
+  iconKey?: string;
   placeholder?: string;
   disabled?: boolean;
 }) {
   const [query, setQuery] = useState(value);
-  const [results, setResults] = useState<{ id: string; label: string }[]>([]);
+  const [results, setResults] = useState<{ id: string; label: string; icon?: string }[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searching, setSearching] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -1009,7 +1202,7 @@ function EntitySearchInput({
           return id.includes(lower) || label.includes(lower);
         })
         .slice(0, 10)
-        .map(r => ({ id: String(r.id), label: String(r[labelKey] ?? r.id) }));
+        .map(r => ({ id: String(r.id), label: String(r[labelKey] ?? r.id), icon: iconKey ? String(r[iconKey] ?? '') : undefined }));
       setResults(filtered);
       setShowDropdown(filtered.length > 0);
     } catch {
@@ -1017,7 +1210,7 @@ function EntitySearchInput({
     } finally {
       setSearching(false);
     }
-  }, [endpoint, labelKey]);
+  }, [endpoint, labelKey, iconKey]);
 
   const handleInputChange = (v: string) => {
     setQuery(v);
@@ -1063,12 +1256,254 @@ function EntitySearchInput({
               key={r.id}
               type="button"
               onClick={() => handleSelect(r.id)}
-              className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0"
+              className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-2"
             >
+              {r.icon && <span className="shrink-0 w-5 text-center">{r.icon}</span>}
               <span className="text-white/90 font-mono">{r.id}</span>
               <span className="text-white/30 ml-2 truncate">{r.label}</span>
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Entity-Aware Tag Editor — searchable multi-select for entity pools
+// ═══════════════════════════════════════════════════════════════
+function EntityTagEditor({ value, onChange, endpoint, labelKey, iconKey, placeholder }: {
+  value: unknown;
+  onChange: (v: string[]) => void;
+  endpoint: string;
+  labelKey: string;
+  iconKey?: string;
+  placeholder?: string;
+}) {
+  const tags = useMemo(() => parseStringArray(value), [value]);
+  const [entities, setEntities] = useState<{ id: string; label: string; icon?: string }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [query, setQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load entities from endpoint on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(endpoint);
+        if (!res.ok) return;
+        const data: Record<string, unknown>[] = await res.json();
+        const mapped = data.map(r => ({
+          id: String(r.id),
+          label: String(r[labelKey] ?? r.id),
+          icon: iconKey ? String(r[iconKey] ?? '') : undefined,
+        }));
+        setEntities(mapped);
+      } catch { /* silent */ }
+      setLoaded(true);
+    })();
+  }, [endpoint, labelKey, iconKey]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Build a lookup map: id → entity
+  const entityMap = useMemo(() => {
+    const m = new Map<string, { id: string; label: string; icon?: string }>();
+    entities.forEach(e => m.set(e.id, e));
+    return m;
+  }, [entities]);
+
+  const selected = tags.map(id => entityMap.get(id)).filter(Boolean) as { id: string; label: string; icon?: string }[];
+
+  const filteredOptions = useMemo(() => {
+    if (!query.trim()) return entities.filter(e => !tags.includes(e.id));
+    const q = query.toLowerCase();
+    return entities.filter(e =>
+      !tags.includes(e.id) &&
+      (e.id.toLowerCase().includes(q) || e.label.toLowerCase().includes(q))
+    ).slice(0, 15);
+  }, [entities, tags, query]);
+
+  const handleSelect = (id: string) => {
+    if (!tags.includes(id)) {
+      onChange([...tags, id]);
+    }
+    setQuery('');
+    setShowDropdown(false);
+    inputRef.current?.focus();
+  };
+
+  const removeTag = (idx: number) => {
+    onChange(tags.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div ref={wrapperRef} className="space-y-1.5">
+      {/* Selected tags */}
+      <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 rounded-md bg-white/[0.04] border border-white/[0.1]">
+        {selected.length === 0 && !query && (
+          <span className="text-[10px] text-white/20 italic">{placeholder ?? 'Cerca e seleziona...'}</span>
+        )}
+        {selected.map((entity, i) => (
+          <span key={entity.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-[10px] text-yellow-300 group/tag">
+            {entity.icon && <span className="mr-0.5">{entity.icon}</span>}
+            <span className="font-mono text-yellow-400/60">{entity.id}</span>
+            <span className="text-white/50">{entity.label}</span>
+            <button type="button" onClick={() => removeTag(i)} className="text-yellow-500/40 hover:text-red-400 transition-colors ml-0.5">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setShowDropdown(true); }}
+          onFocus={() => setShowDropdown(true)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') { setShowDropdown(false); e.stopPropagation(); }
+          }}
+          placeholder={selected.length === 0 ? placeholder : 'Cerca...'}
+          className="flex-1 min-w-[100px] text-[10px] bg-transparent border-none outline-none text-white/70 placeholder-white/20"
+        />
+      </div>
+      {/* Dropdown */}
+      {showDropdown && filteredOptions.length > 0 && (
+        <div className="relative z-50">
+          <div className="absolute top-0 left-0 right-0 max-h-52 overflow-y-auto rounded-lg border border-white/[0.12] bg-gray-900/98 shadow-xl admin-scrollbar">
+            {filteredOptions.map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleSelect(opt.id)}
+                className="w-full text-left px-3 py-2 text-[11px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-2"
+              >
+                {opt.icon && <span className="shrink-0 w-5 text-center">{opt.icon}</span>}
+                <span className="font-mono text-cyan-300/80 shrink-0">{opt.id}</span>
+                <span className="text-white/50 truncate">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {!loaded && (
+        <div className="flex items-center gap-1.5 text-[9px] text-white/20">
+          <Loader2 className="w-3 h-3 animate-spin" /> Caricamento entità...
+        </div>
+      )}
+      <p className="text-[9px] text-white/15">
+        Seleziona dalla lista · {tags.length} selezionati · {entities.length - tags.length} disponibili
+      </p>
+    </div>
+  );
+}
+
+/** Mini entity search input — used inside ItemPoolEditor rows */
+function MiniEntitySearch({ value, onChange, endpoint, labelKey, iconKey }: {
+  value: string;
+  onChange: (val: string) => void;
+  endpoint: string;
+  labelKey: string;
+  iconKey?: string;
+}) {
+  const [entities, setEntities] = useState<{ id: string; label: string; icon?: string }[]>([]);
+  const [query, setQuery] = useState(value);
+  const [results, setResults] = useState<{ id: string; label: string; icon?: string }[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(endpoint);
+        if (!res.ok) return;
+        const data: Record<string, unknown>[] = await res.json();
+        const mapped = data.map(r => ({
+          id: String(r.id),
+          label: String(r[labelKey] ?? r.id),
+          icon: iconKey ? String(r[iconKey] ?? '') : undefined,
+        }));
+        setEntities(mapped);
+      } catch { /* silent */ }
+    })();
+  }, [endpoint, labelKey, iconKey]);
+
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Find current entity name
+  const currentEntity = entities.find(e => e.id === value);
+
+  const handleInputChange = (v: string) => {
+    setQuery(v);
+    onChange(v);
+    const q = v.toLowerCase();
+    const filtered = entities.filter(e =>
+      e.id.toLowerCase().includes(q) || e.label.toLowerCase().includes(q)
+    ).slice(0, 10);
+    setResults(filtered);
+    setShowDropdown(filtered.length > 0);
+  };
+
+  const handleSelect = (id: string) => {
+    setQuery(id);
+    onChange(id);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <input
+        type="text"
+        value={query}
+        onChange={e => handleInputChange(e.target.value)}
+        onFocus={() => {
+          if (query.length > 0) handleInputChange(query);
+        }}
+        placeholder="Cerca..."
+        className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40"
+      />
+      {showDropdown && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-40 overflow-y-auto rounded-md border border-white/[0.12] bg-gray-900/98 shadow-xl admin-scrollbar">
+          {results.map(r => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => handleSelect(r.id)}
+              className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-1.5"
+            >
+              {r.icon && <span className="shrink-0 w-4 text-center text-xs">{r.icon}</span>}
+              <span className="font-mono text-cyan-300/70 shrink-0">{r.id}</span>
+              <span className="text-white/40 truncate">{r.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {currentEntity && !showDropdown && (
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-white/20 truncate max-w-[100px] pointer-events-none">
+          {currentEntity.label}
         </div>
       )}
     </div>
@@ -1183,12 +1618,12 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
               <tr key={i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
-                  <input
-                    type="text"
+                  <MiniEntitySearch
                     value={item.itemId}
-                    onChange={e => updateItem(i, 'itemId', e.target.value)}
-                    placeholder="ammo_pistol"
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40"
+                    onChange={v => updateItem(i, 'itemId', v)}
+                    endpoint="/api/admin/items"
+                    labelKey="name"
+                    iconKey="icon"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -1978,7 +2413,7 @@ function EntityForm({
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(f => {
           const val = data[f.key] ?? f.defaultValue ?? '';
-          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || (f.colSpan === 3);
+          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || (f.colSpan === 3);
           const isDoubleWidth = f.colSpan === 2 && !isFullWidth;
 
           if (isEdit && f.key === 'id') {
@@ -1987,6 +2422,7 @@ function EntityForm({
               <div key={f.key} className={isFullWidth ? 'col-span-3' : isDoubleWidth ? 'col-span-2' : ''}>
                 <label className="text-[10px] text-white/50 mb-0.5 block font-medium">
                   {f.label}
+                  {f.helpText && <span className="text-[9px] text-white/25 ml-1" title={f.helpText}>(?)</span>}
                 </label>
                 <input
                   type="text"
@@ -2002,6 +2438,7 @@ function EntityForm({
             <div key={f.key} className={isFullWidth ? 'col-span-3' : isDoubleWidth ? 'col-span-2' : ''}>
               <label className="text-[10px] text-white/50 mb-0.5 block font-medium">
                 {f.label} {f.required && <span className="text-red-400">*</span>}
+                {f.helpText && <span className="text-[9px] text-white/25 ml-1" title={f.helpText}>(?)</span>}
               </label>
               {f.type === 'textarea' ? (
                 <textarea
@@ -2044,12 +2481,22 @@ function EntityForm({
                   onChange={v => handleChange(f.key, v)}
                   endpoint={f.entitySearchEndpoint ?? ''}
                   labelKey={f.entitySearchLabelKey ?? 'name'}
+                  iconKey={f.entityIconKey}
                   placeholder={f.placeholder}
                 />
               ) : f.type === 'tag-editor' ? (
                 <TagEditor
                   value={val}
                   onChange={v => handleChange(f.key, v)}
+                  placeholder={f.placeholder}
+                />
+              ) : f.type === 'entity-tag-editor' ? (
+                <EntityTagEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                  endpoint={f.entitySearchEndpoint ?? ''}
+                  labelKey={f.entitySearchLabelKey ?? 'name'}
+                  iconKey={f.entityIconKey}
                   placeholder={f.placeholder}
                 />
               ) : f.type === 'item-pool' ? (
@@ -2929,6 +3376,496 @@ function TableSkeleton() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Start Screen Editor — Custom tab for title screen configuration
+// ═══════════════════════════════════════════════════════════════
+
+interface SettingDef {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'color' | 'range';
+  group: string;
+  groupLabel: string;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  rows?: number;
+}
+
+const START_SCREEN_FIELDS: SettingDef[] = [
+  // Texts
+  { key: 'titleScreen.umbrellaText',  label: 'Testo Umbrella Corp',     type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Umbrella Corporation Presenta' },
+  { key: 'titleScreen.title',         label: 'Titolo Principale',        type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'RACCOON CITY' },
+  { key: 'titleScreen.subtitle',      label: 'Sottotitolo',              type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Escape from Horror' },
+  { key: 'titleScreen.description',   label: 'Descrizione',              type: 'textarea', group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Testo descrittivo...', rows: 3 },
+  { key: 'titleScreen.warningText',   label: 'Testo Avvertenza',         type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: '⚠ CONTENUTO HORROR...' },
+  // Buttons
+  { key: 'titleScreen.newGameBtn',    label: 'Tasto "Nuova Partita"',    type: 'text',     group: 'buttons', groupLabel: '🎮 Tasti',        placeholder: 'Nuova partita' },
+  { key: 'titleScreen.loadGameBtn',   label: 'Tasto "Carica Partita"',   type: 'text',     group: 'buttons', groupLabel: '🎮 Tasti',        placeholder: 'Carica partita' },
+  // Style — Colors
+  { key: 'titleScreen.umbrellaColor', label: 'Colore Umbrella',          type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.titleColor',    label: 'Colore Titolo',            type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.subtitleColor', label: 'Colore Sottotitolo',       type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.btnTextColor',  label: 'Testo Pulsanti',           type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.btnBg',         label: 'Sfondo Pulsanti',          type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.btnBorder',     label: 'Bordo Pulsanti',           type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.btnHoverBg',    label: 'Sfondo Pulsanti Hover',    type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.btnHoverBorder',label: 'Bordo Pulsanti Hover',     type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  // Style — Effects
+  { key: 'titleScreen.titleGlow',     label: 'Ombra Titolo (text-shadow)', type: 'text',   group: 'effects', groupLabel: '✨ Effetti',      placeholder: '0 0 40px rgba(220,38,38,0.6)...' },
+  { key: 'titleScreen.btnGlowHover',  label: 'Glow Hover Pulsanti (rgba)', type: 'text',   group: 'effects', groupLabel: '✨ Effetti',      placeholder: 'rgba(220,38,38,0.4)' },
+  { key: 'titleScreen.overlayOpacity',label: 'Opacità Overlay Sfondo',   type: 'range',    group: 'effects', groupLabel: '✨ Effetti',      min: 0, max: 1, step: 0.05 },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// Avatar Manager — manage avatar images for character creation
+// ═══════════════════════════════════════════════════════════════
+
+const PREDEFINED_AVATARS = [
+  { id: 'avatar_soldier',   name: 'Avatar 1', emoji: '🪖' },
+  { id: 'avatar_medic',     name: 'Avatar 2', emoji: '🩺' },
+  { id: 'avatar_agent',     name: 'Avatar 3', emoji: '🕵️' },
+  { id: 'avatar_cop',       name: 'Avatar 4', emoji: '👮' },
+  { id: 'avatar_scientist', name: 'Avatar 5', emoji: '🔬' },
+  { id: 'avatar_civilian',  name: 'Avatar 6', emoji: '👤' },
+  { id: 'avatar_jax',       name: 'Avatar 7', emoji: '⚔️' },
+  { id: 'avatar_elena',     name: 'Avatar 8', emoji: '🩺' },
+  { id: 'avatar_marco',     name: 'Avatar 9', emoji: '✈️' },
+];
+
+function AvatarCard({ avatar, hasImage, isUploading, onUpload, onDelete }: {
+  avatar: { id: string; name: string; emoji: string };
+  hasImage: boolean;
+  isUploading: boolean;
+  onUpload: (id: string, file: File) => void;
+  onDelete: (id: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      className="relative rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden group hover:border-white/[0.15] transition-colors"
+    >
+      {/* Image Area */}
+      <div className="relative aspect-square bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center overflow-hidden">
+        {hasImage ? (
+          <img
+            src={`/api/media/image?id=${avatar.id}&_t=${Date.now()}`}
+            alt={avatar.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              target.parentElement!.querySelector('.emoji-fallback')!.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <span className={`emoji-fallback text-5xl ${hasImage ? 'hidden absolute' : ''}`}>
+          {avatar.emoji}
+        </span>
+
+        {/* Overlay on hover */}
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={isUploading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/30 text-cyan-300 text-[11px] hover:bg-cyan-600/30 transition-colors disabled:opacity-50"
+          >
+            {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            {hasImage ? 'Cambia' : 'Carica'}
+          </button>
+          {hasImage && (
+            <button
+              type="button"
+              onClick={() => onDelete(avatar.id)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-[11px] hover:bg-red-600/30 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Rimuovi
+            </button>
+          )}
+        </div>
+
+        {/* Hidden file input */}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (file) onUpload(avatar.id, file);
+          }}
+        />
+      </div>
+
+      {/* Info */}
+      <div className="px-3 py-2.5 border-t border-white/[0.06]">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[12px] text-white/80 font-medium flex items-center gap-1.5">
+              <span>{avatar.emoji}</span>
+              {avatar.name}
+            </div>
+            <div className="text-[10px] text-white/25 font-mono mt-0.5">{avatar.id}</div>
+          </div>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded ${hasImage ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/[0.03] border border-white/[0.06] text-white/20'}`}>
+            {hasImage ? '✓ Immagine' : '— Nessuna'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AvatarManager() {
+  const [avatarStatus, setAvatarStatus] = useState<Record<string, boolean>>({});
+  const [checking, setChecking] = useState(true);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+
+  // Check which avatars have images
+  useEffect(() => {
+    (async () => {
+      setChecking(true);
+      try {
+        const res = await fetch('/api/admin/images');
+        if (!res.ok) return;
+        const items: Record<string, unknown>[] = await res.json();
+        const status: Record<string, boolean> = {};
+        PREDEFINED_AVATARS.forEach(a => {
+          status[a.id] = items.some(r => r.id === a.id && r.data);
+        });
+        setAvatarStatus(status);
+      } catch {
+        // silent
+      } finally {
+        setChecking(false);
+      }
+    })();
+  }, []);
+
+  const handleUpload = async (avatarId: string, file: File) => {
+    setUploadingId(avatarId);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('id', avatarId);
+    formData.append('name', `Avatar: ${avatarId}`);
+    formData.append('category', 'avatar');
+
+    try {
+      const res = await fetch('/api/admin/upload/image', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      setAvatarStatus(prev => ({ ...prev, [avatarId]: true }));
+    } catch (err) {
+      console.error('Upload error:', err);
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
+  const handleDelete = async (avatarId: string) => {
+    try {
+      await fetch(`/api/admin/upload/image?id=${encodeURIComponent(avatarId)}`, { method: 'DELETE' });
+      setAvatarStatus(prev => ({ ...prev, [avatarId]: false }));
+    } catch {
+      console.error('Delete error');
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto admin-scrollbar p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h3 className="text-sm font-bold text-white/80 flex items-center gap-2">
+          <Users className="w-4 h-4 text-cyan-400/60" />
+          Avatar Personaggio
+        </h3>
+        <p className="text-[11px] text-white/30 mt-1">
+          Gestisci le immagini avatar utilizzate nella schermata di creazione personaggio. Ogni avatar ha un ID univoco (&quot;avatar_*&quot;) che viene usato dal gioco per caricare l&apos;immagine.
+        </p>
+      </div>
+
+      {/* Loading */}
+      {checking && (
+        <div className="flex items-center gap-2 text-[11px] text-white/30 py-8 justify-center">
+          <Loader2 className="w-4 h-4 animate-spin" /> Caricamento stato avatar...
+        </div>
+      )}
+
+      {/* Avatar Grid */}
+      {!checking && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PREDEFINED_AVATARS.map(avatar => (
+            <AvatarCard
+              key={avatar.id}
+              avatar={avatar}
+              hasImage={avatarStatus[avatar.id]}
+              isUploading={uploadingId === avatar.id}
+              onUpload={handleUpload}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Footer info */}
+      <div className="mt-6 p-3 rounded-lg bg-white/[0.02] border border-white/[0.06]">
+        <p className="text-[10px] text-white/30">
+          💡 <span className="text-white/40 font-medium">Consiglio:</span> Utilizza immagini quadrate (256×256 o 512×512) per risultati ottimali nella griglia di selezione personaggio. Formati supportati: PNG, JPG, WebP.
+        </p>
+        <p className="text-[10px] text-white/20 mt-1">
+          Le immagini vengono caricate nella tabella <span className="font-mono text-white/30">game_images</span> con categoria &quot;avatar&quot; e ID corrispondente. Il CharacterCreator le carica tramite <span className="font-mono text-white/30">/api/media/image?id=avatar_*</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function StartScreenEditor() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [bgHasFile, setBgHasFile] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load settings
+  useEffect(() => {
+    fetch('/api/admin/game-settings')
+      .then(r => r.json())
+      .then(rows => {
+        const map: Record<string, string> = {};
+        for (const row of rows) map[row.key] = row.value;
+        setSettings(map);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Check if bg_title image exists
+  useEffect(() => {
+    fetch('/api/admin/images')
+      .then(r => r.json())
+      .then(rows => {
+        const found = Array.isArray(rows) && rows.some((r: { id: string; data: unknown }) => r.id === 'bg_title' && r.data);
+        setBgHasFile(found);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleChange = (key: string, value: string) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const res = await fetch('/api/admin/game-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setSaveMsg({ ok: true, text: '✅ Impostazioni salvate con successo!' });
+    } catch (err) {
+      setSaveMsg({ ok: false, text: `❌ Errore: ${err}` });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(null), 3000);
+    }
+  };
+
+  const handleBgUpload = async (f: File) => {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', f);
+    formData.append('id', 'bg_title');
+    formData.append('name', 'Sfondo Schermata Iniziale');
+    formData.append('category', 'background');
+    try {
+      const res = await fetch('/api/admin/upload/image', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      setBgHasFile(true);
+      setSaveMsg({ ok: true, text: '✅ Sfondo caricato! Fai Refresh Data per vederlo.' });
+      setTimeout(() => setSaveMsg(null), 4000);
+    } catch (err) {
+      setSaveMsg({ ok: false, text: `❌ Errore upload: ${err}` });
+      setTimeout(() => setSaveMsg(null), 4000);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleBgRemove = async () => {
+    try {
+      await fetch('/api/admin/upload/image?id=bg_title', { method: 'DELETE' });
+      setBgHasFile(false);
+      setSaveMsg({ ok: true, text: '✅ Sfondo rimosso.' });
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch { /* ignore */ }
+  };
+
+  // Group fields
+  const groups = START_SCREEN_FIELDS.reduce<Record<string, SettingDef[]>>((acc, f) => {
+    if (!acc[f.group]) acc[f.group] = [];
+    acc[f.group].push(f);
+    return acc;
+  }, {});
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-yellow-400/50" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto admin-scrollbar">
+      {/* Banner */}
+      <div className="px-6 py-4 border-b border-white/[0.06]">
+        <h3 className="text-sm font-bold text-yellow-400 mb-1">🎮 Schermata Iniziale</h3>
+        <p className="text-[11px] text-white/40">Personalizza tutti i testi, colori e lo stile dei pulsanti della schermata del titolo.</p>
+      </div>
+
+      {/* Background Image Upload */}
+      <div className="px-6 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2 mb-3">
+          <ImageIcon className="w-4 h-4 text-cyan-400/70" />
+          <span className="text-[11px] font-semibold text-white/70">Sfondo Schermata (bg_title)</span>
+          {bgHasFile && (
+            <span className="flex items-center gap-1 text-[9px] text-green-400/70 bg-green-500/10 px-2 py-0.5 rounded-full">
+              <CheckCircle2 className="w-3 h-3" /> Presente
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {bgHasFile && (
+            <div className="w-20 h-12 rounded-md overflow-hidden border border-white/[0.1] bg-black/30 shrink-0">
+              <img src="/api/media/image?ref=bg_title" alt="bg" className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div className="flex-1">
+            <div
+              className="border-2 border-dashed border-white/[0.08] rounded-lg px-4 py-4 flex flex-col items-center gap-2 cursor-pointer hover:border-yellow-500/30 hover:bg-yellow-500/[0.03] transition-colors"
+              onClick={() => !uploading && fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) handleBgUpload(f); }}
+            >
+              {uploading ? (
+                <Loader2 className="w-5 h-5 animate-spin text-yellow-400/50" />
+              ) : (
+                <>
+                  <CloudUpload className="w-5 h-5 text-white/25" />
+                  <span className="text-[10px] text-white/30">
+                    {bgHasFile ? 'Trascina o clicca per sostituire' : 'Trascina o clicca per caricare (PNG/JPG/WebP, 1920×1080+)'}
+                  </span>
+                </>
+              )}
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleBgUpload(f); }} />
+            </div>
+          </div>
+          {bgHasFile && (
+            <button onClick={handleBgRemove} className="flex items-center gap-1 text-[10px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg transition-colors shrink-0">
+              <Trash className="w-3 h-3" /> Rimuovi
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Save message */}
+      {saveMsg && (
+        <div className={`mx-6 mt-4 px-4 py-2.5 rounded-lg text-[11px] font-medium ${saveMsg.ok ? 'bg-green-500/10 text-green-300 border border-green-500/20' : 'bg-red-500/10 text-red-300 border border-red-500/20'}`}>
+          {saveMsg.text}
+        </div>
+      )}
+
+      {/* Settings Groups */}
+      <div className="px-6 py-4 space-y-6">
+        {Object.entries(groups).map(([groupKey, fields]) => (
+          <div key={groupKey}>
+            <h4 className="text-[11px] font-bold text-white/50 uppercase tracking-wider mb-3 pb-2 border-b border-white/[0.04]">
+              {fields[0].groupLabel}
+            </h4>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              {fields.map(f => {
+                const val = settings[f.key] ?? '';
+                return (
+                  <div key={f.key} className={f.type === 'textarea' ? 'col-span-2' : ''}>
+                    <label className="text-[10px] text-white/50 mb-1 block font-medium">{f.label}</label>
+                    {f.type === 'color' ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={val || '#000000'}
+                          onChange={e => handleChange(f.key, e.target.value)}
+                          className="w-8 h-8 rounded border border-white/[0.1] bg-transparent cursor-pointer p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={e => handleChange(f.key, e.target.value)}
+                          placeholder="#ffffff"
+                          className="flex-1 text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 font-mono placeholder-white/20 focus:outline-none focus:border-yellow-500/50"
+                        />
+                      </div>
+                    ) : f.type === 'range' ? (
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={f.min ?? 0}
+                          max={f.max ?? 1}
+                          step={f.step ?? 0.1}
+                          value={parseFloat(val) || 0}
+                          onChange={e => handleChange(f.key, e.target.value)}
+                          className="flex-1 accent-yellow-500"
+                        />
+                        <span className="text-[10px] text-white/50 font-mono w-8 text-right">{val}</span>
+                      </div>
+                    ) : f.type === 'textarea' ? (
+                      <textarea
+                        value={val}
+                        onChange={e => handleChange(f.key, e.target.value)}
+                        placeholder={f.placeholder}
+                        rows={f.rows ?? 3}
+                        className="w-full text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 resize-y font-mono"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={e => handleChange(f.key, e.target.value)}
+                        placeholder={f.placeholder}
+                        className="w-full text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Save button */}
+      <div className="px-6 py-4 border-t border-white/[0.06] sticky bottom-0 bg-gray-900/95 backdrop-blur">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full bg-yellow-600/20 border border-yellow-500/30 text-yellow-300 hover:bg-yellow-600/30 hover:text-yellow-200 text-xs gap-2"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          Salva Impostazioni Schermata Iniziale
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Main AdminPanel
 // ═══════════════════════════════════════════════════════════════
 export default function AdminPanel() {
@@ -2937,7 +3874,7 @@ export default function AdminPanel() {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<Record<TabId, number>>({
-    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0,
+    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, avatars: 0, 'start-screen': 0,
   });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -3036,7 +3973,7 @@ export default function AdminPanel() {
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -3056,6 +3993,10 @@ export default function AdminPanel() {
         if (processed[f.key] === '' || processed[f.key] === undefined) {
           delete processed[f.key];
         }
+      }
+      // Auto-set executionType from id for specials
+      if (activeTab === 'specials' && processed.id) {
+        processed.executionType = processed.id;
       }
       const res = await fetch(tabConfig.endpoint, {
         method: 'POST',
@@ -3079,7 +4020,7 @@ export default function AdminPanel() {
       if (editingId && !processed.id) {
         processed.id = editingId;
       }
-      const ARRAY_TYPES = new Set(['tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -3099,6 +4040,10 @@ export default function AdminPanel() {
         if (processed[f.key] === '' || processed[f.key] === undefined) {
           delete processed[f.key];
         }
+      }
+      // Auto-set executionType from id for specials
+      if (activeTab === 'specials' && processed.id) {
+        processed.executionType = processed.id;
       }
       const res = await fetch(tabConfig.endpoint, {
         method: 'PUT',
@@ -3235,6 +4180,7 @@ export default function AdminPanel() {
               >
                 <span className="shrink-0">{tab.icon}</span>
                 <span className="text-xs font-semibold flex-1 truncate">{tab.label}</span>
+                {!tab.custom && (
                 <span className={`text-[10px] min-w-[20px] text-center px-1.5 py-0.5 rounded-full font-mono ${
                   activeTab === tab.id
                     ? 'bg-yellow-500/20 text-yellow-200'
@@ -3242,12 +4188,17 @@ export default function AdminPanel() {
                 }`}>
                   {counts[tab.id] ?? 0}
                 </span>
+                )}
               </button>
             ))}
           </div>
 
           {/* ── Content Area ── */}
           <div className="flex-1 flex flex-col overflow-hidden">
+            {tabConfig.custom ? (
+              activeTab === 'avatars' ? <AvatarManager /> : <StartScreenEditor />
+            ) : (
+            <>
             {/* Status message */}
             <AnimatePresence>
               {statusMsg && (
@@ -3299,133 +4250,40 @@ export default function AdminPanel() {
               <GalleryBanner type={activeTab as 'sounds' | 'images'} />
             )}
 
-            {/* Notifications seed banner */}
-            {activeTab === 'notifications' && (
-              <div className="px-4 py-2.5 flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
-                  <Bell className="w-4 h-4 text-white/25 shrink-0" />
-                  <p className="text-[11px] text-white/30">
-                    Configurazione <span className="text-white/50 font-medium">notifiche</span> — personalizza colori, label, animazioni e media per ogni tipo di notifica
-                  </p>
+            {/* Data-driven seed banners for all entity tabs */}
+            {(() => {
+              const banner = SEED_BANNERS[activeTab];
+              if (!banner) return null;
+              const BannerIcon = banner.icon;
+              return (
+                <div className="px-4 py-2.5 flex items-center gap-2">
+                  <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
+                    <BannerIcon className="w-4 h-4 text-white/25 shrink-0" />
+                    <p className="text-[11px] text-white/30" dangerouslySetInnerHTML={{ __html: banner.description }} />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(banner.seedEndpoint, { method: 'POST' });
+                        if (!res.ok) throw new Error(await res.text());
+                        const result = await res.json();
+                        showStatus(result.message, 'success');
+                        fetchData();
+                        fetchCounts();
+                      } catch (err) {
+                        showStatus(`Errore seed: ${err}`, 'error');
+                      }
+                    }}
+                    className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
+                  >
+                    <Upload className="w-3 h-3" />
+                    Seed Default
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/admin/seed-notifications', { method: 'POST' });
-                      if (!res.ok) throw new Error(await res.text());
-                      const result = await res.json();
-                      showStatus(result.message, 'success');
-                      fetchData();
-                      fetchCounts();
-                    } catch (err) {
-                      showStatus(`Errore seed: ${err}`, 'error');
-                    }
-                  }}
-                  className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
-                >
-                  <Upload className="w-3 h-3" />
-                  Seed Default
-                </Button>
-              </div>
-            )}
-
-            {/* Locations info banner */}
-            {activeTab === 'locations' && (
-              <div className="px-4 py-2.5 flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
-                  <MapPin className="w-4 h-4 text-white/25 shrink-0" />
-                  <p className="text-[11px] text-white/30">
-                    Gestione <span className="text-white/50 font-medium">location</span> — aggiungi, modifica o rimuovi aree di gioco. Ogni location può avere sfondo, nemici, oggetti e eventi personalizzati.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/admin/seed-locations', { method: 'POST' });
-                      if (!res.ok) throw new Error(await res.text());
-                      const result = await res.json();
-                      showStatus(result.message, 'success');
-                      fetchData();
-                      fetchCounts();
-                    } catch (err) {
-                      showStatus(`Errore seed: ${err}`, 'error');
-                    }
-                  }}
-                  className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
-                >
-                  <Upload className="w-3 h-3" />
-                  Seed Default
-                </Button>
-              </div>
-            )}
-
-            {/* NPCs banner */}
-            {activeTab === 'npcs' && (
-              <div className="px-4 py-2.5 flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
-                  <Users className="w-4 h-4 text-white/25 shrink-0" />
-                  <p className="text-[11px] text-white/30">
-                    Gestione <span className="text-white/50 font-medium">NPC</span> — aggiungi, modifica o rimuovi personaggi non giocanti. Ogni NPC ha dialoghi, quest e scambi personalizzati.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/admin/seed-npcs', { method: 'POST' });
-                      if (!res.ok) throw new Error(await res.text());
-                      const result = await res.json();
-                      showStatus(result.message, 'success');
-                      fetchData();
-                      fetchCounts();
-                    } catch (err) {
-                      showStatus(`Errore seed: ${err}`, 'error');
-                    }
-                  }}
-                  className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
-                >
-                  <Upload className="w-3 h-3" />
-                  Seed Default
-                </Button>
-              </div>
-            )}
-
-            {/* Characters banner */}
-            {activeTab === 'characters' && (
-              <div className="px-4 py-2.5 flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
-                  <Swords className="w-4 h-4 text-white/25 shrink-0" />
-                  <p className="text-[11px] text-white/30">
-                    Gestione <span className="text-white/50 font-medium">personaggi</span> — aggiungi, modifica o rimuovi archetipi giocabili. Ogni personaggio ha statistiche, abilità speciali e oggetti iniziali.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/admin/seed-characters', { method: 'POST' });
-                      if (!res.ok) throw new Error(await res.text());
-                      const result = await res.json();
-                      showStatus(result.message, 'success');
-                      fetchData();
-                      fetchCounts();
-                    } catch (err) {
-                      showStatus(`Errore seed: ${err}`, 'error');
-                    }
-                  }}
-                  className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
-                >
-                  <Upload className="w-3 h-3" />
-                  Seed Default
-                </Button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Table content */}
             <div className="flex-1 overflow-y-auto px-4 py-3 admin-scrollbar">
@@ -3461,11 +4319,11 @@ export default function AdminPanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredData.map((row) => {
+                    {filteredData.map((row, idx) => {
                       const rowId = String(row.id ?? '');
                       return (
                         <TableRow
-                          key={rowId}
+                          key={rowId || `row-${idx}`}
                           className="border-white/[0.04] hover:bg-white/[0.03] group"
                         >
                           {columns.map(col => (
@@ -3523,6 +4381,8 @@ export default function AdminPanel() {
                 <RotateCcw className="w-3.5 h-3.5" /> Ricarica
               </button>
             </div>
+          </>
+            )}
           </div>
         </div>
       </motion.div>
@@ -3531,7 +4391,7 @@ export default function AdminPanel() {
       {activeTab === 'notifications' ? (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-gray-900 border-white/[0.1] text-white max-w-4xl max-h-[85vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-gray-900 border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
             overlayClassName="z-[120]"
           >
             <DialogHeader>
@@ -3558,7 +4418,7 @@ export default function AdminPanel() {
       ) : (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-gray-900 border-white/[0.1] text-white max-w-5xl max-h-[85vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-gray-900 border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
             overlayClassName="z-[120]"
           >
             <DialogHeader>

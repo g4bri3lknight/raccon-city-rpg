@@ -325,13 +325,13 @@ export const CUSTOM_STARTING_ITEMS: { itemId: string; name: string; description:
 
 // Predefined avatar options (RE-themed) — images loaded from DB
 export const PREDEFINED_AVATARS = [
-  { id: 'avatar_soldier', name: 'Soldato UBCS', path: '/api/media/image?id=avatar_soldier', emoji: '🪖' },
-  { id: 'avatar_medic', name: 'Infermiera', path: '/api/media/image?id=avatar_medic', emoji: '🩺' },
-  { id: 'avatar_agent', name: 'Agente Speciale', path: '/api/media/image?id=avatar_agent', emoji: '🕵️' },
-  { id: 'avatar_cop', name: 'Poliziotto RPD', path: '/api/media/image?id=avatar_cop', emoji: '👮' },
-  { id: 'avatar_scientist', name: 'Scienziato', path: '/api/media/image?id=avatar_scientist', emoji: '🔬' },
-  { id: 'avatar_civilian', name: 'Civile', path: '/api/media/image?id=avatar_civilian', emoji: '👤' },
-  { id: 'avatar_jax', name: 'Mercenario', path: '/api/media/image?id=avatar_jax', emoji: '⚔️' },
-  { id: 'avatar_elena', name: 'Medico', path: '/api/media/image?id=avatar_elena', emoji: '🩺' },
-  { id: 'avatar_marco', name: 'Pilota', path: '/api/media/image?id=avatar_marco', emoji: '✈️' },
+  { id: 'avatar_soldier', name: 'Avatar 1', path: '/api/media/image?id=avatar_soldier', emoji: '🪖' },
+  { id: 'avatar_medic', name: 'Avatar 2', path: '/api/media/image?id=avatar_medic', emoji: '🩺' },
+  { id: 'avatar_agent', name: 'Avatar 3', path: '/api/media/image?id=avatar_agent', emoji: '🕵️' },
+  { id: 'avatar_cop', name: 'Avatar 4', path: '/api/media/image?id=avatar_cop', emoji: '👮' },
+  { id: 'avatar_scientist', name: 'Avatar 5', path: '/api/media/image?id=avatar_scientist', emoji: '🔬' },
+  { id: 'avatar_civilian', name: 'Avatar 6', path: '/api/media/image?id=avatar_civilian', emoji: '👤' },
+  { id: 'avatar_jax', name: 'Avatar 7', path: '/api/media/image?id=avatar_jax', emoji: '⚔️' },
+  { id: 'avatar_elena', name: 'Avatar 8', path: '/api/media/image?id=avatar_elena', emoji: '🩺' },
+  { id: 'avatar_marco', name: 'Avatar 9', path: '/api/media/image?id=avatar_marco', emoji: '✈️' },
 ];

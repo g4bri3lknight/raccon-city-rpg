@@ -1,4 +1,5 @@
 import { STATIC_ITEMS } from './items';
+import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS } from './equipment';
 import { STATIC_DYNAMIC_EVENTS } from './dynamic-events';
 import { STATIC_DOCUMENTS } from './documents';
 import { STATIC_LOCATIONS } from './locations';
@@ -10,7 +11,7 @@ import type { ItemDefinition, ItemType, Rarity, ItemEffect, LocationDefinition }
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition } from '../types';
-import type { EnemyDefinition, BossPhase } from '../types';
+import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, StatusEffect } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
@@ -21,6 +22,7 @@ export let NPCS_DATA: Record<string, GameNPC> = {};
 export let CHARACTERS_DATA: CharacterArchetype[] = [];
 export let SPECIALS_DATA: SpecialAbilityDefinition[] = [];
 export let ENEMIES_DATA: Record<string, EnemyDefinition> = {};
+export let ENEMY_ABILITIES_DATA: Record<string, EnemyAbility> = {};
 
 // Backward compat aliases
 export { NPCS_DATA as NPCS };
@@ -38,8 +40,8 @@ export let ARCHETYPE_CATEGORY_MAP = { ...STATIC_CATEGORY_MAP };
 // Re-export helper functions from characters module
 export { _getCustomStartingItems as getCustomStartingItems, _getCustomPassiveDescription as getCustomPassiveDescription };
 
-// Export static-only data (enemies are not editable in admin)
-export { STATIC_ENEMIES as ENEMIES };
+// Enemies loaded from DB, aliased as ENEMIES for backward compat
+export { ENEMIES_DATA as ENEMIES };
 
 // Cache-bust counter: incremented on every refreshGameData() so img src URLs change
 export let DATA_VERSION = 0;
@@ -184,6 +186,37 @@ interface DbSpecial {
   powerMultiplier: number | null;
   healAmount: number | null;
   statusToApply: Record<string, unknown> | null;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbEnemy {
+  id: string;
+  name: string;
+  description: string;
+  maxHp: number;
+  atk: number;
+  def: number;
+  spd: number;
+  icon: string;
+  expReward: number;
+  lootTable: string;
+  abilities: string;
+  isBoss: boolean;
+  variantGroup: string;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbEnemyAbility {
+  id: string;
+  name: string;
+  description: string;
+  power: number;
+  chance: number;
+  statusType: string;
+  statusChance: number;
+  statusDuration: number;
   sortOrder: number;
   createdAt: Date;
 }
@@ -347,6 +380,65 @@ function mapDbSpecial(row: DbSpecial): SpecialAbilityDefinition {
   };
 }
 
+function mapDbEnemy(row: DbEnemy): EnemyDefinition {
+  let lootTable: LootEntry[] = [];
+  try { lootTable = JSON.parse(row.lootTable || '[]'); } catch { lootTable = []; }
+  // abilities can be: array of IDs (new format) or array of full objects (old/static format)
+  let abilities: EnemyAbility[] = [];
+  try {
+    const parsed = JSON.parse(row.abilities || '[]');
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      if (typeof parsed[0] === 'string') {
+        // New format: array of ability IDs — resolve from ENEMY_ABILITIES_DATA
+        abilities = parsed.map((id: string) => ENEMY_ABILITIES_DATA[id]).filter(Boolean);
+      } else {
+        // Old format: array of full ability objects (backward compat)
+        abilities = parsed;
+      }
+    }
+  } catch { abilities = []; }
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    maxHp: row.maxHp,
+    atk: row.atk,
+    def: row.def,
+    spd: row.spd,
+    icon: row.icon,
+    expReward: row.expReward,
+    lootTable,
+    abilities,
+    isBoss: row.isBoss,
+    ...(row.variantGroup ? { variantGroup: row.variantGroup } : {}),
+  };
+}
+
+function loadEnemyAbilities(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  ENEMY_ABILITIES_DATA = {};
+  if (api?.enemyAbilities && api.enemyAbilities.length > 0) {
+    for (const row of api.enemyAbilities) {
+      const ab = row as DbEnemyAbility;
+      const ability: EnemyAbility = {
+        name: ab.name,
+        description: ab.description,
+        power: ab.power,
+        chance: ab.chance,
+      };
+      if (ab.statusType) {
+        ability.statusEffect = {
+          type: ab.statusType as StatusEffect,
+          chance: ab.statusChance,
+        };
+        if (ab.statusDuration) {
+          ability.statusEffect.duration = ab.statusDuration;
+        }
+      }
+      ENEMY_ABILITIES_DATA[ab.id] = ability;
+    }
+  }
+}
+
 // ── Rebuild computed config from loaded data ──
 
 function rebuildStatPoints(): void {
@@ -380,6 +472,7 @@ async function loadFromApi(): Promise<{
   npcs: DbNPC[];
   characters: DbCharacter[];
   specials: DbSpecial[];
+  enemies: DbEnemy[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -397,7 +490,7 @@ async function loadItems(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<
       ITEMS[item.id] = mapDbItem(item);
     }
   } else {
-    ITEMS = { ...STATIC_ITEMS };
+    ITEMS = { ...STATIC_ITEMS, ...EQUIPMENT_ITEM_DEFINITIONS, ...MOD_ITEM_DEFINITIONS };
   }
 }
 
@@ -478,6 +571,17 @@ async function loadSpecials(api: Awaited<ReturnType<typeof loadFromApi>>): Promi
   }
 }
 
+async function loadEnemies(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  if (api?.enemies && api.enemies.length > 0) {
+    ENEMIES_DATA = {};
+    for (const row of api.enemies) {
+      ENEMIES_DATA[row.id] = mapDbEnemy(row);
+    }
+  } else {
+    ENEMIES_DATA = { ...STATIC_ENEMIES };
+  }
+}
+
 export async function initGameData(): Promise<void> {
   if (initialized) return;
   try {
@@ -491,17 +595,20 @@ export async function initGameData(): Promise<void> {
       loadNpcs(api),
       loadCharacters(api),
       loadSpecials(api),
+      loadEnemyAbilities(api),
+      loadEnemies(api),
     ]);
     initialized = true;
   } catch (err) {
     console.warn('[DataLoader] API load failed, using static fallback:', err);
-    ITEMS = { ...STATIC_ITEMS };
+    ITEMS = { ...STATIC_ITEMS, ...EQUIPMENT_ITEM_DEFINITIONS, ...MOD_ITEM_DEFINITIONS };
     DYNAMIC_EVENTS = { ...STATIC_DYNAMIC_EVENTS };
     DOCUMENTS = { ...STATIC_DOCUMENTS };
     LOCATIONS = { ...STATIC_LOCATIONS };
     NPCS_DATA = { ...STATIC_NPCS };
     CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
     SPECIALS_DATA = [...STATIC_SPECIALS];
+    ENEMIES_DATA = { ...STATIC_ENEMIES };
     initialized = true;
   }
 }
@@ -519,6 +626,8 @@ export async function refreshGameData(): Promise<void> {
       loadNpcs(api),
       loadCharacters(api),
       loadSpecials(api),
+      loadEnemyAbilities(api),
+      loadEnemies(api),
     ]);
     DATA_VERSION++;
     initialized = true;

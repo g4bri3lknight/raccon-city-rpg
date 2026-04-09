@@ -7,14 +7,15 @@ import { LOCATIONS } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Home, LogOut, Package, Hammer,
+  Home, LogOut, Package, Hammer, Wrench,
   Save, Upload
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 import ItemBoxPanel from './ItemBoxPanel';
 import CraftingPanel from './CraftingPanel';
+import EquipmentPanel from './EquipmentPanel';
 
-type SafeRoomTab = 'itembox' | 'crafting';
+type SafeRoomTab = 'itembox' | 'crafting' | 'equipment';
 type SaveMode = 'save' | 'load';
 
 export default function SafeRoomPanel() {
@@ -29,6 +30,7 @@ export default function SafeRoomPanel() {
   const tabs: { id: SafeRoomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'itembox', label: 'Item Box', icon: <Package className="w-5 h-5" /> },
     { id: 'crafting', label: 'Crafting', icon: <Hammer className="w-5 h-5" /> },
+    { id: 'equipment', label: 'Equip', icon: <Wrench className="w-5 h-5" /> },
   ];
 
   return (
@@ -124,6 +126,11 @@ export default function SafeRoomPanel() {
         {activeTab === 'crafting' && (
           <div className="h-full overflow-y-auto p-4 inventory-scrollbar">
             <CraftingPanel />
+          </div>
+        )}
+        {activeTab === 'equipment' && (
+          <div className="h-full overflow-y-auto p-4 inventory-scrollbar">
+            <EquipmentPanel />
           </div>
         )}
       </div>

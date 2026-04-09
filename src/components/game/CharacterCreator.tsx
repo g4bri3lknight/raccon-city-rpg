@@ -620,11 +620,6 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                                 </motion.div>
                               )}
                             </div>
-                            <div className="p-1.5 bg-zinc-900/60">
-                              <p className="text-[10px] sm:text-xs font-medium text-zinc-300 truncate text-center">
-                                {avatar.emoji} {avatar.name}
-                              </p>
-                            </div>
                           </motion.button>
                         );
                       })}

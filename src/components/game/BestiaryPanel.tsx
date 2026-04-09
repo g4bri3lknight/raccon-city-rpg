@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { ENEMIES, ENEMY_IMAGES, BOSS_PHASES } from '@/game/data/loader';
+import { ENEMIES, ENEMY_IMAGES, BOSS_PHASES, mediaUrl } from '@/game/data/loader';
 import { ITEMS } from '@/game/data/loader';
 import { LOCATIONS } from '@/game/data/loader';
 import { EnemyDefinition } from '@/game/types';
@@ -424,12 +424,14 @@ function DiscoveredCard({
   enemy,
   isDefeated,
   timesDefeated,
+  dataVersion,
 }: {
   enemy: EnemyDefinition;
   isDefeated: boolean;
   timesDefeated: number;
+  dataVersion: number;
 }) {
-  const imgSrc = ENEMY_IMAGES[enemy.id];
+  const imgSrc = ENEMY_IMAGES[enemy.id] ? mediaUrl(ENEMY_IMAGES[enemy.id], dataVersion) : null;
   const groupInfo = VARIANT_GROUP_LABELS[enemy.variantGroup ?? ''];
 
   return (
@@ -603,7 +605,7 @@ function UndiscoveredCard() {
 }
 
 export default function BestiaryPanel() {
-  const { bestiary, bestiaryOpen, toggleBestiary } = useGameStore();
+  const { bestiary, bestiaryOpen, toggleBestiary, dataVersion } = useGameStore();
 
   const discoveredCount = bestiary.filter((e) => e.encountered).length;
   const defeatedCount = bestiary.filter((e) => e.defeated).length;
@@ -739,6 +741,7 @@ export default function BestiaryPanel() {
                               enemy={def}
                               isDefeated={entry.defeated}
                               timesDefeated={entry.timesDefeated}
+                              dataVersion={dataVersion}
                             />
                           );
                         }
