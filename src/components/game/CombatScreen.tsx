@@ -308,18 +308,21 @@ export default function CombatScreen() {
 
   useEffect(() => {
     if (autoCombat && isPlayerTurn) {
+      let actionTimer: ReturnType<typeof setTimeout> | null = null;
       const timer = setTimeout(() => {
         setShowMenu(true); // Show menu just before AI acts so user sees the highlight
-        const actionTimer = setTimeout(() => {
+        actionTimer = setTimeout(() => {
           setShowMenu(false);
           setTargetingMode(null);
           setShowItemSelect(false);
           setPendingAction(null);
           executeAutoCombatTurn();
         }, 800);
-        return () => clearTimeout(actionTimer);
       }, 300);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (actionTimer) clearTimeout(actionTimer);
+      };
     }
   }, [autoCombat, isPlayerTurn, combat?.currentActorId]);
 

@@ -3169,7 +3169,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state.combat || state.combat.currentActorType !== 'player' || state.combat.isVictory || state.combat.isDefeat) return;
 
     const character = state.party.find(p => p.id === state.combat!.currentActorId);
-    if (!character || character.currentHp <= 0) return;
+    if (!character || character.currentHp <= 0) {
+      // Dead character set as current actor — recover by advancing to next alive
+      setTimeout(() => get().advanceToNextActor(), 300);
+      return;
+    }
 
     const aliveEnemies = state.enemies.filter(e => e.currentHp > 0);
     const aliveParty = state.party.filter(p => p.currentHp > 0);
@@ -3609,9 +3613,55 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ]
       : combat.log;
 
-    // If next actor is enemy, execute AI
-    if (nextActor.type === 'enemy') {
-      const enemy = updatedEnemiesForStatus.find(e => e.id === nextActor.id)!;
+    // Skip nextActor if they died from DOT processing
+    if (nextActor.type === 'player' && updatedParty.find(p => p.id === nextActor.id)?.currentHp <= 0) {
+      alivePartyIds.delete(nextActor.id);
+    }
+    if (nextActor.type === 'enemy' && updatedEnemiesForStatus.find(e => e.id === nextActor.id)?.currentHp <= 0) {
+      aliveEnemyIds.delete(nextActor.id);
+    }
+
+    // If next actor died from DOT, find next alive actor
+    let effectiveNextActor = nextActor;
+    let effectiveNextIdx = nextIdx;
+    if (
+      (nextActor.type === 'player' && !alivePartyIds.has(nextActor.id)) ||
+      (nextActor.type === 'enemy' && !aliveEnemyIds.has(nextActor.id))
+    ) {
+      let searchIdx = nextIdx + 1;
+      let wrapped = false;
+      while (searchIdx !== nextIdx || !wrapped) {
+        if (searchIdx >= allActors.length) {
+          searchIdx = 0;
+          wrapped = true;
+          newTurn = newTurn + 1;
+        }
+        const candidate = allActors[searchIdx];
+        if (
+          (candidate.type === 'player' && alivePartyIds.has(candidate.id)) ||
+          (candidate.type === 'enemy' && aliveEnemyIds.has(candidate.id))
+        ) {
+          effectiveNextActor = candidate;
+          effectiveNextIdx = searchIdx;
+          break;
+        }
+        searchIdx++;
+      }
+      // No alive actors at all
+      if ((effectiveNextActor.type === 'player' && !alivePartyIds.has(effectiveNextActor.id)) ||
+          (effectiveNextActor.type === 'enemy' && !aliveEnemyIds.has(effectiveNextActor.id))) {
+        return;
+      }
+    }
+
+    // If effective next actor is enemy, execute AI
+    if (effectiveNextActor.type === 'enemy') {
+      const enemy = updatedEnemiesForStatus.find(e => e.id === effectiveNextActor.id);
+      if (!enemy || enemy.currentHp <= 0) {
+        // Enemy died from DOT, skip to next
+        setTimeout(() => get().advanceToNextActor(), 300);
+        return;
+      }
 
       // Check if enemy is stunned — skip turn and decrement stun duration
       if (enemy.statusEffects.includes('stunned')) {
@@ -3645,15 +3695,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
           message: `💫 ${enemy.name} è stordito e salta il turno!`,
         };
 
-        // Find next actor after this stunned enemy
-        let stunNextIdx = nextIdx + 1;
-        while (stunNextIdx < allActors.length) {
+        // Find next actor after this stunned enemy (skip dead with wrap)
+        let stunNextIdx = effectiveNextIdx + 1;
+        while (true) {
+          if (stunNextIdx >= allActors.length) stunNextIdx = 0;
           const candidate = allActors[stunNextIdx];
           if (candidate.type === 'enemy' && !aliveEnemyIds.has(candidate.id)) { stunNextIdx++; continue; }
           if (candidate.type === 'player' && !alivePartyIds.has(candidate.id)) { stunNextIdx++; continue; }
           break;
         }
-        if (stunNextIdx >= allActors.length) stunNextIdx = 0;
         const stunNextActor = allActors[stunNextIdx];
         let stunNextTurn = newTurn;
         if (stunNextIdx === 0) stunNextTurn = newTurn + 1;
@@ -3696,6 +3746,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
 
+      // Update alivePartyIds after enemy attack — party members may have died
+      for (const p of afterEnemyAttack) {
+        if (p.currentHp <= 0) alivePartyIds.delete(p.id);
+      }
+
       // Check game over after enemy attack
       if (afterEnemyAttack.every(p => p.currentHp <= 0)) {
         // Play defeat sound (#36)
@@ -3710,16 +3765,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return;
       }
 
-      // Find next actor after this enemy (skip dead ones)
-      let nextNextIdx = nextIdx + 1;
-      while (nextNextIdx < allActors.length) {
+      // Find next actor after this enemy (skip dead ones with wrap)
+      let nextNextIdx = effectiveNextIdx + 1;
+      while (true) {
+        if (nextNextIdx >= allActors.length) nextNextIdx = 0;
         const candidate = allActors[nextNextIdx];
         if (candidate.type === 'enemy' && !aliveEnemyIds.has(candidate.id)) { nextNextIdx++; continue; }
         if (candidate.type === 'player' && !alivePartyIds.has(candidate.id)) { nextNextIdx++; continue; }
         break;
       }
-      // If we reached the end, wrap to beginning (new turn)
-      if (nextNextIdx >= allActors.length) nextNextIdx = 0;
       const nextNextActor = allActors[nextNextIdx];
       let nextNextTurn = newTurn;
       if (nextNextIdx === 0) nextNextTurn = newTurn + 1;
