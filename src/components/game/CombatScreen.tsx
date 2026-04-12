@@ -372,10 +372,12 @@ export default function CombatScreen() {
     // Predict item usage: cure status, heal_full for critical, or regular heal
     const myUsable = currentCharacter.inventory.filter(i => i.usable);
     const hasStatusCure = aliveParty.some(p => p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'));
-    if (hasStatusCure && myUsable.some(i => i.effect?.statusCured)) return 'use_item' as CombatAction;
+    if (hasStatusCure && myUsable.some(i => i.effects?.some(e => e.type === 'remove_status'))) return 'use_item' as CombatAction;
     const worstAlly = aliveParty.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
-    if (worstAlly.currentHp / worstAlly.maxHp < 0.35 && myUsable.some(i => i.effect?.type === 'heal_full')) return 'use_item' as CombatAction;
-    if (worstAlly.currentHp / worstAlly.maxHp < 0.55 && myUsable.some(i => i.effect?.type === 'heal' || i.effect?.type === 'heal_full')) return 'use_item' as CombatAction;
+    const hasFullHeal = myUsable.some(i => i.effects?.some(e => e.type === 'heal' && (e as any).percent >= 100));
+    if (worstAlly.currentHp / worstAlly.maxHp < 0.35 && hasFullHeal) return 'use_item' as CombatAction;
+    const hasHeal = myUsable.some(i => i.effects?.some(e => e.type === 'heal'));
+    if (worstAlly.currentHp / worstAlly.maxHp < 0.55 && hasHeal) return 'use_item' as CombatAction;
     return 'attack' as CombatAction;
   })();
 
@@ -477,7 +479,8 @@ export default function CombatScreen() {
     if (!item) return;
     selectCombatItem(itemUid);
     setShowItemSelect(false);
-    if (item.effect?.target === 'self') {
+    const firstEffectTarget = item.effects?.find(e => !e.trigger || e.trigger === 'on_use')?.target;
+    if (firstEffectTarget === 'self') {
       selectCombatTarget(currentCharacter!.id);
       setTimeout(() => executeCombatTurn(), 300);
     } else {

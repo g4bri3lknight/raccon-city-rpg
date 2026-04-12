@@ -22,13 +22,6 @@ model Item {
   weaponType       String?  // melee | ranged
   atkBonus         Int?
   ammoType         String?  // itemId of ammo it uses
-  // Effect fields (nullable, only for usable items)
-  effectType       String?  // heal | heal_full | cure | damage_boost | defense_boost | add_ammo | add_slots | kill_all
-  effectValue      Int?
-  effectTarget     String?  // self | one_ally | all_allies | all_enemies
-  effectStatusCured String? // JSON array: ["poison","bleeding"]
-  // Slots (for bags)
-  addSlots         Int?
   // Equipment fields (nullable, for armor/accessory/weapon_mod)
   defBonus         Int?
   hpBonus          Int?
@@ -38,6 +31,7 @@ model Item {
   statusBonus      Int?     // % extra status apply chance (weapon_mod)
   modType          String?  // melee | ranged | any (weapon_mod compatibility)
   specialEffect    String?  // JSON: {"type":"poison_resist","value":50}
+  effects          String   @default("[]") // JSON array of atomic effects: [{type,trigger,target,...params}]
   unico            Boolean  @default(false) // true = can only be dropped/obtained once per game
   createdAt        DateTime @default(now())
   @@map("items")
@@ -201,12 +195,7 @@ model GameSpecial {
   targetType       String   @default("enemy")   // self | enemy | ally | all_allies
   cooldown         Int      @default(2)
   category         String   @default("offensive") // offensive | defensive | support | control
-  executionType    String   @default("")         // maps to combat execution logic
-  powerMultiplier  Float?                        // for offensive abilities
-  healAmount       Int?                          // for healing abilities
-  statusToApply    String   @default("")         // JSON: {type:"poison",chance:60} or null
-  duration         Int?                          // turns the effect lasts (DoT/HoT/buff/debuff)
-  tickAmount       Int?                          // damage/heal per turn for duration effects
+  effects          String   @default("[]") // JSON array of atomic effects: [{type, target, ...params}]
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
   @@map("game_specials")
@@ -267,9 +256,7 @@ model GameEnemyAbility {
   description   String   @default("")
   power         Float    @default(1.0)
   chance        Int      @default(50)       // 0-100, probability to use
-  statusType    String   @default("")       // StatusEffect type: "poison","bleeding","stunned","adrenaline"
-  statusChance  Int      @default(0)        // 0-100, chance to apply status
-  statusDuration Int     @default(0)        // turns
+  effects       String   @default("[]")     // JSON array of atomic effects: [{type,trigger,target,...params}]
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   @@map("game_enemy_abilities")

@@ -1,4 +1,4 @@
-import { EnemyDefinition, BossPhase } from './types';
+import { EnemyDefinition, BossPhase, SpecialEffect } from './types';
 
 export const ENEMY_IMAGES: Record<string, string> = {
   zombie: '/api/media/image?id=zombie',
@@ -43,9 +43,9 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'ammo_pistol', chance: 20, quantity: 3 },
     ],
     abilities: [
-      { name: 'Morso', description: 'Un morso infetto.', power: 1.0, chance: 60, statusEffect: { type: 'poison', chance: 25 } },
-      { name: 'Artigliata', description: 'Un colpo con gli artigli insanguinati.', power: 0.8, chance: 30, statusEffect: { type: 'bleeding', chance: 20 } },
-      { name: 'Trascinamento', description: 'Il zombie cerca di afferrare la preda.', power: 0.6, chance: 10 },
+      { name: 'Morso', description: 'Un morso infetto.', power: 1.0, chance: 60, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.0 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 25, duration: 3 }] },
+      { name: 'Artigliata', description: 'Un colpo con gli artigli insanguinati.', power: 0.8, chance: 30, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.8 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 20, duration: 3 }] },
+      { name: 'Trascinamento', description: 'Il zombie cerca di afferrare la preda.', power: 0.6, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.6 }] },
     ],
   },
   zombie_female: {
@@ -66,9 +66,9 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'antidote', chance: 15, quantity: 1 },
     ],
     abilities: [
-      { name: 'Morso', description: 'Un morso infetto.', power: 1.0, chance: 55, statusEffect: { type: 'poison', chance: 20 } },
-      { name: 'Artigliata', description: 'Un colpo con le unghie insanguinate.', power: 0.7, chance: 30, statusEffect: { type: 'bleeding', chance: 15 } },
-      { name: 'Urlo', description: 'Un urlo stridulo che disorienta.', power: 0.3, chance: 15, statusEffect: { type: 'stunned', chance: 20 } },
+      { name: 'Morso', description: 'Un morso infetto.', power: 1.0, chance: 55, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.0 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 20, duration: 3 }] },
+      { name: 'Artigliata', description: 'Un colpo con le unghie insanguinate.', power: 0.7, chance: 30, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.7 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 15, duration: 3 }] },
+      { name: 'Urlo', description: 'Un urlo stridulo che disorienta.', power: 0.3, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.3 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 20, duration: 1 }] },
     ],
   },
   zombie_soldier: {
@@ -91,10 +91,10 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'combat_knife', chance: 5, quantity: 1 },
     ],
     abilities: [
-      { name: 'Colpo di Fucile', description: 'Sparacora un colpo con il fucile d\'assalto.', power: 1.2, chance: 25 },
-      { name: 'Morso', description: 'Un morso infetto.', power: 0.9, chance: 45, statusEffect: { type: 'poison', chance: 25 } },
-      { name: 'Carica', description: 'Carica con il giubbotto antiproiettile.', power: 1.0, chance: 20, statusEffect: { type: 'stunned', chance: 15 } },
-      { name: 'Coltello Rotante', description: 'Lancia il coltello da combattimento.', power: 0.8, chance: 10 },
+      { name: 'Colpo di Fucile', description: 'Sparacora un colpo con il fucile d\'assalto.', power: 1.2, chance: 25, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.2 }] },
+      { name: 'Morso', description: 'Un morso infetto.', power: 0.9, chance: 45, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.9 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 25, duration: 3 }] },
+      { name: 'Carica', description: 'Carica con il giubbotto antiproiettile.', power: 1.0, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.0 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 15, duration: 1 }] },
+      { name: 'Coltello Rotante', description: 'Lancia il coltello da combattimento.', power: 0.8, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.8 }] },
     ],
   },
   zombie_doctor: {
@@ -116,10 +116,10 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'key_lab', chance: 5, quantity: 1 },
     ],
     abilities: [
-      { name: 'Siringa Infetta', description: 'Lancia una siringa contaminata.', power: 0.8, chance: 40, statusEffect: { type: 'poison', chance: 45 } },
-      { name: 'Morso', description: 'Un morso infetto.', power: 0.9, chance: 35, statusEffect: { type: 'poison', chance: 20 } },
-      { name: 'Bisturi', description: 'Colpisce con un bisturi arrugginito.', power: 0.7, chance: 15, statusEffect: { type: 'bleeding', chance: 30 } },
-      { name: 'Urlo', description: 'Un urlo disumano.', power: 0.2, chance: 10, statusEffect: { type: 'stunned', chance: 25 } },
+      { name: 'Siringa Infetta', description: 'Lancia una siringa contaminata.', power: 0.8, chance: 40, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.8 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 45, duration: 3 }] },
+      { name: 'Morso', description: 'Un morso infetto.', power: 0.9, chance: 35, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.9 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 20, duration: 3 }] },
+      { name: 'Bisturi', description: 'Colpisce con un bisturi arrugginito.', power: 0.7, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.7 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 30, duration: 3 }] },
+      { name: 'Urlo', description: 'Un urlo disumano.', power: 0.2, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.2 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 25, duration: 1 }] },
     ],
   },
   zombie_dog: {
@@ -139,9 +139,9 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'herb_green', chance: 20, quantity: 1 },
     ],
     abilities: [
-      { name: 'Attacco Rapido', description: 'Un balzo fulmineo.', power: 1.0, chance: 50 },
-      { name: 'Morso Velenoso', description: 'Un morso tossico.', power: 0.9, chance: 35, statusEffect: { type: 'poison', chance: 35 } },
-      { name: 'Ringhio', description: 'Un ringhio spaventoso.', power: 0.3, chance: 15, statusEffect: { type: 'stunned', chance: 30 } },
+      { name: 'Attacco Rapido', description: 'Un balzo fulmineo.', power: 1.0, chance: 50, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.0 }] },
+      { name: 'Morso Velenoso', description: 'Un morso tossico.', power: 0.9, chance: 35, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.9 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 35, duration: 3 }] },
+      { name: 'Ringhio', description: 'Un ringhio spaventoso.', power: 0.3, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.3 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 30, duration: 1 }] },
     ],
   },
   cerberus_alpha: {
@@ -162,10 +162,10 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'ammo_shotgun', chance: 15, quantity: 3 },
     ],
     abilities: [
-      { name: 'Morso Devastante', description: 'Un morso che squarcia la carne.', power: 1.3, chance: 45, statusEffect: { type: 'bleeding', chance: 40 } },
-      { name: 'Carica Brutale', description: 'Una carica impossibile da schivare.', power: 1.5, chance: 30 },
-      { name: 'Ringhio Infernale', description: 'Un ringhio che gela il sangue.', power: 0.4, chance: 15, statusEffect: { type: 'stunned', chance: 40 } },
-      { name: 'Artigli Multipli', description: 'Una serie di artigliate rapide.', power: 0.9, chance: 10, statusEffect: { type: 'bleeding', chance: 25 } },
+      { name: 'Morso Devastante', description: 'Un morso che squarcia la carne.', power: 1.3, chance: 45, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.3 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 40, duration: 3 }] },
+      { name: 'Carica Brutale', description: 'Una carica impossibile da schivare.', power: 1.5, chance: 30, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.5, noMiss: true }] },
+      { name: 'Ringhio Infernale', description: 'Un ringhio che gela il sangue.', power: 0.4, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.4 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 40, duration: 1 }] },
+      { name: 'Artigli Multipli', description: 'Una serie di artigliate rapide.', power: 0.9, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.9 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 25, duration: 3 }] },
     ],
   },
   licker: {
@@ -186,9 +186,9 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'combat_knife', chance: 10, quantity: 1 },
     ],
     abilities: [
-      { name: 'Lingua Artigliata', description: 'La lingua si allunga e colpisce.', power: 1.2, chance: 45 },
-      { name: 'Artiglio Devastante', description: 'Un colpo con gli artigli taglienti.', power: 1.0, chance: 35, statusEffect: { type: 'bleeding', chance: 40 } },
-      { name: 'Salto', description: 'Un salto mortale dalla parete.', power: 1.5, chance: 20 },
+      { name: 'Lingua Artigliata', description: 'La lingua si allunga e colpisce.', power: 1.2, chance: 45, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.2 }] },
+      { name: 'Artiglio Devastante', description: 'Un colpo con gli artigli taglienti.', power: 1.0, chance: 35, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.0 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 40, duration: 3 }] },
+      { name: 'Salto', description: 'Un salto mortale dalla parete.', power: 1.5, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.5 }] },
     ],
   },
   licker_smasher: {
@@ -210,10 +210,10 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'combat_knife', chance: 12, quantity: 1 },
     ],
     abilities: [
-      { name: 'Pugno Terra', description: 'Un pugno che fa tremare il suolo.', power: 1.8, chance: 35, statusEffect: { type: 'stunned', chance: 30 } },
-      { name: 'Lingua Artigliata', description: 'La lingua colpisce con forza brutale.', power: 1.4, chance: 30 },
-      { name: 'Artiglio Squarciatore', description: 'Artigli che tagliano profondamente.', power: 1.6, chance: 25, statusEffect: { type: 'bleeding', chance: 50 } },
-      { name: 'Corpo a Corpo', description: 'Si lancie addosso alla preda.', power: 1.2, chance: 10 },
+      { name: 'Pugno Terra', description: 'Un pugno che fa tremare il suolo.', power: 1.8, chance: 35, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.8 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 30, duration: 1 }] },
+      { name: 'Lingua Artigliata', description: 'La lingua colpisce con forza brutale.', power: 1.4, chance: 30, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.4 }] },
+      { name: 'Artiglio Squarciatore', description: 'Artigli che tagliano profondamente.', power: 1.6, chance: 25, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.6 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 50, duration: 3 }] },
+      { name: 'Corpo a Corpo', description: 'Si lancie addosso alla preda.', power: 1.2, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.2 }] },
     ],
   },
   licker_crawler: {
@@ -234,10 +234,10 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'lockpick', chance: 10, quantity: 1 },
     ],
     abilities: [
-      { name: 'Attacco dal Soffitto', description: 'Cala dall\'alto senza preavviso.', power: 1.6, chance: 40 },
-      { name: 'Lingua Fulminea', description: 'La lingua colpisce prima che si possa reagire.', power: 1.2, chance: 35, statusEffect: { type: 'bleeding', chance: 35 } },
-      { name: 'Scatto sulle Pareti', description: 'Si muove sulle pareti e attacca di lato.', power: 1.0, chance: 15 },
-      { name: 'Morso Velenoso', description: 'Un morso con fluido tossico.', power: 0.9, chance: 10, statusEffect: { type: 'poison', chance: 50 } },
+      { name: 'Attacco dal Soffitto', description: 'Cala dall\'alto senza preavviso.', power: 1.6, chance: 40, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.6 }] },
+      { name: 'Lingua Fulminea', description: 'La lingua colpisce prima che si possa reagire.', power: 1.2, chance: 35, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.2 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 35, duration: 3 }] },
+      { name: 'Scatto sulle Pareti', description: 'Si muove sulle pareti e attacca di lato.', power: 1.0, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.0 }] },
+      { name: 'Morso Velenoso', description: 'Un morso con fluido tossico.', power: 0.9, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.9 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 50, duration: 3 }] },
     ],
   },
   hunter: {
@@ -261,10 +261,10 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'antidote', chance: 30, quantity: 1 },
     ],
     abilities: [
-      { name: 'Artigli Fendenti', description: 'Artigli che tagliano attraverso qualsiasi armatura.', power: 1.3, chance: 40, statusEffect: { type: 'bleeding', chance: 50 } },
-      { name: 'Salto Mortale', description: 'Un attacco dall\'alto devastante.', power: 1.8, chance: 25 },
-      { name: 'Ruggito', description: 'Un ruggito terrificante.', power: 0.4, chance: 15, statusEffect: { type: 'stunned', chance: 40 } },
-      { name: 'Scatto', description: 'Si muove velocemente per attaccare.', power: 1.0, chance: 20 },
+      { name: 'Artigli Fendenti', description: 'Artigli che tagliano attraverso qualsiasi armatura.', power: 1.3, chance: 40, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.3 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 50, duration: 3 }] },
+      { name: 'Salto Mortale', description: 'Un attacco dall\'alto devastante.', power: 1.8, chance: 25, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.8 }] },
+      { name: 'Ruggito', description: 'Un ruggito terrificante.', power: 0.4, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.4 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 40, duration: 1 }] },
+      { name: 'Scatto', description: 'Si muove velocemente per attaccare.', power: 1.0, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.0 }] },
     ],
   },
   tyrant_boss: {
@@ -285,11 +285,11 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'spray', chance: 60, quantity: 2 },
     ],
     abilities: [
-      { name: 'Pugno Devastante', description: 'Un pugno che squarcia l\'aria.', power: 1.5, chance: 35 },
-      { name: 'Carica', description: 'Una carica inarrestabile.', power: 2.0, chance: 20 },
-      { name: 'Artiglio Mortale', description: 'Artigli che strappano la carne.', power: 1.8, chance: 25, statusEffect: { type: 'bleeding', chance: 60 } },
-      { name: 'Urlo', description: 'Un urlo che fa tremare le pareti.', power: 0.5, chance: 10, statusEffect: { type: 'stunned', chance: 50 } },
-      { name: 'Presa Mortale', description: 'Afferra la vittima e la schiaccia.', power: 2.5, chance: 10 },
+      { name: 'Pugno Devastante', description: 'Un pugno che squarcia l\'aria.', power: 1.5, chance: 35, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.5 }] },
+      { name: 'Carica', description: 'Una carica inarrestabile.', power: 2.0, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.0, noMiss: true }] },
+      { name: 'Artiglio Mortale', description: 'Artigli che strappano la carne.', power: 1.8, chance: 25, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.8 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 60, duration: 3 }] },
+      { name: 'Urlo', description: 'Un urlo che fa tremare le pareti.', power: 0.5, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.5 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 50, duration: 1 }] },
+      { name: 'Presa Mortale', description: 'Afferra la vittima e la schiaccia.', power: 2.5, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.5, noMiss: true }] },
     ],
   },
   nemesis_boss: {
@@ -312,11 +312,11 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'ammo_grenade', chance: 15, quantity: 2 },
     ],
     abilities: [
-      { name: 'Razzo', description: 'Lancia un razzo esplosivo.', power: 2.5, chance: 15 },
-      { name: 'Pugno Tentacolo', description: 'Un tentacolo emerge dal braccio.', power: 2.0, chance: 30 },
-      { name: 'S.T.A.R.S.!', description: 'Un urlo terrificante seguito da una carica.', power: 1.5, chance: 20, statusEffect: { type: 'stunned', chance: 45 } },
-      { name: 'Artiglio Multipli', description: 'Una raffica di artigli.', power: 1.8, chance: 25, statusEffect: { type: 'bleeding', chance: 50 } },
-      { name: 'Devastazione', description: 'Distrugge tutto ciò che lo circonda.', power: 3.0, chance: 10 },
+      { name: 'Razzo', description: 'Lancia un razzo esplosivo.', power: 2.5, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.5 }] },
+      { name: 'Pugno Tentacolo', description: 'Un tentacolo emerge dal braccio.', power: 2.0, chance: 30, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.0 }] },
+      { name: 'S.T.A.R.S.!', description: 'Un urlo terrificante seguito da una carica.', power: 1.5, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.5 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 45, duration: 1 }] },
+      { name: 'Artiglio Multipli', description: 'Una raffica di artigli.', power: 1.8, chance: 25, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.8 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 50, duration: 3 }] },
+      { name: 'Devastazione', description: 'Distrugge tutto ciò che lo circonda.', power: 3.0, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', powerMultiplier: 3.0 }] },
     ],
   },
   // #24 - BOSS SEGRETO: B.O.W. Proto Tyrant (sperimentale, found in secret lab)
@@ -341,11 +341,11 @@ export const ENEMIES: Record<string, EnemyDefinition> = {
       { itemId: 'bag_medium', chance: 25, quantity: 1 },
     ],
     abilities: [
-      { name: 'Sbatacio Anomalo', description: 'Un attacco con arti innaturali.', power: 1.6, chance: 30, statusEffect: { type: 'bleeding', chance: 55 } },
-      { name: 'Tentacolo Infetto', description: 'Un tentacolo coperto di bolline.', power: 2.0, chance: 25, statusEffect: { type: 'poison', chance: 50 } },
-      { name: 'Urlo Agonizzante', description: 'Un urlo che incrina il cervello.', power: 0.6, chance: 15, statusEffect: { type: 'stunned', chance: 55 } },
-      { name: 'Scarica Brutale', description: 'Una carica che spacca il pavimento.', power: 2.2, chance: 20 },
-      { name: 'Mutazione Rapida', description: 'Si rigenera e diventa più forte.', power: 1.0, chance: 10 },
+      { name: 'Sbatacio Anomalo', description: 'Un attacco con arti innaturali.', power: 1.6, chance: 30, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 1.6 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'bleeding', chance: 55, duration: 3 }] },
+      { name: 'Tentacolo Infetto', description: 'Un tentacolo coperto di bolline.', power: 2.0, chance: 25, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.0 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'poison', chance: 50, duration: 3 }] },
+      { name: 'Urlo Agonizzante', description: 'Un urlo che incrina il cervello.', power: 0.6, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.6 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 55, duration: 1 }] },
+      { name: 'Scarica Brutale', description: 'Una carica che spacca il pavimento.', power: 2.2, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.2 }] },
+      { name: 'Mutazione Rapida', description: 'Si rigenera e diventa più forte.', power: 1.0, chance: 10, effects: [{ type: 'heal', trigger: 'on_use', target: 'self', amount: 30 }] },
     ],
   },
 };
@@ -373,8 +373,8 @@ export const BOSS_PHASES: Record<string, BossPhase[]> = {
       defMultiplier: 0.7,
       spdMultiplier: 1.3,
       newAbilities: [
-        { name: 'Impatto Sismico', description: 'Un pugno che incrina il suolo.', power: 2.2, chance: 25, statusEffect: { type: 'stunned', chance: 40 } },
-        { name: 'Rantolo Mortale', description: 'Un rantolo che paralizza.', power: 0.8, chance: 15, statusEffect: { type: 'stunned', chance: 60 } },
+        { name: 'Impatto Sismico', description: 'Un pugno che incrina il suolo.', power: 2.2, chance: 25, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.2 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 40, duration: 1 }] },
+        { name: 'Rantolo Mortale', description: 'Un rantolo che paralizza.', power: 0.8, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.8 }, { type: 'apply_status', trigger: 'on_use', target: 'enemy', statusType: 'stunned', chance: 60, duration: 1 }] },
       ],
       message: '⚠️ Il Tyrant rivela i tentacoli! Le sue ferite si rigenerano. ENRAGE FASE 2 — Più veloce e letale!',
     },
@@ -388,7 +388,7 @@ export const BOSS_PHASES: Record<string, BossPhase[]> = {
       defMultiplier: 1.0,
       spdMultiplier: 1.0,
       newAbilities: [
-        { name: 'Barrage Razzo', description: 'Spara una salva di razzi.', power: 1.8, chance: 20 },
+        { name: 'Barrage Razzo', description: 'Spara una salva di razzi.', power: 1.8, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', powerMultiplier: 1.8 }] },
       ],
       message: '💀 "S.T.A.R.S..." — NEMESIS si toglie il cappotto! Le armi sono esposte! FASE 2!',
     },
@@ -400,8 +400,8 @@ export const BOSS_PHASES: Record<string, BossPhase[]> = {
       defMultiplier: 0.8,
       spdMultiplier: 1.2,
       newAbilities: [
-        { name: 'Presa Letale', description: 'Afferra e stritza.', power: 2.8, chance: 15 },
-        { name: 'S.T.A.R.S!!!', description: 'Un urlo devastante.', power: 0.6, chance: 20, statusEffect: { type: 'stunned', chance: 60 } },
+        { name: 'Presa Letale', description: 'Afferra e stritza.', power: 2.8, chance: 15, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 2.8, noMiss: true }] },
+        { name: 'S.T.A.R.S!!!', description: 'Un urlo devastante.', power: 0.6, chance: 20, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'enemy', powerMultiplier: 0.6 }, { type: 'apply_status', trigger: 'on_use', target: 'all_enemies', statusType: 'stunned', chance: 60, duration: 1 }] },
       ],
       message: '💀 NEMESIS è furioso! I tentacoli esplodono! FASE 3 — ULTIMA FORMA!',
     },
@@ -415,7 +415,7 @@ export const BOSS_PHASES: Record<string, BossPhase[]> = {
       defMultiplier: 1.0,
       spdMultiplier: 1.0,
       newAbilities: [
-        { name: 'Rigenerazione', description: 'Si rigenera parzialmente.', power: 0.5, chance: 15 },
+        { name: 'Rigenerazione', description: 'Si rigenera parzialmente.', power: 0.5, chance: 15, effects: [{ type: 'heal', trigger: 'on_use', target: 'self', amount: 50 }] },
       ],
       message: '🧪 Il Proto-Tyrant si contorce! La mutazione si accelera! FASE 1!',
     },
@@ -427,7 +427,7 @@ export const BOSS_PHASES: Record<string, BossPhase[]> = {
       defMultiplier: 0.5,
       spdMultiplier: 1.4,
       newAbilities: [
-        { name: 'Attacco Self-Destruct', description: 'Si autodistrugge causando danni enormi.', power: 3.0, chance: 10 },
+        { name: 'Attacco Self-Destruct', description: 'Si autodistrugge causando danni enormi.', power: 3.0, chance: 10, effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', powerMultiplier: 3.0 }] },
       ],
       message: '🧪 Il Proto-Tyrant raggiunge la forma finale! È ora o mai! FASE 2 — MAX POTENZA!',
     },

@@ -6,8 +6,14 @@ import {
   ItemInstance,
   Archetype,
   StatusEffect,
+  SpecialEffect,
+  EffectTarget,
+  EffectTrigger,
+  SpecialAbilityDefinition,
+  ActiveCombatEffect,
+  ItemDefinition,
 } from '../types';
-import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById } from '../data/loader';
+import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById, ITEMS } from '../data/loader';
 import { WEAPON_MODS } from '../data/weapon-mods';
 import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '../data/equipment';
 
@@ -98,6 +104,12 @@ function getStatusChance(baseChance: number, archetype?: Archetype): number {
     return Math.min(baseChance + 20, 100);
   }
   return baseChance;
+}
+
+/** Apply weapon mod status bonus to base chance */
+function applyStatusBonus(baseChance: number, character: Character): number {
+  const bonus = getCharacterStatusBonus(character);
+  return Math.min(baseChance + bonus, 100);
 }
 
 // ==========================================
@@ -221,12 +233,15 @@ export interface ActionResult {
   isMeleeFallback?: boolean; // true when ranged weapon has no ammo
   tauntTargetId?: string; // set when tank uses Immolation
   appliedBuff?: AppliedBuff; // set when a buff is applied to a character
+  activeEffects?: ActiveCombatEffect[]; // new combat effects created (buffs, shields, hoTs, reflect)
 }
 
 export function executePlayerAttack(
   character: Character,
   enemy: EnemyInstance,
   turn: number,
+  party: Character[],
+  enemies: EnemyInstance[],
 ): ActionResult {
   const weapon = character.weapon;
   const isRanged = weapon?.type === 'ranged';
@@ -271,7 +286,7 @@ export function executePlayerAttack(
   );
 
   const newHp = Math.max(0, enemy.currentHp - damage);
-  const updatedEnemy: EnemyInstance = { ...enemy, currentHp: newHp, isDefending: false };
+  let updatedEnemy: EnemyInstance = { ...enemy, currentHp: newHp, isDefending: false };
 
   let message = '';
   if (isMiss) {
@@ -280,6 +295,30 @@ export function executePlayerAttack(
     message = `${character.name} infligge un COLPO CRITICO a ${enemy.name} per ${damage} danni!`;
   } else {
     message = `${character.name} attacca ${enemy.name} e infligge ${damage} danni.`;
+  }
+
+  // Process weapon on_hit effects (only if attack landed)
+  let weaponActiveEffects: ActiveCombatEffect[] | undefined;
+  if (!isMiss && character.weapon) {
+    const weaponDef = ITEMS[character.weapon.itemId];
+    if (weaponDef?.effects && weaponDef.effects.length > 0) {
+      const weaponResult = executeEffectsForTrigger(
+        weaponDef.effects, 'on_hit', character, updatedEnemy, turn, party, enemies, 'weapon', character.weapon.name,
+      );
+      if (weaponResult.activeEffects && weaponResult.activeEffects.length > 0) {
+        weaponActiveEffects = weaponResult.activeEffects;
+      }
+      if (weaponResult.log?.message) {
+        message += ` [${weaponResult.log.message}]`;
+      }
+      // Merge weapon effect enemy updates for the primary target
+      if (weaponResult.updatedEnemies) {
+        const weaponUpdatedPrimary = weaponResult.updatedEnemies.find(e => e.id === updatedEnemy.id);
+        if (weaponUpdatedPrimary) {
+          updatedEnemy = weaponUpdatedPrimary;
+        }
+      }
+    }
   }
 
   return {
@@ -298,6 +337,7 @@ export function executePlayerAttack(
     updatedEnemy,
     consumedAmmoUid,
     isMeleeFallback,
+    activeEffects: weaponActiveEffects,
   };
 }
 
@@ -327,11 +367,6 @@ export function executePlayerSpecial(
   const specialId = resolveSpecialId(character, 'special1Id');
   const special = specialId ? getSpecialById(specialId) : undefined;
 
-  // Fallback: use archetype switch for predefined characters without special IDs
-  if (!special && character.archetype !== 'custom') {
-    return executePlayerSpecialLegacy(character, target, turn, party);
-  }
-
   if (!special) {
     return {
       log: { turn, actorName: character.name, actorType: 'player', action: 'Speciale', message: `${character.name} non ha abilità speciale.` },
@@ -351,11 +386,6 @@ export function executePlayerSpecial2(
   const specialId = resolveSpecialId(character, 'special2Id');
   const special = specialId ? getSpecialById(specialId) : undefined;
 
-  // Fallback: use archetype switch for predefined characters without special IDs
-  if (!special && character.archetype !== 'custom') {
-    return executePlayerSpecial2Legacy(character, target, turn, party, enemies);
-  }
-
   if (!special) {
     return {
       log: { turn, actorName: character.name, actorType: 'player', action: 'Speciale2', message: `${character.name} non ha abilità speciale secondaria.` },
@@ -365,14 +395,763 @@ export function executePlayerSpecial2(
   return executeSpecialAbility(character, target, turn, party, enemies, special);
 }
 
-// Generic special ability execution
+// ==========================================
+// TARGET RESOLUTION
+// ==========================================
+
+/** Resolve effect targets into concrete Character or EnemyInstance arrays */
+function resolveTargets(
+  effect: SpecialEffect,
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+): { enemies: EnemyInstance[]; allies: Character[] } {
+  const t = effect.target;
+  if (t === 'self') {
+    return { enemies: [], allies: [character] };
+  }
+  if (t === 'enemy') {
+    if ('currentHp' in target && 'definitionId' in target) {
+      return { enemies: [target as EnemyInstance], allies: [] };
+    }
+    return { enemies: [], allies: [] };
+  }
+  if (t === 'all_enemies') {
+    return { enemies: enemies.filter(e => e.currentHp > 0), allies: [] };
+  }
+  if (t === 'ally') {
+    if ('statusEffects' in target && !('definitionId' in target)) {
+      return { enemies: [], allies: [target as Character] };
+    }
+    return { enemies: [], allies: [character] };
+  }
+  if (t === 'all_allies') {
+    return { enemies: [], allies: party.filter(p => p.currentHp > 0) };
+  }
+  if (t === 'lowest_hp_ally') {
+    const alive = party.filter(p => p.currentHp > 0 && p.currentHp < p.maxHp);
+    if (alive.length === 0) return { enemies: [], allies: [character] };
+    alive.sort((a, b) => (a.currentHp / a.maxHp) - (b.currentHp / b.maxHp));
+    return { enemies: [], allies: [alive[0]] };
+  }
+  if (t === 'random_enemy') {
+    const alive = enemies.filter(e => e.currentHp > 0);
+    if (alive.length === 0) return { enemies: [], allies: [] };
+    return { enemies: [alive[Math.floor(Math.random() * alive.length)]], allies: [] };
+  }
+  return { enemies: [], allies: [] };
+}
+
+// ==========================================
+// ATOMIC EFFECT HANDLERS
+// ==========================================
+
+function handleDealDamage(
+  effect: SpecialEffect & { type: 'deal_damage' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { target: effTarget, powerMultiplier, excludePrimaryTarget, noMiss, guaranteedCrit, ignoreDef } = effect;
+  const { enemies: enemyTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (enemyTargets.length === 0) return {};
+
+  let updatedEnemies: EnemyInstance[] | undefined;
+  let totalDmg = 0;
+  let isCritical = false;
+  let isMiss = false;
+  const splashLog: string[] = [];
+  const primaryEnemy = 'definitionId' in target ? target as EnemyInstance : null;
+
+  updatedEnemies = enemies.map(e => {
+    const isPrimary = primaryEnemy && e.id === primaryEnemy.id;
+    if (excludePrimaryTarget && isPrimary) return e;
+
+    const isTarget = enemyTargets.some(et => et.id === e.id);
+    if (!isTarget) return e;
+
+    const totalAtk = getCharacterAtk(character) * powerMultiplier;
+    const critBonus = getCharacterCritBonus(character);
+    const hasAdrenaline = character.statusEffects.includes('adrenaline');
+    const calcResult = noMiss
+      ? calculateDamageNoMiss(totalAtk, e.def, e.isDefending, character.archetype, hasAdrenaline, critBonus)
+      : calculateDamage(totalAtk, e.def, e.isDefending, character.archetype, hasAdrenaline, critBonus);
+
+    if (calcResult.isMiss) {
+      if (isPrimary) isMiss = true;
+      return { ...e, isDefending: false };
+    }
+
+    totalDmg += calcResult.damage;
+    if (isPrimary) {
+      isCritical = guaranteedCrit || calcResult.isCritical;
+    }
+
+    if (!isPrimary) {
+      splashLog.push(`${e.name}: -${calcResult.damage}${calcResult.isCritical ? ' 💥' : ''}`);
+    }
+
+    const newHp = Math.max(0, e.currentHp - calcResult.damage);
+    return { ...e, currentHp: newHp, isDefending: false };
+  });
+
+  let message = `${character.name} usa ${character === target ? '' : ''}`;
+  const primaryTarget = primaryEnemy || enemyTargets[0];
+  if (primaryTarget && !excludePrimaryTarget) {
+    if (isMiss) {
+      message = `${character.name} attacca ${primaryTarget.name} ma manca il bersaglio!`;
+    } else if (isCritical || guaranteedCrit) {
+      message = `${character.name} infligge un COLPO CRITICO a ${primaryTarget.name} per ${totalDmg} danni!`;
+    } else {
+      message = `${character.name} attacca ${primaryTarget.name} e infligge ${totalDmg} danni.`;
+    }
+  } else {
+    message = `${character.name} infligge ${totalDmg} danni totali!`;
+  }
+  if (splashLog.length > 0) {
+    message += ` Danni collaterali: ${splashLog.join(', ')}.`;
+  }
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      targetName: primaryTarget?.name, targetId: primaryTarget?.id,
+      damage: totalDmg, isCritical: isCritical || guaranteedCrit, isMiss,
+      message,
+    },
+    updatedEnemies,
+  };
+}
+
+function handleHeal(
+  effect: SpecialEffect & { type: 'heal' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: healTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (healTargets.length === 0) return {};
+
+  let updatedParty: Character[] | undefined;
+  let totalHeal = 0;
+
+  updatedParty = party.map(p => {
+    const isTarget = healTargets.some(ht => ht.id === p.id);
+    if (!isTarget) return p;
+
+    const rawHeal = effect.amount || 0;
+    // If percent is set, interpret amount as % of max HP
+    const healAmount = effect.percent ? Math.floor(p.maxHp * rawHeal / 100) : rawHeal;
+    const actualHeal = calculateHeal(healAmount, character.archetype);
+    totalHeal += actualHeal;
+    const newHp = Math.min(p.maxHp, p.currentHp + actualHeal);
+    return { ...p, currentHp: newHp };
+  });
+
+  const healTarget = healTargets[0];
+  const message = healTargets.length > 1
+    ? `${character.name} cura il gruppo di ${totalHeal} HP totali!`
+    : `${character.name} cura ${healTarget.name} di ${totalHeal} HP!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      targetName: healTarget.name, targetId: healTarget.id,
+      heal: totalHeal, message,
+    },
+    updatedParty,
+  };
+}
+
+function handleApplyStatus(
+  effect: SpecialEffect & { type: 'apply_status' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+  sourceType?: 'special' | 'weapon' | 'armor' | 'accessory' | 'item',
+): Partial<ActionResult> {
+  const resolved = resolveTargets(effect, character, target, party, enemies);
+  const statusTargets = resolved.enemies.length > 0 ? resolved.enemies : resolved.allies;
+  if (statusTargets.length === 0) return {};
+
+  const statusType = effect.statusType as StatusEffect;
+  const baseChance = effect.chance;
+  let effectiveChance = getStatusChance(baseChance, character.archetype);
+  // Weapon effects benefit from weapon mod status bonus
+  if (sourceType === 'weapon') {
+    effectiveChance = applyStatusBonus(effectiveChance, character);
+  }
+
+  let updatedEnemies: EnemyInstance[] | undefined;
+  let updatedParty: Character[] | undefined;
+  const appliedNames: string[] = [];
+
+  if (resolved.enemies.length > 0) {
+    updatedEnemies = enemies.map(e => {
+      const isTarget = resolved.enemies.some(et => et.id === e.id);
+      if (!isTarget) return e;
+      const updated = { ...e };
+      if (chance(effectiveChance) && !updated.statusEffects.includes(statusType)) {
+        updated.statusEffects = [...updated.statusEffects, statusType];
+        appliedNames.push(e.name);
+      }
+      return updated;
+    });
+  } else if (resolved.allies.length > 0) {
+    updatedParty = party.map(p => {
+      const isTarget = resolved.allies.some(at => at.id === p.id);
+      if (!isTarget) return p;
+      const updated = { ...p };
+      if (chance(effectiveChance) && !updated.statusEffects.includes(statusType)) {
+        updated.statusEffects = [...updated.statusEffects, statusType];
+        appliedNames.push(p.name);
+      }
+      return updated;
+    });
+  }
+
+  if (appliedNames.length === 0) return {};
+
+  const statusLabel = statusType === 'poison' ? 'avvelenato' : statusType === 'stunned' ? 'stordito' : statusType === 'bleeding' ? 'sanguinante' : 'adrenalina';
+  const message = appliedNames.length > 1
+    ? `${appliedNames.join(', ')} sono ${statusLabel}!`
+    : `${appliedNames[0]} è ${statusLabel}!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message, statusEffect: statusType,
+    },
+    updatedEnemies,
+    updatedParty,
+  };
+}
+
+function handleRemoveStatus(
+  effect: SpecialEffect & { type: 'remove_status' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: statusTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (statusTargets.length === 0) return {};
+
+  const statusesToRemove = new Set(effect.statuses || []);
+  let updatedParty: Character[] | undefined;
+  const curedEntries: string[] = [];
+
+  updatedParty = party.map(p => {
+    const isTarget = statusTargets.some(ht => ht.id === p.id);
+    if (!isTarget) return p;
+    const cured: string[] = [];
+    const cleaned = p.statusEffects.filter(s => {
+      if (statusesToRemove.has(s)) {
+        cured.push(s);
+        return false;
+      }
+      return true;
+    });
+    if (cured.length > 0) {
+      curedEntries.push(p.name);
+    }
+    return { ...p, statusEffects: cleaned };
+  });
+
+  if (curedEntries.length === 0) return {};
+
+  const message = `Status negativi rimossi da ${curedEntries.join(', ')}!`;
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    updatedParty,
+  };
+}
+
+function handleBuffStat(
+  effect: SpecialEffect & { type: 'buff_stat' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: buffTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (buffTargets.length === 0) return {};
+
+  const newEffects: ActiveCombatEffect[] = buffTargets.map(bt => ({
+    id: `buff_${character.id}_${effect.stat}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'buff_stat' as const,
+    targetId: bt.id,
+    sourceId: character.id,
+    stat: effect.stat,
+    amount: effect.amount,
+    remainingTurns: effect.duration,
+  }));
+
+  const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : 'VELOCITÀ';
+  const message = buffTargets.length > 1
+    ? `${character.name} potenzia il gruppo: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`
+    : `${character.name} potenzia ${buffTargets[0].name}: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    activeEffects: newEffects,
+  };
+}
+
+function handleDebuffStat(
+  effect: SpecialEffect & { type: 'debuff_stat' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { enemies: debuffTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (debuffTargets.length === 0) return {};
+
+  const newEffects: ActiveCombatEffect[] = debuffTargets.map(dt => ({
+    id: `debuff_${character.id}_${effect.stat}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'debuff_stat' as const,
+    targetId: dt.id,
+    sourceId: character.id,
+    stat: effect.stat,
+    amount: -effect.amount,
+    remainingTurns: effect.duration,
+  }));
+
+  const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : 'VELOCITÀ';
+  const message = `${character.name} riduce il ${statLabel} dei nemici di ${effect.amount}% per ${effect.duration} turni!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    activeEffects: newEffects,
+  };
+}
+
+function handleShield(
+  effect: SpecialEffect & { type: 'shield' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: shieldTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (shieldTargets.length === 0) return {};
+
+  const newEffects: ActiveCombatEffect[] = shieldTargets.map(st => ({
+    id: `shield_${character.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'shield' as const,
+    targetId: st.id,
+    sourceId: character.id,
+    amount: effect.amount,
+    remainingTurns: effect.duration,
+  }));
+
+  const message = shieldTargets.length > 1
+    ? `${character.name} crea uno scudo di ${effect.amount} su tutto il gruppo per ${effect.duration} turni!`
+    : `${character.name} crea uno scudo di ${effect.amount} su ${shieldTargets[0].name} per ${effect.duration} turni!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    activeEffects: newEffects,
+  };
+}
+
+function handleTaunt(
+  effect: SpecialEffect & { type: 'taunt' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const message = `${character.name} provoca i nemici! Tutti gli attacchi saranno diretti su di lui per ${effect.duration} turni!`;
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    tauntTargetId: character.id,
+  };
+}
+
+function handleLifesteal(
+  effect: SpecialEffect & { type: 'lifesteal' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { enemies: lifestealTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (lifestealTargets.length === 0) return {};
+
+  let updatedEnemies: EnemyInstance[] | undefined;
+  let updatedCharacter: Character | undefined;
+  let totalDmg = 0;
+  let isCritical = false;
+
+  updatedEnemies = enemies.map(e => {
+    const isTarget = lifestealTargets.some(et => et.id === e.id);
+    if (!isTarget) return e;
+
+    const totalAtk = getCharacterAtk(character) * effect.power;
+    const critBonus = getCharacterCritBonus(character);
+    const hasAdrenaline = character.statusEffects.includes('adrenaline');
+    const calcResult = calculateDamage(totalAtk, e.def, e.isDefending, character.archetype, hasAdrenaline, critBonus);
+
+    if (calcResult.isMiss) return { ...e, isDefending: false };
+
+    totalDmg += calcResult.damage;
+    if (calcResult.isCritical) isCritical = true;
+
+    return { ...e, currentHp: Math.max(0, e.currentHp - calcResult.damage), isDefending: false };
+  });
+
+  const healAmount = Math.floor(totalDmg * effect.percent / 100);
+  if (healAmount > 0) {
+    updatedCharacter = { ...character, currentHp: Math.min(character.maxHp, character.currentHp + healAmount) };
+  }
+
+  const lsTarget = lifestealTargets[0];
+  const message = `${character.name} attacca ${lsTarget.name} per ${totalDmg} danni e cura ${healAmount} HP!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      targetName: lsTarget.name, targetId: lsTarget.id,
+      damage: totalDmg, isCritical, heal: healAmount, message,
+    },
+    updatedEnemies,
+    updatedCharacter,
+  };
+}
+
+function handleRevive(
+  effect: SpecialEffect & { type: 'revive' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: reviveTargets } = resolveTargets(effect, character, target, party, enemies);
+  const deadAllies = reviveTargets.filter(a => a.currentHp <= 0);
+  if (deadAllies.length === 0) return {};
+
+  let updatedParty: Character[] | undefined;
+  const revivedNames: string[] = [];
+
+  updatedParty = party.map(p => {
+    const isTarget = deadAllies.some(da => da.id === p.id);
+    if (!isTarget) return p;
+    revivedNames.push(p.name);
+    const reviveHp = Math.max(1, Math.floor(p.maxHp * effect.hpPercent / 100));
+    return { ...p, currentHp: reviveHp, statusEffects: [] };
+  });
+
+  const message = `${character.name} rianima ${revivedNames.join(', ')} con ${effect.hpPercent}% HP!`;
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    updatedParty,
+  };
+}
+
+function handleHot(
+  effect: SpecialEffect & { type: 'hot' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: hotTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (hotTargets.length === 0) return {};
+
+  const newEffects: ActiveCombatEffect[] = hotTargets.map(ht => ({
+    id: `hot_${character.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'hot' as const,
+    targetId: ht.id,
+    sourceId: character.id,
+    amount: effect.amountPerTurn,
+    remainingTurns: effect.duration,
+  }));
+
+  const message = hotTargets.length > 1
+    ? `${character.name} applica cura nel tempo a tutto il gruppo: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`
+    : `${character.name} applica cura nel tempo a ${hotTargets[0].name}: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    activeEffects: newEffects,
+  };
+}
+
+function handleReflect(
+  effect: SpecialEffect & { type: 'reflect' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: reflectTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (reflectTargets.length === 0) return {};
+
+  const newEffects: ActiveCombatEffect[] = reflectTargets.map(rt => ({
+    id: `reflect_${character.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'reflect' as const,
+    targetId: rt.id,
+    sourceId: character.id,
+    amount: effect.percent,
+    remainingTurns: effect.duration,
+  }));
+
+  const message = `${character.name} attiva riflessione: ${effect.percent}% danno riflesso per ${effect.duration} turni!`;
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+    activeEffects: newEffects,
+  };
+}
+
+// ==========================================
+// UNIFIED EFFECT TRIGGER SYSTEM
+// Reusable executor for item/equipment/passive effects
+// ==========================================
+
+/**
+ * Execute effects filtered by trigger from any source (weapon, armor, accessory, item).
+ * This is the core of the unified effect system — all items share the same handler dispatch.
+ */
+export function executeEffectsForTrigger(
+  effects: SpecialEffect[],
+  trigger: EffectTrigger,
+  character: Character,
+  target: EnemyInstance | Character,
+  turn: number,
+  party: Character[],
+  enemies: EnemyInstance[],
+  sourceType: 'special' | 'weapon' | 'armor' | 'accessory' | 'item',
+  sourceName?: string,
+): ActionResult {
+  // Filter by trigger (effects without a trigger default to matching for backwards compat)
+  const filtered = effects.filter(e => !e.trigger || e.trigger === trigger);
+  if (filtered.length === 0) {
+    return {
+      log: { turn, actorName: character.name, actorType: 'player', action: sourceName || 'Effetto', message: '' },
+    };
+  }
+
+  // Mutable state that accumulates across effects
+  let currentParty = [...party];
+  let currentEnemies = [...enemies];
+  let currentCharacter = { ...character };
+  const allActiveEffects: ActiveCombatEffect[] = [];
+  let tauntTargetId: string | undefined;
+  const allLogParts: string[] = [];
+  let totalDamage = 0;
+  let totalHeal = 0;
+  let anyCritical = false;
+  let anyMiss = false;
+  let primaryTargetName = '';
+  let primaryTargetId = '';
+  let primaryStatusEffect: string | undefined;
+  const actionLabel = sourceName || 'Effetto';
+
+  for (const effect of filtered) {
+    // Check activation chance (if specified)
+    if (effect.chance !== undefined && effect.chance < 100) {
+      if (!chance(effect.chance)) continue;
+    }
+
+    let partial: Partial<ActionResult> = {};
+
+    switch (effect.type) {
+      case 'deal_damage':
+        partial = handleDealDamage(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
+        if (partial.log) {
+          if (partial.log.damage) totalDamage += partial.log.damage;
+          if (partial.log.isCritical) anyCritical = true;
+          if (partial.log.isMiss) anyMiss = true;
+          if (partial.log.targetName) { primaryTargetName = partial.log.targetName; primaryTargetId = partial.log.targetId || ''; }
+        }
+        break;
+
+      case 'heal':
+        partial = handleHeal(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        if (partial.log?.heal) totalHeal += partial.log.heal;
+        break;
+
+      case 'apply_status':
+        partial = handleApplyStatus(effect, currentCharacter, target, currentParty, currentEnemies, turn, sourceType);
+        if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        if (partial.log?.statusEffect) primaryStatusEffect = partial.log.statusEffect;
+        break;
+
+      case 'remove_status':
+        partial = handleRemoveStatus(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        break;
+
+      case 'buff_stat':
+        partial = handleBuffStat(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) {
+          for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          allActiveEffects.push(...partial.activeEffects);
+        }
+        break;
+
+      case 'debuff_stat':
+        partial = handleDebuffStat(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) {
+          for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          allActiveEffects.push(...partial.activeEffects);
+        }
+        break;
+
+      case 'shield':
+        partial = handleShield(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) {
+          for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          allActiveEffects.push(...partial.activeEffects);
+        }
+        break;
+
+      case 'taunt':
+        partial = handleTaunt(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.tauntTargetId) tauntTargetId = partial.tauntTargetId;
+        break;
+
+      case 'lifesteal':
+        partial = handleLifesteal(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
+        if (partial.updatedCharacter) currentCharacter = partial.updatedCharacter;
+        if (partial.log?.damage) totalDamage += partial.log.damage;
+        if (partial.log?.heal) totalHeal += partial.log.heal;
+        break;
+
+      case 'revive':
+        partial = handleRevive(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        break;
+
+      case 'hot':
+        partial = handleHot(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) {
+          for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          allActiveEffects.push(...partial.activeEffects);
+        }
+        break;
+
+      case 'reflect':
+        partial = handleReflect(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) {
+          for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          allActiveEffects.push(...partial.activeEffects);
+        }
+        break;
+    }
+
+    if (partial.log && partial.log.message) {
+      allLogParts.push(partial.log.message);
+    }
+  }
+
+  // If no effect produced output (all skipped by chance), return empty
+  if (allLogParts.length === 0) {
+    return {
+      log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: '' },
+    };
+  }
+
+  // Build combined log message
+  let finalMessage = allLogParts.length === 1
+    ? allLogParts[0]
+    : allLogParts.join(' ');
+
+  // Detect which results changed
+  const characterChanged = !party.some(p => p.id === currentCharacter.id && p.currentHp === currentCharacter.currentHp && JSON.stringify(p.statusEffects) === JSON.stringify(currentCharacter.statusEffects));
+  const partyChanged = party.some((p, i) => {
+    const cp = currentParty[i];
+    return cp && (p.currentHp !== cp.currentHp || JSON.stringify(p.statusEffects) !== JSON.stringify(cp.statusEffects));
+  }) || currentParty.length !== party.length;
+  const enemiesChanged = enemies.some((e, i) => {
+    const ce = currentEnemies[i];
+    return ce && (e.currentHp !== ce.currentHp || JSON.stringify(e.statusEffects) !== JSON.stringify(ce.statusEffects));
+  }) || currentEnemies.length !== enemies.length;
+
+  const result: ActionResult = {
+    log: {
+      turn,
+      actorName: character.name,
+      actorType: 'player',
+      action: actionLabel,
+      targetName: primaryTargetName || undefined,
+      targetId: primaryTargetId || undefined,
+      damage: totalDamage || undefined,
+      heal: totalHeal || undefined,
+      isCritical: anyCritical || undefined,
+      isMiss: anyMiss || undefined,
+      statusEffect: primaryStatusEffect,
+      message: finalMessage,
+    },
+  };
+
+  if (characterChanged) result.updatedCharacter = currentCharacter;
+  if (partyChanged) result.updatedParty = currentParty;
+  if (enemiesChanged) result.updatedEnemies = currentEnemies;
+  if (tauntTargetId) result.tauntTargetId = tauntTargetId;
+  if (allActiveEffects.length > 0) result.activeEffects = allActiveEffects;
+
+  return result;
+}
+
+// ==========================================
+// GENERIC SPECIAL ABILITY EXECUTION
+// Handles abilities via atomic effects array
+// ==========================================
+
 function executeSpecialAbility(
   character: Character,
   target: EnemyInstance | Character,
   turn: number,
   party: Character[],
   enemies: EnemyInstance[],
-  special: ReturnType<typeof getSpecialById>,
+  special: SpecialAbilityDefinition,
 ): ActionResult {
   if (!special) {
     return {
@@ -380,716 +1159,155 @@ function executeSpecialAbility(
     };
   }
 
-  const result: ActionResult = {
-    log: { turn, actorName: character.name, actorType: 'player', action: special.name, message: '' },
-  };
-
-  switch (special.executionType) {
-    // ── OFFENSIVE ──
-    case 'colpo_mortale': {
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * 1.6;
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Colpo Mortale',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical: true,
-        message: `${character.name} esegue un COLPO MORTALE su ${enemyTarget.name} per ${damage} danni!`,
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    case 'raffica': {
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * 1.3;
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-
-      const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
-      const primaryHp = Math.max(0, enemyTarget.currentHp - primary.damage);
-      let updatedEnemies = enemies.map(e =>
-        e.id === enemyTarget.id ? { ...e, currentHp: primaryHp, isDefending: false } : e
-      );
-
-      const splashLog: string[] = [];
-      const splashAtk = getCharacterAtk(character) * 0.6;
-      updatedEnemies = updatedEnemies.map(e => {
-        if (e.id !== enemyTarget.id && e.currentHp > 0) {
-          const splash = calculateDamage(splashAtk, e.def, e.isDefending, undefined, hasAdrenaline, critBonus);
-          const newHp = Math.max(0, e.currentHp - splash.damage);
-          if (!splash.isMiss) {
-            splashLog.push(`${e.name}: -${splash.damage}`);
-          }
-          return { ...e, currentHp: newHp, isDefending: false };
-        }
-        return e;
-      });
-
-      let message = `${character.name} esegue una RAFFICA su ${enemyTarget.name} per ${primary.damage} danni!`;
-      if (primary.isCritical) message = `${character.name} esegue una RAFFICA CRITICA su ${enemyTarget.name} per ${primary.damage} danni!`;
-      if (primary.isMiss) message = `${character.name} spara una raffica ma manca ${enemyTarget.name}!`;
-      if (splashLog.length > 0) {
-        message += ` Danni collaterali: ${splashLog.join(', ')}.`;
-      }
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Raffica',
-        targetName: enemyTarget.name, targetId: enemyTarget.id,
-        damage: primary.damage, isCritical: primary.isCritical, isMiss: primary.isMiss,
-        message,
-      };
-      result.updatedEnemies = updatedEnemies;
-      break;
-    }
-
-    case 'sparo_mirato': {
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * 2.0;
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      // Guaranteed hit - no miss
-      const { damage, isCritical } = calculateDamageNoMiss(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-      let message = `${character.name} esegue uno SPARO MIRATO su ${enemyTarget.name} per ${damage} danni!`;
-      if (isCritical) message = `${character.name} esegue uno SPARO MIRATO CRITICO su ${enemyTarget.name} per ${damage} danni!`;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Sparo Mirato',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical,
-        message,
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    case 'veleno_acido': {
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * 0.9;
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, undefined, hasAdrenaline, getCharacterCritBonus(character));
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-      
-      let message = `${character.name} lancia VELENO ACIDO su ${enemyTarget.name} per ${damage} danni!`;
-      if (isMiss) message = `${character.name} lancia veleno ma ${enemyTarget.name} schiva!`;
-      
-      // Apply poison
-      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-        if (!updated.statusEffects.includes('poison')) {
-          updated.statusEffects = [...updated.statusEffects, 'poison'];
-          message += ` ${enemyTarget.name} è avvelenato!`;
-        }
-      }
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Veleno Acido',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isMiss,
-        message, statusEffect: 'poison',
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    case 'attacco_carica': {
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * 1.4;
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-      
-      let message = `${character.name} esegue un ATTACCO DI CARICA su ${enemyTarget.name} per ${damage} danni!`;
-      
-      // Apply stun
-      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-        if (!updated.statusEffects.includes('stunned')) {
-          updated.statusEffects = [...updated.statusEffects, 'stunned'];
-          message += ` ${enemyTarget.name} è stordito!`;
-        }
-      }
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Attacco di Carica',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
-        message, statusEffect: 'stunned',
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    case 'gas_venefico': {
-      // AOE poison - damages ALL living enemies
-      const totalAtk = getCharacterAtk(character) * 0.7;
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const livingEnemies = enemies.filter(e => e.currentHp > 0);
-      let totalDmg = 0;
-      const updatedEnemies = livingEnemies.map(e => {
-        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline, critBonus);
-        if (isMiss) return { ...e, isDefending: false };
-        totalDmg += damage;
-        const newHp = Math.max(0, e.currentHp - damage);
-        const updated = { ...e, currentHp: newHp, isDefending: false };
-        if (special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-          if (!updated.statusEffects.includes('poison')) {
-            updated.statusEffects = [...updated.statusEffects, 'poison'];
-          }
-        }
-        return updated;
-      });
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Gas Venefico',
-        damage: totalDmg,
-        message: `${character.name} lancia Gas Venefico! Tutti i nemici sono avvelenati e subiscono ${totalDmg} danni!`,
-        statusEffect: 'poison',
-      };
-      result.updatedEnemies = updatedEnemies;
-      break;
-    }
-
-    case 'cristalli_sonici': {
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * 1.1;
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-
-      let message = `${character.name} attiva Cristalli Sonici! ${enemyTarget.name} è stordito e subisce ${damage} danni!`;
-
-      // Apply stun
-      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-        if (!updated.statusEffects.includes('stunned')) {
-          updated.statusEffects = [...updated.statusEffects, 'stunned'];
-          message += ` ${enemyTarget.name} è stordito!`;
-        }
-      }
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Cristalli Sonici',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
-        message, statusEffect: 'stunned',
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    case 'frecce_etiche': {
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * 0.9;
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-
-      let message = `${character.name} spara Frecce Elettriche! ${enemyTarget.name} è stordito e subisce ${damage} danni!`;
-
-      // Apply stun
-      if (!isMiss && special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-        if (!updated.statusEffects.includes('stunned')) {
-          updated.statusEffects = [...updated.statusEffects, 'stunned'];
-          message += ` ${enemyTarget.name} è stordito!`;
-        }
-      }
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Frecce Elettriche',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
-        message, statusEffect: 'stunned',
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    // ── DEFENSIVE ──
-    case 'barricata': {
-      character.isDefending = true;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Barricata',
-        message: `${character.name} erige una barricata! Danni ridotti fino al prossimo turno.`,
-      };
-      result.updatedCharacter = character;
-      break;
-    }
-
-    case 'immolazione': {
-      character.isDefending = true;
-      result.tauntTargetId = character.id;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Immolazione',
-        message: `${character.name} si espone con IMMOLAZIONE! Tutti i nemici dovranno attaccarlo. Danni ridotti.`,
-      };
-      result.updatedCharacter = character;
-      break;
-    }
-
-    case 'scudo_vitale': {
-      // Heal 30 HP and set defending
-      const healAmount = 30;
-      const newHp = Math.min(character.maxHp, character.currentHp + healAmount);
-      character.isDefending = true;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Scudo Vitale',
-        heal: healAmount,
-        message: `${character.name} attiva lo SCUDO VITALE! Recupera ${healAmount} HP e riduce i danni subiti.`,
-      };
-      result.updatedCharacter = { ...character, currentHp: newHp, isDefending: true };
-      break;
-    }
-
-    // ── SUPPORT ──
-    case 'pronto_soccorso': {
-      if (target.id === character.id || party.some(p => p.id === target.id)) {
-        const healTarget = target as Character;
-        const healAmount = calculateHeal(70, character.archetype);
-        const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
-        const curedEffects: string[] = [];
-        let cleanedStatus = [...healTarget.statusEffects];
-        if (cleanedStatus.includes('poison')) {
-          cleanedStatus = cleanedStatus.filter(s => s !== 'poison');
-          curedEffects.push('avvelenamento');
-        }
-        if (cleanedStatus.includes('bleeding')) {
-          cleanedStatus = cleanedStatus.filter(s => s !== 'bleeding');
-          curedEffects.push('sanguinamento');
-        }
-        const updated = { ...healTarget, currentHp: newHp, statusEffects: cleanedStatus };
-        const cureText = curedEffects.length > 0 ? ` e cura ${curedEffects.join(' e ')}` : '';
-        result.log = {
-          turn, actorName: character.name, actorType: 'player', action: 'Pronto Soccorso',
-          targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
-          message: `${character.name} usa Pronto Soccorso su ${healTarget.name} ripristinando ${healAmount} HP${cureText}!`,
-        };
-        result.updatedCharacter = updated;
-      }
-      break;
-    }
-
-    case 'cura_gruppo': {
-      const healAmount = calculateHeal(35, character.archetype);
-      const updatedParty = party.map(p => {
-        if (p.currentHp > 0) {
-          return { ...p, currentHp: Math.min(p.maxHp, p.currentHp + healAmount) };
-        }
-        return p;
-      });
-      const aliveCount = party.filter(p => p.currentHp > 0).length;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Cura Gruppo',
-        heal: healAmount,
-        message: `${character.name} usa Cura Gruppo! ${aliveCount} alleati guariti di ${healAmount} HP ciascuno.`,
-      };
-      result.updatedParty = updatedParty;
-      break;
-    }
-
-    case 'adrenalina': {
-      const healTarget = target as Character;
-      // Adrenalina: heal 40 HP + 2-turn ATK buff (+25% damage)
-      const healAmount = 40;
-      const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
-      const alreadyBuffed = healTarget.statusEffects.includes('adrenaline');
-      const updatedStatus = alreadyBuffed
-        ? healTarget.statusEffects
-        : [...healTarget.statusEffects, 'adrenaline' as StatusEffect];
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Adrenalina',
-        targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
-        message: alreadyBuffed
-          ? `${character.name} inietta ADRENALINA a ${healTarget.name}! +${healAmount} HP!`
-          : `${character.name} inietta ADRENALINA a ${healTarget.name}! +${healAmount} HP e +25% danni per 2 turni!`,
-      };
-      result.updatedCharacter = { ...healTarget, currentHp: newHp, statusEffects: updatedStatus };
-      if (!alreadyBuffed) {
-        result.appliedBuff = { targetId: healTarget.id, effect: 'adrenaline', duration: 2 };
-      }
-      break;
-    }
-
-    case 'iniezione_stimolante': {
-      const healTarget = target as Character;
-      const healAmount = calculateHeal(special.healAmount || 45, character.archetype);
-      const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
-      const curedEffects: string[] = [];
-      let cleanedStatus = [...healTarget.statusEffects];
-      if (cleanedStatus.includes('poison')) { cleanedStatus = cleanedStatus.filter(s => s !== 'poison'); curedEffects.push('avvelenamento'); }
-      if (cleanedStatus.includes('bleeding')) { cleanedStatus = cleanedStatus.filter(s => s !== 'bleeding'); curedEffects.push('sanguinamento'); }
-      if (cleanedStatus.includes('stunned')) { cleanedStatus = cleanedStatus.filter(s => s !== 'stunned'); curedEffects.push('stordimento'); }
-      const updated = { ...healTarget, currentHp: newHp, statusEffects: cleanedStatus };
-      const cureText = curedEffects.length > 0 ? ` e rimuove ${curedEffects.join(' e ')}` : '';
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Iniezione Stimolante',
-        targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
-        message: `${character.name} usa INIEZIONE STIMOLANTE su ${healTarget.name}! +${healAmount} HP${cureText}!`,
-      };
-      result.updatedCharacter = updated;
-      break;
-    }
-
-    case 'disinfezione_totale': {
-      const healAmount = calculateHeal(special.healAmount || 20, character.archetype);
-      const cleanedParty = party.map(p => {
-        if (p.currentHp <= 0) return p;
-        const newHp = Math.min(p.maxHp, p.currentHp + healAmount);
-        const cleanedStatus: typeof p.statusEffects = [];
-        return { ...p, currentHp: newHp, statusEffects: cleanedStatus };
-      });
-      const aliveCount = party.filter(p => p.currentHp > 0).length;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Disinfezione Totale',
-        heal: healAmount,
-        message: `${character.name} usa DISINFEZIONE TOTALE! ${aliveCount} alleati curati di ${healAmount} HP e tutti gli status negativi rimossi!`,
-      };
-      result.updatedParty = cleanedParty;
-      break;
-    }
-
-    case 'recupero_tattico': {
-      const healAmount = calculateHeal(special.healAmount || 50, character.archetype);
-      const newHp = Math.min(character.maxHp, character.currentHp + healAmount);
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Recupero Tattico',
-        heal: healAmount,
-        message: `${character.name} usa RECUPERO TATTICO! Recupera ${healAmount} HP!`,
-      };
-      result.updatedCharacter = { ...character, currentHp: newHp };
-      break;
-    }
-
-    case 'resistenza_attiva': {
-      const healAmount = calculateHeal(special.healAmount || 25, character.archetype);
-      const newHp = Math.min(character.maxHp, character.currentHp + healAmount);
-      const hadStatus = character.statusEffects.length > 0;
-      const cleanedStatus: typeof character.statusEffects = [];
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Resistenza Attiva',
-        heal: healAmount,
-        message: `${character.name} attiva RESISTENZA ATTIVA! +${healAmount} HP${hadStatus ? '. Tutti gli effetti negativi rimossi!' : '!'}`,
-      };
-      result.updatedCharacter = { ...character, currentHp: newHp, statusEffects: cleanedStatus };
-      break;
-    }
-
-    case 'granata_stordente': {
-      // AOE stun - damages ALL living enemies + high stun chance
-      const totalAtk = getCharacterAtk(character) * (special.powerMultiplier || 0.8);
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const livingEnemies = enemies.filter(e => e.currentHp > 0);
-      let totalDmg = 0;
-      let stunnedCount = 0;
-      const updatedEnemies = livingEnemies.map(e => {
-        const { damage, isMiss } = calculateDamage(totalAtk, e.def, e.isDefending, undefined, hasAdrenaline, critBonus);
-        if (isMiss) return { ...e, isDefending: false };
-        totalDmg += damage;
-        const newHp = Math.max(0, e.currentHp - damage);
-        const updated = { ...e, currentHp: newHp, isDefending: false };
-        if (special.statusToApply && chance(getStatusChance(special.statusToApply.chance, character.archetype))) {
-          if (!updated.statusEffects.includes('stunned')) {
-            updated.statusEffects = [...updated.statusEffects, 'stunned'];
-            stunnedCount++;
-          }
-        }
-        return updated;
-      });
-
-      let message = `${character.name} lancia una GRANATA STORDENTE! ${totalDmg} danni totali ai nemici!`;
-      if (stunnedCount > 0) message += ` ${stunnedCount} nemici storditi!`;
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Granata Stordente',
-        damage: totalDmg,
-        message,
-        statusEffect: 'stunned',
-      };
-      result.updatedEnemies = updatedEnemies;
-      break;
-    }
-
-    case 'siero_inibitore': {
-      // Single target: moderate damage + poison AND stun
-      if (target.id === character.id) break;
-      const enemyTarget = target as EnemyInstance;
-      const totalAtk = getCharacterAtk(character) * (special.powerMultiplier || 1.0);
-      const critBonus = getCharacterCritBonus(character);
-      const hasAdrenaline = character.statusEffects.includes('adrenaline');
-      const { damage, isCritical, isMiss } = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, hasAdrenaline, critBonus);
-      const newHp = Math.max(0, enemyTarget.currentHp - damage);
-      const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-
-      let message = `${character.name} inietta SIERO INIBITORE a ${enemyTarget.name} per ${damage} danni!`;
-      const appliedEffects: string[] = [];
-
-      // Apply poison
-      if (!isMiss && chance(getStatusChance(65, character.archetype))) {
-        if (!updated.statusEffects.includes('poison')) {
-          updated.statusEffects = [...updated.statusEffects, 'poison'];
-          appliedEffects.push('avvelenato');
-        }
-      }
-      // Apply stun
-      if (!isMiss && chance(getStatusChance(40, character.archetype))) {
-        if (!updated.statusEffects.includes('stunned')) {
-          updated.statusEffects = [...updated.statusEffects, 'stunned'];
-          appliedEffects.push('stordito');
-        }
-      }
-      if (appliedEffects.length > 0) message += ` ${enemyTarget.name} è ${appliedEffects.join(' e ')}!`;
-
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Siero Inibitore',
-        targetName: enemyTarget.name, targetId: enemyTarget.id, damage, isCritical, isMiss,
-        message,
-      };
-      result.updatedEnemy = updated;
-      break;
-    }
-
-    default:
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Speciale',
-        message: `${character.name} usa un'abilità sconosciuta.`,
-      };
-  }
-
-  return result;
+  // Data-driven atomic effects system
+  return executeEffectsDriven(character, target, turn, party, enemies, special);
 }
 
-// Legacy special execution for predefined archetypes (fallback)
-function executePlayerSpecialLegacy(
-  character: Character,
-  target: EnemyInstance | Character,
-  turn: number,
-  party: Character[],
-): ActionResult {
-  const result: ActionResult = { log: { turn, actorName: character.name, actorType: 'player', action: 'Speciale', message: '' } };
-
-  switch (character.archetype) {
-    case 'tank': {
-      character.isDefending = true;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Barricata',
-        message: `${character.name} erige una barricata! Danni ridotti fino al prossimo turno.`,
-      };
-      result.updatedCharacter = character;
-      break;
-    }
-    case 'healer': {
-      if (target.id === character.id || party.some(p => p.id === target.id)) {
-        const healTarget = target as Character;
-        const healAmount = calculateHeal(70, character.archetype);
-        const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
-        const curedEffects: string[] = [];
-        let cleanedStatus = [...healTarget.statusEffects];
-        if (cleanedStatus.includes('poison')) {
-          cleanedStatus = cleanedStatus.filter(s => s !== 'poison');
-          curedEffects.push('avvelenamento');
-        }
-        if (cleanedStatus.includes('bleeding')) {
-          cleanedStatus = cleanedStatus.filter(s => s !== 'bleeding');
-          curedEffects.push('sanguinamento');
-        }
-        const updated = { ...healTarget, currentHp: newHp, statusEffects: cleanedStatus };
-        const cureText = curedEffects.length > 0 ? ` e cura ${curedEffects.join(' e ')}` : '';
-        result.log = {
-          turn, actorName: character.name, actorType: 'player', action: 'Pronto Soccorso',
-          targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
-          message: `${character.name} usa Pronto Soccorso su ${healTarget.name} ripristinando ${healAmount} HP${cureText}!`,
-        };
-        result.updatedCharacter = updated;
-      }
-      break;
-    }
-    case 'dps': {
-      if (target.id !== character.id) {
-        const enemyTarget = target as EnemyInstance;
-        const totalAtk = getCharacterAtk(character) * 1.6;
-        const critBonus = getCharacterCritBonus(character);
-        const { damage, isCritical, isMiss } = calculateDamage(
-          totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus,
-        );
-        const newHp = Math.max(0, enemyTarget.currentHp - damage);
-        const updated = { ...enemyTarget, currentHp: newHp, isDefending: false };
-        result.log = {
-          turn, actorName: character.name, actorType: 'player', action: 'Colpo Mortale',
-          targetName: enemyTarget.name, targetId: enemyTarget.id, damage: damage, isCritical: true,
-          message: `${character.name} esegue un COLPO MORTALE su ${enemyTarget.name} per ${damage} danni!`,
-        };
-        result.updatedEnemy = updated;
-      }
-      break;
-    }
-    case 'control': {
-      if (target.id !== character.id) {
-        const enemyTarget = target as EnemyInstance;
-        const totalAtk = getCharacterAtk(character) * 0.7;
-        const critBonus = getCharacterCritBonus(character);
-
-        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus);
-        let newHp = Math.max(0, enemyTarget.currentHp - calc.damage);
-        const statusLog: string[] = [];
-
-        if (!calc.isMiss && Math.random() * 100 < 75) {
-          enemyTarget.statusEffects.push('poison');
-          statusLog.push('(avvelenato)');
-        }
-
-        let message = `${character.name} lancia GAS VENEFICO!`;
-        if (calc.isMiss) {
-          message += ' Mancato!';
-        } else {
-          message += ` ${calc.damage} danni a ${enemyTarget.name}!`;
-          if (statusLog.length > 0) message += ` ${statusLog.join(' ')}`;
-          if (calc.isCritical) message += ' 💥 CRITICO!';
-        }
-
-        result.log = {
-          turn, actorName: character.name, actorType: 'player', action: 'Gas Venefico',
-          targetName: enemyTarget.name, targetId: enemyTarget.id,
-          damage: calc.damage, isCritical: calc.isCritical, isMiss: calc.isMiss,
-          message,
-        };
-        result.updatedEnemy = { ...enemyTarget, currentHp: newHp, isDefending: false };
-      }
-      break;
-    }
-  }
-
-  return result;
-}
-
-function executePlayerSpecial2Legacy(
+function executeEffectsDriven(
   character: Character,
   target: EnemyInstance | Character,
   turn: number,
   party: Character[],
   enemies: EnemyInstance[],
+  special: SpecialAbilityDefinition,
 ): ActionResult {
-  const result: ActionResult = { log: { turn, actorName: character.name, actorType: 'player', action: 'Speciale2', message: '' } };
+  // Mutable state that accumulates across effects
+  let currentParty = [...party];
+  let currentEnemies = [...enemies];
+  let currentCharacter = { ...character };
+  const allActiveEffects: ActiveCombatEffect[] = [];
+  let tauntTargetId: string | undefined;
+  const allLogParts: string[] = [];
+  let totalDamage = 0;
+  let totalHeal = 0;
+  let anyCritical = false;
+  let anyMiss = false;
+  let primaryTargetName = '';
+  let primaryTargetId = '';
+  let primaryStatusEffect: string | undefined;
 
-  switch (character.archetype) {
-    case 'tank': {
-      character.isDefending = true;
-      result.tauntTargetId = character.id;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Immolazione',
-        message: `${character.name} si espone con IMMOLAZIONE! Tutti i nemici dovranno attaccarlo. Danni ridotti.`,
-      };
-      result.updatedCharacter = character;
-      break;
+  for (const effect of special.effects) {
+    let partial: Partial<ActionResult> = {};
+
+    switch (effect.type) {
+      case 'deal_damage':
+        partial = handleDealDamage(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
+        if (partial.log) {
+          if (partial.log.damage) totalDamage += partial.log.damage;
+          if (partial.log.isCritical) anyCritical = true;
+          if (partial.log.isMiss) anyMiss = true;
+          if (partial.log.targetName) { primaryTargetName = partial.log.targetName; primaryTargetId = partial.log.targetId || ''; }
+        }
+        break;
+
+      case 'heal':
+        partial = handleHeal(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        if (partial.log?.heal) totalHeal += partial.log.heal;
+        break;
+
+      case 'apply_status':
+        partial = handleApplyStatus(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        if (partial.log?.statusEffect) primaryStatusEffect = partial.log.statusEffect;
+        break;
+
+      case 'remove_status':
+        partial = handleRemoveStatus(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        break;
+
+      case 'buff_stat':
+        partial = handleBuffStat(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) allActiveEffects.push(...partial.activeEffects);
+        break;
+
+      case 'debuff_stat':
+        partial = handleDebuffStat(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) allActiveEffects.push(...partial.activeEffects);
+        break;
+
+      case 'shield':
+        partial = handleShield(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) allActiveEffects.push(...partial.activeEffects);
+        break;
+
+      case 'taunt':
+        partial = handleTaunt(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.tauntTargetId) tauntTargetId = partial.tauntTargetId;
+        break;
+
+      case 'lifesteal':
+        partial = handleLifesteal(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
+        if (partial.updatedCharacter) currentCharacter = partial.updatedCharacter;
+        if (partial.log?.damage) totalDamage += partial.log.damage;
+        if (partial.log?.heal) totalHeal += partial.log.heal;
+        break;
+
+      case 'revive':
+        partial = handleRevive(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.updatedParty) currentParty = partial.updatedParty;
+        break;
+
+      case 'hot':
+        partial = handleHot(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) allActiveEffects.push(...partial.activeEffects);
+        break;
+
+      case 'reflect':
+        partial = handleReflect(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) allActiveEffects.push(...partial.activeEffects);
+        break;
     }
-    case 'healer': {
-      const healAmount = calculateHeal(35, character.archetype);
-      const updatedParty = party.map(p => {
-        if (p.currentHp > 0) {
-          return { ...p, currentHp: Math.min(p.maxHp, p.currentHp + healAmount) };
-        }
-        return p;
-      });
-      const aliveCount = party.filter(p => p.currentHp > 0).length;
-      result.log = {
-        turn, actorName: character.name, actorType: 'player', action: 'Cura Gruppo',
-        heal: healAmount,
-        message: `${character.name} usa Cura Gruppo! ${aliveCount} alleati guariti di ${healAmount} HP ciascuno.`,
-      };
-      result.updatedParty = updatedParty;
-      break;
-    }
-    case 'dps': {
-      if (target.id !== character.id) {
-        const enemyTarget = target as EnemyInstance;
-        const totalAtk = getCharacterAtk(character) * 1.3;
-        const critBonus = getCharacterCritBonus(character);
 
-        const primary = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus);
-        const primaryHp = Math.max(0, enemyTarget.currentHp - primary.damage);
-        let updatedEnemies = enemies.map(e =>
-          e.id === enemyTarget.id ? { ...e, currentHp: primaryHp, isDefending: false } : e
-        );
-
-        const splashLog: string[] = [];
-        const splashAtk = getCharacterAtk(character) * 0.6;
-        updatedEnemies = updatedEnemies.map(e => {
-          if (e.id !== enemyTarget.id && e.currentHp > 0) {
-            const splash = calculateDamage(splashAtk, e.def, e.isDefending, undefined, undefined, critBonus);
-            const newHp = Math.max(0, e.currentHp - splash.damage);
-            if (!splash.isMiss) {
-              splashLog.push(`${e.name}: -${splash.damage}`);
-            }
-            return { ...e, currentHp: newHp, isDefending: false };
-          }
-          return e;
-        });
-
-        let message = `${character.name} esegue una RAFFICA su ${enemyTarget.name} per ${primary.damage} danni!`;
-        if (primary.isCritical) message = `${character.name} esegue una RAFFICA CRITICA su ${enemyTarget.name} per ${primary.damage} danni!`;
-        if (primary.isMiss) message = `${character.name} spara una raffica ma manca ${enemyTarget.name}!`;
-        if (splashLog.length > 0) {
-          message += ` Danni collaterali: ${splashLog.join(', ')}.`;
-        }
-
-        result.log = {
-          turn, actorName: character.name, actorType: 'player', action: 'Raffica',
-          targetName: enemyTarget.name, targetId: enemyTarget.id,
-          damage: primary.damage, isCritical: primary.isCritical, isMiss: primary.isMiss,
-          message,
-        };
-        result.updatedEnemies = updatedEnemies;
-      }
-      break;
-    }
-    case 'control': {
-      if (target.id !== character.id) {
-        const enemyTarget = target as EnemyInstance;
-        const totalAtk = getCharacterAtk(character) * 1.1;
-        const critBonus = getCharacterCritBonus(character);
-
-        const calc = calculateDamage(totalAtk, enemyTarget.def, enemyTarget.isDefending, character.archetype, undefined, critBonus);
-        let newHp = Math.max(0, enemyTarget.currentHp - calc.damage);
-        const statusLog: string[] = [];
-
-        if (!calc.isMiss && Math.random() * 100 < 65) {
-          enemyTarget.statusEffects.push('stunned');
-          statusLog.push('(stordito)');
-        }
-
-        let message = `${character.name} lancia CRISTALLI SONICI su ${enemyTarget.name}!`;
-        if (calc.isMiss) {
-          message += ' Mancato!';
-        } else {
-          message += ` ${calc.damage} danni!`;
-          if (statusLog.length > 0) message += ` ${statusLog.join(' ')}`;
-          if (calc.isCritical) message += ' 💥 CRITICO!';
-        }
-
-        result.log = {
-          turn, actorName: character.name, actorType: 'player', action: 'Cristalli Sonici',
-          targetName: enemyTarget.name, targetId: enemyTarget.id,
-          damage: calc.damage, isCritical: calc.isCritical, isMiss: calc.isMiss,
-          message,
-        };
-        result.updatedEnemies = enemies.map(e =>
-          e.id === enemyTarget.id ? { ...e, currentHp: newHp, isDefending: false } : e
-        );
-      }
-      break;
+    if (partial.log && partial.log.message) {
+      allLogParts.push(partial.log.message);
     }
   }
+
+  // Build a combined log message
+  let finalMessage = allLogParts.join(' ');
+  // If only one effect produced damage, use its specific message
+  if (special.effects.length === 1 && allLogParts.length === 1) {
+    finalMessage = allLogParts[0];
+  }
+
+  // Detect which results changed
+  const characterChanged = !party.some(p => p.id === currentCharacter.id && p.currentHp === currentCharacter.currentHp && JSON.stringify(p.statusEffects) === JSON.stringify(currentCharacter.statusEffects));
+  const partyChanged = party.some((p, i) => {
+    const cp = currentParty[i];
+    return cp && (p.currentHp !== cp.currentHp || JSON.stringify(p.statusEffects) !== JSON.stringify(cp.statusEffects));
+  }) || currentParty.length !== party.length;
+  const enemiesChanged = enemies.some((e, i) => {
+    const ce = currentEnemies[i];
+    return ce && (e.currentHp !== ce.currentHp || JSON.stringify(e.statusEffects) !== JSON.stringify(ce.statusEffects));
+  }) || currentEnemies.length !== enemies.length;
+
+  const result: ActionResult = {
+    log: {
+      turn,
+      actorName: character.name,
+      actorType: 'player',
+      action: special.name,
+      targetName: primaryTargetName || undefined,
+      targetId: primaryTargetId || undefined,
+      damage: totalDamage || undefined,
+      heal: totalHeal || undefined,
+      isCritical: anyCritical || undefined,
+      isMiss: anyMiss || undefined,
+      statusEffect: primaryStatusEffect,
+      message: finalMessage,
+    },
+  };
+
+  if (characterChanged) result.updatedCharacter = currentCharacter;
+  if (partyChanged) result.updatedParty = currentParty;
+  if (enemiesChanged) result.updatedEnemies = currentEnemies;
+  if (tauntTargetId) result.tauntTargetId = tauntTargetId;
+  if (allActiveEffects.length > 0) result.activeEffects = allActiveEffects;
 
   return result;
 }
@@ -1111,150 +1329,39 @@ export function executePlayerDefend(character: Character, turn: number): ActionR
 export function executeUseItem(
   character: Character,
   item: ItemInstance,
-  target: Character,
+  target: EnemyInstance | Character,
   party: Character[],
+  enemies: EnemyInstance[],
   turn: number,
-): { log: CombatLogEntry; updatedCharacter?: Character; updatedParty?: Character[]; consumeItem: boolean; curedStatuses?: StatusEffect[] } {
-  if (!item.effect) {
+): { log: CombatLogEntry; updatedCharacter?: Character; updatedParty?: Character[]; updatedEnemies?: EnemyInstance[]; consumeItem: boolean; curedStatuses?: StatusEffect[]; activeEffects?: ActiveCombatEffect[]; appliedBuff?: { targetId: string; effect: StatusEffect; duration: number }; tauntTargetId?: string } {
+  // --- Unified atomic effects system ONLY ---
+  if (item.effects && item.effects.length > 0) {
+    // Determine which statuses will be cured (for combatStatusDurations cleanup)
+    const removedStatusEffects = item.effects
+      .filter(e => (e.trigger === 'on_use' || e.trigger === undefined) && e.type === 'remove_status')
+      .flatMap(e => (e as { statuses?: StatusEffect[] }).statuses || []) as StatusEffect[];
+
+    const result = executeEffectsForTrigger(
+      item.effects, 'on_use', character, target, turn, party, enemies, 'item', item.name,
+    );
     return {
-      log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', message: `${character.name} usa ${item.name} ma non ha effetto.` },
+      log: result.log,
+      updatedCharacter: result.updatedCharacter,
+      updatedParty: result.updatedParty,
+      updatedEnemies: result.updatedEnemies,
       consumeItem: true,
+      activeEffects: result.activeEffects,
+      appliedBuff: result.appliedBuff,
+      tauntTargetId: result.tauntTargetId,
+      curedStatuses: removedStatusEffects.length > 0 ? removedStatusEffects : undefined,
     };
   }
 
-  const effect = item.effect;
-  const curedStatuses: StatusEffect[] = [];
-
-  switch (effect.type) {
-    case 'heal': {
-      const healAmount = calculateHeal(effect.value, character.archetype);
-
-      // Check if this heal also cures status effects
-      const statusCured = effect.statusCured || [];
-      const actuallyCured = target.statusEffects.filter(s => statusCured.includes(s));
-      curedStatuses.push(...actuallyCured);
-      const newStatus = target.statusEffects.filter(s => !statusCured.includes(s));
-
-      if (effect.target === 'all_allies') {
-        const updatedParty = party.map(p => {
-          if (p.currentHp > 0) {
-            const partyCured = p.statusEffects.filter(s => statusCured.includes(s));
-            const partyNewStatus = p.statusEffects.filter(s => !statusCured.includes(s));
-            return {
-              ...p,
-              currentHp: Math.min(p.maxHp, p.currentHp + healAmount),
-              statusEffects: partyNewStatus as typeof p.statusEffects,
-            };
-          }
-          return p;
-        });
-        let message = `${character.name} usa ${item.name}. Tutti gli alleati guariscono di ${healAmount} HP!`;
-        if (statusCured.length > 0) {
-          const names = statusCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s);
-          message += ` Effetti rimossi: ${names.join(', ')}.`;
-        }
-        return {
-          log: {
-            turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto',
-            message,
-            heal: healAmount,
-          },
-          updatedParty: updatedParty,
-          consumeItem: true,
-          curedStatuses: actuallyCured,
-        };
-      }
-
-      let healTarget = target;
-      const newHp = Math.min(healTarget.maxHp, healTarget.currentHp + healAmount);
-      let message = `${character.name} usa ${item.name} su ${healTarget.name}. Ripristinati ${healAmount} HP!`;
-      if (actuallyCured.length > 0) {
-        const names = actuallyCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s);
-        message += ` ✨ ${names.join(', ')} curato/i!`;
-      }
-      return {
-        log: {
-          turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto',
-          targetName: healTarget.name, targetId: healTarget.id, heal: healAmount,
-          message,
-        },
-        updatedCharacter: { ...healTarget, currentHp: newHp, statusEffects: newStatus as typeof healTarget.statusEffects },
-        consumeItem: true,
-        curedStatuses: actuallyCured,
-      };
-    }
-    case 'heal_full': {
-      const statusCured = effect.statusCured || [];
-      const actuallyCured = target.statusEffects.filter(s => statusCured.includes(s));
-      curedStatuses.push(...actuallyCured);
-      const newStatus = target.statusEffects.filter(s => !statusCured.includes(s));
-
-      if (effect.target === 'all_allies') {
-        const updatedParty = party.map(p => {
-          if (p.currentHp > 0) {
-            const partyCured = p.statusEffects.filter(s => statusCured.includes(s));
-            const partyNewStatus = p.statusEffects.filter(s => !statusCured.includes(s));
-            return { ...p, currentHp: p.maxHp, statusEffects: partyNewStatus as typeof p.statusEffects };
-          }
-          return p;
-        });
-        let message = `${character.name} usa ${item.name}. HP di tutti gli alleati completamente ripristinati!`;
-        if (statusCured.length > 0) {
-          const names = statusCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s);
-          message += ` Effetti rimossi: ${names.join(', ')}.`;
-        }
-        return {
-          log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', message, heal: 0 },
-          updatedParty: updatedParty,
-          consumeItem: true,
-          curedStatuses: actuallyCured,
-        };
-      }
-
-      const healAmount = target.maxHp - target.currentHp;
-      let message = `${character.name} usa ${item.name} su ${target.name}. HP completamente ripristinati (+${healAmount})!`;
-      if (actuallyCured.length > 0) {
-        const names = actuallyCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s);
-        message += ` ✨ ${names.join(', ')} curato/i!`;
-      }
-      return {
-        log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', targetName: target.name, targetId: target.id, heal: healAmount, message },
-        updatedCharacter: { ...target, currentHp: target.maxHp, statusEffects: newStatus as typeof target.statusEffects },
-        consumeItem: true,
-        curedStatuses: actuallyCured,
-      };
-    }
-    case 'cure': {
-      const cured = effect.statusCured || [];
-      const cureTarget = target;
-      const newStatus = cureTarget.statusEffects.filter(s => !cured.includes(s));
-      return {
-        log: {
-          turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto',
-          targetName: cureTarget.name, targetId: cureTarget.id,
-          message: `${character.name} usa ${item.name} su ${cureTarget.name}. ${cured.length > 0 ? 'Effetti curati!' : 'Nessun effetto da curare.'}`,
-        },
-        updatedCharacter: { ...cureTarget, statusEffects: newStatus as typeof cureTarget.statusEffects },
-        consumeItem: true,
-        curedStatuses: cured as StatusEffect[],
-      };
-    }
-    default:
-      return {
-        log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', message: `${character.name} usa ${item.name}.` },
-        consumeItem: true,
-      };
-    case 'kill_all': {
-      // Rocket launcher: kills all enemies — handled by the store after this returns
-      return {
-        log: {
-          turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto',
-          message: `🚀 ${character.name} spara il Lanciarazzi RPG! UN\'ESPLOSIONE DEVASTANTE colpisce tutti i nemici! 💥💥💥`,
-        },
-        consumeItem: true,
-      };
-    }
-  }
+  // No effects defined
+  return {
+    log: { turn, actorName: character.name, actorType: 'player', action: 'Usa Oggetto', message: `${character.name} usa ${item.name} ma non ha effetto.` },
+    consumeItem: true,
+  };
 }
 
 export function executeEnemyAttack(
@@ -1262,7 +1369,8 @@ export function executeEnemyAttack(
   party: Character[],
   turn: number,
   forcedTargetId?: string | null,
-): { log: CombatLogEntry; updatedParty: Character[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number } } {
+  enemies?: EnemyInstance[],
+): { log: CombatLogEntry; updatedParty: Character[]; updatedEnemies?: EnemyInstance[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number }; activeEffects?: ActiveCombatEffect[] } {
   // Pick random ability
   const ability = enemy.abilities.find(() => chance(100)) || enemy.abilities[0];
   
@@ -1282,58 +1390,424 @@ export function executeEnemyAttack(
     };
   }
 
-  const { damage, isCritical, isMiss } = calculateDamage(
-    enemy.atk * ability.power,
-    getCharacterDef(target) + (target.isDefending ? 5 : 0),
-    target.isDefending,
-  );
+  // ── Atomic effects path ──
+  return executeEnemyAbilityEffects(enemy, ability.effects || [], ability.name, target, turn, party, enemies || []);
+}
 
-  let newHp = Math.max(0, target.currentHp - damage);
-  let newStatus = [...target.statusEffects];
+/**
+ * Execute atomic effects for an enemy ability.
+ * Handles deal_damage, apply_status, buff_stat, debuff_stat, heal, shield, hot, reflect, taunt, lifesteal
+ * from the enemy's perspective (targeting party members).
+ *
+ * Target semantics from the enemy's point of view:
+ *   'enemy' / 'all_enemies' → party members (the "enemies" of the enemy)
+ *   'self' → the enemy itself
+ *   'ally' / 'all_allies' → other enemies
+ */
+function executeEnemyAbilityEffects(
+  enemy: EnemyInstance,
+  effects: SpecialEffect[],
+  abilityName: string,
+  primaryTarget: Character,
+  turn: number,
+  party: Character[],
+  enemies: EnemyInstance[],
+): { log: CombatLogEntry; updatedParty: Character[]; updatedEnemies?: EnemyInstance[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number }; activeEffects?: ActiveCombatEffect[] } {
+  // Filter by trigger
+  const filtered = effects.filter(e => !e.trigger || e.trigger === 'on_use');
+  if (filtered.length === 0) {
+    return {
+      log: { turn, actorName: enemy.name, actorType: 'enemy', action: abilityName, message: '' },
+      updatedParty: party,
+    };
+  }
 
+  let currentParty = [...party];
+  let currentEnemies = enemies ? [...enemies] : [];
+  let currentEnemy = { ...enemy };
+  const allActiveEffects: ActiveCombatEffect[] = [];
+  const allLogParts: string[] = [];
+  let totalDamage = 0;
+  let totalHeal = 0;
+  let anyCritical = false;
+  let anyMiss = false;
+  let primaryTargetName = '';
+  let primaryTargetId = '';
+  let primaryStatusEffect: string | undefined;
   let appliedStatus: { targetId: string; effect: StatusEffect; duration: number } | undefined;
 
-  // Apply status effect
-  if (ability.statusEffect && !isMiss && chance(ability.statusEffect.chance)) {
-    if (!newStatus.includes(ability.statusEffect.type)) {
-      newStatus.push(ability.statusEffect.type);
-      appliedStatus = {
-        targetId: target.id,
-        effect: ability.statusEffect.type,
-        duration: ability.statusEffect.duration || 3,
-      };
+  /**
+   * Resolve effect targets for enemy abilities.
+   * Inverted perspective: the enemy's "enemies" are the party members.
+   */
+  function resolveEnemyTargets(effect: SpecialEffect): { partyTargets: Character[]; enemyTargets: EnemyInstance[]; isSelf: boolean } {
+    const t = effect.target;
+    if (t === 'self') {
+      return { partyTargets: [], enemyTargets: [currentEnemy], isSelf: true };
+    }
+    if (t === 'enemy') {
+      // Single party member — use primaryTarget
+      return { partyTargets: [primaryTarget], enemyTargets: [], isSelf: false };
+    }
+    if (t === 'random_enemy') {
+      // Random alive party member
+      const alive = currentParty.filter(p => p.currentHp > 0);
+      if (alive.length === 0) return { partyTargets: [], enemyTargets: [], isSelf: false };
+      return { partyTargets: [alive[Math.floor(Math.random() * alive.length)]], enemyTargets: [], isSelf: false };
+    }
+    if (t === 'all_enemies') {
+      // All alive party members
+      return { partyTargets: currentParty.filter(p => p.currentHp > 0), enemyTargets: [], isSelf: false };
+    }
+    if (t === 'ally') {
+      // Single other enemy
+      const otherEnemies = currentEnemies.filter(e => e.id !== enemy.id && e.currentHp > 0);
+      if (otherEnemies.length > 0) return { partyTargets: [], enemyTargets: [otherEnemies[0]], isSelf: false };
+      return { partyTargets: [], enemyTargets: [], isSelf: false };
+    }
+    if (t === 'all_allies') {
+      // All alive enemies (including self)
+      return { partyTargets: [], enemyTargets: currentEnemies.filter(e => e.currentHp > 0), isSelf: false };
+    }
+    if (t === 'lowest_hp_ally') {
+      // Lowest HP enemy
+      const otherEnemies = currentEnemies.filter(e => e.id !== enemy.id && e.currentHp > 0 && e.currentHp < e.maxHp);
+      if (otherEnemies.length === 0) return { partyTargets: [], enemyTargets: [], isSelf: false };
+      otherEnemies.sort((a, b) => (a.currentHp / a.maxHp) - (b.currentHp / b.maxHp));
+      return { partyTargets: [], enemyTargets: [otherEnemies[0]], isSelf: false };
+    }
+    return { partyTargets: [], enemyTargets: [], isSelf: false };
+  }
+
+  for (const effect of filtered) {
+    // Check activation chance
+    if (effect.chance !== undefined && effect.chance < 100) {
+      if (!chance(effect.chance)) continue;
+    }
+
+    const { partyTargets, enemyTargets, isSelf } = resolveEnemyTargets(effect);
+
+    switch (effect.type) {
+      case 'deal_damage': {
+        const dmgEffect = effect as SpecialEffect & { type: 'deal_damage' };
+        const targets = isSelf ? enemyTargets : partyTargets;
+        if (targets.length === 0) break;
+
+        const allTargets = isSelf ? targets as EnemyInstance[] : targets as Character[];
+        let dmg = 0;
+        let crit = false;
+        let miss = false;
+
+        if (isSelf) {
+          // Self-damage on enemy (unusual but supported)
+          currentEnemies = currentEnemies.map(e => {
+            if (!enemyTargets.some(et => et.id === e.id)) return e;
+            const baseDmg = enemy.atk * dmgEffect.powerMultiplier;
+            const { damage: d, isCritical: c, isMiss: m } = calculateDamage(baseDmg, e.def, e.isDefending);
+            if (m) { miss = true; return { ...e, isDefending: false }; }
+            dmg += d;
+            if (c) crit = true;
+            return { ...e, currentHp: Math.max(0, e.currentHp - d), isDefending: false };
+          });
+        } else {
+          // Damage to party members
+          currentParty = currentParty.map(p => {
+            if (!partyTargets.some(pt => pt.id === p.id)) return p;
+            const baseDmg = enemy.atk * dmgEffect.powerMultiplier;
+            const defenderDef = getCharacterDef(p) + (p.isDefending ? 5 : 0);
+            const noMiss = dmgEffect.noMiss;
+            const calcResult = noMiss
+              ? calculateDamageNoMiss(baseDmg, defenderDef, p.isDefending)
+              : calculateDamage(baseDmg, defenderDef, p.isDefending);
+            if (calcResult.isMiss) { miss = true; return { ...p, isDefending: false }; }
+            dmg += calcResult.damage;
+            if (calcResult.isCritical || dmgEffect.guaranteedCrit) crit = true;
+            return { ...p, currentHp: Math.max(0, p.currentHp - calcResult.damage), isDefending: false };
+          });
+        }
+
+        totalDamage += dmg;
+        anyCritical = anyCritical || crit;
+        anyMiss = anyMiss || miss;
+        primaryTargetName = primaryTarget.name;
+        primaryTargetId = primaryTarget.id;
+
+        if (miss) {
+          allLogParts.push(`${enemy.name} usa ${abilityName} ma ${primaryTarget.name} schiva l'attacco!`);
+        } else if (crit) {
+          allLogParts.push(`${enemy.name} usa ${abilityName} su ${primaryTarget.name} per ${dmg} danni! COLPO CRITICO!`);
+        } else {
+          allLogParts.push(`${enemy.name} usa ${abilityName} su ${primaryTarget.name} per ${dmg} danni!`);
+        }
+        break;
+      }
+
+      case 'apply_status': {
+        const statusEffect = effect as SpecialEffect & { type: 'apply_status' };
+        const targets = isSelf ? enemyTargets : partyTargets;
+        if (targets.length === 0) break;
+
+        const statusType = statusEffect.statusType as StatusEffect;
+        const applyChance = statusEffect.chance;
+
+        if (isSelf) {
+          // Apply status to enemy
+          currentEnemies = currentEnemies.map(e => {
+            if (!enemyTargets.some(et => et.id === e.id)) return e;
+            if (chance(applyChance) && !e.statusEffects.includes(statusType)) {
+              return { ...e, statusEffects: [...e.statusEffects, statusType] };
+            }
+            return e;
+          });
+        } else {
+          // Apply status to party members
+          currentParty = currentParty.map(p => {
+            if (!partyTargets.some(pt => pt.id === p.id)) return p;
+            if (chance(applyChance) && !p.statusEffects.includes(statusType)) {
+              const duration = statusEffect.duration || 3;
+              appliedStatus = { targetId: p.id, effect: statusType, duration };
+              return { ...p, statusEffects: [...p.statusEffects, statusType] };
+            }
+            return p;
+          });
+        }
+
+        primaryStatusEffect = statusType;
+        const statusNames: Record<string, string> = { poison: 'Avvelenato', bleeding: 'Sanguinamento', stunned: 'Stordito', adrenaline: 'Adrenalina' };
+        const statusLabel = statusNames[statusType] || statusType;
+        allLogParts.push(`${primaryTarget.name} è ${statusLabel}!`);
+        break;
+      }
+
+      case 'heal': {
+        const healEffect = effect as SpecialEffect & { type: 'heal' };
+        // Heal targets enemies (self or allies)
+        const healTargets = enemyTargets;
+        if (healTargets.length === 0) break;
+
+        currentEnemies = currentEnemies.map(e => {
+          if (!healTargets.some(ht => ht.id === e.id)) return e;
+          const rawHeal = healEffect.amount || 0;
+          const healAmount = healEffect.percent ? Math.floor(e.maxHp * rawHeal / 100) : rawHeal;
+          totalHeal += healAmount;
+          return { ...e, currentHp: Math.min(e.maxHp, e.currentHp + healAmount) };
+        });
+        allLogParts.push(`${enemy.name} si cura di ${totalHeal} HP!`);
+        break;
+      }
+
+      case 'buff_stat': {
+        const buffEffect = effect as SpecialEffect & { type: 'buff_stat' };
+        const buffTargets = isSelf ? [currentEnemy] : enemyTargets;
+        if (buffTargets.length === 0) break;
+
+        const newEffects: ActiveCombatEffect[] = buffTargets.map(bt => ({
+          id: `buff_${enemy.id}_${buffEffect.stat}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'buff_stat' as const,
+          targetId: bt.id,
+          sourceId: enemy.id,
+          sourceType: 'item' as const,
+          stat: buffEffect.stat,
+          amount: buffEffect.amount,
+          remainingTurns: buffEffect.duration,
+        }));
+        allActiveEffects.push(...newEffects);
+        allLogParts.push(`${enemy.name} potenzia se stesso: +${buffEffect.amount}% ${buffEffect.stat} per ${buffEffect.duration} turni!`);
+        break;
+      }
+
+      case 'debuff_stat': {
+        const debuffEffect = effect as SpecialEffect & { type: 'debuff_stat' };
+        // Debuff party members
+        const debuffTargets = partyTargets;
+        if (debuffTargets.length === 0) break;
+
+        const newEffects: ActiveCombatEffect[] = debuffTargets.map(dt => ({
+          id: `debuff_${enemy.id}_${debuffEffect.stat}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'debuff_stat' as const,
+          targetId: dt.id,
+          sourceId: enemy.id,
+          sourceType: 'item' as const,
+          stat: debuffEffect.stat,
+          amount: -debuffEffect.amount,
+          remainingTurns: debuffEffect.duration,
+        }));
+        allActiveEffects.push(...newEffects);
+        allLogParts.push(`${enemy.name} riduce le statistiche dei giocatori di ${debuffEffect.amount}% per ${debuffEffect.duration} turni!`);
+        break;
+      }
+
+      case 'shield': {
+        const shieldEffect = effect as SpecialEffect & { type: 'shield' };
+        const shieldTargets = isSelf ? [currentEnemy] : enemyTargets;
+        if (shieldTargets.length === 0) break;
+
+        const newEffects: ActiveCombatEffect[] = shieldTargets.map(st => ({
+          id: `shield_${enemy.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'shield' as const,
+          targetId: st.id,
+          sourceId: enemy.id,
+          sourceType: 'item' as const,
+          amount: shieldEffect.amount,
+          shieldHp: shieldEffect.amount,
+          remainingTurns: shieldEffect.duration,
+        }));
+        allActiveEffects.push(...newEffects);
+        allLogParts.push(`${enemy.name} crea uno scudo di ${shieldEffect.amount} per ${shieldEffect.duration} turni!`);
+        break;
+      }
+
+      case 'hot': {
+        const hotEffect = effect as SpecialEffect & { type: 'hot' };
+        const hotTargets = isSelf ? [currentEnemy] : enemyTargets;
+        if (hotTargets.length === 0) break;
+
+        const newEffects: ActiveCombatEffect[] = hotTargets.map(ht => ({
+          id: `hot_${enemy.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'hot' as const,
+          targetId: ht.id,
+          sourceId: enemy.id,
+          sourceType: 'item' as const,
+          amount: hotEffect.amountPerTurn,
+          remainingTurns: hotEffect.duration,
+        }));
+        allActiveEffects.push(...newEffects);
+        allLogParts.push(`${enemy.name} rigenera ${hotEffect.amountPerTurn} HP/turno per ${hotEffect.duration} turni!`);
+        break;
+      }
+
+      case 'taunt': {
+        const tauntEffect = effect as SpecialEffect & { type: 'taunt' };
+        // Taunt from enemy perspective: enemies force player targeting (not typical, but supported)
+        allLogParts.push(`${enemy.name} provoca i giocatori!`);
+        break;
+      }
+
+      case 'lifesteal': {
+        const lsEffect = effect as SpecialEffect & { type: 'lifesteal' };
+        const lsTargets = partyTargets;
+        if (lsTargets.length === 0) break;
+
+        let lsDmg = 0;
+        currentParty = currentParty.map(p => {
+          if (!partyTargets.some(pt => pt.id === p.id)) return p;
+          const baseDmg = enemy.atk * (lsEffect.power || 1.0);
+          const defenderDef = getCharacterDef(p) + (p.isDefending ? 5 : 0);
+          const calcResult = calculateDamage(baseDmg, defenderDef, p.isDefending);
+          if (calcResult.isMiss) { anyMiss = true; return { ...p, isDefending: false }; }
+          lsDmg += calcResult.damage;
+          if (calcResult.isCritical) anyCritical = true;
+          return { ...p, currentHp: Math.max(0, p.currentHp - calcResult.damage), isDefending: false };
+        });
+
+        const healAmount = Math.floor(lsDmg * lsEffect.percent / 100);
+        if (healAmount > 0) {
+          currentEnemy = { ...currentEnemy, currentHp: Math.min(currentEnemy.maxHp, currentEnemy.currentHp + healAmount) };
+          currentEnemies = currentEnemies.map(e => e.id === currentEnemy.id ? currentEnemy : e);
+        }
+        totalDamage += lsDmg;
+        totalHeal += healAmount;
+        allLogParts.push(`${enemy.name} usa ${abilityName} su ${primaryTarget.name} per ${lsDmg} danni e cura ${healAmount} HP!`);
+        break;
+      }
+
+      case 'reflect': {
+        const refEffect = effect as SpecialEffect & { type: 'reflect' };
+        const refTargets = isSelf ? [currentEnemy] : enemyTargets;
+        if (refTargets.length === 0) break;
+
+        const newEffects: ActiveCombatEffect[] = refTargets.map(rt => ({
+          id: `reflect_${enemy.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'reflect' as const,
+          targetId: rt.id,
+          sourceId: enemy.id,
+          sourceType: 'item' as const,
+          amount: refEffect.percent,
+          remainingTurns: refEffect.duration,
+        }));
+        allActiveEffects.push(...newEffects);
+        allLogParts.push(`${enemy.name} attiva riflessione: ${refEffect.percent}% danno riflesso per ${refEffect.duration} turni!`);
+        break;
+      }
+
+      case 'remove_status': {
+        const remEffect = effect as SpecialEffect & { type: 'remove_status' };
+        const remTargets = isSelf ? enemyTargets : partyTargets;
+        if (remTargets.length === 0) break;
+
+        const statusesToRemove = new Set(remEffect.statuses || []);
+        if (isSelf) {
+          currentEnemies = currentEnemies.map(e => {
+            if (!enemyTargets.some(et => et.id === e.id)) return e;
+            return { ...e, statusEffects: e.statusEffects.filter(s => !statusesToRemove.has(s)) };
+          });
+        } else {
+          currentParty = currentParty.map(p => {
+            if (!partyTargets.some(pt => pt.id === p.id)) return p;
+            return { ...p, statusEffects: p.statusEffects.filter(s => !statusesToRemove.has(s)) };
+          });
+        }
+        allLogParts.push(`${enemy.name} rimuove status negativi!`);
+        break;
+      }
+
+      case 'revive': {
+        // Revive other enemies (unusual but supported)
+        const reviveTargets = currentEnemies.filter(e => e.currentHp <= 0);
+        if (reviveTargets.length === 0) break;
+
+        currentEnemies = currentEnemies.map(e => {
+          if (e.currentHp > 0) return e;
+          const reviveHp = Math.max(1, Math.floor(e.maxHp * ((effect as SpecialEffect & { type: 'revive' }).hpPercent) / 100));
+          return { ...e, currentHp: reviveHp, statusEffects: [] };
+        });
+        allLogParts.push(`${enemy.name} rianima un alleato!`);
+        break;
+      }
+
+      case 'add_slots': {
+        // Not meaningful for enemies — skip
+        break;
+      }
     }
   }
 
-  let message = '';
-  if (isMiss) {
-    message = `${enemy.name} usa ${ability.name} ma ${target.name} schiva l'attacco!`;
-  } else {
-    message = `${enemy.name} usa ${ability.name} su ${target.name} per ${damage} danni!`;
-    if (isCritical) message += ' COLPO CRITICO!';
-    if (ability.statusEffect && newStatus.includes(ability.statusEffect.type)) {
-      const statusNames: Record<string, string> = { poison: 'Avvelenato', bleeding: 'Sanguinamento', stunned: 'Stordito' };
-      message += ` ${target.name} è ${statusNames[ability.statusEffect.type]}!`;
-    }
+  if (allLogParts.length === 0) {
+    return {
+      log: { turn, actorName: enemy.name, actorType: 'enemy', action: abilityName, message: '' },
+      updatedParty: party,
+    };
   }
 
-  const updatedParty = party.map(p => {
-    if (p.id === target.id) {
-      return { ...p, currentHp: newHp, statusEffects: newStatus, isDefending: false };
-    }
-    return p;
-  });
-
-  return {
+  const result: { log: CombatLogEntry; updatedParty: Character[]; updatedEnemies?: EnemyInstance[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number }; activeEffects?: ActiveCombatEffect[] } = {
     log: {
-      turn, actorName: enemy.name, actorType: 'enemy', action: ability.name,
-      targetName: target.name, targetId: target.id, damage, isCritical, isMiss,
-      statusEffect: ability.statusEffect?.type,
-      message,
+      turn,
+      actorName: enemy.name,
+      actorType: 'enemy',
+      action: abilityName,
+      targetName: primaryTargetName || primaryTarget.name,
+      targetId: primaryTargetId || primaryTarget.id,
+      damage: totalDamage || undefined,
+      heal: totalHeal || undefined,
+      isCritical: anyCritical || undefined,
+      isMiss: anyMiss || undefined,
+      statusEffect: primaryStatusEffect,
+      message: allLogParts.join(' '),
     },
-    updatedParty,
-    appliedStatus,
+    updatedParty: currentParty,
   };
+
+  // Check if enemies changed
+  const enemiesChanged = enemies && (enemies.some((e, i) => {
+    const ce = currentEnemies[i];
+    return ce && (e.currentHp !== ce.currentHp || JSON.stringify(e.statusEffects) !== JSON.stringify(ce.statusEffects));
+  }) || currentEnemies.length !== enemies.length);
+  if (enemiesChanged) result.updatedEnemies = currentEnemies;
+
+  if (appliedStatus) result.appliedStatus = appliedStatus;
+  if (allActiveEffects.length > 0) result.activeEffects = allActiveEffects;
+
+  return result;
 }
 
 // ==========================================
@@ -1409,6 +1883,197 @@ export function generateLoot(enemyDefId: string, lootMult: number = 1): string[]
   }
 
   return loot;
+}
+
+// ==========================================
+// ACTIVE EFFECT TICK PROCESSING
+// ==========================================
+
+export interface TickResult {
+  log: CombatLogEntry[];
+  updatedParty: Character[];
+  updatedEnemies: EnemyInstance[];
+  expiredEffects: string[];
+}
+
+/**
+ * Process one tick of all active combat effects (HoT, buff/debuff, shield, reflect, taunt).
+ * Processes HoT healing, decrements remainingTurns, and returns expired effect IDs.
+ * NOTE: The store handles poison/bleed/stun via statusDurations — not duplicated here.
+ */
+export function processActiveEffectsTick(
+  activeEffects: ActiveCombatEffect[],
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): TickResult {
+  const log: CombatLogEntry[] = [];
+  const expiredEffects: string[] = [];
+  let updatedParty = [...party];
+
+  for (const effect of activeEffects) {
+    if (effect.remainingTurns <= 0) {
+      expiredEffects.push(effect.id);
+      continue;
+    }
+
+    // Process HoT: heal the target
+    if (effect.type === 'hot') {
+      updatedParty = updatedParty.map(p => {
+        if (p.id === effect.targetId && p.currentHp > 0) {
+          const amount = effect.amount || 0;
+          const newHp = Math.min(p.maxHp, p.currentHp + amount);
+          log.push({
+            turn,
+            actorName: p.name,
+            actorType: 'player',
+            action: 'Cura nel Tempo',
+            targetName: p.name,
+            targetId: p.id,
+            heal: amount,
+            message: `${p.name} recupera ${amount} HP dalla cura nel tempo!`,
+          });
+          return { ...p, currentHp: newHp };
+        }
+        return p;
+      });
+    }
+
+    // Decrement remaining turns for all effects
+    effect.remainingTurns--;
+
+    // Log when effects expire
+    if (effect.remainingTurns <= 0) {
+      expiredEffects.push(effect.id);
+      const targetName = party.find(p => p.id === effect.targetId)?.name
+        || enemies.find(e => e.id === effect.targetId)?.name
+        || 'sconosciuto';
+
+      if (effect.type === 'shield') {
+        log.push({
+          turn, actorName: targetName, actorType: 'player', action: 'Scudo',
+          message: `Lo scudo di ${targetName} si è dissolto!`,
+        });
+      } else if (effect.type === 'reflect') {
+        log.push({
+          turn, actorName: targetName, actorType: 'player', action: 'Riflessione',
+          message: `L'effetto di riflessione di ${targetName} è terminato!`,
+        });
+      } else if (effect.type === 'taunt') {
+        log.push({
+          turn, actorName: targetName, actorType: 'player', action: 'Provocazione',
+          message: `La provocazione di ${targetName} è terminata!`,
+        });
+      } else if (effect.type === 'buff_stat') {
+        const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : 'VELOCITÀ';
+        log.push({
+          turn, actorName: targetName, actorType: 'player', action: 'Buff',
+          message: `Il potenziamento di ${statLabel} di ${targetName} è terminato!`,
+        });
+      } else if (effect.type === 'debuff_stat') {
+        const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : 'VELOCITÀ';
+        log.push({
+          turn, actorName: targetName, actorType: 'enemy', action: 'Debuff',
+          message: `Il debuff di ${statLabel} è terminato!`,
+        });
+      } else if (effect.type === 'hot') {
+        log.push({
+          turn, actorName: targetName, actorType: 'player', action: 'Cura nel Tempo',
+          message: `La cura nel tempo di ${targetName} è terminata!`,
+        });
+      }
+    }
+  }
+
+  return { log, updatedParty, updatedEnemies: enemies, expiredEffects };
+}
+
+// ==========================================
+// ON TAKE HIT — Armor/accessory reactive effects
+// ==========================================
+
+/**
+ * Called when a character takes damage. Checks:
+ * 1. Armor effects with trigger 'on_take_hit' (e.g., proc shield)
+ * Returns mitigated damage (caller handles active shield absorption separately).
+ */
+export function onTakeHit(
+  character: Character,
+  attacker: EnemyInstance | Character,
+  damage: number,
+  turn: number,
+  party: Character[],
+  enemies: EnemyInstance[],
+): { mitigatedDamage: number; shieldLog?: CombatLogEntry; activeEffects?: ActiveCombatEffect[]; reflectLog?: CombatLogEntry } {
+  let mitigatedDamage = damage;
+  const newActiveEffects: ActiveCombatEffect[] = [];
+
+  // Check armor on_take_hit effects
+  const armorDef = character.armor ? ITEMS[character.armor.itemId] : null;
+  if (armorDef?.effects && armorDef.effects.length > 0) {
+    const result = executeEffectsForTrigger(
+      armorDef.effects, 'on_take_hit', character, attacker as EnemyInstance, turn, party, enemies, 'armor', character.armor!.name,
+    );
+    if (result.activeEffects && result.activeEffects.length > 0) {
+      newActiveEffects.push(...result.activeEffects);
+    }
+    if (result.log?.message) {
+      // Armor proc message logged via activeEffects (shield created, etc.)
+    }
+  }
+
+  return {
+    mitigatedDamage,
+    activeEffects: newActiveEffects.length > 0 ? newActiveEffects : undefined,
+  };
+}
+
+// ==========================================
+// ON TURN START — Equipment passive effects
+// ==========================================
+
+/**
+ * Called at the start of a character's turn. Checks:
+ * 1. Armor effects with trigger 'on_turn_start'
+ * 2. Accessory effects with trigger 'on_turn_start'
+ */
+export function onTurnStart(
+  character: Character,
+  turn: number,
+  party: Character[],
+  enemies: EnemyInstance[],
+): { log: CombatLogEntry[]; updatedCharacter?: Character; activeEffects?: ActiveCombatEffect[] } {
+  const logs: CombatLogEntry[] = [];
+  const newActiveEffects: ActiveCombatEffect[] = [];
+  let updatedCharacter: Character | undefined;
+
+  // Check armor on_turn_start effects
+  const armorDef = character.armor ? ITEMS[character.armor.itemId] : null;
+  if (armorDef?.effects && armorDef.effects.length > 0) {
+    const result = executeEffectsForTrigger(
+      armorDef.effects, 'on_turn_start', character, character, turn, party, enemies, 'armor', character.armor!.name,
+    );
+    if (result.log?.message) logs.push(result.log);
+    if (result.activeEffects) newActiveEffects.push(...result.activeEffects);
+    if (result.updatedCharacter) updatedCharacter = result.updatedCharacter;
+  }
+
+  // Check accessory on_turn_start effects
+  const accessoryDef = character.accessory ? ITEMS[character.accessory.itemId] : null;
+  if (accessoryDef?.effects && accessoryDef.effects.length > 0) {
+    const result = executeEffectsForTrigger(
+      accessoryDef.effects, 'on_turn_start', character, character, turn, party, enemies, 'accessory', character.accessory!.name,
+    );
+    if (result.log?.message) logs.push(result.log);
+    if (result.activeEffects) newActiveEffects.push(...result.activeEffects);
+    if (result.updatedCharacter) updatedCharacter = result.updatedCharacter;
+  }
+
+  return {
+    log: logs,
+    updatedCharacter,
+    activeEffects: newActiveEffects.length > 0 ? newActiveEffects : undefined,
+  };
 }
 
 // ==========================================

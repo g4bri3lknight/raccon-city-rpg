@@ -1087,18 +1087,10 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                                 {ability.description}
                               </p>
                               <div className="flex items-center gap-3 mt-1.5">
-                                <span className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
-                                  <Wind className="w-2.5 h-2.5" />
-                                  CD: {ability.cooldown} turni
-                                </span>
-                                {ability.powerMultiplier && (
-                                  <span className="text-[10px] text-red-500/70 font-mono">
-                                    ×{ability.powerMultiplier}
-                                  </span>
-                                )}
-                                {ability.healAmount && (
-                                  <span className="text-[10px] text-green-500/70 font-mono">
-                                    +{ability.healAmount} HP
+                                {ability.cooldown && (
+                                  <span className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
+                                    <Wind className="w-2.5 h-2.5" />
+                                    CD: {ability.cooldown} turni
                                   </span>
                                 )}
                               </div>

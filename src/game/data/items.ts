@@ -38,19 +38,19 @@ export const STATIC_ITEMS: Record<string, ItemDefinition> = {
   rocket_launcher: {
     id: 'rocket_launcher', name: 'Lanciarazzi RPG', description: 'Un lanciarazzi con un solo colpo già caricato. Usalo in combattimento per eliminare istantaneamente tutti i nemici.',
     type: 'utility', rarity: 'legendary', icon: '🚀', usable: true, equippable: false,
-    effect: { type: 'kill_all', value: 99999, target: 'all_enemies' },
+    effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', powerMultiplier: 999, ignoreDef: true, noMiss: true }],
   },
 
   // Healing
   bandage: {
     id: 'bandage', name: 'Benda', description: 'Ripristina 25 HP a un alleato.',
     type: 'healing', rarity: 'common', icon: '🩹', usable: true, equippable: false,
-    effect: { type: 'heal', value: 25, target: 'one_ally' },
+    effects: [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 25 }],
   },
   herb_green: {
     id: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP a un alleato. Può essere miscelata con un\'erba rossa.',
     type: 'healing', rarity: 'common', icon: '🍃', usable: true, equippable: false,
-    effect: { type: 'heal', value: 30, target: 'one_ally' },
+    effects: [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 30 }],
   },
   herb_red: {
     id: 'herb_red', name: 'Erba Rossa', description: 'Un\'erba potente che da sola non ha effetto. Miscelala con un\'Erba Verde per potenziare la cura.',
@@ -59,24 +59,30 @@ export const STATIC_ITEMS: Record<string, ItemDefinition> = {
   herb_mixed: {
     id: 'herb_mixed', name: 'Erba Mista', description: 'Un miscuglio di erba verde e rossa. Ripristina 70 HP a un alleato e cura status negativi.',
     type: 'healing', rarity: 'uncommon', icon: '🌿', usable: true, equippable: false,
-    effect: { type: 'heal', value: 70, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
+    effects: [
+      { type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 70 },
+      { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] },
+    ],
   },
   first_aid: {
     id: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Un kit medico completo. Ripristina tutti gli HP e cura veleno/sanguinamento a un alleato.',
     type: 'healing', rarity: 'uncommon', icon: '✚️', usable: true, equippable: false,
-    effect: { type: 'heal_full', value: 0, target: 'one_ally', statusCured: ['poison', 'bleeding'] },
+    effects: [
+      { type: 'heal', trigger: 'on_use', target: 'one_ally', percent: 100 },
+      { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] },
+    ],
   },
   spray: {
     id: 'spray', name: 'Spray Medicale', description: 'Uno spray curativo. Ripristina 80 HP a un alleato.',
     type: 'healing', rarity: 'rare', icon: '🧴', usable: true, equippable: false,
-    effect: { type: 'heal', value: 80, target: 'one_ally' },
+    effects: [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 80 }],
   },
 
   // Antidote
   antidote: {
     id: 'antidote', name: 'Antidoto', description: 'Cura avvelenamento su un alleato.',
     type: 'antidote', rarity: 'common', icon: '💉', usable: true, equippable: false,
-    effect: { type: 'cure', value: 0, target: 'one_ally', statusCured: ['poison'] },
+    effects: [{ type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison'] }],
   },
 
   // Ammo
@@ -103,14 +109,14 @@ export const STATIC_ITEMS: Record<string, ItemDefinition> = {
 
   // Bags
   bag_small: {
-    id: 'bag_small', name: 'Tasche da Caccia', description: 'Una sacca da caccia resistente. Aggiunge 1 slot all\'inventario. (Max 12 slot)',
+    id: 'bag_small', name: 'Tasche da Caccia', description: 'Una sacca da caccia resistente. Aggiunge 1 slot all\'inventario.',
     type: 'bag', rarity: 'uncommon', icon: '👝', usable: true, equippable: false,
-    effect: { type: 'add_slots', value: 1, target: 'self' },
+    effects: [{ type: 'add_slots', trigger: 'on_use', target: 'self', amount: 1 }],
   },
   bag_medium: {
-    id: 'bag_medium', name: 'Zaino Tattico', description: 'Uno zaino militare capiente. Aggiunge 2 slot all\'inventario. (Max 12 slot)',
+    id: 'bag_medium', name: 'Zaino Tattico', description: 'Uno zaino militare capiente. Aggiunge 2 slot all\'inventario.',
     type: 'bag', rarity: 'rare', icon: '🎒', usable: true, equippable: false,
-    effect: { type: 'add_slots', value: 2, target: 'self' },
+    effects: [{ type: 'add_slots', trigger: 'on_use', target: 'self', amount: 2 }],
   },
 
   // Utility

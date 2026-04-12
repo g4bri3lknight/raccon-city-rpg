@@ -25,10 +25,7 @@ export async function GET() {
       targetType: row.targetType,
       cooldown: row.cooldown,
       category: row.category,
-      executionType: row.executionType,
-      powerMultiplier: row.powerMultiplier,
-      healAmount: row.healAmount,
-      statusToApply: row.statusToApply ? JSON.parse(row.statusToApply) : null,
+      effects: row.effects ? JSON.parse(row.effects) : [],
       sortOrder: row.sortOrder,
       createdAt: row.createdAt,
     }));
@@ -60,10 +57,7 @@ export async function POST(request: NextRequest) {
         targetType: body.targetType ?? 'enemy',
         cooldown: body.cooldown ?? 2,
         category: body.category ?? 'offensive',
-        executionType: body.executionType ?? body.id ?? '',
-        powerMultiplier: body.powerMultiplier ?? null,
-        healAmount: body.healAmount ?? null,
-        statusToApply: body.statusToApply ? jsonStr(body.statusToApply, '') : '',
+        effects: jsonStr(body.effects, '[]'),
         sortOrder: body.sortOrder ?? 0,
       },
     });
@@ -94,10 +88,7 @@ export async function PUT(request: NextRequest) {
     if (updateFields.targetType !== undefined) data.targetType = updateFields.targetType;
     if (updateFields.cooldown !== undefined) data.cooldown = updateFields.cooldown;
     if (updateFields.category !== undefined) data.category = updateFields.category;
-    if (updateFields.executionType !== undefined) data.executionType = updateFields.executionType;
-    if (updateFields.powerMultiplier !== undefined) data.powerMultiplier = updateFields.powerMultiplier ?? null;
-    if (updateFields.healAmount !== undefined) data.healAmount = updateFields.healAmount ?? null;
-    if (updateFields.statusToApply !== undefined) data.statusToApply = updateFields.statusToApply ? jsonStr(updateFields.statusToApply, '') : '';
+    if (updateFields.effects !== undefined) data.effects = jsonStr(updateFields.effects, '[]');
     if (updateFields.sortOrder !== undefined) data.sortOrder = updateFields.sortOrder;
 
     const special = await db.gameSpecial.update({

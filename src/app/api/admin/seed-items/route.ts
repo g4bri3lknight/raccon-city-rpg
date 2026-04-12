@@ -53,11 +53,7 @@ export async function POST() {
         modType: modStats?.type === 'melee' ? 'melee' : modStats?.type === 'ranged' ? 'ranged' : modStats?.type === 'any' ? 'any' : null,
         specialEffect: eqStats?.specialEffect ? JSON.stringify(eqStats.specialEffect) : null,
         ammoType: (item as any).ammoType ?? null,
-        effectType: item.effect?.type ?? null,
-        effectValue: item.effect?.value ?? null,
-        effectTarget: item.effect?.target ?? null,
-        effectStatusCured: item.effect?.statusCured ? JSON.stringify(item.effect.statusCured) : null,
-        addSlots: item.effect?.type === 'add_slots' ? item.effect.value : null,
+        effects: (item as any).effects ?? eqStats?.effects ? JSON.stringify((item as any).effects ?? eqStats?.effects) : '[]',
       };
 
       if (existing) {

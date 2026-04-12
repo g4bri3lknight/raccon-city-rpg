@@ -1,8 +1,9 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Default title-screen settings — seeded on first GET if table is empty
+// Default settings — seeded on first GET if table is empty
 const DEFAULTS: Record<string, { value: string; label: string; group: string; sortOrder: number }> = {
+  // ── Title Screen ──
   'titleScreen.umbrellaText':    { value: 'Umbrella Corporation Presenta', label: 'Testo Umbrella Corp',           group: 'titleScreen.texts',  sortOrder: 0 },
   'titleScreen.title':           { value: 'RACCOON CITY',                  label: 'Titolo Principale',              group: 'titleScreen.texts',  sortOrder: 1 },
   'titleScreen.subtitle':        { value: 'Escape from Horror',            label: 'Sottotitolo',                    group: 'titleScreen.texts',  sortOrder: 2 },
@@ -22,18 +23,21 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'titleScreen.btnHoverBorder':  { value: '#ef4444',   label: 'Bordo Pulsanti Hover (hex)', group: 'titleScreen.style', sortOrder: 33 },
   'titleScreen.btnTextColor':    { value: '#fee2e2',   label: 'Testo Pulsanti (hex)',     group: 'titleScreen.style',   sortOrder: 34 },
   'titleScreen.btnGlowHover':    { value: 'rgba(220,38,38,0.4)', label: 'Glow Hover Pulsanti (rgba)', group: 'titleScreen.style', sortOrder: 35 },
+
+  // ── Gameplay ──
+  'gameplay.maxInventorySlots':     { value: '12',  label: 'Slot Massimi Inventario',          group: 'gameplay.inventory', sortOrder: 100 },
+  'gameplay.maxItemBoxSlots':       { value: '48',  label: 'Slot Massimi Item Box',           group: 'gameplay.itembox',   sortOrder: 110 },
+  'gameplay.defaultItemBoxItems':   { value: '[]',  label: 'Oggetti Default Item Box (JSON)', group: 'gameplay.itembox',   sortOrder: 111 },
+  'gameplay.startingInventorySlots':{ value: '6',   label: 'Slot Iniziali Inventario',        group: 'gameplay.inventory', sortOrder: 101 },
 };
 
 async function ensureDefaults() {
-  const count = await db.gameSetting.count();
-  if (count === 0) {
-    for (const [key, def] of Object.entries(DEFAULTS)) {
-      await db.gameSetting.upsert({
-        where: { key },
-        update: {},
-        create: { key, value: def.value, label: def.label, group: def.group, sortOrder: def.sortOrder },
-      });
-    }
+  for (const [key, def] of Object.entries(DEFAULTS)) {
+    await db.gameSetting.upsert({
+      where: { key },
+      update: {}, // only create if missing, never overwrite existing values
+      create: { key, value: def.value, label: def.label, group: def.group, sortOrder: def.sortOrder },
+    });
   }
 }
 
@@ -68,7 +72,7 @@ export async function PUT(request: NextRequest) {
           key,
           value,
           label: DEFAULTS[key]?.label ?? key,
-          group: DEFAULTS[key]?.group ?? 'titleScreen',
+          group: DEFAULTS[key]?.group ?? 'gameplay',
           sortOrder: DEFAULTS[key]?.sortOrder ?? 0,
         },
       });

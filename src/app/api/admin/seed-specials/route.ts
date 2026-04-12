@@ -23,10 +23,7 @@ export async function POST() {
             targetType: spec.targetType,
             cooldown: spec.cooldown,
             category: spec.category,
-            executionType: spec.executionType,
-            powerMultiplier: spec.powerMultiplier ?? null,
-            healAmount: spec.healAmount ?? null,
-            statusToApply: spec.statusToApply ? JSON.stringify(spec.statusToApply) : '',
+            effects: spec.effects ? JSON.stringify(spec.effects) : '[]',
           },
         });
         updated++;
@@ -40,10 +37,7 @@ export async function POST() {
             targetType: spec.targetType,
             cooldown: spec.cooldown,
             category: spec.category,
-            executionType: spec.executionType,
-            powerMultiplier: spec.powerMultiplier ?? null,
-            healAmount: spec.healAmount ?? null,
-            statusToApply: spec.statusToApply ? JSON.stringify(spec.statusToApply) : '',
+            effects: spec.effects ? JSON.stringify(spec.effects) : '[]',
           },
         });
         created++;

@@ -200,11 +200,16 @@ function AbilitiesList({ abilities }: { abilities: EnemyDefinition['abilities'] 
                     <span className="text-[9px] text-white/20">×{ab.power}</span>
                   </div>
                   <p className="text-[9px] text-white/25 leading-relaxed">{ab.description}</p>
-                  {ab.statusEffect && (
-                    <span className="text-[8px] text-red-400/40">
-                      +{ab.statusEffect.chance}% {ab.statusEffect.type}
-                    </span>
-                  )}
+                  {(() => {
+                    const statusEff = ab.effects?.find(e => e.type === 'apply_status');
+                    if (!statusEff) return null;
+                    const se = statusEff as any;
+                    return (
+                      <span className="text-[8px] text-red-400/40">
+                        +{se.chance}% {se.statusType}
+                      </span>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

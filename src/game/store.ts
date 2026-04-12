@@ -30,7 +30,7 @@ import {
   RandomizedLocationData,
 } from './types';
 import { getCharacterStats, computeGrowthRates } from './data/characters';
-import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES } from './data/loader';
+import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES, validateEffectsIntegrity } from './data/loader';
 import { generateRandomizedData, getEffectiveLocation } from './data/randomizer';
 import {
   executePlayerAttack,
@@ -43,8 +43,13 @@ import {
   generateLoot,
   addExp,
   WEAPON_AMMO,
+  processActiveEffectsTick,
+  onTakeHit,
+  onTurnStart,
 } from './engine/combat';
-import { WeaponInstance, WeaponMod } from './types';
+import { getAddSlotsAmount, getItemHealInfo, getItemHasStatusCure, getItemEffectTarget } from './utils/item-effects';
+import { WeaponInstance, WeaponMod, EffectTarget, ActiveCombatEffect, SpecialEffect } from './types';
+import { getSpecialById as getSpecialByIdFromLoader } from './data/loader';
 import { WEAPON_MODS } from './data/weapon-mods';
 import { createModItemInstance, EQUIPMENT_STATS } from './data/equipment';
 import { ACHIEVEMENTS } from './data/achievements';
@@ -71,7 +76,71 @@ import { NPCS } from './data/loader';
 import { SECRET_ROOMS } from './data/loader';
 import { ENDINGS } from './data/endings';
 
-const MAX_INVENTORY_SLOTS = 12;
+// ── Game Settings Cache ──
+// Loaded from /api/game-settings; used for configurable values like max inventory slots
+const DEFAULT_GAME_SETTINGS = {
+  maxInventorySlots: 12,
+  maxItemBoxSlots: 48,
+  startingInventorySlots: 6,
+  defaultItemBoxItems: [] as { itemId: string; quantity: number }[],
+};
+
+let _gameSettingsCache: typeof DEFAULT_GAME_SETTINGS | null = null;
+let _gameSettingsLoading = false;
+
+/** Fetch and cache game settings from DB. Returns cached values immediately if available. */
+async function fetchGameSettings(): Promise<typeof DEFAULT_GAME_SETTINGS> {
+  if (_gameSettingsCache) return _gameSettingsCache;
+  if (_gameSettingsLoading) {
+    // Wait for in-flight request
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (_gameSettingsCache) return _gameSettingsCache;
+    return { ...DEFAULT_GAME_SETTINGS };
+  }
+  _gameSettingsLoading = true;
+  try {
+    const res = await fetch('/api/game-settings');
+    if (res.ok) {
+      const data = await res.json();
+      _gameSettingsCache = {
+        maxInventorySlots: parseInt(data['gameplay.maxInventorySlots']) || DEFAULT_GAME_SETTINGS.maxInventorySlots,
+        maxItemBoxSlots: parseInt(data['gameplay.maxItemBoxSlots']) || DEFAULT_GAME_SETTINGS.maxItemBoxSlots,
+        startingInventorySlots: parseInt(data['gameplay.startingInventorySlots']) || DEFAULT_GAME_SETTINGS.startingInventorySlots,
+        defaultItemBoxItems: (() => {
+          try { return JSON.parse(data['gameplay.defaultItemBoxItems'] || '[]'); } catch { return []; }
+        })(),
+      };
+      return _gameSettingsCache;
+    }
+  } catch { /* fallback */ }
+  _gameSettingsLoading = false;
+  return { ...DEFAULT_GAME_SETTINGS };
+}
+
+/** Synchronous getter — uses cached settings, falls back to defaults */
+function getMaxInventorySlots(): number {
+  return _gameSettingsCache?.maxInventorySlots ?? DEFAULT_GAME_SETTINGS.maxInventorySlots;
+}
+function getMaxItemBoxSlots(): number {
+  return _gameSettingsCache?.maxItemBoxSlots ?? DEFAULT_GAME_SETTINGS.maxItemBoxSlots;
+}
+function getStartingInventorySlots(): number {
+  return _gameSettingsCache?.startingInventorySlots ?? DEFAULT_GAME_SETTINGS.startingInventorySlots;
+}
+function getDefaultItemBoxItems(): { itemId: string; quantity: number }[] {
+  return _gameSettingsCache?.defaultItemBoxItems ?? DEFAULT_GAME_SETTINGS.defaultItemBoxItems;
+}
+
+export { fetchGameSettings, getMaxInventorySlots, getMaxItemBoxSlots, getStartingInventorySlots, getDefaultItemBoxItems, DEFAULT_GAME_SETTINGS };
+
+// ── Helper: apply add_slots effect to a character ──
+function applyAddSlotsToCharacter(char: Character, amount: number): { updatedChar: Character; expanded: boolean; oldSlots: number; newSlots: number } {
+  const maxSlots = getMaxInventorySlots();
+  const oldSlots = char.maxInventorySlots;
+  const newSlots = Math.min(maxSlots, oldSlots + amount);
+  const expanded = newSlots > oldSlots;
+  return { updatedChar: { ...char, maxInventorySlots: newSlots }, expanded, oldSlots, newSlots };
+}
 
 // ── Auto-merge inventory stacks: combines items with the same itemId ──
 function mergeInventoryStacks(inventory: ItemInstance[]): ItemInstance[] {
@@ -120,6 +189,7 @@ function addItemToParty(
     usable: itemDef.usable,
     equippable: itemDef.equippable,
     effect: itemDef.effect,
+    effects: itemDef.effects,
     quantity,
   };
 
@@ -226,7 +296,7 @@ function createCharacter(archetypeId: Archetype): Character {
       uid: `${item.uid}_${Date.now()}`,
       isEquipped: !!item.weaponStats,
     })),
-    maxInventorySlots: 6,
+    maxInventorySlots: getStartingInventorySlots(),
     weapon: archetype.startingItems.find(i => i.weaponStats)?.weaponStats || null,
     armor: null,
     accessory: null,
@@ -271,7 +341,7 @@ function createCustomCharacter(config: CustomCharacterConfig): Character {
       uid: `${item.uid}_${Date.now()}`,
       isEquipped: !!item.weaponStats,
     })),
-    maxInventorySlots: 6,
+    maxInventorySlots: getStartingInventorySlots(),
     weapon: startingItems.find(i => i.weaponStats)?.weaponStats || null,
     armor: null,
     accessory: null,
@@ -542,6 +612,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // PHASE TRANSITIONS
   // ==========================================
   startGame: () => {
+    fetchGameSettings(); // preload settings in background
     set({ phase: 'title' });
   },
 
@@ -559,6 +630,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
     const diffConfig = getDifficultyConfig(activeDifficulty, party.length);
     const startLocation = LOCATIONS['city_outskirts'];
+
+    // Validate effects integrity on game start
+    const effectsWarnings = validateEffectsIntegrity();
+    const warningLog: string[] = [];
+    if (effectsWarnings) {
+      const grouped = new Map<string, string[]>();
+      for (const w of effectsWarnings) {
+        if (!grouped.has(w.source)) grouped.set(w.source, []);
+        grouped.get(w.source)!.push(w.name);
+      }
+      console.error('[Effects Integrity] Found abilities with empty effects[]:', effectsWarnings);
+      warningLog.push('⚠️ ATTENZIONE: Trovate abilità con effects[] vuoto!');
+      for (const [source, names] of grouped) {
+        warningLog.push(`  📌 ${source}: ${names.join(', ')}`);
+      }
+      warningLog.push('  Queste abilità non produrranno alcun effetto in combattimento.');
+    }
+
     set({
       phase: 'exploration',
       party,
@@ -567,7 +656,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combat: null,
       activeEvent: startLocation.storyEvent || null,
       eventOutcome: null,
-      messageLog: ['Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
+      messageLog: [...warningLog, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
       turnCount: 0,
       inventoryOpen: false,
       selectedCharacterId: party[0]?.id || null,
@@ -619,6 +708,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
     const diffConfig = getDifficultyConfig(activeDifficulty, pSize);
     const startLocation = LOCATIONS['city_outskirts'];
+
+    // Validate effects integrity on game start
+    const effectsWarnings = validateEffectsIntegrity();
+    const warningLog: string[] = [];
+    if (effectsWarnings) {
+      const grouped = new Map<string, string[]>();
+      for (const w of effectsWarnings) {
+        if (!grouped.has(w.source)) grouped.set(w.source, []);
+        grouped.get(w.source)!.push(w.name);
+      }
+      console.error('[Effects Integrity] Found abilities with empty effects[]:', effectsWarnings);
+      warningLog.push('⚠️ ATTENZIONE: Trovate abilità con effects[] vuoto!');
+      for (const [source, names] of grouped) {
+        warningLog.push(`  📌 ${source}: ${names.join(', ')}`);
+      }
+      warningLog.push('  Queste abilità non produrranno alcun effetto in combattimento.');
+    }
+
     set({
       phase: 'exploration',
       party,
@@ -627,7 +734,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combat: null,
       activeEvent: startLocation.storyEvent || null,
       eventOutcome: null,
-      messageLog: ['Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
+      messageLog: [...warningLog, 'Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
       turnCount: 0,
       inventoryOpen: false,
       selectedCharacterId: party[0]?.id || null,
@@ -1063,24 +1170,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
 
           // ── BAG: auto-equip only if inventory full, otherwise add as item ──
-          if (itemDef.type === 'bag' && itemDef.effect?.type === 'add_slots') {
+          const addSlotsAmt = getAddSlotsAmount(itemDef.effects);
+          if (itemDef.type === 'bag' && addSlotsAmt !== null) {
             const targetId = state.selectedCharacterId || state.party[0]?.id;
             const targetChar = state.party.find(p => p.id === targetId);
             const isFull = targetChar ? targetChar.inventory.length >= targetChar.maxInventorySlots : false;
+            const maxSlots = getMaxInventorySlots();
 
-            if (isFull && targetChar && targetChar.maxInventorySlots < MAX_INVENTORY_SLOTS) {
+            if (isFull && targetChar && targetChar.maxInventorySlots < maxSlots) {
               // Auto-equip: expand slots immediately
-              const newSlots = Math.min(MAX_INVENTORY_SLOTS, targetChar.maxInventorySlots + itemDef.effect.value);
-              const expanded = newSlots > targetChar.maxInventorySlots;
-              const oldSlots = targetChar.maxInventorySlots;
+              const { updatedChar, expanded, oldSlots, newSlots } = applyAddSlotsToCharacter(targetChar, addSlotsAmt);
               const updatedParty = state.party.map(p =>
-                p.id === targetId ? { ...p, maxInventorySlots: newSlots } : p
+                p.id === targetId ? updatedChar : p
               );
               set({
                 messageLog: [...newLog,
                   expanded
                     ? `[${state.turnCount}] 🧳 ${targetChar.name} usa ${itemDef.name}! Inventario espanso: ${oldSlots} → ${newSlots} slot.`
-                    : `[${state.turnCount}] 🧳 ${itemDef.name} trovato, ma l'inventario è già al massimo.`,
+                    : `[${state.turnCount}] 🧳 ${itemDef.name} trovato, ma l'inventario è già al massimo (${maxSlots} slot).`,
                 ],
                 party: updatedParty,
                 turnCount: state.turnCount + 1,
@@ -1106,7 +1213,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 icon: itemDef.icon,
                 usable: itemDef.usable,
                 equippable: itemDef.equippable,
-                effect: itemDef.effect,
+                effects: itemDef.effects,
                 quantity: foundEntry.quantity,
               };
               const updatedParty = state.party.map(p =>
@@ -1153,6 +1260,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             usable: itemDef.usable,
             equippable: itemDef.equippable,
             effect: itemDef.effect,
+            effects: itemDef.effects,
             quantity: foundEntry.quantity,
           };
 
@@ -1670,13 +1778,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const targetChar = updatedParty.find(p => p.id === targetId);
 
       // ── BAG: auto-equip only if inventory full, otherwise add as item ──
-      if (itemDef.type === 'bag' && itemDef.effect?.type === 'add_slots') {
+      const searchBagAmt = getAddSlotsAmount(itemDef.effects);
+      if (itemDef.type === 'bag' && searchBagAmt !== null) {
         const isFull = targetChar ? targetChar.inventory.length >= targetChar.maxInventorySlots : false;
-        if (isFull && targetChar && targetChar.maxInventorySlots < MAX_INVENTORY_SLOTS) {
-          const newSlots = Math.min(MAX_INVENTORY_SLOTS, targetChar.maxInventorySlots + itemDef.effect.value);
-          const oldSlots = targetChar.maxInventorySlots;
+        const maxSlots = getMaxInventorySlots();
+        if (isFull && targetChar && targetChar.maxInventorySlots < maxSlots) {
+          const { updatedChar, expanded, oldSlots, newSlots } = applyAddSlotsToCharacter(targetChar, searchBagAmt);
           updatedParty = updatedParty.map(p =>
-            p.id === targetId ? { ...p, maxInventorySlots: newSlots } : p
+            p.id === targetId ? updatedChar : p
           );
           foundNames.push(`${itemDef.name} (slot ${oldSlots}→${newSlots})`);
           lastNotif = {
@@ -1699,7 +1808,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             icon: itemDef.icon,
             usable: itemDef.usable,
             equippable: itemDef.equippable,
-            effect: itemDef.effect,
+            effects: itemDef.effects,
             quantity: 1,
           };
           updatedParty = updatedParty.map(p =>
@@ -1747,6 +1856,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             usable: itemDef.usable,
             equippable: itemDef.equippable,
             effect: itemDef.effect,
+            effects: itemDef.effects,
             quantity: 1,
           };
           updatedParty = updatedParty.map(p =>
@@ -2220,86 +2330,83 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   consumeItemOutsideCombat: (characterId: string, itemUid: string) => {
-    const MAX_SLOTS = 12;
     let logMsg = `[Turno ${get().turnCount}] 🎒 Oggetto usato.`;
 
     set(state => {
       const party = state.party.map(p => {
         if (p.id !== characterId) return p;
         const item = p.inventory.find(i => i.uid === itemUid);
-        if (!item || !item.usable || !item.effect) return p;
+        if (!item || !item.usable) return p;
 
         let updatedCharacter = { ...p };
-        const log: string[] = [];
+        let shouldConsume = false;
+        const logParts: string[] = [];
+        const turnPrefix = `[Turno ${state.turnCount}]`;
 
-        switch (item.effect.type) {
-          case 'heal': {
-            const healAmount = item.effect.value;
-            const statusCured = item.effect.statusCured || [];
-            const actualHeal = Math.min(updatedCharacter.maxHp, updatedCharacter.currentHp + healAmount) - updatedCharacter.currentHp;
-            updatedCharacter.currentHp = Math.min(updatedCharacter.maxHp, updatedCharacter.currentHp + healAmount);
-            if (statusCured.length > 0) {
-              const hadStatus = statusCured.some(s => updatedCharacter.statusEffects.includes(s));
-              updatedCharacter.statusEffects = updatedCharacter.statusEffects.filter(s => !statusCured.includes(s));
-              if (hadStatus) {
-                const curedNames = statusCured.filter(s => updatedCharacter.statusEffects.includes(s) || true).map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s).join(', ');
-                log.push(`${p.name} usa ${item.name}. +${actualHeal} HP! ✨ Status negativi curati!`);
-                logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP! Status curati!`;
-              } else {
-                log.push(`${p.name} usa ${item.name}. +${actualHeal} HP!`);
-                logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP!`;
+        // --- EXCLUSIVELY ATOMIC EFFECTS (unified system) ---
+        if (item.effects && item.effects.length > 0) {
+          shouldConsume = true;
+          let totalHeal = 0;
+          let anyStatusCured = false;
+          const curedNames: string[] = [];
+
+          for (const effect of item.effects) {
+            // Only process on_use effects outside combat
+            if (effect.trigger && effect.trigger !== 'on_use') continue;
+
+            switch (effect.type) {
+              case 'heal': {
+                let healAmount: number;
+                if (effect.percent) {
+                  healAmount = Math.floor(updatedCharacter.maxHp * (effect.percent / 100));
+                } else {
+                  healAmount = effect.amount || 0;
+                }
+                const actualHeal = Math.min(updatedCharacter.maxHp, updatedCharacter.currentHp + healAmount) - updatedCharacter.currentHp;
+                updatedCharacter.currentHp = Math.min(updatedCharacter.maxHp, updatedCharacter.currentHp + healAmount);
+                totalHeal += actualHeal;
+                break;
               }
-            } else {
-              log.push(`${p.name} usa ${item.name}. +${actualHeal} HP!`);
-              logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP!`;
-            }
-            break;
-          }
-          case 'heal_full': {
-            const actualHeal = updatedCharacter.maxHp - updatedCharacter.currentHp;
-            const statusCured = item.effect.statusCured || [];
-            updatedCharacter.currentHp = updatedCharacter.maxHp;
-            if (statusCured.length > 0) {
-              const hadStatus = statusCured.some(s => updatedCharacter.statusEffects.includes(s));
-              updatedCharacter.statusEffects = updatedCharacter.statusEffects.filter(s => !statusCured.includes(s));
-              if (hadStatus) {
-                log.push(`${p.name} usa ${item.name}. HP completamente ripristinati (+${actualHeal})! ✨ Status negativi curati!`);
-                logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP! Status curati!`;
-              } else {
-                log.push(`${p.name} usa ${item.name}. HP completamente ripristinati (+${actualHeal})!`);
-                logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP!`;
+              case 'remove_status': {
+                const statusesToRemove = effect.statuses || [];
+                const actuallyCured = statusesToRemove.filter(s => updatedCharacter.statusEffects.includes(s));
+                if (actuallyCured.length > 0) {
+                  updatedCharacter.statusEffects = updatedCharacter.statusEffects.filter(s => !statusesToRemove.includes(s));
+                  anyStatusCured = true;
+                  curedNames.push(...actuallyCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s));
+                }
+                break;
               }
-            } else {
-              log.push(`${p.name} usa ${item.name}. HP completamente ripristinati (+${actualHeal})!`);
-              logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. +${actualHeal} HP!`;
+              case 'add_slots': {
+                const slotsToAdd = effect.amount;
+                const maxSlots = getMaxInventorySlots();
+                const currentSlots = updatedCharacter.maxInventorySlots;
+                if (currentSlots >= maxSlots) {
+                  logParts.push(`Inventario già al massimo (${maxSlots} slot)`);
+                  shouldConsume = false; // Don't consume if no effect
+                } else {
+                  const newSlots = Math.min(maxSlots, currentSlots + slotsToAdd);
+                  updatedCharacter.maxInventorySlots = newSlots;
+                  logParts.push(`+${newSlots - currentSlots} slot (totale: ${newSlots}/${maxSlots})`);
+                }
+                break;
+              }
             }
-            break;
           }
-          case 'cure': {
-            const cured = item.effect.statusCured || [];
-            updatedCharacter.statusEffects = updatedCharacter.statusEffects.filter(s => !cured.includes(s));
-            log.push(`${p.name} usa ${item.name}. Effetti curati!`);
-            logMsg = `[Turno ${state.turnCount}] 🎒 ${p.name} usa ${item.name}. Effetti curati!`;
-            break;
+
+          // Build log message from atomic effects
+          if (logParts.length > 0) {
+            const effectSummary = logParts.join(' ');
+            logMsg = `${turnPrefix} 🎒 ${p.name} usa ${item.name}. ${effectSummary}`;
+          } else {
+            logMsg = `${turnPrefix} 🎒 ${p.name} usa ${item.name} — nessun effetto.`;
           }
-          case 'add_slots': {
-            const slotsToAdd = item.effect.value;
-            const currentSlots = updatedCharacter.maxInventorySlots;
-            if (currentSlots >= MAX_SLOTS) {
-              log.push(`${p.name} ha già il massimo di slot (${MAX_SLOTS}).`);
-              logMsg = `[Turno ${state.turnCount}] 🎒 Inventario già al massimo (${MAX_SLOTS} slot).`;
-              // Don't consume the item if slots are maxed
-              return p;
-            }
-            const newSlots = Math.min(MAX_SLOTS, currentSlots + slotsToAdd);
-            updatedCharacter.maxInventorySlots = newSlots;
-            log.push(`${p.name} equipaggia ${item.name}! +${newSlots - currentSlots} slot (totale: ${newSlots}/${MAX_SLOTS}).`);
-            logMsg = `[Turno ${state.turnCount}] 🧳 ${p.name} equipaggia ${item.name}! Inventario: ${newSlots}/${MAX_SLOTS} slot.`;
-            break;
-          }
+        } else {
+          logMsg = `${turnPrefix} 🎒 ${p.name} usa ${item.name} — nessun effetto.`;
         }
 
         // Decrease quantity, remove only if qty reaches 0, then auto-merge stacks
+        if (!shouldConsume) return p;
         const newInventory = mergeInventoryStacks(
           p.inventory
             .map(i => {
@@ -2348,6 +2455,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           usable: mixedDef.usable,
           equippable: mixedDef.equippable,
           effect: mixedDef.effect,
+          effects: mixedDef.effects,
           quantity: 1,
         };
 
@@ -2445,13 +2553,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       logMsg = `[Turno ${state.turnCount}] 🔄 ${fromChar.name} passa ${item.name} a ${toChar.name}.`;
 
       // ── BAG: auto-use if target inventory is full ──
-      if (item.type === 'bag' && item.effect?.type === 'add_slots') {
-        const MAX_INVENTORY_SLOTS = 12;
+      const transferBagAmt = getAddSlotsAmount(item.effects);
+      if (item.type === 'bag' && transferBagAmt !== null) {
+        const maxSlots = getMaxInventorySlots();
         const isFull = updatedToChar.inventory.length >= updatedToChar.maxInventorySlots;
-        if (isFull && updatedToChar.maxInventorySlots < MAX_INVENTORY_SLOTS) {
-          const newSlots = Math.min(MAX_INVENTORY_SLOTS, updatedToChar.maxInventorySlots + item.effect.value);
-          updatedToChar = { ...updatedToChar, maxInventorySlots: newSlots, inventory: updatedToChar.inventory.filter(i => i.uid !== itemUid) };
-          logMsg += ` 🧳 ${toChar.name} usa ${item.name}! Inventario: ${updatedToChar.maxInventorySlots - item.effect.value} → ${newSlots} slot.`;
+        if (isFull && updatedToChar.maxInventorySlots < maxSlots) {
+          const { updatedChar, expanded, oldSlots, newSlots } = applyAddSlotsToCharacter(updatedToChar, transferBagAmt);
+          updatedToChar = { ...updatedChar, maxInventorySlots: newSlots, inventory: updatedToChar.inventory.filter(i => i.uid !== itemUid) };
+          logMsg += ` 🧳 ${toChar.name} usa ${item.name}! Inventario: ${oldSlots} → ${newSlots} slot.`;
           updatedParty = state.party.map(p => {
             if (p.id === fromCharacterId) return updatedFromChar;
             if (p.id === toCharacterId) return updatedToChar;
@@ -2608,15 +2717,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let updatedCooldowns2: Record<string, number> = { ...(state.combat.special2Cooldowns || {}) };
     let tauntTargetId: string | null = state.combat.tauntTargetId || null;
     let updatedCombatStatusDurations: Record<string, StatusDuration[]> = { ...(state.combat.statusDurations || {}) };
+    let updatedCombatActiveEffects: ActiveCombatEffect[] = [...(state.combat.activeEffects || [])];
 
     switch (state.combat.selectedAction) {
       case 'attack': {
         if (!state.combat.selectedTarget) return;
         const enemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget)!;
-        const result = executePlayerAttack(character, enemy, state.combat.turn);
+        const result = executePlayerAttack(character, enemy, state.combat.turn, updatedParty, updatedEnemies);
         newLog.push(result.log);
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
+        }
+        if (result.updatedEnemies) {
+          updatedEnemies = result.updatedEnemies;
+        }
+        if (result.updatedCharacter) {
+          updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
+        }
+        if (result.updatedParty) {
+          updatedParty = result.updatedParty;
+        }
+        // Track active effects from weapon on_hit
+        if (result.activeEffects && result.activeEffects.length > 0) {
+          updatedCombatActiveEffects.push(...result.activeEffects);
         }
         // Consume ammo if ranged attack was used
         if (result.consumedAmmoUid) {
@@ -2641,12 +2764,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       case 'special': {
         if (!state.combat.selectedTarget) return;
-        // Healer targets allies; Tank/DPS target enemies
+        // Determine target based on the special ability's effects/targetType
+        const specialId = character.special1Id;
+        const specialDef = specialId ? getSpecialByIdFromLoader(specialId) : undefined;
+        const firstTarget = specialDef?.targetType || specialDef?.effects?.[0]?.target;
+        const isEnemyTarget = firstTarget === 'enemy' || firstTarget === 'all_enemies' || firstTarget === 'random_enemy';
         let target;
-        if (character.archetype === 'healer') {
-          target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
-        } else {
+        if (isEnemyTarget) {
           target = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
+        } else {
+          target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
         }
         const result = executePlayerSpecial(character, target, state.combat.turn, updatedParty, updatedEnemies);
         newLog.push(result.log);
@@ -2674,6 +2801,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (result.updatedCharacter) {
           updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
         }
+        if (result.updatedParty) {
+          updatedParty = result.updatedParty;
+        }
         // Handle applied buff (e.g., Adrenalina)
         if (result.appliedBuff) {
           const existing = updatedCombatStatusDurations[result.appliedBuff.targetId] || [];
@@ -2684,17 +2814,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ];
           }
         }
-        // Set 2-turn cooldown for special
-        updatedCooldowns[character.id] = 2;
+        // Set taunt if present
+        if (result.tauntTargetId) {
+          tauntTargetId = result.tauntTargetId;
+        }
+        // Track active effects from special (buffs, shields, HoT, reflect)
+        if (result.activeEffects && result.activeEffects.length > 0) {
+          updatedCombatActiveEffects.push(...result.activeEffects);
+        }
+        // Use special's cooldown instead of hardcoded value
+        updatedCooldowns[character.id] = specialDef?.cooldown || 2;
         break;
       }
       case 'special2': {
         if (!state.combat.selectedTarget) return;
-        // Tank: no target needed (self-buff/taunt), but still accept click on self
-        // Healer: no target needed (group heal), accept click on self
-        // DPS: needs enemy target
+        // Determine target based on the special ability's effects/targetType
+        const specialId2 = character.special2Id;
+        const specialDef2 = specialId2 ? getSpecialByIdFromLoader(specialId2) : undefined;
+        const firstTarget2 = specialDef2?.targetType || specialDef2?.effects?.[0]?.target;
+        const isEnemyTarget2 = firstTarget2 === 'enemy' || firstTarget2 === 'all_enemies' || firstTarget2 === 'random_enemy';
         let target;
-        if (character.archetype === 'dps') {
+        if (isEnemyTarget2) {
           target = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
         } else {
           target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
@@ -2742,8 +2882,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ];
           }
         }
-        // Set 3-turn cooldown for special2
-        updatedCooldowns2[character.id] = 3;
+        // Track active effects from special2
+        if (result.activeEffects && result.activeEffects.length > 0) {
+          updatedCombatActiveEffects.push(...result.activeEffects);
+        }
+        // Use special's cooldown instead of hardcoded value
+        updatedCooldowns2[character.id] = specialDef2?.cooldown || 3;
         break;
       }
       case 'use_item': {
@@ -2751,52 +2895,63 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const item = character.inventory.find(i => i.uid === state.combat!.selectedItemUid);
         if (!item) return;
         
-        // Rocket launcher: kill_all targets all enemies
-        if (item.effect?.type === 'kill_all') {
-          const result = executeUseItem(character, item, character, updatedParty, state.combat.turn);
-          newLog.push(result.log);
-          // Kill ALL enemies instantly
-          updatedEnemies = updatedEnemies.map(e => ({ ...e, currentHp: 0, isDefending: false }));
-          // Consume the item
-          if (result.consumeItem) {
-            const consumedUid = state.combat!.selectedItemUid;
-            updatedParty = updatedParty.map(p => {
-              if (p.id === character.id) {
-                return {
-                  ...p,
-                  inventory: p.inventory
-                    .map(i => {
-                      if (i.uid !== consumedUid) return { ...i };
-                      const newQty = i.quantity - 1;
-                      if (newQty <= 0) return null;
-                      return { ...i, quantity: newQty };
-                    })
-                    .filter((i): i is NonNullable<typeof i> => i !== null),
-                };
-              }
-              return p;
-            });
-          }
-          break;
-        }
-        
-        let healTarget: Character;
-        if (item.effect?.target === 'one_ally') {
-          healTarget = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
-        } else if (item.effect?.target === 'all_allies') {
-          healTarget = character;
+        // Determine target based on item's effects (like specials do)
+        const firstTarget = item.effects?.[0]?.target;
+        const isEnemyTarget = firstTarget === 'enemy' || firstTarget === 'all_enemies' || firstTarget === 'random_enemy';
+        let itemTarget: EnemyInstance | Character;
+        if (isEnemyTarget) {
+          itemTarget = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
         } else {
-          healTarget = character;
+          itemTarget = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
         }
         
-        const result = executeUseItem(character, item, healTarget, updatedParty, state.combat.turn);
+        const result = executeUseItem(character, item, itemTarget, updatedParty, updatedEnemies, state.combat.turn);
         newLog.push(result.log);
+        
+        // Handle enemy updates (e.g., deal_damage to all_enemies for rocket launcher)
+        if (result.updatedEnemies) {
+          updatedEnemies = result.updatedEnemies;
+          // Track status durations on enemies after applying item effects (poison, bleed, stun)
+          for (const e of updatedEnemies) {
+            const prevEnemy = state.enemies.find(pe => pe.id === e.id);
+            if (!prevEnemy) continue;
+            const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
+            for (const effect of newEffects) {
+              if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+                const existing = updatedCombatStatusDurations[e.id] || [];
+                updatedCombatStatusDurations[e.id] = [
+                  ...existing,
+                  { effect: effect as StatusEffect, turnsLeft: 3 },
+                ];
+              }
+            }
+          }
+        }
         if (result.updatedCharacter) {
           updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
         }
         if (result.updatedParty) {
           updatedParty = result.updatedParty;
         }
+        // Track active effects from item (buffs, shields, hoTs, reflect)
+        if (result.activeEffects && result.activeEffects.length > 0) {
+          updatedCombatActiveEffects.push(...result.activeEffects);
+        }
+        // Handle applied buff
+        if (result.appliedBuff) {
+          const existing = updatedCombatStatusDurations[result.appliedBuff.targetId] || [];
+          if (!existing.some(d => d.effect === result.appliedBuff!.effect)) {
+            updatedCombatStatusDurations[result.appliedBuff.targetId] = [
+              ...existing,
+              { effect: result.appliedBuff.effect, turnsLeft: result.appliedBuff.duration },
+            ];
+          }
+        }
+        // Set taunt if present
+        if (result.tauntTargetId) {
+          tauntTargetId = result.tauntTargetId;
+        }
+        // Consume the item
         if (result.consumeItem) {
           const consumedUid = state.combat!.selectedItemUid;
           updatedParty = updatedParty.map(p => {
@@ -2819,7 +2974,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         // Clean statusDurations for cured statuses
         if (result.curedStatuses && result.curedStatuses.length > 0) {
           const curedSet = new Set(result.curedStatuses);
-          const targetId = healTarget?.id || character.id;
+          const targetId = (!isEnemyTarget && 'id' in itemTarget) ? itemTarget.id : character.id;
           if (result.updatedParty) {
             // all_allies cure: clean all party members
             for (const charId of Object.keys(updatedCombatStatusDurations)) {
@@ -2932,6 +3087,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 usable: itemDef.usable,
                 equippable: itemDef.equippable,
                 effect: itemDef.effect,
+                effects: itemDef.effects,
                 quantity: 1,
                 equipmentStats: equipStats || undefined,
                 modStats: modStats || undefined,
@@ -2962,6 +3118,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
               usable: itemDef.usable,
               equippable: itemDef.equippable,
               effect: itemDef.effect,
+              effects: itemDef.effects,
               quantity: 1,
             };
             return { ...p, inventory: [...p.inventory, newItem] };
@@ -3157,6 +3314,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       special2Cooldowns: updatedCooldowns2,
       tauntTargetId,
       statusDurations: updatedCombatStatusDurations,
+      activeEffects: updatedCombatActiveEffects,
     });
   },
 
@@ -3296,7 +3454,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
       // Use first_aid (heal_full + cures) on status-afflicted ally
-      const firstAidKit = myUsableItems.find(i => i.effect?.type === 'heal_full' && i.effect?.statusCured);
+      const firstAidKit = myUsableItems.find(i => getItemHealInfo(i)?.isFullHeal && getItemHasStatusCure(i));
       if (firstAidKit) {
         get().selectCombatAction('use_item');
         get().selectCombatItem(firstAidKit.uid);
@@ -3314,12 +3472,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // 5c. Use heal_full items (first_aid) on critically wounded ally (< 35%)
     if (criticalPct < 0.35) {
-      const fullHealItem = myUsableItems.find(i =>
-        i.effect?.type === 'heal_full' &&
-        (i.effect?.target === 'one_ally' || i.effect?.target === 'all_allies')
-      );
+      const fullHealItem = myUsableItems.find(i => {
+        const heal = getItemHealInfo(i);
+        const target = getItemEffectTarget(i);
+        return heal?.isFullHeal && (target === 'one_ally' || target === 'all_allies');
+      });
       if (fullHealItem) {
-        const target = fullHealItem.effect?.target === 'all_allies'
+        const target = getItemEffectTarget(fullHealItem) === 'all_allies'
           ? character
           : mostCriticalAlly;
         get().selectCombatAction('use_item');
@@ -3333,15 +3492,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 5d. Use regular healing items on anyone below 55% HP
     if (criticalPct < 0.55) {
       // Find the best healing item in current character's inventory
-      const healItems = myUsableItems.filter(i =>
-        i.effect?.type === 'heal' &&
-        (i.effect?.target === 'one_ally' || i.effect?.target === 'self' || i.effect?.target === 'all_allies')
-      ).sort((a, b) => (b.effect?.value || 0) - (a.effect?.value || 0));
+      const healItems = myUsableItems.filter(i => {
+        const heal = getItemHealInfo(i);
+        const target = getItemEffectTarget(i);
+        return heal && !heal.isFullHeal && (target === 'one_ally' || target === 'self' || target === 'all_allies');
+      }).sort((a, b) => (getItemHealInfo(b)?.amount || 0) - (getItemHealInfo(a)?.amount || 0));
 
       const allyNeedingHeal = aliveParty.find(p => p.currentHp < p.maxHp * 0.55);
       if (allyNeedingHeal && healItems.length > 0) {
         const chosen = healItems[0];
-        const target = chosen.effect?.target === 'one_ally' || chosen.effect?.target === 'all_allies'
+        const target = getItemEffectTarget(chosen) === 'one_ally' || getItemEffectTarget(chosen) === 'all_allies'
           ? allyNeedingHeal
           : character;
         get().selectCombatAction('use_item');
@@ -3431,6 +3591,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
       updatedCooldowns2 = decrementedCooldowns2;
+
+      // Process active combat effects tick (HoT, buff/debuff, shield, reflect)
+      let currentActiveEffects = combat.activeEffects || [];
+      if (currentActiveEffects.length > 0) {
+        const tickResult = processActiveEffectsTick(currentActiveEffects, updatedParty, enemies, newTurn);
+        statusLogEntries.push(...tickResult.log);
+        updatedParty = tickResult.updatedParty;
+        // Remove expired effects
+        const expiredIds = new Set(tickResult.expiredEffects);
+        if (expiredIds.size > 0) {
+          currentActiveEffects.splice(0, currentActiveEffects.length,
+            ...currentActiveEffects.filter(e => !expiredIds.has(e.id)));
+        }
+      }
     }
 
     const nextActor = allActors[nextIdx];
@@ -3723,6 +3897,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             specialCooldowns: updatedCooldowns,
             special2Cooldowns: updatedCooldowns2,
             tauntTargetId,
+            activeEffects: currentActiveEffects,
           },
         });
 
@@ -3733,7 +3908,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return;
       }
 
-      const { log, updatedParty: afterEnemyAttack, appliedStatus } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId);
+      const { log, updatedParty: afterEnemyAttack, appliedStatus, updatedEnemies: enemySelfEffects, activeEffects: enemyActiveEffects } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId);
+
+      // Merge enemy self-effects (heal, buff, etc.) into updatedEnemiesForStatus
+      if (enemySelfEffects) {
+        updatedEnemiesForStatus = updatedEnemiesForStatus.map(e => {
+          const updated = enemySelfEffects.find(ue => ue.id === e.id);
+          return updated || e;
+        });
+      }
+
+      // Merge enemy-created active effects (buffs, shields, etc.)
+      if (enemyActiveEffects && enemyActiveEffects.length > 0) {
+        currentActiveEffects = [...currentActiveEffects, ...enemyActiveEffects];
+      }
 
       // Record applied status duration
       if (appliedStatus) {
@@ -3794,6 +3982,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           specialCooldowns: updatedCooldowns,
           special2Cooldowns: updatedCooldowns2,
           tauntTargetId,
+          activeEffects: currentActiveEffects,
         },
       });
 
@@ -3820,6 +4009,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         specialCooldowns: updatedCooldowns,
         special2Cooldowns: updatedCooldowns2,
         tauntTargetId,
+        activeEffects: currentActiveEffects,
       },
     });
   },
@@ -4234,7 +4424,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           updatedParty = updatedParty.map(p => {
             if (!added && p.inventory.length < p.maxInventorySlots) {
               added = true;
-              return { ...p, inventory: [...p.inventory, { uid: `${itemEntry.itemId}_${Date.now()}_${Math.random()}`, itemId: itemEntry.itemId, name: itemDef.name, description: itemDef.description, type: itemDef.type, rarity: itemDef.rarity, icon: itemDef.icon, usable: itemDef.usable, equippable: itemDef.equippable, effect: itemDef.effect, quantity: itemEntry.quantity }] };
+              return { ...p, inventory: [...p.inventory, { uid: `${itemEntry.itemId}_${Date.now()}_${Math.random()}`, itemId: itemEntry.itemId, name: itemDef.name, description: itemDef.description, type: itemDef.type, rarity: itemDef.rarity, icon: itemDef.icon, usable: itemDef.usable, equippable: itemDef.equippable, effect: itemDef.effect, effects: itemDef.effects, quantity: itemEntry.quantity }] };
             }
             return p;
           });
@@ -5087,14 +5277,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!location || !location.subAreas?.some(sa => sa.id === 'safe_room')) return;
     if (state.currentSubArea === 'safe_room') return;
 
-    // Populate item box with default items on first visit to this safe room
+    // Populate item box with default items from game settings on first visit to any safe room
     let updatedItemBox = [...state.itemBoxItems];
-    const safeRoomDef = location.subAreas.find(sa => sa.id === 'safe_room');
-    if (safeRoomDef?.defaultItems && safeRoomDef.defaultItems.length > 0 && !state.searchedSafeRooms.includes(locId)) {
+    const defaultDefs = getDefaultItemBoxItems();
+    if (defaultDefs.length > 0 && !state.searchedSafeRooms.includes(locId)) {
       // Don't add items already in the box
       const existingIds = new Set(updatedItemBox.map(i => i.itemId));
       const newDefaults: ItemInstance[] = [];
-      for (const def of safeRoomDef.defaultItems) {
+      for (const def of defaultDefs) {
         if (existingIds.has(def.itemId)) continue;
         const itemDef = ITEMS[def.itemId];
         if (!itemDef) continue;
@@ -5111,6 +5301,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           equippable: itemDef.equippable,
           quantity: def.quantity || 1,
           effect: (itemDef as any).effect ? { ...(itemDef as any).effect } : undefined,
+          effects: itemDef.effects,
         });
         existingIds.add(def.itemId);
       }
@@ -5222,6 +5413,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         equippable: itemDef.equippable,
         quantity: qty,
         effect: (itemDef as any).effect ? { ...(itemDef as any).effect } : undefined,
+        effects: itemDef.effects,
         isEquipped: false,
       };
 
@@ -5438,6 +5630,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       usable: resultDef.usable,
       equippable: resultDef.equippable,
       effect: resultDef.effect,
+      effects: resultDef.effects,
       quantity: recipe.result.qty,
     };
 
@@ -5490,6 +5683,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           usable: def.usable,
           equippable: def.equippable,
           effect: def.effect,
+          effects: def.effects,
           quantity: 5,
         };
       });
@@ -5529,6 +5723,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           usable: def.usable,
           equippable: def.equippable,
           effect: def.effect,
+          effects: def.effects,
           quantity: 1,
         };
       }).filter(Boolean) as ItemInstance[];
@@ -5800,6 +5995,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   bumpDataVersion: () => {
+    _gameSettingsCache = null; // invalidate settings cache so it reloads
+    fetchGameSettings(); // reload in background
     set(state => ({ dataVersion: state.dataVersion + 1 }));
   },
 }));

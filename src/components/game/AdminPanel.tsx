@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Plus, Minus, Pencil, Trash2, Save, RotateCcw,
   Package, Scroll, Zap, FileText, Volume2, ImageIcon, RefreshCw, Loader2, Search, Play, Pause, Eye,
-  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database, Monitor, Skull, DoorOpen,
+  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database, Monitor, Skull, DoorOpen, Settings,
   type LucideIcon,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
@@ -26,7 +26,7 @@ import type { Rarity } from '@/game/types';
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'secret-rooms' | 'avatars' | 'start-screen';
+type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings';
 
 interface TabConfig {
   id: TabId;
@@ -48,12 +48,13 @@ const TABS: TabConfig[] = [
   { id: 'locations', label: 'Location', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location' },
   { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC' },
   { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio' },
-  { id: 'specials', label: 'Speciali', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità Speciale' },
+  { id: 'specials', label: 'Abilità PG', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità PG' },
   { id: 'enemies', label: 'Nemici', icon: <Skull className="w-4 h-4" />, endpoint: '/api/admin/enemies', entityLabel: 'Nemico' },
   { id: 'enemy-abilities', label: 'Abilità Nemici', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/enemy-abilities', entityLabel: 'Abilità Nemica' },
   { id: 'secret-rooms', label: 'Stanze Segrete', icon: <DoorOpen className="w-4 h-4" />, endpoint: '/api/admin/secret-rooms', entityLabel: 'Stanza Segreta' },
   { id: 'avatars', label: 'Avatar', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Avatar', custom: true },
   { id: 'start-screen', label: 'Schermata Iniziale', icon: <Monitor className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true },
+  { id: 'settings', label: '⚙️ Impostazioni', icon: <Settings className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -77,12 +78,13 @@ const SEED_BANNERS: Record<TabId, SeedBannerConfig | null> = {
   locations:    { icon: MapPin,   label: 'Location',    description: 'Gestione <span className="text-white/50 font-medium">location</span> — aggiungi, modifica o rimuovi aree di gioco. Ogni location può avere sfondo, nemici, oggetti e eventi personalizzati.', seedEndpoint: '/api/admin/seed-locations' },
   npcs:         { icon: Users,    label: 'NPC',         description: 'Gestione <span className="text-white/50 font-medium">NPC</span> — aggiungi, modifica o rimuovi personaggi non giocanti. Ogni NPC ha dialoghi, quest e scambi personalizzati.', seedEndpoint: '/api/admin/seed-npcs' },
   characters:   { icon: Swords,   label: 'Personaggi',  description: 'Gestione <span className="text-white/50 font-medium">personaggi</span> — aggiungi, modifica o rimuovi archetipi giocabili. Ogni personaggio ha statistiche, abilità speciali e oggetti iniziali.', seedEndpoint: '/api/admin/seed-characters' },
-  specials:     { icon: Zap,      label: 'Speciali',    description: 'Gestione <span className="text-white/50 font-medium">abilità speciali</span> — configura poteri offensivi, difensivi, di supporto e controllo per i personaggi', seedEndpoint: '/api/admin/seed-specials' },
+  specials:     { icon: Zap,      label: 'Abilità PG',    description: 'Gestione <span className="text-white/50 font-medium">abilità personaggi</span> — configura poteri offensivi, difensivi, di supporto e controllo per i personaggi', seedEndpoint: '/api/admin/seed-specials' },
   enemies:      { icon: Skull,    label: 'Nemici',      description: 'Gestione <span className="text-white/50 font-medium">nemici</span> — aggiungi, modifica o rimuovi creature e boss. Ogni nemico ha statistiche, abilità e tabelle loot.', seedEndpoint: '/api/admin/seed-enemies' },
   'enemy-abilities': { icon: Swords, label: 'Abilità Nemici', description: 'Gestione <span className="text-white/50 font-medium">abilità nemici</span> — configura attacchi, potenza, probabilità d\'uso ed effetti di status per i nemici', seedEndpoint: '/api/admin/seed-enemy-abilities' },
   'secret-rooms': { icon: DoorOpen, label: 'Stanze Segrete', description: 'Gestione <span className="text-white/50 font-medium">stanze segrete</span> — aggiungi, modifica o rimuovi stanze nascoste scopribili durante l\'esplorazione', seedEndpoint: '/api/admin/seed-secret-rooms' },
   avatars:      null,
   'start-screen': null,
+  settings:     null,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -148,22 +150,6 @@ const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: string }>>
     melee:  { it: 'Corpo a Corpo' },
     ranged: { it: 'A Distanza' },
   },
-  effectType: {
-    heal:          { it: 'Cura', hint: 'ripristina HP' },
-    heal_full:     { it: 'Cura Totale', hint: 'HP massimo' },
-    cure:          { it: 'Disintossica', hint: 'rimuove status' },
-    damage_boost:  { it: 'Boost Danni' },
-    defense_boost: { it: 'Boost Difesa' },
-    add_ammo:      { it: 'Aggiungi Munizioni' },
-    add_slots:     { it: 'Aggiungi Slot' },
-    kill_all:      { it: 'Elimina Tutti' },
-  },
-  effectTarget: {
-    self:         { it: 'Sé Stesso' },
-    one_ally:     { it: 'Un Alleato' },
-    all_allies:   { it: 'Tutti gli Alleati' },
-    all_enemies:  { it: 'Tutti i Nemici' },
-  },
   discoveryMethod: {
     search:     { it: 'Ricerca', hint: 'scopribile tramite il pulsante Cerca' },
     document:   { it: 'Documento', hint: 'richiede un documento specifico' },
@@ -224,7 +210,7 @@ function getEnumHint(enumGroup: string, value: string): string | undefined {
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'status-cured' | 'special-effect' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items' | 'effects-editor';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
@@ -254,12 +240,6 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'weaponType', label: 'Tipo Arma', type: 'select', options: ['melee', 'ranged'], enumGroup: 'weaponType' },
     { key: 'atkBonus', label: 'Bonus ATK', type: 'number', helpText: 'Arma, Accessorio, Weapon Mod' },
     { key: 'ammoType', label: 'Tipo Munizione', type: 'text', placeholder: 'es: ammo_pistol' },
-    // Effect fields (usable items)
-    { key: 'effectType', label: 'Tipo Effetto', type: 'select', options: ['heal', 'heal_full', 'cure', 'damage_boost', 'defense_boost', 'add_ammo', 'add_slots', 'kill_all'], enumGroup: 'effectType' },
-    { key: 'effectValue', label: 'Valore Effetto', type: 'number' },
-    { key: 'effectTarget', label: 'Bersaglio Effetto', type: 'select', options: ['self', 'one_ally', 'all_allies', 'all_enemies'], enumGroup: 'effectTarget' },
-    { key: 'effectStatusCured', label: 'Status Curati (JSON)', type: 'text', placeholder: '["poison","bleeding"]', colSpan: 3 },
-    { key: 'addSlots', label: 'Slot Aggiunti', type: 'number' },
     // Equipment fields (armor/accessory/weapon_mod)
     { key: 'defBonus', label: 'Bonus DEF', type: 'number', helpText: 'Armatura, Accessorio' },
     { key: 'hpBonus', label: 'Bonus HP', type: 'number', helpText: 'Armatura, Accessorio' },
@@ -268,7 +248,8 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'dodgeBonus', label: 'Bonus Dodge %', type: 'number', helpText: 'Weapon Mod: % riduzione dodge nemico' },
     { key: 'statusBonus', label: 'Bonus Status %', type: 'number', helpText: 'Weapon Mod: % probabilità status extra' },
     { key: 'modType', label: 'Compatibilità Mod', type: 'select', options: ['melee', 'ranged', 'any'], enumGroup: 'modType', helpText: 'Weapon Mod: tipo arma compatibile' },
-    { key: 'specialEffect', label: 'Effetto Speciale', type: 'text', placeholder: '{"type":"poison_resist","value":50}', helpText: 'JSON con tipo e valore. Tipi: poison_resist, bleed_resist, stun_resist, hp_regen, thorns, crit_shield', colSpan: 3 },
+    { key: 'specialEffect', label: 'Effetto Speciale', type: 'special-effect', colSpan: 3, helpText: 'Effetto passivo aggiuntivo per armature, accessori e weapon mod. Si attiva automaticamente quando equipaggiato.' },
+    { key: 'effects', label: '💡 Effetti Atomici', type: 'effects-editor', colSpan: 3, helpText: 'Effetti attivati automaticamente: armi (on_hit), consumabili (on_use), equipaggiamento (on_turn_start, on_take_hit)' },
   ],
   quests: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: quest_marco_firstaid' },
@@ -339,8 +320,8 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'atk', label: 'ATK', type: 'number', defaultValue: 10 },
     { key: 'def', label: 'DEF', type: 'number', defaultValue: 10 },
     { key: 'spd', label: 'SPD', type: 'number', defaultValue: 10 },
-    { key: 'specialName', label: 'Abilità Speciale 1', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Barricata', colSpan: 2 },
-    { key: 'special2Name', label: 'Abilità Speciale 2', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Immolazione', colSpan: 2 },
+    { key: 'specialName', label: 'Abilità PG 1', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Barricata', colSpan: 2 },
+    { key: 'special2Name', label: 'Abilità PG 2', type: 'entity-search', entitySearchEndpoint: '/api/admin/specials', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: Immolazione', colSpan: 2 },
     { key: 'passiveDescription', label: 'Passiva', type: 'textarea', placeholder: 'Descrizione abilità passiva...', colSpan: 3 },
     { key: 'portraitEmoji', label: 'Emoji Ritratto', type: 'text', placeholder: 'es: 🛡️' },
     { key: 'startingItems', label: 'Oggetti Iniziali', type: 'starting-items', colSpan: 3, helpText: 'Oggetti che il personaggio ha all\'inizio del gioco. Ogni entry è un oggetto con itemId, quantity e opzionalmente isEquipped (per armi/armature/accessori).' },
@@ -377,11 +358,7 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'category', label: 'Categoria', type: 'select', options: ['offensive', 'defensive', 'support', 'control'], enumGroup: 'specialCategory' },
     { key: 'targetType', label: 'Bersaglio', type: 'select', options: ['self', 'enemy', 'all_enemies', 'ally', 'all_allies'], enumGroup: 'specialTargetType' },
     { key: 'cooldown', label: 'Cooldown (turni)', type: 'number', defaultValue: 2, helpText: 'Turni di attesa prima di poter riutilizzare l\'abilità' },
-    { key: 'powerMultiplier', label: 'Moltiplicatore Potere', type: 'number', placeholder: 'es: 1.6 (solo offensive)', helpText: 'Moltiplica l\'ATK del personaggio per questo valore' },
-    { key: 'healAmount', label: 'Quantità Cura', type: 'number', placeholder: 'es: 50 (solo healing/support)', helpText: 'HP curati immediatamente (solo abilità di supporto/cura)' },
-    { key: 'duration', label: 'Durata (turni)', type: 'number', placeholder: 'es: 3', helpText: 'Quanti turni dura l\'effetto (DoT/HoT/buff/debuff)' },
-    { key: 'tickAmount', label: 'Danno/Cura per Turno', type: 'number', placeholder: 'es: 10', helpText: 'Danno o cura applicata ad ogni turno per effetti a durata' },
-    { key: 'statusToApply', label: 'Status Applicato', type: 'status-apply', colSpan: 3 },
+    { key: 'effects', label: 'Effetti Atomici', type: 'effects-editor', colSpan: 3, helpText: 'Array di effetti atomici che compongono l\'abilità. Ogni effetto viene eseguito in ordine durante il combattimento.' },
     { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista abilità (non usato dal motore di gioco)' },
   ],
   enemies: [
@@ -406,9 +383,7 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'description', label: 'Descrizione', type: 'textarea', placeholder: 'Descrizione dell\'attacco...', colSpan: 3 },
     { key: 'power', label: 'Potenza', type: 'number', defaultValue: 1.0, helpText: 'Moltiplicatore del danno (1.0 = normale, 2.0 = doppio)' },
     { key: 'chance', label: 'Prob. Uso %', type: 'number', defaultValue: 50, helpText: 'Probabilità che il nemico usi questa abilità (0-100)' },
-    { key: 'statusType', label: 'Status Effect', type: 'select', options: ['', 'poison', 'bleeding', 'stunned', 'adrenaline'], enumGroup: 'statusEffect', helpText: 'Effetto di status applicato dal colpo (vuoto = nessuno)' },
-    { key: 'statusChance', label: 'Prob. Status %', type: 'number', defaultValue: 0, helpText: 'Probabilità di applicare lo status (0-100)' },
-    { key: 'statusDuration', label: 'Durata Status', type: 'number', defaultValue: 0, helpText: 'Turni di durata dello status (0 = 3 turni default dal motore)' },
+    { key: 'effects', label: '💡 Effetti Atomici', type: 'effects-editor', colSpan: 3, helpText: 'Effetti atomici che compongono l\'abilità nemica. target "enemy" = party member, "self" = il nemico stesso, "all_enemies" = tutti i party members.' },
     { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista abilità nemiche' },
   ],
   'secret-rooms': [
@@ -428,6 +403,7 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
   ],
   'avatars': [],
   'start-screen': [],
+  settings:     [],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -601,6 +577,7 @@ const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
   'secret-rooms': [],
   'avatars': [],
   'start-screen': [],
+  settings:     [],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -680,7 +657,6 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         if (row.hpBonus) parts.push(`❤️${row.hpBonus}`);
         if (row.spdBonus) parts.push(`💨${row.spdBonus}`);
         if (row.critBonus) parts.push(`💥${row.critBonus}%`);
-        if (row.effectValue) parts.push(`✨${row.effectValue}`);
         if (parts.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
         return <span className="text-[10px] text-white/50 flex flex-wrap gap-x-2">{parts.map(p => <span key={p}>{p}</span>)}</span>;
       },
@@ -1059,40 +1035,6 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       width: 'w-14',
       render: (row) => <span className="text-[10px] text-white/40 font-mono">{row.cooldown}t</span>,
     },
-    {
-      key: 'powerMultiplier',
-      label: 'Potere',
-      width: 'w-14',
-      render: (row) => {
-        const pm = row.powerMultiplier;
-        if (pm == null) return <span className="text-[10px] text-white/10">—</span>;
-        return <span className="text-[10px] text-red-400/70 font-mono">×{Number(pm).toFixed(1)}</span>;
-      },
-    },
-    {
-      key: 'healAmount',
-      label: 'Cura',
-      width: 'w-14',
-      render: (row) => {
-        const ha = row.healAmount;
-        if (ha == null) return <span className="text-[10px] text-white/10">—</span>;
-        return <span className="text-[10px] text-green-400/70 font-mono">+{ha}</span>;
-      },
-    },
-    {
-      key: 'hasStatus',
-      label: 'Status',
-      width: 'w-16',
-      render: (row) => {
-        const st = row.statusToApply;
-        const hasStatus = st && typeof st === 'object' && st !== null && 'type' in st && (st as Record<string, unknown>).type;
-        return (
-          <span className={hasStatus ? 'text-orange-400 text-[10px]' : 'text-white/15 text-[10px]'}>
-            {hasStatus ? '✓' : '—'}
-          </span>
-        );
-      },
-    },
   ],
   enemies: [
     {
@@ -1188,8 +1130,12 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Status',
       width: 'w-28',
       render: (row) => {
-        const st = String(row.statusType ?? '');
-        if (!st) return <span className="text-white/15 text-[10px]">—</span>;
+        // Read status from atomic effects[] instead of legacy statusType
+        let effectsArr: any[] = [];
+        try { effectsArr = row.effects ? JSON.parse(row.effects) : []; } catch {}
+        const statusEffect = effectsArr.find((e: any) => e.type === 'apply_status');
+        if (!statusEffect) return <span className="text-white/15 text-[10px]">—</span>;
+        const st = statusEffect.statusType;
         const statusColors: Record<string, string> = {
           poison: 'border-green-500/30 text-green-400 bg-green-500/10',
           bleeding: 'border-red-500/30 text-red-400 bg-red-500/10',
@@ -1198,7 +1144,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         };
         return (
           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColors[st] ?? ''}`}>
-            {getEnumLabel('statusEffect', st)} {row.statusChance ? `(${row.statusChance}%)` : ''}
+            {getEnumLabel('statusEffect', st)} {statusEffect.chance ? `(${statusEffect.chance}%)` : ''}
           </Badge>
         );
       },
@@ -1231,6 +1177,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
   ],
   'avatars': [],
   'start-screen': [],
+  settings:     [],
 };
 // ═══════════════════════════════════════════════════════════════
 // Entity Search Input (searchable ID reference fields)
@@ -2572,13 +2519,13 @@ function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: {
 }
 
 /** Sub Areas Editor — table with id, name, description */
-function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { id: string; name: string; description: string; defaultItems?: { itemId: string; quantity: number }[] }[]) => void }) {
-  let areas: { id: string; name: string; description: string; defaultItems?: { itemId: string; quantity: number }[] }[] = [];
+function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { id: string; name: string; description: string }[]) => void }) {
+  let areas: { id: string; name: string; description: string }[] = [];
   if (Array.isArray(value)) {
     areas = value.map((r: unknown) => {
       if (typeof r === 'object' && r !== null) {
         const o = r as Record<string, unknown>;
-        return { id: String(o.id ?? ''), name: String(o.name ?? ''), description: String(o.description ?? ''), defaultItems: Array.isArray(o.defaultItems) ? (o.defaultItems as { itemId: string; quantity: number }[]) : undefined };
+        return { id: String(o.id ?? ''), name: String(o.name ?? ''), description: String(o.description ?? '') };
       }
       return { id: String(r), name: '', description: '' };
     });
@@ -2591,28 +2538,12 @@ function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { i
   const update = (idx: number, field: string, val: string) => {
     onChange(areas.map((a, i) => i === idx ? { ...a, [field]: val } : a));
   };
-  const updateDefaultItem = (areaIdx: number, itemIdx: number, field: string, val: string | number) => {
-    const di = areas[areaIdx].defaultItems ?? [];
-    const updated = di.map((item, j) => j === itemIdx ? { ...item, [field]: val } : item);
-    onChange(areas.map((a, i) => i === areaIdx ? { ...a, defaultItems: updated } : a));
-  };
-
-  const addDefaultItem = (areaIdx: number) => {
-    const di = areas[areaIdx].defaultItems ?? [];
-    onChange(areas.map((a, i) => i === areaIdx ? { ...a, defaultItems: [...di, { itemId: '', quantity: 1 }] } : a));
-  };
-
-  const removeDefaultItem = (areaIdx: number, itemIdx: number) => {
-    const di = areas[areaIdx].defaultItems ?? [];
-    onChange(areas.map((a, i) => i === areaIdx ? { ...a, defaultItems: di.filter((_, j) => j !== itemIdx) } : a));
-  };
 
   return (
     <div className="space-y-2">
       <div className="max-h-[28rem] overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
         {areas.map((area, i) => (
           <div key={i} className="border-b border-white/[0.06] bg-gray-900 last:border-b-0">
-            {/* Subarea header row */}
             <div className="flex items-center gap-2 px-3 py-2">
               <span className="shrink-0 text-[9px] text-white/20 font-mono">{i + 1}.</span>
               <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-28 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40" />
@@ -2620,43 +2551,6 @@ function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { i
               <input type="text" value={area.description} onChange={e => update(i, 'description', e.target.value)} placeholder="Un rifugio sicuro..." className="flex-1 min-w-0 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
               <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
                 <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
-            {/* Default Items pool */}
-            <div className="px-3 pb-2 pl-10">
-              <div className="text-[9px] text-white/30 mb-1 flex items-center gap-1">
-                <Package className="w-2.5 h-2.5" /> Oggetti Default
-              </div>
-              {(area.defaultItems && area.defaultItems.length > 0) ? (
-                <div className="space-y-0.5">
-                  {area.defaultItems.map((di, j) => (
-                    <div key={j} className="flex items-center gap-1.5">
-                      <MiniEntitySearch
-                        value={di.itemId}
-                        onChange={v => updateDefaultItem(i, j, 'itemId', v)}
-                        endpoint="/api/admin/items"
-                        labelKey="name"
-                        iconKey="icon"
-                      />
-                      <input
-                        type="number"
-                        value={di.quantity}
-                        onChange={e => updateDefaultItem(i, j, 'quantity', Number(e.target.value))}
-                        min={1}
-                        className="w-14 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-0.5 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
-                        title="Quantità"
-                      />
-                      <button type="button" onClick={() => removeDefaultItem(i, j)} className="text-white/15 hover:text-red-400 transition-colors">
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-[9px] text-white/10 italic">Nessun oggetto</div>
-              )}
-              <button type="button" onClick={() => addDefaultItem(i)} className="flex items-center gap-0.5 text-[9px] text-cyan-400/60 hover:text-cyan-400 transition-colors mt-1">
-                <Plus className="w-2.5 h-2.5" /> Aggiungi oggetto
               </button>
             </div>
           </div>
@@ -2760,6 +2654,716 @@ function StatusApplyEditor({ value, onChange }: { value: unknown; onChange: (v: 
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Status Cured Editor — for item effect status curing ["poison","bleeding"] */
+function StatusCuredEditor({ value, onChange }: { value: unknown; onChange: (v: string[]) => void }) {
+  const STATUS_OPTIONS = [
+    { key: 'poison', label: '🧪 Veleno', tooltip: 'Avvelenamento: il bersaglio subisce danni ogni turno per la durata dell\'effetto' },
+    { key: 'bleeding', label: '🩸 Sanguinamento', tooltip: 'Sanguinamento: il bersaglio perde HP progressivamente, più forte del veleno' },
+    { key: 'stunned', label: '💫 Stordimento', tooltip: 'Stordimento: il bersaglio salta il suo prossimo turno in combattimento' },
+    { key: 'adrenaline', label: '⚡ Adrenalina', tooltip: 'Adrenalina: aumenta temporaneamente ATK e SPD del bersaglio' },
+  ] as const;
+
+  let current: string[] = [];
+  if (Array.isArray(value)) {
+    current = value.map(String);
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== '{}' && trimmed !== '[]') {
+      try { const parsed = JSON.parse(trimmed); if (Array.isArray(parsed)) current = parsed.map(String); } catch { /* empty */ }
+    }
+  }
+
+  const selected = current;
+
+  const toggle = (key: string) => {
+    const next = selected.includes(key)
+      ? selected.filter(s => s !== key)
+      : [...selected, key];
+    onChange(next);
+  };
+
+  const anyEnabled = selected.length > 0;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] text-white/40">{anyEnabled ? `${selected.length} status selezionati` : 'Nessuno status selezionato'}</span>
+      </div>
+      <div className="rounded-md border border-orange-500/15 bg-orange-500/[0.02] p-2.5">
+        <div className="grid grid-cols-2 gap-2">
+          {STATUS_OPTIONS.map(opt => {
+            const checked = selected.includes(opt.key);
+            return (
+              <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(opt.key)}
+                  className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-orange-500"
+                />
+                <span className={`text-[10px] ${checked ? 'text-white/90' : 'text-white/50'} transition-colors`}>{opt.label}</span>
+                <span
+                  className="text-[9px] text-white/20 group-hover:text-white/40 transition-colors cursor-help"
+                  title={opt.tooltip}
+                >(?)</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Special Effect Editor — for equipment passive effects {type, value} */
+function SpecialEffectEditor({ value, onChange }: { value: unknown; onChange: (v: { type: string; value: number } | null) => void }) {
+  const EFFECT_OPTIONS = [
+    { key: 'poison_resist', label: 'Resistenza Veleno', tooltip: 'Riduce la probabilità di essere avvelenati. Il valore indica la % di riduzione.' },
+    { key: 'bleed_resist', label: 'Resistenza Sanguinamento', tooltip: 'Riduce la probabilità di sanguinamento. Il valore indica la % di riduzione.' },
+    { key: 'stun_resist', label: 'Resistenza Stordimento', tooltip: 'Riduce la probabilità di essere storditi. Il valore indica la % di riduzione.' },
+    { key: 'hp_regen', label: 'Rigenerazione HP', tooltip: 'Recupera HP ogni turno. Il valore indica gli HP recuperati per turno.' },
+    { key: 'thorns', label: 'Spine Dannose', tooltip: 'Riflette una % dei danni subiti all\'attaccante. Il valore indica la % riflessa.' },
+    { key: 'crit_shield', label: 'Scudo Critico', tooltip: 'Riduce il danno dei colpi critici ricevuti. Il valore indica la % di riduzione.' },
+  ] as const;
+
+  let current: { type: string; value: number } | null = null;
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const o = value as Record<string, unknown>;
+    current = { type: String(o.type ?? ''), value: Number(o.value ?? 0) };
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== '{}' && trimmed !== '[]') {
+      try { const parsed = JSON.parse(trimmed); if (parsed?.type) current = { type: String(parsed.type), value: Number(parsed.value ?? 0) }; } catch { /* empty */ }
+    }
+  }
+
+  const [enabled, setEnabled] = useState(!!current);
+  const [effectType, setEffectType] = useState(current?.type ?? '');
+  const [effectValue, setEffectValue] = useState(current?.value ?? 50);
+
+  useEffect(() => {
+    if (current) {
+      setEnabled(true);
+      setEffectType(current.type);
+      setEffectValue(current.value);
+    }
+  }, [current]);
+
+  const toggleEnabled = () => {
+    if (enabled) {
+      setEnabled(false);
+      onChange(null);
+    } else {
+      setEnabled(true);
+      const newVal = { type: effectType || 'poison_resist', value: effectValue };
+      onChange(newVal);
+    }
+  };
+
+  const handleTypeChange = (t: string) => {
+    setEffectType(t);
+    onChange({ type: t, value: effectValue });
+  };
+
+  const handleValueChange = (v: number) => {
+    setEffectValue(v);
+    onChange({ type: effectType, value: v });
+  };
+
+  const currentLabel = EFFECT_OPTIONS.find(o => o.key === effectType)?.label ?? effectType;
+  const currentTooltip = EFFECT_OPTIONS.find(o => o.key === effectType)?.tooltip ?? '';
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={toggleEnabled}
+            className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-violet-500"
+          />
+          <span className="text-[9px] text-white/40">Abilita effetto passivo</span>
+        </label>
+      </div>
+      {enabled && (
+        <div className="rounded-md border border-violet-500/15 bg-violet-500/[0.02] p-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[8px] text-white/30 mb-0.5 block">Tipo Effetto</label>
+              <select
+                value={effectType}
+                onChange={e => handleTypeChange(e.target.value)}
+                className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-violet-500/40 cursor-pointer"
+              >
+                {EFFECT_OPTIONS.map(opt => (
+                  <option key={opt.key} value={opt.key} title={opt.tooltip}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="flex items-center gap-1">
+                <label className="text-[8px] text-white/30 mb-0.5 block">Valore</label>
+                <span className="text-[8px] text-white/20 cursor-help" title={currentTooltip}>(?)</span>
+              </div>
+              <input
+                type="number"
+                value={effectValue}
+                onChange={e => handleValueChange(Number(e.target.value))}
+                min={1}
+                max={100}
+                className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-violet-500/40"
+              />
+            </div>
+          </div>
+          <div className="mt-1.5 text-[9px] text-violet-300/40">
+            {currentLabel}: <span className="text-white/30">{currentTooltip}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Effects Array Editor — atomic effects for special abilities
+// ═══════════════════════════════════════════════════════════════
+
+const EFFECT_TARGET_OPTIONS = [
+  { key: 'self', label: 'Sé Stesso' },
+  { key: 'enemy', label: 'Nemico Singolo' },
+  { key: 'all_enemies', label: 'Tutti i Nemici' },
+  { key: 'ally', label: 'Un Alleato' },
+  { key: 'all_allies', label: 'Tutti gli Alleati' },
+  { key: 'lowest_hp_ally', label: 'Alleato con HP più bassi' },
+];
+
+const EFFECT_STATUS_LIST = [
+  { key: 'poison', label: 'Veleno' },
+  { key: 'bleeding', label: 'Sanguinamento' },
+  { key: 'stunned', label: 'Stordimento' },
+  { key: 'adrenaline', label: 'Adrenalina' },
+];
+
+const EFFECT_STAT_LIST = [
+  { key: 'atk', label: 'ATK (Danni)' },
+  { key: 'def', label: 'DEF (Difesa)' },
+  { key: 'spd', label: 'SPD (Velocità)' },
+];
+
+type EffectCategory = 'offensive' | 'defensive' | 'support' | 'control';
+
+interface EffectFieldDef {
+  key: string;
+  label: string;
+  tooltip: string;
+  type: 'number' | 'boolean' | 'select' | 'multi-select';
+  options?: { key: string; label: string }[];
+  defaultValue: unknown;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+interface EffectTypeDef {
+  key: string;
+  label: string;
+  emoji: string;
+  tooltip: string;
+  category: EffectCategory;
+  defaultTarget: string;
+  fields: EffectFieldDef[];
+}
+
+const EFFECT_TYPES_CONFIG: EffectTypeDef[] = [
+  {
+    key: 'deal_damage',
+    label: 'Danno',
+    emoji: '💥',
+    tooltip: 'Infligge danni al bersaglio basati sull\'ATK del personaggio, moltiplicato per il valore specificato.',
+    category: 'offensive',
+    defaultTarget: 'enemy',
+    fields: [
+      { key: 'powerMultiplier', label: 'Moltiplicatore ATK', tooltip: 'Moltiplicatore dell\'ATK. 1.0 = ATK normale, 1.6 = 160% dell\'ATK, 2.0 = doppio danno.', type: 'number', defaultValue: 1.0, min: 0.1, max: 10, step: 0.1 },
+      { key: 'guaranteedCrit', label: 'Critico Garantito', tooltip: 'Se attivo, l\'attacco è sempre un critico (danno x1.5).', type: 'boolean', defaultValue: false },
+      { key: 'ignoreDef', label: 'Ignora DEF', tooltip: 'Se attivo, ignora la DEF del bersaglio nel calcolo del danno.', type: 'boolean', defaultValue: false },
+      { key: 'noMiss', label: 'Sempre Colpisce', tooltip: 'Se attivo, l\'attacco non può mancare il bersaglio (100% hit).', type: 'boolean', defaultValue: false },
+      { key: 'basedOnTargetHp', label: '% HP Bersaglio', tooltip: 'Se > 0, il danno è una % degli HP massimi del bersaglio invece che basato sull\'ATK.', type: 'number', defaultValue: 0, min: 0, max: 100, step: 1 },
+      { key: 'excludePrimaryTarget', label: 'Escludi Primario', tooltip: 'Per danni ad area: se attivo, il bersaglio principale non riceve il danno splash.', type: 'boolean', defaultValue: false },
+    ],
+  },
+  {
+    key: 'heal',
+    label: 'Cura',
+    emoji: '💚',
+    tooltip: 'Ripristina una quantità fissa di HP al bersaglio. Non rimuove status negativi (usa \'Rimuovi Status\' per quello).',
+    category: 'support',
+    defaultTarget: 'ally',
+    fields: [
+      { key: 'amount', label: 'HP Cura', tooltip: 'HP ripristinati immediatamente. Il valore è un numero fisso, non una percentuale.', type: 'number', defaultValue: 50, min: 1, max: 9999, step: 1 },
+    ],
+  },
+  {
+    key: 'apply_status',
+    label: 'Applica Status',
+    emoji: '☠️',
+    tooltip: 'Applica uno status negativo al bersaglio con una probabilità. Se applicato, il bersaglio ne soffre per N turni.',
+    category: 'control',
+    defaultTarget: 'enemy',
+    fields: [
+      { key: 'statusType', label: 'Tipo Status', tooltip: 'Il tipo di status da applicare. Ognuno ha effetti diversi in combattimento.', type: 'select', options: EFFECT_STATUS_LIST, defaultValue: 'poison' },
+      { key: 'chance', label: 'Probabilità %', tooltip: 'Probabilità di applicare lo status, in percentuale (0-100).', type: 'number', defaultValue: 50, min: 0, max: 100, step: 1 },
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata dello status. Se vuoto o 0, usa il default di 3 turni.', type: 'number', defaultValue: 0, min: 0, max: 20, step: 1 },
+    ],
+  },
+  {
+    key: 'remove_status',
+    label: 'Rimuovi Status',
+    emoji: '✨',
+    tooltip: 'Rimuove status negativi specificati dal bersaglio. Utile combinato con Cura per curare e disintossicare insieme.',
+    category: 'support',
+    defaultTarget: 'ally',
+    fields: [
+      { key: 'statuses', label: 'Status da Rimuovere', tooltip: 'Gli status da rimuovere dal bersaglio. Seleziona tutti quelli che vuoi curare.', type: 'multi-select', options: EFFECT_STATUS_LIST, defaultValue: [] },
+    ],
+  },
+  {
+    key: 'buff_stat',
+    label: 'Aumenta Statistica',
+    emoji: '📈',
+    tooltip: 'Aumenta temporaneamente una statistica del bersaglio. L\'importo è una percentuale (es. 50 = +50% DEF per N turni).',
+    category: 'defensive',
+    defaultTarget: 'self',
+    fields: [
+      { key: 'stat', label: 'Statistica', tooltip: 'La statistica da aumentare. ATK = danni, DEF = riduzione danni ricevuti, SPD = velocità in combattimento.', type: 'select', options: EFFECT_STAT_LIST, defaultValue: 'atk' },
+      { key: 'amount', label: 'Aumento %', tooltip: 'Percentuale di aumento (es. 30 = +30% della statistica base).', type: 'number', defaultValue: 30, min: 1, max: 200, step: 1 },
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata del buff. Al termine, la statistica torna al valore normale.', type: 'number', defaultValue: 3, min: 1, max: 20, step: 1 },
+    ],
+  },
+  {
+    key: 'debuff_stat',
+    label: 'Riduci Statistica',
+    emoji: '📉',
+    tooltip: 'Riduce temporaneamente una statistica del bersaglio. Simile a Aumenta Stat ma applicato ai nemici.',
+    category: 'control',
+    defaultTarget: 'enemy',
+    fields: [
+      { key: 'stat', label: 'Statistica', tooltip: 'La statistica da ridurre. ATK = meno danni, DEF = più danni ricevuti, SPD = più lento.', type: 'select', options: EFFECT_STAT_LIST, defaultValue: 'atk' },
+      { key: 'amount', label: 'Riduzione %', tooltip: 'Percentuale di riduzione (es. 30 = -30% della statistica base).', type: 'number', defaultValue: 30, min: 1, max: 200, step: 1 },
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata del debuff. Al termine, la statistica torna al valore normale.', type: 'number', defaultValue: 3, min: 1, max: 20, step: 1 },
+    ],
+  },
+  {
+    key: 'shield',
+    label: 'Scudo',
+    emoji: '🛡️',
+    tooltip: 'Applica uno scudo che assorbe danni. Se lo scudo ha HP residui alla scadenza, viene rimosso.',
+    category: 'defensive',
+    defaultTarget: 'self',
+    fields: [
+      { key: 'amount', label: 'HP Scudo', tooltip: 'HP di assorbimento dello scudo. I danni vengono sottratti dallo scudo prima degli HP.', type: 'number', defaultValue: 100, min: 1, max: 9999, step: 1 },
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata dello scudo. Alla scadenza, lo scudo sparisce anche se ha HP residui.', type: 'number', defaultValue: 3, min: 1, max: 20, step: 1 },
+    ],
+  },
+  {
+    key: 'taunt',
+    label: 'Provocazione',
+    emoji: '🎯',
+    tooltip: 'I nemici sono costretti a attaccare solo il personaggio che ha usato l\'abilità per N turni.',
+    category: 'defensive',
+    defaultTarget: 'self',
+    fields: [
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni in cui i nemici sono costretti ad attaccare solo questo personaggio.', type: 'number', defaultValue: 2, min: 1, max: 10, step: 1 },
+    ],
+  },
+  {
+    key: 'lifesteal',
+    label: 'Ruba Vita',
+    emoji: '🧛',
+    tooltip: 'Il personaggio ruba una % dei danni inflitti come HP curati. Funziona solo se l\'attacco colpisce.',
+    category: 'offensive',
+    defaultTarget: 'enemy',
+    fields: [
+      { key: 'percent', label: 'Percentuale %', tooltip: 'Percentuale dei danni inflitti che vengono convertiti in HP curati per l\'attaccante.', type: 'number', defaultValue: 30, min: 1, max: 100, step: 1 },
+    ],
+  },
+  {
+    key: 'revive',
+    label: 'Rivivi',
+    emoji: '👼',
+    tooltip: 'Rianima un alleato caduto con una % dei suoi HP massimi. Il personaggio torna in combattimento.',
+    category: 'support',
+    defaultTarget: 'ally',
+    fields: [
+      { key: 'hpPercent', label: 'HP %', tooltip: 'Percentuale degli HP massimi del personaggio rianimato con cui torna in combattimento.', type: 'number', defaultValue: 50, min: 1, max: 100, step: 1 },
+    ],
+  },
+  {
+    key: 'hot',
+    label: 'Cura nel Tempo',
+    emoji: '🌿',
+    tooltip: 'Il bersaglio recupera HP ogni turno per la durata specificata. Si accumula con altre cure.',
+    category: 'support',
+    defaultTarget: 'ally',
+    fields: [
+      { key: 'amountPerTurn', label: 'HP/Turno', tooltip: 'HP recuperati ad ogni turno per la durata dell\'effetto.', type: 'number', defaultValue: 20, min: 1, max: 999, step: 1 },
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata della cura nel tempo. Ad ogni turno il bersaglio riceve la cura.', type: 'number', defaultValue: 3, min: 1, max: 20, step: 1 },
+    ],
+  },
+  {
+    key: 'reflect',
+    label: 'Rifletti',
+    emoji: '🪞',
+    tooltip: 'Riflette una % dei danni ricevuti all\'attaccante. Attivo per N turni.',
+    category: 'defensive',
+    defaultTarget: 'self',
+    fields: [
+      { key: 'percent', label: 'Percentuale %', tooltip: 'Percentuale dei danni ricevuti che viene riflessa all\'attaccante.', type: 'number', defaultValue: 30, min: 1, max: 100, step: 1 },
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata del riflettimento. Passati questi turni, l\'effetto sparisce.', type: 'number', defaultValue: 3, min: 1, max: 20, step: 1 },
+    ],
+  },
+  {
+    key: 'add_slots',
+    label: 'Aggiungi Slot',
+    emoji: '🎒',
+    tooltip: 'Aggiunge slot all\'inventario del personaggio. Effetto meta-game, usabile solo fuori combattimento.',
+    category: 'support',
+    defaultTarget: 'self',
+    fields: [
+      { key: 'amount', label: 'Slot da Aggiungere', tooltip: 'Numero di slot inventario da aggiungere (es. 1, 2).', type: 'number', defaultValue: 1, min: 1, max: 12, step: 1 },
+      { key: 'maxSlots', label: 'Slot Massimi', tooltip: 'Limite massimo di slot (default 12). L\'effetto non supera questo cap.', type: 'number', defaultValue: 12, min: 1, max: 99, step: 1 },
+    ],
+  },
+];
+
+const EFFECT_CATEGORY_COLORS: Record<EffectCategory, string> = {
+  offensive: 'text-red-400 border-red-500/20 bg-red-500/10',
+  defensive: 'text-amber-400 border-amber-500/20 bg-amber-500/10',
+  support: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10',
+  control: 'text-purple-400 border-purple-500/20 bg-purple-500/10',
+};
+
+function parseEffectsArray(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value as Record<string, unknown>[];
+  if (typeof value === 'string') {
+    try { const p = JSON.parse(value); if (Array.isArray(p)) return p; } catch { /* empty */ }
+  }
+  return [];
+}
+
+function getDefaultEffect(typeKey: string): Record<string, unknown> {
+  const cfg = EFFECT_TYPES_CONFIG.find(t => t.key === typeKey);
+  if (!cfg) return { type: typeKey };
+  const result: Record<string, unknown> = { type: typeKey, target: cfg.defaultTarget };
+  for (const f of cfg.fields) {
+    result[f.key] = f.defaultValue;
+  }
+  return result;
+}
+
+const TRIGGER_OPTIONS = [
+  { value: 'on_use', label: "All'uso", emoji: '🫳', tooltip: "Si attiva quando il giocatore usa l'oggetto (consumabili)" },
+  { value: 'on_hit', label: 'Al colpo', emoji: '⚔️', tooltip: "Si attiva dopo un attacco base (armi)" },
+  { value: 'on_take_hit', label: 'Quando colpiti', emoji: '🛡️', tooltip: "Si attiva quando il personaggio riceve danni (armature)" },
+  { value: 'on_turn_start', label: 'Inizio turno', emoji: '⏱️', tooltip: "Si attiva all'inizio del turno del personaggio (accessori/equip)" },
+  { value: 'on_critical', label: 'Colpo critico', emoji: '💥', tooltip: "Si attiva quando il personaggio fa un colpo critico (accessori)" },
+];
+
+function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: unknown; onChange: (v: Record<string, unknown>[]) => void; showTrigger?: boolean }) {
+  const [effects, setEffects] = useState<Record<string, unknown>[]>(() => parseEffectsArray(value));
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [addType, setAddType] = useState('');
+
+  const emitChange = (newEffects: Record<string, unknown>[]) => {
+    setEffects(newEffects);
+    onChange(newEffects);
+  };
+
+  const updateField = (idx: number, field: string, val: unknown) => {
+    emitChange(effects.map((e, i) => i === idx ? { ...e, [field]: val } : e));
+  };
+
+  const toggleStatusInArray = (idx: number, statusKey: string) => {
+    const current: string[] = Array.isArray(effects[idx]?.statuses) ? effects[idx].statuses as string[] : [];
+    const updated = current.includes(statusKey) ? current.filter(s => s !== statusKey) : [...current, statusKey];
+    updateField(idx, 'statuses', updated);
+  };
+
+  const addEffect = () => {
+    if (!addType) return;
+    const newEffect = getDefaultEffect(addType);
+    const newEffects = [...effects, newEffect];
+    emitChange(newEffects);
+    setExpandedIdx(newEffects.length - 1);
+    setAddType('');
+  };
+
+  const removeEffect = (idx: number) => {
+    const newEffects = effects.filter((_, i) => i !== idx);
+    emitChange(newEffects);
+    if (expandedIdx === idx) setExpandedIdx(null);
+    else if (expandedIdx !== null && expandedIdx > idx) setExpandedIdx(expandedIdx - 1);
+  };
+
+  const getTargetLabel = (t: string) => EFFECT_TARGET_OPTIONS.find(o => o.key === t)?.label ?? t;
+
+  return (
+    <div className="rounded-md border border-emerald-500/15 bg-emerald-500/[0.03] p-3 space-y-2">
+      {effects.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-3">
+          <span className="text-[10px] text-white/30">Nessun effetto configurato</span>
+          <div className="flex items-center gap-2">
+            <select
+              value={addType}
+              onChange={e => setAddType(e.target.value)}
+              className="text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
+            >
+              <option value="">Tipo effetto...</option>
+              {EFFECT_TYPES_CONFIG.map(et => (
+                <option key={et.key} value={et.key}>{et.emoji} {et.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={addEffect}
+              disabled={!addType}
+              className="text-[10px] px-2 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              ➕ Aggiungi
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-1.5 max-h-80 overflow-y-auto">
+            {effects.map((effect, idx) => {
+              const typeKey = String(effect.type ?? '');
+              const typeConfig = EFFECT_TYPES_CONFIG.find(t => t.key === typeKey);
+              const isExpanded = expandedIdx === idx;
+              const targetStr = String(effect.target ?? '');
+              const catColor = typeConfig ? EFFECT_CATEGORY_COLORS[typeConfig.category] : 'text-white/50 border-white/10 bg-white/5';
+              const boolFields = typeConfig?.fields.filter(f => f.type === 'boolean') ?? [];
+              const otherFields = typeConfig?.fields.filter(f => f.type !== 'boolean') ?? [];
+
+              return (
+                <div key={idx} className="rounded border border-white/[0.08] bg-white/[0.03] overflow-hidden">
+                  {/* Header row */}
+                  <div
+                    className="flex items-center justify-between p-2 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                    onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded border ${catColor}`}>
+                        {typeConfig?.emoji ?? '❓'} {typeConfig?.label ?? typeKey}
+                      </span>
+                      <span className="text-[9px] text-white/25 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06]">
+                        {showTrigger && effect.trigger ? `${TRIGGER_OPTIONS.find(t => t.value === effect.trigger)?.emoji ?? '⚡'} ${TRIGGER_OPTIONS.find(t => t.value === effect.trigger)?.label ?? String(effect.trigger)} · ` : ''}
+                        {getTargetLabel(targetStr)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[8px] text-white/15">#{idx + 1}</span>
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); removeEffect(idx); }}
+                        className="text-white/30 hover:text-red-400 transition-colors p-0.5"
+                        title="Rimuovi effetto"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      <span className="text-[9px] text-white/20 ml-0.5">{isExpanded ? '▾' : '▸'}</span>
+                    </div>
+                  </div>
+
+                  {/* Expanded content */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-2.5 pb-2.5 pt-1 border-t border-white/[0.05] space-y-2">
+                          {/* Trigger field — only for items */}
+                          {showTrigger && (
+                            <div>
+                              <div className="flex items-center gap-1">
+                                <label className="text-[8px] text-white/30">Trigger</label>
+                                <span className="text-[8px] text-white/20 cursor-help" title="Quando si attiva l'effetto in base al tipo di oggetto.">(?)</span>
+                              </div>
+                              <select
+                                value={String(effect.trigger ?? '')}
+                                onChange={e => updateField(idx, 'trigger', e.target.value)}
+                                className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
+                              >
+                                <option value="">— Nessun trigger —</option>
+                                {TRIGGER_OPTIONS.map(t => (
+                                  <option key={t.value} value={t.value} title={t.tooltip}>{t.emoji} {t.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          {/* Target field — always first */}
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <label className="text-[8px] text-white/30">Bersaglio</label>
+                              <span className="text-[8px] text-white/20 cursor-help" title="Chi riceve l'effetto. Sé Stesso = il personaggio che usa l'abilità.">(?)</span>
+                            </div>
+                            <select
+                              value={targetStr}
+                              onChange={e => updateField(idx, 'target', e.target.value)}
+                              className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
+                            >
+                              {EFFECT_TARGET_OPTIONS.map(t => (
+                                <option key={t.key} value={t.key}>{t.label}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Type-specific fields */}
+                          {typeConfig && (
+                            <>
+                              {/* Non-boolean fields in 2-col grid */}
+                              {otherFields.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {otherFields.map(field => {
+                                    if (field.type === 'multi-select') {
+                                      return (
+                                        <div key={field.key} className="col-span-2">
+                                          <div className="flex items-center gap-1">
+                                            <label className="text-[8px] text-white/30">{field.label}</label>
+                                            <span className="text-[8px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-0.5">
+                                            {(field.options ?? []).map(opt => {
+                                              const checked = (Array.isArray(effect[field.key]) ? effect[field.key] as string[] : []).includes(opt.key);
+                                              return (
+                                                <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer group">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleStatusInArray(idx, opt.key)}
+                                                    className="w-3 h-3 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
+                                                  />
+                                                  <span className={`text-[10px] ${checked ? 'text-white/80' : 'text-white/40'} transition-colors`}>{opt.label}</span>
+                                                </label>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    if (field.type === 'select') {
+                                      return (
+                                        <div key={field.key}>
+                                          <div className="flex items-center gap-1">
+                                            <label className="text-[8px] text-white/30">{field.label}</label>
+                                            <span className="text-[8px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                          </div>
+                                          <select
+                                            value={String(effect[field.key] ?? field.defaultValue)}
+                                            onChange={e => updateField(idx, field.key, e.target.value)}
+                                            className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
+                                          >
+                                            {(field.options ?? []).map(opt => (
+                                              <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      );
+                                    }
+
+                                    // number field
+                                    return (
+                                      <div key={field.key}>
+                                        <div className="flex items-center gap-1">
+                                          <label className="text-[8px] text-white/30">{field.label}</label>
+                                          <span className="text-[8px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                        </div>
+                                        <input
+                                          type="number"
+                                          value={Number(effect[field.key] ?? field.defaultValue ?? 0)}
+                                          onChange={e => updateField(idx, field.key, e.target.value === '' ? 0 : Number(e.target.value))}
+                                          placeholder={String(field.defaultValue)}
+                                          min={field.min}
+                                          max={field.max}
+                                          step={field.step}
+                                          className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40 mt-0.5"
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Boolean fields in a flex row */}
+                              {boolFields.length > 0 && (
+                                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                  {boolFields.map(field => {
+                                    const checked = Boolean(effect[field.key]);
+                                    return (
+                                      <label key={field.key} className="flex items-center gap-1.5 cursor-pointer group">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={e => updateField(idx, field.key, e.target.checked)}
+                                          className="w-3 h-3 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
+                                        />
+                                        <span className={`text-[10px] ${checked ? 'text-white/80' : 'text-white/40'} transition-colors`}>{field.label}</span>
+                                        <span className="text-[8px] text-white/20 group-hover:text-white/40 transition-colors cursor-help" title={field.tooltip}>(?)</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Effect tooltip hint */}
+                              <div className="text-[9px] text-white/20 italic">
+                                {typeConfig.tooltip}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Add new effect row */}
+          <div className="flex items-center gap-2 pt-1 border-t border-white/[0.05]">
+            <select
+              value={addType}
+              onChange={e => setAddType(e.target.value)}
+              className="flex-1 text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
+            >
+              <option value="">➕ Aggiungi effetto...</option>
+              {EFFECT_TYPES_CONFIG.map(et => (
+                <option key={et.key} value={et.key}>{et.emoji} {et.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={addEffect}
+              disabled={!addType}
+              className="text-[10px] px-2.5 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            >
+              Aggiungi
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
@@ -3385,7 +3989,7 @@ function EntityForm({
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(f => {
           const val = data[f.key] ?? f.defaultValue ?? '';
-          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || f.type === 'starting-items' || (f.colSpan === 3);
+          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'status-cured' || f.type === 'special-effect' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || f.type === 'starting-items' || f.type === 'effects-editor' || (f.colSpan === 3);
           const isDoubleWidth = f.colSpan === 2 && !isFullWidth;
 
           if (isEdit && f.key === 'id') {
@@ -3500,6 +4104,22 @@ function EntityForm({
                 <StatusApplyEditor
                   value={val}
                   onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'status-cured' ? (
+                <StatusCuredEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'special-effect' ? (
+                <SpecialEffectEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'effects-editor' ? (
+                <EffectsArrayEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                  showTrigger={activeTab === 'items'}
                 />
               ) : f.type === 'quest-rewards' ? (
                 <QuestRewardsEditor
@@ -4864,6 +5484,223 @@ function StartScreenEditor() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Game Settings Editor — Custom tab for gameplay configuration
+// ═══════════════════════════════════════════════════════════════
+
+interface GameplaySettingDef {
+  key: string;
+  label: string;
+  type: 'number' | 'text' | 'json';
+  group: string;
+  groupLabel: string;
+  groupIcon: string;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  helpText?: string;
+}
+
+const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
+  // Inventory
+  { key: 'gameplay.startingInventorySlots', label: 'Slot Iniziali', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', groupIcon: '📦', min: 2, max: 20, helpText: 'Numero di slot quando il personaggio viene creato' },
+  { key: 'gameplay.maxInventorySlots', label: 'Slot Massimi', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', groupIcon: '📦', min: 6, max: 30, helpText: 'Limite massimo di slot espandibili con le borse' },
+  // Item Box
+  { key: 'gameplay.maxItemBoxSlots', label: 'Slot Massimi', type: 'number', group: 'itembox', groupLabel: '🗃️ Item Box', groupIcon: '🗃️', min: 10, max: 200, helpText: 'Numero massimo di slot nella cassa degli oggetti (safe room)' },
+  { key: 'gameplay.defaultItemBoxItems', label: 'Oggetti Default (JSON)', type: 'json', group: 'itembox', groupLabel: '🗃️ Item Box', groupIcon: '🗃️', placeholder: '[{"itemId":"herb_green","quantity":2},{"itemId":"ammo_pistol","quantity":10}]', helpText: 'Oggetti presenti nella Item Box al primo accesso. Formato: array di {itemId, quantity}' },
+];
+
+function GameSettingsEditor() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
+
+  // Load settings
+  useEffect(() => {
+    fetch('/api/admin/game-settings')
+      .then(r => r.json())
+      .then(rows => {
+        const map: Record<string, string> = {};
+        for (const row of rows) map[row.key] = row.value;
+        setSettings(map);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleChange = (key: string, value: string) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    // Clear JSON error for this key
+    if (jsonErrors[key]) {
+      setJsonErrors(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMsg(null);
+    // Validate JSON fields
+    const newErrors: Record<string, string> = {};
+    for (const field of GAMEPLAY_SETTINGS_FIELDS) {
+      if (field.type === 'json' && settings[field.key]) {
+        try {
+          JSON.parse(settings[field.key]);
+        } catch {
+          newErrors[field.key] = 'JSON non valido';
+        }
+      }
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setJsonErrors(newErrors);
+      setSaving(false);
+      setSaveMsg({ ok: false, text: '❌ Correggi gli errori nei campi JSON' });
+      setTimeout(() => setSaveMsg(null), 3000);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/game-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setSaveMsg({ ok: true, text: '✅ Impostazioni di gioco salvate con successo!' });
+    } catch (err) {
+      setSaveMsg({ ok: false, text: `❌ Errore: ${err}` });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(null), 3000);
+    }
+  };
+
+  // Group fields
+  const groups = GAMEPLAY_SETTINGS_FIELDS.reduce<Record<string, GameplaySettingDef[]>>((acc, f) => {
+    if (!acc[f.group]) acc[f.group] = [];
+    acc[f.group].push(f);
+    return acc;
+  }, {});
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-yellow-400/50" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto admin-scrollbar">
+      {/* Banner */}
+      <div className="px-6 py-4 border-b border-white/[0.06]">
+        <h3 className="text-sm font-bold text-yellow-400 mb-1">⚙️ Impostazioni di Gioco</h3>
+        <p className="text-[11px] text-white/40">Configura i parametri generali del gameplay: inventario, item box e altre impostazioni globali.</p>
+      </div>
+
+      {/* Save message */}
+      <AnimatePresence>
+        {saveMsg && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className={`mx-4 mt-3 px-3 py-2 rounded-lg text-[11px] font-medium ${
+              saveMsg.ok
+                ? 'bg-green-500/10 text-green-300 border border-green-500/20'
+                : 'bg-red-500/10 text-red-300 border border-red-500/20'
+            }`}>
+              {saveMsg.text}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Settings Groups */}
+      <div className="p-6 space-y-8">
+        {Object.entries(groups).map(([groupId, fields]) => {
+          const groupDef = fields[0];
+          return (
+            <div key={groupId} className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">{groupDef.groupIcon}</span>
+                <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">{groupDef.groupLabel}</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {fields.map(field => (
+                  <div key={field.key} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-2">
+                    <label className="text-[11px] font-semibold text-white/60 block">
+                      {field.label}
+                    </label>
+                    {field.type === 'number' ? (
+                      <input
+                        type="number"
+                        value={settings[field.key] || ''}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        min={field.min}
+                        max={field.max}
+                        step={field.step || 1}
+                        className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-yellow-500/40 transition-colors"
+                      />
+                    ) : field.type === 'json' ? (
+                      <div>
+                        <textarea
+                          value={settings[field.key] || ''}
+                          onChange={(e) => handleChange(field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          rows={3}
+                          className={`w-full bg-black/30 border rounded-lg px-3 py-2 text-[11px] font-mono text-white/90 focus:outline-none transition-colors resize-y ${
+                            jsonErrors[field.key] ? 'border-red-500/50 focus:border-red-400' : 'border-white/[0.1] focus:border-yellow-500/40'
+                          }`}
+                        />
+                        {jsonErrors[field.key] && (
+                          <p className="text-[10px] text-red-400 mt-1">{jsonErrors[field.key]}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={settings[field.key] || ''}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-yellow-500/40 transition-colors"
+                      />
+                    )}
+                    {field.helpText && (
+                      <p className="text-[10px] text-white/30">{field.helpText}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Save Button */}
+        <div className="flex justify-end pt-4 border-t border-white/[0.06]">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            className="text-xs gap-2 bg-yellow-600/15 border border-yellow-500/25 text-yellow-300 hover:bg-yellow-600/25 hover:text-yellow-200"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {saving ? 'Salvando...' : 'Salva Impostazioni'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Main AdminPanel
 // ═══════════════════════════════════════════════════════════════
 export default function AdminPanel() {
@@ -4872,7 +5709,7 @@ export default function AdminPanel() {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<Record<TabId, number>>({
-    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'secret-rooms': 0, avatars: 0, 'start-screen': 0,
+    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'secret-rooms': 0, avatars: 0, 'start-screen': 0, settings: 0,
   });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -4971,7 +5808,7 @@ export default function AdminPanel() {
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -4988,13 +5825,17 @@ export default function AdminPanel() {
         if (f.type === 'status-apply' && processed[f.key] != null && typeof processed[f.key] === 'object') {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
+        // status-cured is a string[] — serialize it
+        if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // special-effect is an object {type, value} — serialize it
+        if (f.type === 'special-effect' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
         if (processed[f.key] === '' || processed[f.key] === undefined) {
           delete processed[f.key];
         }
-      }
-      // Auto-set executionType from id for specials
-      if (activeTab === 'specials' && processed.id) {
-        processed.executionType = processed.id;
       }
       const res = await fetch(tabConfig.endpoint, {
         method: 'POST',
@@ -5018,7 +5859,7 @@ export default function AdminPanel() {
       if (editingId && !processed.id) {
         processed.id = editingId;
       }
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -5035,13 +5876,17 @@ export default function AdminPanel() {
         if (f.type === 'status-apply' && processed[f.key] != null && typeof processed[f.key] === 'object') {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
+        // status-cured is a string[] — serialize it
+        if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // special-effect is an object {type, value} — serialize it
+        if (f.type === 'special-effect' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
         if (processed[f.key] === '' || processed[f.key] === undefined) {
           delete processed[f.key];
         }
-      }
-      // Auto-set executionType from id for specials
-      if (activeTab === 'specials' && processed.id) {
-        processed.executionType = processed.id;
       }
       const res = await fetch(tabConfig.endpoint, {
         method: 'PUT',
@@ -5194,7 +6039,7 @@ export default function AdminPanel() {
           {/* ── Content Area ── */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {tabConfig.custom ? (
-              activeTab === 'avatars' ? <AvatarManager /> : <StartScreenEditor />
+              activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : <StartScreenEditor />
             ) : (
             <>
             {/* Status message */}

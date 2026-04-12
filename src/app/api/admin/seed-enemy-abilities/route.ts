@@ -13,9 +13,9 @@ function slugify(text: string): string {
     .replace(/^_|_$/g, '');
 }
 
-// EnemyAbility signature for dedup
-function abilityKey(a: { name: string; power: number; statusEffect?: { type: string; chance: number; duration?: number } }): string {
-  return `${a.name}|${a.power}|${a.statusEffect?.type ?? ''}|${a.statusEffect?.chance ?? 0}|${a.statusEffect?.duration ?? 0}`;
+// EnemyAbility signature for dedup (based on name + power)
+function abilityKey(a: { name: string; power: number }): string {
+  return `${a.name}|${a.power}`;
 }
 
 export async function POST() {
@@ -28,36 +28,35 @@ export async function POST() {
       description: string;
       power: number;
       chance: number;
-      statusType: string;
-      statusChance: number;
-      statusDuration: number;
+      effects: string;
     }> = [];
+
+    function processAbility(ab: { name: string; description?: string; power: number; chance?: number; effects?: any[] }) {
+      const key = abilityKey(ab);
+      if (seen.has(key)) return;
+
+      let slug = slugify(ab.name);
+      // Ensure uniqueness: if slug already used, append suffix
+      const existing = seen.get(slug);
+      if (existing) {
+        existing.count++;
+        slug = `${slug}_v${existing.count}`;
+      }
+      seen.set(key, { slug, count: 1 });
+
+      abilities.push({
+        id: slug,
+        name: ab.name,
+        description: ab.description ?? '',
+        power: ab.power,
+        chance: ab.chance ?? 50,
+        effects: ab.effects ? JSON.stringify(ab.effects) : '[]',
+      });
+    }
 
     for (const enemy of Object.values(STATIC_ENEMIES)) {
       for (const ab of enemy.abilities) {
-        const key = abilityKey(ab);
-        if (seen.has(key)) continue;
-
-        let slug = slugify(ab.name);
-        // Ensure uniqueness: if slug already used, append suffix
-        const existing = seen.get(slug);
-        if (existing) {
-          // Same slug but different ability — append a suffix
-          existing.count++;
-          slug = `${slug}_v${existing.count}`;
-        }
-        seen.set(key, { slug, count: 1 });
-
-        abilities.push({
-          id: slug,
-          name: ab.name,
-          description: ab.description ?? '',
-          power: ab.power,
-          chance: ab.chance ?? 50,
-          statusType: ab.statusEffect?.type ?? '',
-          statusChance: ab.statusEffect?.chance ?? 0,
-          statusDuration: ab.statusEffect?.duration ?? 0,
-        });
+        processAbility(ab);
       }
     }
 
@@ -67,27 +66,7 @@ export async function POST() {
         for (const phase of (enemy as any).bossPhases) {
           if (phase.newAbilities) {
             for (const ab of phase.newAbilities) {
-              const key = abilityKey(ab);
-              if (seen.has(key)) continue;
-
-              let slug = slugify(ab.name);
-              const existing = seen.get(slug);
-              if (existing) {
-                existing.count++;
-                slug = `${slug}_v${existing.count}`;
-              }
-              seen.set(key, { slug, count: 1 });
-
-              abilities.push({
-                id: slug,
-                name: ab.name,
-                description: ab.description ?? '',
-                power: ab.power,
-                chance: ab.chance ?? 50,
-                statusType: ab.statusEffect?.type ?? '',
-                statusChance: ab.statusEffect?.chance ?? 0,
-                statusDuration: ab.statusEffect?.duration ?? 0,
-              });
+              processAbility(ab);
             }
           }
         }
@@ -103,9 +82,7 @@ export async function POST() {
         description: ab.description,
         power: ab.power,
         chance: ab.chance,
-        statusType: ab.statusType,
-        statusChance: ab.statusChance,
-        statusDuration: ab.statusDuration,
+        effects: ab.effects,
       };
       if (existing) {
         await db.gameEnemyAbility.update({ where: { id: ab.id }, data });

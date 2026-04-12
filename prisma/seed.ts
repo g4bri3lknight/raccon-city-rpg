@@ -32,15 +32,25 @@ async function main() {
   };
 
   const itemEffects: Record<string, { type: string; value: number; target: string; statusCured?: string[] }> = {
-    rocket_launcher: { type: 'kill_all',        value: 99999, target: 'all_enemies' },
-    bandage:         { type: 'heal',             value: 25,    target: 'self' },
-    herb_green:      { type: 'heal',             value: 30,    target: 'self' },
-    herb_mixed:      { type: 'heal',             value: 70,    target: 'self', statusCured: ['poison', 'bleeding'] },
+    bandage:         { type: 'heal',             value: 25,    target: 'one_ally' },
+    herb_green:      { type: 'heal',             value: 30,    target: 'one_ally' },
+    herb_mixed:      { type: 'heal',             value: 70,    target: 'one_ally', statusCured: ['poison', 'bleeding'] },
     first_aid:       { type: 'heal_full',        value: 0,     target: 'one_ally', statusCured: ['poison', 'bleeding'] },
     spray:           { type: 'heal',             value: 80,    target: 'one_ally' },
-    antidote:        { type: 'cure',             value: 0,     target: 'self', statusCured: ['poison'] },
+    antidote:        { type: 'cure',             value: 0,     target: 'one_ally', statusCured: ['poison'] },
     bag_small:       { type: 'add_slots',        value: 1,     target: 'self' },
     bag_medium:      { type: 'add_slots',        value: 2,     target: 'self' },
+  };
+
+  // Atomic effects for the new data-driven system
+  const itemAtomicEffects: Record<string, object[]> = {
+    rocket_launcher: [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', powerMultiplier: 999, ignoreDef: true, noMiss: true }],
+    bandage:         [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 25 }],
+    herb_green:      [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 30 }],
+    herb_mixed:      [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 70 }, { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] }],
+    first_aid:       [{ type: 'heal', trigger: 'on_use', target: 'one_ally', percent: 100 }, { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] }],
+    spray:           [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 80 }],
+    antidote:        [{ type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison'] }],
   };
 
   const existingItems = [
@@ -125,9 +135,9 @@ async function main() {
     { id: 'watch', name: 'Orologio da Polso', description: 'Un orologio che migliora i riflessi. +2 SPD.', type: 'accessory', rarity: 'common', icon: '⌚', usable: false, equippable: true, stackable: false, maxStack: 1, spdBonus: 2 },
     { id: 'amulet', name: 'Amuleto Benedetto', description: 'Un amuleto che infonde coraggio. +20 HP, +2 DEF.', type: 'accessory', rarity: 'uncommon', icon: '📿', usable: false, equippable: true, stackable: false, maxStack: 1, hpBonus: 20, defBonus: 2 },
     { id: 'compass', name: 'Bussola Militare', description: 'Una bussola che aumenta la precisione. +3 SPD, +2 ATK.', type: 'accessory', rarity: 'uncommon', icon: '🧭', usable: false, equippable: true, stackable: false, maxStack: 1, spdBonus: 3, atkBonus: 2 },
-    { id: 'first_aid_badge', name: 'Distintivo Croce Rossa', description: 'Un distintivo che ispira cura. +30 HP, rigenera 3 HP/turno.', type: 'accessory', rarity: 'uncommon', icon: '🎖️', usable: false, equippable: true, stackable: false, maxStack: 1, hpBonus: 30, specialEffect: '{"type":"hp_regen","value":3}' },
+    { id: 'first_aid_badge', name: 'Distintivo Croce Rossa', description: 'Un distintivo che ispira cura. +30 HP, rigenera 3 HP/turno.', type: 'accessory', rarity: 'uncommon', icon: '🎖️', usable: false, equippable: true, stackable: false, maxStack: 1, hpBonus: 30, specialEffect: '{"type":"hp_regen","value":3}', effects: '[{"type":"hot","trigger":"on_turn_start","target":"self","amount":3}]' },
     { id: 'dog_tags', name: 'Piastre Militari', description: 'Piastre di un soldato caduto. +3 ATK, +5% critico.', type: 'accessory', rarity: 'rare', icon: '🏷️', usable: false, equippable: true, stackable: false, maxStack: 1, atkBonus: 3, critBonus: 5 },
-    { id: 'ring_virus', name: 'Anello del Virus-T', description: 'Un anello contaminato dal T-Virus. +5 ATK, +15 HP, riflette 5 danni.', type: 'accessory', rarity: 'legendary', icon: '💍', usable: false, equippable: true, stackable: false, maxStack: 1, atkBonus: 5, hpBonus: 15, specialEffect: '{"type":"thorns","value":5}' },
+    { id: 'ring_virus', name: 'Anello del Virus-T', description: 'Un anello contaminato dal T-Virus. +5 ATK, +15 HP, riflette 5 danni.', type: 'accessory', rarity: 'legendary', icon: '💍', usable: false, equippable: true, stackable: false, maxStack: 1, atkBonus: 5, hpBonus: 15, specialEffect: '{"type":"thorns","value":5}', effects: '[{"type":"reflect","trigger":"on_take_hit","target":"self","amount":5}]' },
     { id: 'goggles', name: 'Occhiali Tattici', description: 'Lenti tattiche per una migliore mira. +8% critico.', type: 'accessory', rarity: 'uncommon', icon: '🥽', usable: false, equippable: true, stackable: false, maxStack: 1, critBonus: 8 },
     { id: 'gas_mask', name: 'Maschera Antigas', description: 'Protezione contro agenti chimici. +3 DEF, +15 HP, 80% resistenza veleno.', type: 'accessory', rarity: 'rare', icon: '😷', usable: false, equippable: true, stackable: false, maxStack: 1, defBonus: 3, hpBonus: 15, specialEffect: '{"type":"poison_resist","value":80}' },
   ];
@@ -165,6 +175,7 @@ async function main() {
         effectTarget: ef?.target ?? null,
         effectStatusCured: ef?.statusCured ? JSON.stringify(ef.statusCured) : null,
         addSlots: ef?.type === 'add_slots' ? ef.value : null,
+        effects: itemAtomicEffects[item.id] ? JSON.stringify(itemAtomicEffects[item.id]) : '[]',
       },
     });
   }
@@ -190,6 +201,7 @@ async function main() {
         effectTarget: (item as any).effectTarget ?? null,
         effectStatusCured: (item as any).effectStatusCured ?? null,
         addSlots: (item as any).addSlots ?? null,
+        effects: (item as any).effects ?? '[]',
       },
     });
   }
@@ -211,6 +223,7 @@ async function main() {
         defBonus: (item as any).defBonus ?? null,
         hpBonus: (item as any).hpBonus ?? null,
         specialEffect: (item as any).specialEffect ?? null,
+        effects: (item as any).effects ?? '[]',
         unico: true,
       },
     });
@@ -236,6 +249,7 @@ async function main() {
         spdBonus: (item as any).spdBonus ?? null,
         critBonus: (item as any).critBonus ?? null,
         specialEffect: (item as any).specialEffect ?? null,
+        effects: (item as any).effects ?? '[]',
         unico: true,
       },
     });
@@ -260,6 +274,7 @@ async function main() {
         dodgeBonus: (item as any).dodgeBonus ?? null,
         statusBonus: (item as any).statusBonus ?? null,
         modType: (item as any).modType ?? null,
+        effects: '[]',
         unico: true,
       },
     });

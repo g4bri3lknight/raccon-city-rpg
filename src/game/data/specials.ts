@@ -1,4 +1,4 @@
-import { SpecialAbilityDefinition, SpecialCategory } from '../types';
+import { SpecialAbilityDefinition, SpecialCategory, SpecialEffect } from '../types';
 
 // ==========================================
 // SPECIAL ABILITIES POOL
@@ -16,8 +16,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 2,
     category: 'offensive',
-    executionType: 'colpo_mortale',
-    powerMultiplier: 1.6,
+    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 1.6 }],
   },
   {
     id: 'raffica',
@@ -27,8 +26,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'offensive',
-    executionType: 'raffica',
-    powerMultiplier: 1.3,
+    effects: [
+      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.3 },
+      { type: 'deal_damage', target: 'all_enemies', powerMultiplier: 0.6, excludePrimaryTarget: true },
+    ],
   },
   {
     id: 'sparo_mirato',
@@ -38,8 +39,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'offensive',
-    executionType: 'sparo_mirato',
-    powerMultiplier: 2.0,
+    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 2.0, noMiss: true }],
   },
   {
     id: 'veleno_acido',
@@ -49,9 +49,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 2,
     category: 'offensive',
-    executionType: 'veleno_acido',
-    powerMultiplier: 0.9,
-    statusToApply: { type: 'poison', chance: 60 },
+    effects: [
+      { type: 'deal_damage', target: 'enemy', powerMultiplier: 0.9 },
+      { type: 'apply_status', target: 'enemy', statusType: 'poison', chance: 70 },
+    ],
   },
   {
     id: 'attacco_carica',
@@ -61,9 +62,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'offensive',
-    executionType: 'attacco_carica',
-    powerMultiplier: 1.4,
-    statusToApply: { type: 'stunned', chance: 40 },
+    effects: [
+      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.4 },
+      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 50 },
+    ],
   },
 
   // ── DEFENSIVE ──
@@ -75,7 +77,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'self',
     cooldown: 2,
     category: 'defensive',
-    executionType: 'barricata',
+    effects: [{ type: 'buff_stat', target: 'all_allies', stat: 'def', amount: 50, duration: 3 }],
   },
   {
     id: 'immolazione',
@@ -85,7 +87,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'self',
     cooldown: 3,
     category: 'defensive',
-    executionType: 'immolazione',
+    effects: [
+      { type: 'taunt', target: 'self', duration: 2 },
+      { type: 'buff_stat', target: 'self', stat: 'def', amount: 30, duration: 2 },
+    ],
   },
   {
     id: 'scudo_vitale',
@@ -95,7 +100,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'self',
     cooldown: 3,
     category: 'defensive',
-    executionType: 'scudo_vitale',
+    effects: [
+      { type: 'heal', target: 'self', amount: 30 },
+      { type: 'buff_stat', target: 'self', stat: 'def', amount: 40, duration: 2 },
+    ],
   },
   {
     id: 'recupero_tattico',
@@ -105,8 +113,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'self',
     cooldown: 2,
     category: 'defensive',
-    executionType: 'recupero_tattico',
-    healAmount: 50,
+    effects: [{ type: 'heal', target: 'self', amount: 50 }],
   },
   {
     id: 'resistenza_attiva',
@@ -116,8 +123,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'self',
     cooldown: 3,
     category: 'defensive',
-    executionType: 'resistenza_attiva',
-    healAmount: 25,
+    effects: [
+      { type: 'heal', target: 'self', amount: 25 },
+      { type: 'remove_status', target: 'self', statuses: ['poison', 'bleeding', 'stunned'] },
+    ],
   },
 
   // ── SUPPORT ──
@@ -129,8 +138,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'ally',
     cooldown: 2,
     category: 'support',
-    executionType: 'pronto_soccorso',
-    healAmount: 70,
+    effects: [
+      { type: 'heal', target: 'ally', amount: 70 },
+      { type: 'remove_status', target: 'ally', statuses: ['poison', 'bleeding'] },
+    ],
   },
   {
     id: 'cura_gruppo',
@@ -140,8 +151,7 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'all_allies',
     cooldown: 3,
     category: 'support',
-    executionType: 'cura_gruppo',
-    healAmount: 35,
+    effects: [{ type: 'heal', target: 'all_allies', amount: 35 }],
   },
   {
     id: 'adrenalina',
@@ -151,7 +161,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'ally',
     cooldown: 3,
     category: 'support',
-    executionType: 'adrenalina',
+    effects: [
+      { type: 'heal', target: 'ally', amount: 40 },
+      { type: 'apply_status', target: 'ally', statusType: 'adrenaline', chance: 100 },
+    ],
   },
   {
     id: 'iniezione_stimolante',
@@ -161,8 +174,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'ally',
     cooldown: 3,
     category: 'support',
-    executionType: 'iniezione_stimolante',
-    healAmount: 45,
+    effects: [
+      { type: 'heal', target: 'ally', amount: 45 },
+      { type: 'remove_status', target: 'ally', statuses: ['poison', 'bleeding', 'stunned'] },
+    ],
   },
   {
     id: 'disinfezione_totale',
@@ -172,8 +187,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'all_allies',
     cooldown: 3,
     category: 'support',
-    executionType: 'disinfezione_totale',
-    healAmount: 20,
+    effects: [
+      { type: 'heal', target: 'all_allies', amount: 20 },
+      { type: 'remove_status', target: 'all_allies', statuses: ['poison', 'bleeding', 'stunned'] },
+    ],
   },
 
   // ── CONTROL ──
@@ -185,9 +202,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'control',
-    executionType: 'gas_venefico',
-    powerMultiplier: 0.7,
-    statusToApply: { type: 'poison', chance: 75 },
+    effects: [
+      { type: 'deal_damage', target: 'all_enemies', powerMultiplier: 0.7 },
+      { type: 'apply_status', target: 'all_enemies', statusType: 'poison', chance: 65 },
+    ],
   },
   {
     id: 'cristalli_sonici',
@@ -197,9 +215,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'control',
-    executionType: 'cristalli_sonici',
-    powerMultiplier: 1.1,
-    statusToApply: { type: 'stunned', chance: 65 },
+    effects: [
+      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.1 },
+      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 60 },
+    ],
   },
   {
     id: 'frecce_etiche',
@@ -209,9 +228,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'control',
-    executionType: 'frecce_etiche',
-    powerMultiplier: 0.9,
-    statusToApply: { type: 'stunned', chance: 50 },
+    effects: [
+      { type: 'deal_damage', target: 'enemy', powerMultiplier: 0.9 },
+      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 55 },
+    ],
   },
   {
     id: 'granata_stordente',
@@ -221,9 +241,10 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'control',
-    executionType: 'granata_stordente',
-    powerMultiplier: 0.8,
-    statusToApply: { type: 'stunned', chance: 55 },
+    effects: [
+      { type: 'deal_damage', target: 'all_enemies', powerMultiplier: 0.8 },
+      { type: 'apply_status', target: 'all_enemies', statusType: 'stunned', chance: 60 },
+    ],
   },
   {
     id: 'siero_inibitore',
@@ -233,9 +254,11 @@ export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 3,
     category: 'control',
-    executionType: 'siero_inibitore',
-    powerMultiplier: 1.0,
-    statusToApply: { type: 'poison', chance: 65 },
+    effects: [
+      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.0 },
+      { type: 'apply_status', target: 'enemy', statusType: 'poison', chance: 70 },
+      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 40 },
+    ],
   },
 ];
 

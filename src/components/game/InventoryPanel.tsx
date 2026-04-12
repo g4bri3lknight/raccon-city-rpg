@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore } from '@/game/store';
+import { useGameStore, getMaxInventorySlots } from '@/game/store';
 import { ItemInstance } from '@/game/types';
+import { getItemEffectDescriptions } from '@/game/utils/item-effects';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
@@ -247,30 +248,17 @@ export default function InventoryPanel() {
                   <span className="text-white/40">{selectedItem.modStats.type === 'any' ? 'Tutte le armi' : selectedItem.modStats.type === 'ranged' ? 'A distanza' : 'Corpo a corpo'}</span>
                 </div>
               )}
-              {selectedItem.effect && (
-                <div className="flex flex-wrap gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm text-white/60">
-                  {selectedItem.effect.type === 'heal' && (
-                    <span className="text-green-400/80">❤️ Cura {selectedItem.effect.value} HP</span>
-                  )}
-                  {selectedItem.effect.type === 'heal_full' && (
-                    <span className="text-green-400/80">❤️ Ripristina tutti gli HP</span>
-                  )}
-                  {selectedItem.effect.type === 'add_slots' && (
-                    <span className="text-amber-400/80">🧳 +{selectedItem.effect.value} slot inventario</span>
-                  )}
-                  {selectedItem.effect.statusCured && (
-                    <span className="text-purple-400/80">
-                      ✨ Cura {selectedItem.effect.statusCured.map(s => s === 'poison' ? 'avvelenamento' : s === 'bleeding' ? 'sanguinamento' : s).join(', ')}
-                    </span>
-                  )}
-                  {selectedItem.effect.target === 'one_ally' && (
-                    <span className="text-cyan-400/70">🎯 Bersaglio: Alleato</span>
-                  )}
-                  {selectedItem.effect.target === 'all_allies' && (
-                    <span className="text-cyan-400/70">🎯 Bersaglio: Tutti</span>
-                  )}
-                </div>
-              )}
+              {(() => {
+                const effectDescs = getItemEffectDescriptions(selectedItem);
+                if (effectDescs.length === 0) return null;
+                return (
+                  <div className="flex flex-wrap gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm text-white/60">
+                    {effectDescs.map((d, i) => (
+                      <span key={i} className={d.color}>{d.emoji} {d.text}</span>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Actions */}
               <div className="flex gap-2 md:gap-3 flex-wrap">
@@ -294,7 +282,7 @@ export default function InventoryPanel() {
                     size="sm"
                     variant="ghost"
                     onClick={() => { consumeItemOutsideCombat(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
-                    disabled={selectedItem.type === 'bag' && selectedChar.maxInventorySlots >= 12}
+                    disabled={selectedItem.type === 'bag' && selectedChar.maxInventorySlots >= getMaxInventorySlots()}
                     className="bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all disabled:opacity-30"
                   >
                     <FlaskConical className="w-3.5 h-3.5 mr-1.5" /> {selectedItem.type === 'bag' ? 'Equipaggia' : 'Usa'}

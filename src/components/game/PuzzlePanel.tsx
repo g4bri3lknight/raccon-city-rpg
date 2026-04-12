@@ -727,6 +727,7 @@ function KeyRequiredPuzzle() {
                   usable: itemDef.usable,
                   equippable: itemDef.equippable,
                   effect: itemDef.effect,
+                  effects: itemDef.effects,
                   quantity: itemEntry.quantity,
                 },
               ],

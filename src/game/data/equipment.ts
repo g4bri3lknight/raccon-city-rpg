@@ -52,6 +52,7 @@ export const EQUIPMENT_STATS: Record<string, EquipmentInstance> = {
     itemId: 'first_aid_badge', name: 'Distintivo Croce Rossa', slot: 'accessory', icon: '🎖️',
     rarity: 'uncommon', hpBonus: 30, specialEffect: { type: 'hp_regen', value: 3 },
     description: 'Un distintivo che ispira cura. +30 HP, rigenera 3 HP/turno.',
+    effects: [{ type: 'hot', trigger: 'on_turn_start', target: 'self', amount: 3 }],
   },
   dog_tags: {
     itemId: 'dog_tags', name: 'Piastre Militari', slot: 'accessory', icon: '🏷️',
@@ -61,6 +62,7 @@ export const EQUIPMENT_STATS: Record<string, EquipmentInstance> = {
     itemId: 'ring_virus', name: 'Anello del Virus-T', slot: 'accessory', icon: '💍',
     rarity: 'legendary', atkBonus: 5, hpBonus: 15, specialEffect: { type: 'thorns', value: 5 },
     description: 'Un anello contaminato dal T-Virus. +5 ATK, +15 HP, riflette 5 danni.',
+    effects: [{ type: 'reflect', trigger: 'on_take_hit', target: 'self', amount: 5 }],
   },
   goggles: {
     itemId: 'goggles', name: 'Occhiali Tattici', slot: 'accessory', icon: '🥽',

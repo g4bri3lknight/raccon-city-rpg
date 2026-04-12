@@ -32,24 +32,192 @@ export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 
 // ==========================================
-// SPECIAL ABILITIES
+// SPECIAL ABILITIES — EFFECT SYSTEM
 // ==========================================
 
-export type SpecialTargetType = 'self' | 'enemy' | 'ally' | 'all_allies';
 export type SpecialCategory = 'offensive' | 'defensive' | 'support' | 'control';
+
+// Target for a single effect within an ability
+export type EffectTarget = 'self' | 'enemy' | 'all_enemies' | 'ally' | 'all_allies' | 'lowest_hp_ally' | 'random_enemy';
+
+// When an effect triggers
+export type EffectTrigger = 'on_use' | 'on_hit' | 'on_take_hit' | 'on_turn_start' | 'on_critical';
+
+// All atomic effect types
+export type SpecialEffectType =
+  | 'deal_damage'
+  | 'heal'
+  | 'apply_status'
+  | 'remove_status'
+  | 'buff_stat'
+  | 'debuff_stat'
+  | 'shield'
+  | 'taunt'
+  | 'lifesteal'
+  | 'revive'
+  | 'hot'
+  | 'reflect'
+  | 'add_slots';
+
+// --- Atomic effect interfaces ---
+
+export interface BaseEffect {
+  target: EffectTarget;
+  /** When this effect triggers (defaults to 'on_use' for specials) */
+  trigger?: EffectTrigger;
+  /** Chance 0-100 to activate (optional, defaults to 100) */
+  chance?: number;
+}
+
+export interface DealDamageEffect extends BaseEffect {
+  type: 'deal_damage';
+  /** ATK multiplier (e.g. 1.6 = 160% of ATK) */
+  powerMultiplier: number;
+  /** Attack always counts as critical */
+  guaranteedCrit?: boolean;
+  /** Damage ignores target DEF */
+  ignoreDef?: boolean;
+  /** Attack cannot miss (100% hit) */
+  noMiss?: boolean;
+  /** Deal damage based on % of target's max HP instead of ATK */
+  basedOnTargetHp?: number;
+  /** For splash: exclude the primary target from this effect */
+  excludePrimaryTarget?: boolean;
+}
+
+export interface HealEffect extends BaseEffect {
+  type: 'heal';
+  /** HP to restore (flat number) */
+  amount: number;
+  /** If true, amount is interpreted as % of max HP */
+  percent?: boolean;
+}
+
+export interface ApplyStatusEffect extends BaseEffect {
+  type: 'apply_status';
+  /** Status to apply: poison, stunned, bleeding */
+  statusType: string;
+  /** Chance 0-100 to apply */
+  chance: number;
+  /** How many turns the status lasts (overrides default) */
+  duration?: number;
+}
+
+export interface RemoveStatusEffect extends BaseEffect {
+  type: 'remove_status';
+  /** Array of statuses to remove, or "all" for everything */
+  statuses: string[];
+}
+
+export interface BuffStatEffect extends BaseEffect {
+  type: 'buff_stat';
+  /** Which stat to boost */
+  stat: 'atk' | 'def' | 'spd';
+  /** Percentage increase (e.g. 30 = +30%) */
+  amount: number;
+  /** How many turns the buff lasts */
+  duration: number;
+}
+
+export interface DebuffStatEffect extends BaseEffect {
+  type: 'debuff_stat';
+  stat: 'atk' | 'def' | 'spd';
+  amount: number;
+  duration: number;
+}
+
+export interface ShieldEffect extends BaseEffect {
+  type: 'shield';
+  /** Absorption HP */
+  amount: number;
+  /** How many turns the shield lasts */
+  duration: number;
+  /** For on_take_hit: chance to trigger (0-100) */
+  procChance?: number;
+}
+
+export interface TauntEffect extends BaseEffect {
+  type: 'taunt';
+  /** How many turns enemies must attack the caster */
+  duration: number;
+}
+
+export interface LifestealEffect extends BaseEffect {
+  type: 'lifesteal';
+  /** % of damage dealt that heals the caster */
+  percent: number;
+  /** ATK multiplier for the damage portion (defaults to 1.0) */
+  power?: number;
+}
+
+export interface ReviveEffect extends BaseEffect {
+  type: 'revive';
+  /** % of max HP to restore on revive */
+  hpPercent: number;
+}
+
+export interface HotEffect extends BaseEffect {
+  type: 'hot';
+  /** HP healed per turn */
+  amountPerTurn: number;
+  /** How many turns the HoT lasts */
+  duration: number;
+}
+
+export interface ReflectEffect extends BaseEffect {
+  type: 'reflect';
+  /** % of incoming damage reflected back */
+  percent: number;
+  /** How many turns reflect lasts */
+  duration: number;
+}
+
+export interface AddSlotsEffect extends BaseEffect {
+  type: 'add_slots';
+  /** Number of inventory slots to add */
+  amount: number;
+}
+
+// Discriminated union of all effects
+export type SpecialEffect =
+  | DealDamageEffect
+  | HealEffect
+  | ApplyStatusEffect
+  | RemoveStatusEffect
+  | BuffStatEffect
+  | DebuffStatEffect
+  | ShieldEffect
+  | TauntEffect
+  | LifestealEffect
+  | ReviveEffect
+  | HotEffect
+  | ReflectEffect
+  | AddSlotsEffect;
+
+// Active effect tracked during combat (buffs, shields, HoTs, etc.)
+export interface ActiveCombatEffect {
+  id: string;
+  type: 'buff_stat' | 'debuff_stat' | 'shield' | 'taunt' | 'hot' | 'reflect';
+  targetId: string;
+  sourceId: string;
+  sourceType?: 'special' | 'weapon' | 'armor' | 'accessory' | 'item'; // What created this effect
+  stat?: 'atk' | 'def' | 'spd';
+  amount?: number;
+  remainingTurns: number;
+  /** Shield remaining HP (only for shield type) */
+  shieldHp?: number;
+}
 
 export interface SpecialAbilityDefinition {
   id: string;
   name: string;
   description: string;
   icon: string;
-  targetType: SpecialTargetType;
-  cooldown: number; // 2 or 3
+  targetType?: EffectTarget;
+  cooldown: number;
   category: SpecialCategory;
-  executionType: string; // maps to combat execution logic
-  powerMultiplier?: number; // for offensive abilities
-  healAmount?: number; // for healing abilities
-  statusToApply?: { type: StatusEffect; chance: number }; // for abilities that apply status
+  /** Ordered list of atomic effects that compose this ability */
+  effects: SpecialEffect[];
 }
 
 // ==========================================
@@ -155,6 +323,8 @@ export interface EquipmentInstance {
     type: 'poison_resist' | 'bleed_resist' | 'stun_resist' | 'hp_regen' | 'thorns' | 'crit_shield';
     value: number; // percentage or flat value depending on type
   };
+  /** Atomic effects array — passive effects that fire on specific triggers during combat */
+  effects?: SpecialEffect[];
 }
 
 // ==========================================
@@ -194,14 +364,8 @@ export interface ItemDefinition {
   stackable: boolean;
   maxStack: number;
   unico: boolean;
-  effect?: ItemEffect;
-}
-
-export interface ItemEffect {
-  type: 'heal' | 'heal_full' | 'cure' | 'damage_boost' | 'defense_boost' | 'add_ammo' | 'add_slots' | 'kill_all';
-  value: number;
-  target: 'self' | 'one_ally' | 'all_allies' | 'all_enemies';
-  statusCured?: StatusEffect[];
+  /** Atomic effects array (data-driven system — same format as specials) */
+  effects?: SpecialEffect[];
 }
 
 export interface ItemInstance {
@@ -214,7 +378,8 @@ export interface ItemInstance {
   icon: string;
   usable: boolean;
   equippable: boolean;
-  effect?: ItemEffect;
+  /** Atomic effects array (data-driven system) */
+  effects?: SpecialEffect[];
   quantity: number;
   isEquipped?: boolean;
   weaponStats?: WeaponInstance;
@@ -255,11 +420,8 @@ export interface EnemyAbility {
   description: string;
   power: number;
   chance: number; // 0-100, chance to use this ability
-  statusEffect?: {
-    type: StatusEffect;
-    chance: number;
-    duration?: number;
-  };
+  /** Atomic effects array (data-driven system — same format as specials) */
+  effects?: SpecialEffect[];
 }
 
 export interface BossPhase {
@@ -301,7 +463,6 @@ export interface SubAreaDefinition {
   id: string;
   name: string;
   description: string;
-  defaultItems?: { itemId: string; quantity: number }[]; // items available in safe room item box on first visit
 }
 
 export interface LocationDefinition {
@@ -427,6 +588,7 @@ export interface CombatState {
   specialCooldowns: Record<string, number>; // characterId → turns remaining until special is available
   special2Cooldowns: Record<string, number>; // characterId → turns remaining until special2 is available
   tauntTargetId: string | null; // if set, enemies must target this character
+  activeEffects: ActiveCombatEffect[]; // tracked buffs, shields, HoTs, reflect, taunts
 }
 
 // ==========================================

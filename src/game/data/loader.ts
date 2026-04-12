@@ -9,11 +9,11 @@ import { NPCS as STATIC_NPCS } from './npcs';
 import { CHARACTER_ARCHETYPES as STATIC_CHARACTERS, ARCHETYPE_STAT_POINTS as STATIC_STAT_POINTS, getCustomStartingItems as _getCustomStartingItems, getCustomPassiveDescription as _getCustomPassiveDescription } from './characters';
 import { ALL_SPECIAL_ABILITIES as STATIC_SPECIALS, ARCHETYPE_SPECIAL_MAP as STATIC_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP as STATIC_CATEGORY_MAP } from './specials';
 import { ENEMIES as STATIC_ENEMIES, ENEMY_IMAGES, CHARACTER_IMAGES, BOSS_PHASES } from './enemies';
-import type { ItemDefinition, ItemType, Rarity, ItemEffect, LocationDefinition } from '../types';
+import type { ItemDefinition, ItemType, Rarity, LocationDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition } from '../types';
-import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, StatusEffect, SecretRoom } from '../types';
+import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, SecretRoom, SpecialEffect } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
@@ -68,10 +68,8 @@ interface DbItem {
   stackable: boolean;
   maxStack: number;
   unico: boolean;
-  effectType: string | null;
-  effectValue: number | null;
-  effectTarget: string | null;
-  effectStatusCured: string | null;
+  specialEffect: string | null;
+  effects: string | null;
   // … other fields we don't need for the in-memory map
 }
 
@@ -191,10 +189,7 @@ interface DbSpecial {
   targetType: string;
   cooldown: number;
   category: string;
-  executionType: string;
-  powerMultiplier: number | null;
-  healAmount: number | null;
-  statusToApply: Record<string, unknown> | null;
+  effects: string | null;
   sortOrder: number;
   createdAt: Date;
 }
@@ -226,6 +221,7 @@ interface DbEnemyAbility {
   statusType: string;
   statusChance: number;
   statusDuration: number;
+  effects: string;
   sortOrder: number;
   createdAt: Date;
 }
@@ -250,15 +246,17 @@ interface DbSecretRoom {
 // ── Mappers ──
 
 function mapDbItem(item: DbItem): ItemDefinition {
-  let effect: ItemEffect | undefined = undefined;
-  if (item.effectType) {
-    effect = {
-      type: item.effectType as ItemEffect['type'],
-      value: item.effectValue || 0,
-      target: item.effectTarget as ItemEffect['target'],
-      statusCured: item.effectStatusCured ? JSON.parse(item.effectStatusCured) : undefined,
-    };
+  // Parse atomic effects array (data-driven system)
+  let effects: SpecialEffect[] = [];
+  if (item.effects) {
+    try {
+      const parsed = JSON.parse(item.effects);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        effects = parsed as SpecialEffect[];
+      }
+    } catch { /* ignore invalid JSON */ }
   }
+
   return {
     id: item.id,
     name: item.name,
@@ -271,7 +269,7 @@ function mapDbItem(item: DbItem): ItemDefinition {
     stackable: item.stackable ?? true,
     maxStack: item.maxStack ?? 99,
     unico: item.unico ?? false,
-    effect,
+    effects: effects.length > 0 ? effects : undefined,
   };
 }
 
@@ -392,7 +390,6 @@ function mapDbCharacter(row: DbCharacter): CharacterArchetype {
       usable: itemDef.usable,
       equippable: itemDef.equippable,
       quantity: qty,
-      effect: (itemDef as Record<string, unknown>).effect || undefined,
       isEquipped,
     } as ItemInstance;
   }).filter(Boolean) as ItemInstance[];
@@ -419,6 +416,17 @@ function mapDbCharacter(row: DbCharacter): CharacterArchetype {
 }
 
 function mapDbSpecial(row: DbSpecial): SpecialAbilityDefinition {
+  // Parse effects JSON array
+  let effects: SpecialEffect[] = [];
+  try {
+    if (row.effects) {
+      const parsed = JSON.parse(row.effects);
+      if (Array.isArray(parsed)) {
+        effects = parsed as SpecialEffect[];
+      }
+    }
+  } catch { /* ignore parse errors, use empty array */ }
+
   return {
     id: row.id,
     name: row.name,
@@ -427,10 +435,7 @@ function mapDbSpecial(row: DbSpecial): SpecialAbilityDefinition {
     targetType: row.targetType as SpecialAbilityDefinition['targetType'],
     cooldown: row.cooldown,
     category: row.category as SpecialAbilityDefinition['category'],
-    executionType: row.executionType,
-    ...(row.powerMultiplier != null ? { powerMultiplier: row.powerMultiplier } : {}),
-    ...(row.healAmount != null ? { healAmount: row.healAmount } : {}),
-    ...(row.statusToApply ? { statusToApply: row.statusToApply as SpecialAbilityDefinition['statusToApply'] } : {}),
+    effects,
   };
 }
 
@@ -479,14 +484,14 @@ function loadEnemyAbilities(api: Awaited<ReturnType<typeof loadFromApi>>): void 
         power: ab.power,
         chance: ab.chance,
       };
-      if (ab.statusType) {
-        ability.statusEffect = {
-          type: ab.statusType as StatusEffect,
-          chance: ab.statusChance,
-        };
-        if (ab.statusDuration) {
-          ability.statusEffect.duration = ab.statusDuration;
-        }
+      // Parse atomic effects array
+      if (ab.effects) {
+        try {
+          const parsed = JSON.parse(ab.effects);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            ability.effects = parsed as SpecialEffect[];
+          }
+        } catch { /* ignore invalid JSON */ }
       }
       ENEMY_ABILITIES_DATA[ab.id] = ability;
     }
@@ -726,6 +731,64 @@ export async function refreshGameData(): Promise<void> {
 
 export function isGameDataLoaded(): boolean {
   return initialized;
+}
+
+// ==========================================
+// EFFECTS INTEGRITY VALIDATION
+// ==========================================
+
+interface EmptyEffectEntry {
+  name: string;
+  source: string; // "Speciale giocatore" | "Abilità nemico" | "Fase boss"
+}
+
+/**
+ * Validates that all specials and enemy abilities have non-empty effects[].
+ * Call after initGameData() to detect data configuration issues.
+ * Returns null if everything is OK, or an array of problematic entries.
+ */
+export function validateEffectsIntegrity(): EmptyEffectEntry[] | null {
+  const problems: EmptyEffectEntry[] = [];
+
+  // 1. Check player specials
+  const allSpecials = SPECIALS_DATA.length > 0 ? SPECIALS_DATA : STATIC_SPECIALS;
+  for (const spec of allSpecials) {
+    if (!spec.effects || spec.effects.length === 0) {
+      problems.push({ name: spec.name || spec.id, source: 'Speciale giocatore' });
+    }
+  }
+
+  // 2. Check enemy abilities (from ENEMY_ABILITIES_DATA)
+  for (const [id, ability] of Object.entries(ENEMY_ABILITIES_DATA)) {
+    if (!ability.effects || ability.effects.length === 0) {
+      problems.push({ name: ability.name || id, source: 'Abilità nemico' });
+    }
+  }
+
+  // 3. Check static enemy abilities embedded in ENEMIES_DATA
+  const allEnemies = ENEMIES_DATA && Object.keys(ENEMIES_DATA).length > 0 ? ENEMIES_DATA : STATIC_ENEMIES;
+  for (const [enemyId, enemyDef] of Object.entries(allEnemies)) {
+    for (const ab of enemyDef.abilities) {
+      if (!ab.effects || ab.effects.length === 0) {
+        problems.push({ name: `${ab.name} (${enemyDef.name})`, source: 'Abilità nemico' });
+      }
+    }
+  }
+
+  // 4. Check boss phase abilities
+  for (const [bossId, phases] of Object.entries(BOSS_PHASES)) {
+    for (const phase of phases) {
+      if (phase.newAbilities) {
+        for (const ab of phase.newAbilities) {
+          if (!ab.effects || ab.effects.length === 0) {
+            problems.push({ name: `${ab.name} (${bossId} - ${phase.name})`, source: 'Fase boss' });
+          }
+        }
+      }
+    }
+  }
+
+  return problems.length > 0 ? problems : null;
 }
 
 /** Get a special ability by ID from loaded data (prefers DB data, falls back to static) */

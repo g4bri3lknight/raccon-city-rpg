@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useGameStore } from '@/game/store';
+import { useGameStore, getMaxItemBoxSlots } from '@/game/store';
 import { ItemInstance } from '@/game/types';
+import { getItemEffectDescriptions } from '@/game/utils/item-effects';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
@@ -46,8 +47,6 @@ const TYPE_LABELS: Record<string, string> = {
   bag: 'Borsa',
 };
 
-const ITEM_BOX_MAX_SLOTS = 48;
-
 export default function ItemBoxPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
   const party = useGameStore(s => s.party);
@@ -66,7 +65,7 @@ export default function ItemBoxPanel() {
   const inventoryItems = selectedChar.inventory.filter(i => i.type !== 'collectible');
   const totalSlots = selectedChar.maxInventorySlots;
   const invSlots = Array.from({ length: totalSlots }, (_, i) => inventoryItems[i] || null);
-  const boxSlots = Array.from({ length: ITEM_BOX_MAX_SLOTS }, (_, i) => itemBoxItems[i] || null);
+  const boxSlots = Array.from({ length: getMaxItemBoxSlots() }, (_, i) => itemBoxItems[i] || null);
   const inventoryFull = selectedChar.inventory.length >= selectedChar.maxInventorySlots;
 
   const handleDeposit = (itemUid: string) => {
@@ -207,7 +206,7 @@ export default function ItemBoxPanel() {
             <Package className="w-4 h-4 text-emerald-400" />
             <span className="text-sm font-bold uppercase tracking-wider text-emerald-300">Item Box</span>
             <Badge className="text-xs bg-white/10 text-white/60 border-0 ml-auto">
-              {itemBoxItems.length}/{ITEM_BOX_MAX_SLOTS}
+              {itemBoxItems.length}/{getMaxItemBoxSlots()}
             </Badge>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto p-2 inventory-scrollbar">
@@ -255,19 +254,17 @@ export default function ItemBoxPanel() {
                 <span className="text-white/40">{selected.item.weaponStats.type === 'melee' ? 'Corpo a Corpo' : 'A Distanza'}</span>
               </div>
             )}
-            {selected.item.effect && (
-              <div className="flex flex-wrap gap-2 mb-2 text-xs text-white/60">
-                {selected.item.effect.type === 'heal' && (
-                  <span className="text-green-400/80">❤️ Cura {selected.item.effect.value} HP</span>
-                )}
-                {selected.item.effect.type === 'heal_full' && (
-                  <span className="text-green-400/80">❤️ Ripristina tutti gli HP</span>
-                )}
-                {selected.item.effect.type === 'add_slots' && (
-                  <span className="text-amber-400/80">🧳 +{selected.item.effect.value} slot</span>
-                )}
-              </div>
-            )}
+            {(() => {
+              const effectDescs = getItemEffectDescriptions(selected.item);
+              if (effectDescs.length === 0) return null;
+              return (
+                <div className="flex flex-wrap gap-2 mb-2 text-xs text-white/60">
+                  {effectDescs.map((d, i) => (
+                    <span key={i} className={d.color}>{d.emoji} {d.text}</span>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Quantity selector + Actions */}
             <div className="flex items-center gap-2">

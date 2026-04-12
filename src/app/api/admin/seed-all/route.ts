@@ -34,10 +34,7 @@ async function seedItems(): Promise<SeedResult> {
       unico: (item as any).unico ?? false,
       weaponType: (item as any).weaponType ?? null, atkBonus: (item as any).atkBonus ?? null,
       ammoType: (item as any).ammoType ?? null,
-      effectType: item.effect?.type ?? null, effectValue: item.effect?.value ?? null,
-      effectTarget: item.effect?.target ?? null,
-      effectStatusCured: item.effect?.statusCured ? JSON.stringify(item.effect.statusCured) : null,
-      addSlots: item.effect?.type === 'add_slots' ? item.effect.value : null,
+      effects: (item as any).effects ? JSON.stringify((item as any).effects) : '[]',
     };
     if (existing) { await db.item.update({ where: { id: item.id }, data }); updated++; }
     else { await db.item.create({ data: { id: item.id, ...data } }); created++; }
@@ -182,10 +179,7 @@ async function seedSpecials(): Promise<SeedResult> {
     const data = {
       name: spec.name, description: spec.description, icon: spec.icon,
       targetType: spec.targetType, cooldown: spec.cooldown, category: spec.category,
-      executionType: spec.executionType,
-      powerMultiplier: spec.powerMultiplier ?? null,
-      healAmount: spec.healAmount ?? null,
-      statusToApply: spec.statusToApply ? JSON.stringify(spec.statusToApply) : '',
+      effects: spec.effects ? JSON.stringify(spec.effects) : '[]',
     };
     if (existing) { await db.gameSpecial.update({ where: { id: spec.id }, data }); updated++; }
     else { await db.gameSpecial.create({ data: { id: spec.id, ...data } }); created++; }
@@ -230,6 +224,7 @@ async function seedEquipment(): Promise<SeedResult> {
       spdBonus: eq.spdBonus ?? null, atkBonus: eq.atkBonus ?? null,
       critBonus: eq.critBonus ?? null,
       specialEffect: eq.specialEffect ? JSON.stringify(eq.specialEffect) : null,
+      effects: (eq as any).effects ? JSON.stringify((eq as any).effects) : '[]',
     };
     if (existing) { await db.item.update({ where: { id }, data }); updated++; }
     else { await db.item.create({ data: { id, ...data } }); created++; }
