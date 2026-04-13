@@ -1,9 +1,19 @@
 import { db } from '@/lib/db';
-import { STATIC_ITEMS } from '@/game/data/items';
-import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS } from '@/game/data/equipment';
-import { EQUIPMENT_STATS } from '@/game/data/equipment';
-import { WEAPON_MODS } from '@/game/data/weapon-mods';
+import { SEED_ITEMS } from '@/seed-data/items';
+import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS, EQUIPMENT_STATS, WEAPON_MODS } from '@/seed-data/equipment';
 import { NextResponse } from 'next/server';
+
+// Weapon → weaponType / ammoType mapping for base weapons in SEED_ITEMS
+const WEAPON_TYPE_MAP: Record<string, { weaponType: string; ammoType?: string }> = {
+  pipe:              { weaponType: 'melee' },
+  scalpel:           { weaponType: 'melee' },
+  combat_knife:      { weaponType: 'melee' },
+  pistol:            { weaponType: 'ranged', ammoType: 'ammo_pistol' },
+  shotgun:           { weaponType: 'ranged', ammoType: 'ammo_shotgun' },
+  magnum:            { weaponType: 'ranged', ammoType: 'ammo_magnum' },
+  machinegun:        { weaponType: 'ranged', ammoType: 'ammo_machinegun' },
+  grenade_launcher:  { weaponType: 'ranged', ammoType: 'ammo_grenade' },
+};
 
 /**
  * POST /api/admin/seed-items
@@ -15,7 +25,7 @@ export async function POST() {
   try {
     // Merge all item definitions: base + equipment + weapon mods
     const allItems = {
-      ...STATIC_ITEMS,
+      ...SEED_ITEMS,
       ...EQUIPMENT_ITEM_DEFINITIONS,
       ...MOD_ITEM_DEFINITIONS,
     };
@@ -30,6 +40,8 @@ export async function POST() {
       const eqStats = EQUIPMENT_STATS[item.id];
       // Weapon mod stats from WEAPON_MODS
       const modStats = WEAPON_MODS[item.id];
+      // Weapon type from lookup map (for base weapons)
+      const weaponMap = WEAPON_TYPE_MAP[item.id];
 
       const data = {
         name: item.name,
@@ -42,18 +54,10 @@ export async function POST() {
         stackable: item.stackable ?? true,
         maxStack: item.maxStack ?? 99,
         unico: (item as any).unico ?? false,
-        weaponType: (item as any).weaponType ?? modStats?.type === 'melee' ? 'melee' : modStats?.type === 'ranged' ? 'ranged' : null,
-        atkBonus: (item as any).atkBonus ?? eqStats?.atkBonus ?? modStats?.atkBonus ?? null,
-        defBonus: eqStats?.defBonus ?? null,
-        hpBonus: eqStats?.hpBonus ?? null,
-        spdBonus: eqStats?.spdBonus ?? null,
-        critBonus: eqStats?.critBonus ?? modStats?.critBonus ?? null,
-        dodgeBonus: modStats?.dodgeBonus ?? null,
-        statusBonus: modStats?.statusBonus ?? null,
+        weaponType: (item as any).weaponType ?? weaponMap?.weaponType ?? (modStats?.type === 'melee' ? 'melee' : modStats?.type === 'ranged' ? 'ranged' : null),
+        ammoType: (item as any).ammoType ?? weaponMap?.ammoType ?? null,
         modType: modStats?.type === 'melee' ? 'melee' : modStats?.type === 'ranged' ? 'ranged' : modStats?.type === 'any' ? 'any' : null,
-        specialEffect: eqStats?.specialEffect ? JSON.stringify(eqStats.specialEffect) : null,
-        ammoType: (item as any).ammoType ?? null,
-        effects: (item as any).effects ?? eqStats?.effects ? JSON.stringify((item as any).effects ?? eqStats?.effects) : '[]',
+        effects: JSON.stringify((item as any).effects || eqStats?.effects || modStats?.effects || []),
       };
 
       if (existing) {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getDifficultyConfig } from './data/difficulty';
 import {
   GameState,
   GamePhase,
@@ -42,7 +43,6 @@ import {
   calculateFleeChance,
   generateLoot,
   addExp,
-  WEAPON_AMMO,
   processActiveEffectsTick,
   onTakeHit,
   onTurnStart,
@@ -52,7 +52,7 @@ import { WeaponInstance, WeaponMod, EffectTarget, ActiveCombatEffect, SpecialEff
 import { getSpecialById as getSpecialByIdFromLoader } from './data/loader';
 import { WEAPON_MODS } from './data/weapon-mods';
 import { createModItemInstance, EQUIPMENT_STATS } from './data/equipment';
-import { ACHIEVEMENTS } from './data/achievements';
+import { ACHIEVEMENTS } from './data/loader';
 import { getFirstAvailableQuest } from './data/quest-helper';
 import { audioEngine as audio } from './engine/sounds';
 import {
@@ -238,38 +238,10 @@ function newCharId() { return `char_${++charUid}`; }
 let enemyUid = 0;
 function newEnemyId() { return `enemy_${++enemyUid}`; }
 
-// ── Weapon stats for all equippable weapons (used when equipping found loot) ──
-const WEAPON_STATS: Record<string, WeaponInstance> = {
-  pipe: { itemId: 'pipe', name: 'Tubo di Piombo', atkBonus: 5, type: 'melee', modSlots: [] },
-  scalpel: { itemId: 'scalpel', name: 'Bisturi', atkBonus: 4, type: 'melee', modSlots: [] },
-  pistol: { itemId: 'pistol', name: 'Pistola M1911', atkBonus: 8, type: 'ranged', special: 'pierce', ammoType: 'ammo_pistol', modSlots: [] },
-  shotgun: { itemId: 'shotgun', name: 'Fucile a Pompa', atkBonus: 14, type: 'ranged', ammoType: 'ammo_shotgun', modSlots: [] },
-  combat_knife: { itemId: 'combat_knife', name: 'Coltello da Combattimento', atkBonus: 7, type: 'melee', modSlots: [] },
-  magnum: { itemId: 'magnum', name: 'Magnum .357', atkBonus: 18, type: 'ranged', ammoType: 'ammo_magnum', modSlots: [] },
-  machinegun: { itemId: 'machinegun', name: 'Mitragliatrice MP5', atkBonus: 13, type: 'ranged', ammoType: 'ammo_machinegun', modSlots: [] },
-  grenade_launcher: { itemId: 'grenade_launcher', name: 'Lanciagranate M79', atkBonus: 24, type: 'ranged', ammoType: 'ammo_grenade', modSlots: [] },
-  tazer: { itemId: 'tazer', name: 'Tazer', atkBonus: 8, type: 'melee', modSlots: [] },
-  railgun: { itemId: 'railgun', name: 'Railgun', atkBonus: 25, type: 'ranged', ammoType: 'ammo_magnum', modSlots: [] },
-};
+// ── Weapon stats are now built dynamically from item effects (on_equip system) ──
 
-// ── Difficulty configuration ──
-const DIFFICULTY_CONFIGS: Record<DifficultyLevel, DifficultyConfig> = {
-  sopravvissuto: { label: 'Sopravvissuto', color: '#22c55e', icon: '🏃', statMult: 0.6, lootMult: 1.5, minEnemies: 1, maxEnemies: 2, expMult: 1.4, enemyCritChance: 5, description: 'Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia.' },
-  normale: { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 0.85, lootMult: 1.1, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 10, description: 'Bilanciato. La vera esperienza di Raccoon City.' },
-  incubo: { label: 'Incubo', color: '#ef4444', icon: '💀', statMult: 1.4, lootMult: 0.6, minEnemies: 2, maxEnemies: 4, expMult: 0.8, enemyCritChance: 20, description: 'Nemici potenti, poco bottino. Solo per i più coraggiosi.' },
-};
-
-function getDifficultyConfig(difficulty: DifficultyLevel, partySize?: number): DifficultyConfig {
-  const config = DIFFICULTY_CONFIGS[difficulty] || DIFFICULTY_CONFIGS.normale;
-  // Optional party-size secondary scaling (slight adjustment)
-  if (partySize) {
-    const partyMult = partySize === 1 ? 0.9 : partySize === 2 ? 1.0 : 1.1;
-    return { ...config, statMult: config.statMult * partyMult };
-  }
-  return config;
-}
-
-export { DIFFICULTY_CONFIGS, getDifficultyConfig };
+// Re-export difficulty from dedicated module for backward compat
+export { DIFFICULTY_CONFIGS, getDifficultyConfig } from './data/difficulty';
 
 function createCharacter(archetypeId: Archetype): Character {
   const archetype = CHARACTER_ARCHETYPES.find(a => a.id === archetypeId);
@@ -377,8 +349,10 @@ function createEnemyInstance(enemyId: string, statMult: number = 1): EnemyInstan
 }
 
 // ── Build lookup: for each key item, which locked paths require it ──
-// Key items that auto-discard when all their doors are opened
-const KEY_ITEM_IDS = new Set(['key_rpd', 'key_sewers', 'key_lab']);
+// Key items that auto-discard when all their doors are opened — derived dynamically from ITEMS registry
+function getKeyItemIds(): Set<string> {
+  return new Set(Object.values(ITEMS).filter(i => i.type === 'utility' && i.id.startsWith('key_')).map(i => i.id));
+}
 
 function buildKeyPathLookup(): Record<string, { fromId: string; toId: string }[]> {
   const lookup: Record<string, { fromId: string; toId: string }[]> = {};
@@ -561,7 +535,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   messageLog: [],
   turnCount: 0,
   difficulty: 'normale' as DifficultyLevel,
-  selectedDifficulty: null,
+  selectedDifficulty: 'normale',
   puzzleState: null,
   puzzleSourceLocationId: null,
   qteState: null,
@@ -617,7 +591,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: null, collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], searchedSafeRooms: [], readDocuments: [] });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: 'normale', collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], searchedSafeRooms: [], readDocuments: [] });
   },
 
   goToCharacterCreator: () => {
@@ -818,7 +792,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       bestiaryOpen: false,
       newAchievementNotification: null,
       difficulty: 'normale',
-      selectedDifficulty: null,
+      selectedDifficulty: 'normale',
       puzzleState: null,
       puzzleSourceLocationId: null,
       qteState: null,
@@ -1134,7 +1108,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       // Filter out key items already in party inventory BEFORE selection
       const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
       const eligibleItems = effectiveItemPool.filter(entry =>
-        !(KEY_ITEM_IDS.has(entry.itemId) && partyItemIds.has(entry.itemId))
+        !(getKeyItemIds().has(entry.itemId) && partyItemIds.has(entry.itemId))
       );
       const availableItems = eligibleItems.filter(() => Math.random() * 100 < 50);
       if (availableItems.length > 0) {
@@ -1238,7 +1212,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
 
           // ── KEY ITEM CHECK: prevent duplicate keys (safety net, should not trigger due to pre-filter) ──
-          if (KEY_ITEM_IDS.has(foundEntry.itemId)) {
+          if (getKeyItemIds().has(foundEntry.itemId)) {
             const partyAlreadyHasKey = state.party.some(p =>
               p.inventory.some(i => i.itemId === foundEntry.itemId)
             );
@@ -1421,7 +1395,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       // Check if the key is still needed for any other locked paths
-      if (KEY_ITEM_IDS.has(lockedEntry.requiredItemId) && !isKeyStillNeeded(lockedEntry.requiredItemId, newUnlockedPaths)) {
+      if (getKeyItemIds().has(lockedEntry.requiredItemId) && !isKeyStillNeeded(lockedEntry.requiredItemId, newUnlockedPaths)) {
         const keyDef = ITEMS[lockedEntry.requiredItemId];
         const keyName = keyDef?.name || lockedEntry.requiredItemId;
         // Remove all instances of this key from all party inventories
@@ -1564,7 +1538,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // find_all_keys: Any party member has all 3 keys simultaneously
-    const allKeys = ['key_rpd', 'key_sewers', 'key_lab'];
+    const allKeys = [...getKeyItemIds()];
     if (state.party.some(p => allKeys.every(k => p.inventory.some(i => i.itemId === k)))) {
       checkAndUnlock('all_keys_found');
     }
@@ -1698,7 +1672,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const foundItems: string[] = [];
     for (const entry of effectiveItemPool) {
       // Skip key items already owned by the party
-      if (KEY_ITEM_IDS.has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
+      if (getKeyItemIds().has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
       if (Math.random() * 100 < entry.chance) {
         foundItems.push(entry.itemId);
       }
@@ -1821,7 +1795,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       // ── KEY ITEM CHECK: prevent duplicate keys ──
-      if (KEY_ITEM_IDS.has(itemId)) {
+      if (getKeyItemIds().has(itemId)) {
         const partyAlreadyHasKey = updatedParty.some(p =>
           p.inventory.some(i => i.itemId === itemId)
         );
@@ -2119,8 +2093,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (!item || !item.equippable) return p;
 
         // If item already has weaponStats (starting items), use them directly
-        // Otherwise, build from WEAPON_STATS lookup
-        let weaponData = item.weaponStats || WEAPON_STATS[item.itemId] || null;
+        // Otherwise, build WeaponInstance from item's effects and structural data
+        let weaponData: WeaponInstance | null = item.weaponStats || null;
+        if (!weaponData) {
+          const itemDef = ITEMS[item.itemId];
+          if (itemDef) {
+            weaponData = {
+              itemId: item.itemId,
+              name: item.name,
+              type: (itemDef as any).weaponType || 'melee',
+              ammoType: (itemDef as any).ammoType,
+              modSlots: [],
+              effects: item.effects,
+            };
+          }
+        }
         if (!weaponData) return p;
 
         // Unequip current weapon
@@ -2279,12 +2266,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         // Check if same mod already installed
         if (p.weapon.modSlots.includes(mod.modId)) return p;
 
-        // Install mod
+        // Install mod (effects are read dynamically by combat engine)
         const updatedWeapon = {
           ...p.weapon,
           modSlots: [...p.weapon.modSlots, mod.modId],
-          // Add ATK bonus from mod
-          atkBonus: p.weapon.atkBonus + (mod.atkBonus || 0),
         };
 
         // Remove mod item from inventory
@@ -2308,13 +2293,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const mod = WEAPON_MODS[modId];
         if (!mod) return p;
 
-        // Remove mod from weapon
+        // Remove mod from weapon (effects are read dynamically by combat engine)
         const updatedModSlots = p.weapon.modSlots.filter((_, i) => i !== modIndex);
         const updatedWeapon = {
           ...p.weapon,
           modSlots: updatedModSlots,
-          // Remove ATK bonus from mod
-          atkBonus: p.weapon.atkBonus - (mod.atkBonus || 0),
         };
 
         // Return mod to inventory
@@ -3242,8 +3225,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           nemesisPursuitLevel: newNemesisPursuitLevel,
         });
         setTimeout(() => {
-          set({ phase: 'victory', combat: null, enemies: [], notification: null });
-          setTimeout(() => get().checkAchievements(), 100);
+          get().victory();
         }, 3500);
         return;
       }
@@ -4631,7 +4613,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ],
         turnCount: data.turnCount,
         difficulty: data.difficulty || 'normale',
-        selectedDifficulty: data.selectedDifficulty || null,
+        selectedDifficulty: data.selectedDifficulty || 'normale',
         inventoryOpen: false,
         selectedCharacterId: data.selectedCharacterId || data.party[0]?.id || null,
         searchCounts: data.searchCounts || {},
@@ -4795,7 +4777,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeEvent: null,
       eventOutcome: null,
       difficulty: 'normale',
-      selectedDifficulty: null,
+      selectedDifficulty: 'normale',
       puzzleState: null,
       puzzleSourceLocationId: null,
       qteState: null,
@@ -5376,7 +5358,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     for (const entry of itemPool) {
       // Skip key items already owned by the party
-      if (KEY_ITEM_IDS.has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
+      if (getKeyItemIds().has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
       // Safe room search: 100% chance (guaranteed loot)
       if (Math.random() * 100 < (entry.chance || 100)) {
         foundItems.push(entry.itemId);
@@ -5714,7 +5696,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   debugGiveAllKeys: () => {
-    const keyIds = ['key_rpd', 'key_sewers', 'key_lab', 'crank_handle', 'fuse'];
+    const keyIds = Object.values(ITEMS).filter(i => i.type === 'utility').map(i => i.id);
     set(state => {
       const newItems: ItemInstance[] = keyIds.map(id => {
         const def = ITEMS[id];

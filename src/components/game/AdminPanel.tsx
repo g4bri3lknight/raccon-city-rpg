@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Plus, Minus, Pencil, Trash2, Save, RotateCcw,
   Package, Scroll, Zap, FileText, Volume2, ImageIcon, RefreshCw, Loader2, Search, Play, Pause, Eye,
-  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database, Monitor, Skull, DoorOpen, Settings,
+  Upload, CloudUpload, Music, Trash, CheckCircle2, AlertCircle, VolumeX, Bell, MapPin, Users, Swords, Database, Monitor, Skull, DoorOpen, Settings, Trophy, Flag,
+  Sparkles, Flame, Crown, ChevronDown, Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
@@ -26,7 +27,7 @@ import type { Rarity } from '@/game/types';
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings';
+type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'recipes';
 
 interface TabConfig {
   id: TabId;
@@ -35,27 +36,55 @@ interface TabConfig {
   endpoint: string;
   entityLabel: string; // singular label for "Aggiungi Nuovo ..."
   custom?: boolean; // if true, renders a custom panel instead of CRUD table
+  group?: string; // group key for collapsible sections
 }
 
-const TABS: TabConfig[] = [
-  { id: 'items', label: 'Oggetti', icon: <Package className="w-4 h-4" />, endpoint: '/api/admin/items', entityLabel: 'Oggetto' },
-  { id: 'quests', label: 'Missioni', icon: <Scroll className="w-4 h-4" />, endpoint: '/api/admin/quests', entityLabel: 'Missione' },
-  { id: 'events', label: 'Eventi', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/events', entityLabel: 'Evento' },
-  { id: 'documents', label: 'Documenti', icon: <FileText className="w-4 h-4" />, endpoint: '/api/admin/documents', entityLabel: 'Documento' },
-  { id: 'sounds', label: 'Suoni', icon: <Volume2 className="w-4 h-4" />, endpoint: '/api/admin/sounds', entityLabel: 'Suono' },
-  { id: 'images', label: 'Immagini', icon: <ImageIcon className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Immagine' },
-  { id: 'notifications', label: 'Notifiche', icon: <Bell className="w-4 h-4" />, endpoint: '/api/admin/notifications', entityLabel: 'Notifica' },
-  { id: 'locations', label: 'Location', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location' },
-  { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC' },
-  { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio' },
-  { id: 'specials', label: 'Abilità PG', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità PG' },
-  { id: 'enemies', label: 'Nemici', icon: <Skull className="w-4 h-4" />, endpoint: '/api/admin/enemies', entityLabel: 'Nemico' },
-  { id: 'enemy-abilities', label: 'Abilità Nemici', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/enemy-abilities', entityLabel: 'Abilità Nemica' },
-  { id: 'secret-rooms', label: 'Stanze Segrete', icon: <DoorOpen className="w-4 h-4" />, endpoint: '/api/admin/secret-rooms', entityLabel: 'Stanza Segreta' },
-  { id: 'avatars', label: 'Avatar', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Avatar', custom: true },
-  { id: 'start-screen', label: 'Schermata Iniziale', icon: <Monitor className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true },
-  { id: 'settings', label: '⚙️ Impostazioni', icon: <Settings className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true },
+interface TabGroupDef {
+  id: string;
+  label: string;
+  icon: string;
+  defaultOpen?: boolean;
+  tabs: TabConfig[];
+}
+
+const TAB_GROUPS: TabGroupDef[] = [
+  { id: 'world', label: 'Mondo', icon: '🌍', defaultOpen: true, tabs: [
+    { id: 'locations', label: 'Location', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location', group: 'world' },
+    { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC', group: 'world' },
+    { id: 'quests', label: 'Missioni', icon: <Scroll className="w-4 h-4" />, endpoint: '/api/admin/quests', entityLabel: 'Missione', group: 'world' },
+    { id: 'events', label: 'Eventi', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/events', entityLabel: 'Evento', group: 'world' },
+    { id: 'documents', label: 'Documenti', icon: <FileText className="w-4 h-4" />, endpoint: '/api/admin/documents', entityLabel: 'Documento', group: 'world' },
+    { id: 'secret-rooms', label: 'Stanze Segrete', icon: <DoorOpen className="w-4 h-4" />, endpoint: '/api/admin/secret-rooms', entityLabel: 'Stanza Segreta', group: 'world' },
+  ]},
+  { id: 'combat', label: 'Combattimento', icon: '⚔️', defaultOpen: true, tabs: [
+    { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio', group: 'combat' },
+    { id: 'specials', label: 'Abilità PG', icon: <Sparkles className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità PG', group: 'combat' },
+    { id: 'enemies', label: 'Nemici', icon: <Skull className="w-4 h-4" />, endpoint: '/api/admin/enemies', entityLabel: 'Nemico', group: 'combat' },
+    { id: 'enemy-abilities', label: 'Abilità Nemici', icon: <Flame className="w-4 h-4" />, endpoint: '/api/admin/enemy-abilities', entityLabel: 'Abilità Nemica', group: 'combat' },
+    { id: 'boss-phases', label: 'Fasi Boss', icon: <Crown className="w-4 h-4" />, endpoint: '/api/admin/boss-phases', entityLabel: 'Fase Boss', group: 'combat' },
+  ]},
+  { id: 'items', label: 'Oggetti', icon: '📦', defaultOpen: true, tabs: [
+    { id: 'items', label: 'Oggetti', icon: <Package className="w-4 h-4" />, endpoint: '/api/admin/items', entityLabel: 'Oggetto', group: 'items' },
+    { id: 'recipes', label: 'Ricette', icon: <Wrench className="w-4 h-4" />, endpoint: '/api/admin/recipes', entityLabel: 'Ricetta', group: 'items' },
+  ]},
+  { id: 'progress', label: 'Progressione', icon: '🏆', tabs: [
+    { id: 'achievements', label: 'Traguardi', icon: <Trophy className="w-4 h-4" />, endpoint: '/api/admin/achievements', entityLabel: 'Traguardo', group: 'progress' },
+    { id: 'endings', label: 'Finale', icon: <Flag className="w-4 h-4" />, endpoint: '/api/admin/endings', entityLabel: 'Finale', group: 'progress' },
+  ]},
+  { id: 'media', label: 'Media', icon: '🎨', tabs: [
+    { id: 'sounds', label: 'Suoni', icon: <Volume2 className="w-4 h-4" />, endpoint: '/api/admin/sounds', entityLabel: 'Suono', group: 'media' },
+    { id: 'images', label: 'Immagini', icon: <ImageIcon className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Immagine', group: 'media' },
+    { id: 'notifications', label: 'Notifiche', icon: <Bell className="w-4 h-4" />, endpoint: '/api/admin/notifications', entityLabel: 'Notifica', group: 'media' },
+  ]},
+  { id: 'config', label: 'Config', icon: '⚙️', tabs: [
+    { id: 'avatars', label: 'Avatar', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Avatar', custom: true, group: 'config' },
+    { id: 'start-screen', label: 'Schermata Iniziale', icon: <Monitor className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
+    { id: 'settings', label: 'Impostazioni', icon: <Settings className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
+  ]},
 ];
+
+// Flat TABS array (backward compatible for lookups)
+const TABS: TabConfig[] = TAB_GROUPS.flatMap(g => g.tabs);
 
 // ═══════════════════════════════════════════════════════════════
 // Seed Banner Configuration (data-driven)
@@ -81,7 +110,11 @@ const SEED_BANNERS: Record<TabId, SeedBannerConfig | null> = {
   specials:     { icon: Zap,      label: 'Abilità PG',    description: 'Gestione <span className="text-white/50 font-medium">abilità personaggi</span> — configura poteri offensivi, difensivi, di supporto e controllo per i personaggi', seedEndpoint: '/api/admin/seed-specials' },
   enemies:      { icon: Skull,    label: 'Nemici',      description: 'Gestione <span className="text-white/50 font-medium">nemici</span> — aggiungi, modifica o rimuovi creature e boss. Ogni nemico ha statistiche, abilità e tabelle loot.', seedEndpoint: '/api/admin/seed-enemies' },
   'enemy-abilities': { icon: Swords, label: 'Abilità Nemici', description: 'Gestione <span className="text-white/50 font-medium">abilità nemici</span> — configura attacchi, potenza, probabilità d\'uso ed effetti di status per i nemici', seedEndpoint: '/api/admin/seed-enemy-abilities' },
+  'boss-phases': { icon: Skull, label: 'Fasi Boss', description: 'Gestione <span className="text-white/50 font-medium">fasi boss</span> — configura transizioni di fase per i boss: soglia HP, moltiplicatori stat e nuove abilità', seedEndpoint: '/api/admin/seed-boss-phases' },
+  'achievements': { icon: Trophy, label: 'Traguardi', description: 'Gestione <span className="text-white/50 font-medium">traguardi</span> — configura obiettivi, condizioni di sblocco, ricompense e categorie dei traguardi', seedEndpoint: '/api/admin/seed-achievements' },
+  'endings': { icon: Flag, label: 'Finale', description: 'Gestione <span className="text-white/50 font-medium">finali</span> — configura i finali multipli del gioco con requisiti, descrizioni e priorità', seedEndpoint: '/api/admin/seed-endings' },
   'secret-rooms': { icon: DoorOpen, label: 'Stanze Segrete', description: 'Gestione <span className="text-white/50 font-medium">stanze segrete</span> — aggiungi, modifica o rimuovi stanze nascoste scopribili durante l\'esplorazione', seedEndpoint: '/api/admin/seed-secret-rooms' },
+  recipes:      { icon: Settings, label: 'Ricette',     description: 'Gestione <span className="text-white/50 font-medium">ricette di crafting</span> — configura materiali, risultati e difficoltà delle ricette', seedEndpoint: '/api/admin/seed-recipes' },
   avatars:      null,
   'start-screen': null,
   settings:     null,
@@ -192,6 +225,16 @@ const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: string }>>
     alto:     { it: 'Alto', hint: 'pericoloso, preparati al combattimento' },
     critico:  { it: 'Critico', hint: 'molto pericoloso, rischio morte' },
   },
+  recipeCategory: {
+    ammo:    { it: 'Munizioni' },
+    healing: { it: 'Guarigione' },
+    booster: { it: 'Potenziamento' },
+  },
+  craftDifficulty: {
+    easy:   { it: 'Semplice' },
+    medium: { it: 'Medio' },
+    hard:   { it: 'Difficile' },
+  },
 };
 
 // Helper: get Italian label for an enum value
@@ -210,7 +253,7 @@ function getEnumHint(enumGroup: string, value: string): string | undefined {
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'status-cured' | 'special-effect' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items' | 'effects-editor' | 'item-box-defaults';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'status-cured' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items' | 'effects-editor' | 'item-box-defaults' | 'requirements-editor';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
@@ -238,18 +281,10 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'maxStack', label: 'Stack Max', type: 'number', defaultValue: 99 },
     // Weapon fields
     { key: 'weaponType', label: 'Tipo Arma', type: 'select', options: ['melee', 'ranged'], enumGroup: 'weaponType' },
-    { key: 'atkBonus', label: 'Bonus ATK', type: 'number', helpText: 'Arma, Accessorio, Weapon Mod' },
-    { key: 'ammoType', label: 'Tipo Munizione', type: 'text', placeholder: 'es: ammo_pistol' },
+    { key: 'ammoType', label: 'Tipo Munizione', type: 'entity-search', entitySearchEndpoint: '/api/admin/items?type=ammo', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'Cerca munizioni...' },
     // Equipment fields (armor/accessory/weapon_mod)
-    { key: 'defBonus', label: 'Bonus DEF', type: 'number', helpText: 'Armatura, Accessorio' },
-    { key: 'hpBonus', label: 'Bonus HP', type: 'number', helpText: 'Armatura, Accessorio' },
-    { key: 'spdBonus', label: 'Bonus SPD', type: 'number', helpText: 'Accessorio' },
-    { key: 'critBonus', label: 'Bonus Crit %', type: 'number', helpText: 'Accessorio, Weapon Mod: % probabilità critico extra' },
-    { key: 'dodgeBonus', label: 'Bonus Dodge %', type: 'number', helpText: 'Weapon Mod: % riduzione dodge nemico' },
-    { key: 'statusBonus', label: 'Bonus Status %', type: 'number', helpText: 'Weapon Mod: % probabilità status extra' },
     { key: 'modType', label: 'Compatibilità Mod', type: 'select', options: ['melee', 'ranged', 'any'], enumGroup: 'modType', helpText: 'Weapon Mod: tipo arma compatibile' },
-    { key: 'specialEffect', label: 'Effetto Speciale', type: 'special-effect', colSpan: 3, helpText: 'Effetto passivo aggiuntivo per armature, accessori e weapon mod. Si attiva automaticamente quando equipaggiato.' },
-    { key: 'effects', label: '💡 Effetti Atomici', type: 'effects-editor', colSpan: 3, helpText: 'Effetti attivati automaticamente: armi (on_hit), consumabili (on_use), equipaggiamento (on_turn_start, on_take_hit)' },
+    { key: 'effects', label: '💡 Effetti Atomici', type: 'effects-editor', colSpan: 3, helpText: 'Stat bonus (on_equip): buff_stat flat, status_resist, status_chance_boost. Trigger combattimento: on_hit, on_turn_start, on_take_hit, on_use.' },
   ],
   quests: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: quest_marco_firstaid' },
@@ -344,11 +379,7 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'ambientText', label: 'Testi Ambientali', type: 'text-list', colSpan: 3 },
     { key: 'lockedLocations', label: 'Location Bloccate', type: 'locked-locs', colSpan: 3 },
     { key: 'subAreas', label: 'Sotto-Aree', type: 'sub-areas', colSpan: 3 },
-    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella mappa e nella lista location (non usato dal motore di gioco)' },
-    { key: 'mapRow', label: 'Mappa Riga', type: 'number', placeholder: '0-3', helpText: 'Posizione verticale della location sulla mappa di gioco (0 = in alto, 3 = in basso)' },
-    { key: 'mapCol', label: 'Mappa Colonna', type: 'number', placeholder: '0-3', helpText: 'Posizione orizzontale della location sulla mappa di gioco (0 = sinistra, 3 = destra)' },
-    { key: 'mapIcon', label: 'Icona Mappa', type: 'text', placeholder: 'es: 🏙️' },
-    { key: 'mapDanger', label: 'Pericolo Mappa', type: 'select', options: ['basso', 'medio', 'alto', 'critico'], enumGroup: 'mapDangerLevel' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione (non usato dal motore di gioco)' },
   ],
   specials: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: colpo_mortale' },
@@ -386,6 +417,41 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'effects', label: '💡 Effetti Atomici', type: 'effects-editor', colSpan: 3, helpText: 'Effetti atomici che compongono l\'abilità nemica. target "enemy" = party member, "self" = il nemico stesso, "all_enemies" = tutti i party members.' },
     { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista abilità nemiche' },
   ],
+  'boss-phases': [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: tyrant_boss_phase_1' },
+    { key: 'enemyId', label: 'Boss (Enemy ID)', type: 'entity-search', entitySearchEndpoint: '/api/admin/enemies', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: tyrant_boss, nemesis_boss', required: true, colSpan: 2 },
+    { key: 'name', label: 'Nome Fase', type: 'text', required: true, placeholder: 'es: Terminus, Cortus, Pursuer' },
+    { key: 'hpThreshold', label: 'Soglia HP %', type: 'number', defaultValue: 0.5, helpText: 'Percentuale HP (0.0-1.0) che attiva questa fase. Es: 0.3 = 30%' },
+    { key: 'hpMultiplier', label: 'HP ×', type: 'number', defaultValue: 1.0, helpText: 'Moltiplicatore HP quando la fase si attiva' },
+    { key: 'atkMultiplier', label: 'ATK ×', type: 'number', defaultValue: 1.0, helpText: 'Moltiplicatore ATK quando la fase si attiva' },
+    { key: 'defMultiplier', label: 'DEF ×', type: 'number', defaultValue: 1.0, helpText: 'Moltiplicatore DEF quando la fase si attiva' },
+    { key: 'spdMultiplier', label: 'SPD ×', type: 'number', defaultValue: 1.0, helpText: 'Moltiplicatore SPD quando la fase si attiva' },
+    { key: 'newAbilities', label: 'Nuove Abilità', type: 'entity-tag-editor', entitySearchEndpoint: '/api/admin/enemy-abilities', entitySearchLabelKey: 'name', placeholder: 'Cerca e seleziona abilità nemiche da aggiungere...', colSpan: 3, helpText: 'Abilità che il boss guadagna quando questa fase si attiva' },
+    { key: 'message', label: 'Messaggio Transizione', type: 'textarea', colSpan: 3, placeholder: '⚠️ Il Tyrant rivela i tentacoli! ENRAGE FASE 2!' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di attivazione (più basso = prima fase)' },
+  ],
+  'achievements': [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: first_blood, centurion' },
+    { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Primo Sangue, Centurione' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', required: true, colSpan: 3, placeholder: 'es: Sconfiggi il tuo primo nemico.' },
+    { key: 'icon', label: 'Icona', type: 'text', defaultValue: '🏆', placeholder: 'es: ⚔️, 💀, 🗺️' },
+    { key: 'category', label: 'Categoria', type: 'select', required: true, options: ['combat', 'exploration', 'collection', 'story', 'special'], helpText: 'Categoria del traguardo' },
+    { key: 'condition', label: 'Condizione', type: 'text', required: true, placeholder: 'es: first_kill, kill_100, visit_all_locations', helpText: 'Identificatore usato nel codice per verificare la condizione' },
+    { key: 'hidden', label: 'Nascosto', type: 'boolean', defaultValue: false, helpText: 'Se true, nome e descrizione sono nascosti finché non sbloccato' },
+    { key: 'reward', label: 'Ricompensa', type: 'text', placeholder: 'es: Coraggio: +5, Esp: +50', helpText: 'Testo descrittivo della ricompensa (solo flavor)' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+  ],
+  'endings': [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: ending_escape' },
+    { key: 'title', label: 'Titolo', type: 'text', required: true, placeholder: 'es: Fuga Normale' },
+    { key: 'subtitle', label: 'Sottotitolo', type: 'text', placeholder: 'es: Sopravvissuto... ma a quale prezzo?' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', colSpan: 3, placeholder: 'Descrizione narrativa del finale...' },
+    { key: 'icon', label: 'Icona', type: 'text', defaultValue: '🏆', placeholder: 'es: 🏃, 💀, 🦸, 🔍' },
+    { key: 'color', label: 'Colore', type: 'text', defaultValue: '#22c55e', placeholder: 'es: #22c55e, #ef4444', helpText: 'Colore hex per il tema del finale' },
+    { key: 'requirements', label: '💡 Requisiti', type: 'requirements-editor', colSpan: 3, helpText: 'Condizioni necessarie per sbloccare questo finale' },
+    { key: 'priority', label: 'Priorità', type: 'number', defaultValue: 0, helpText: 'Più alto = controllato prima. 1 = escape (default), 4 = truth (best)' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
+  ],
   'secret-rooms': [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: secret_rpd_evidence_room' },
     { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Stanza Prove Nascosta' },
@@ -400,6 +466,18 @@ const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'uniqueItemId', label: 'Oggetto Unico', type: 'entity-search', entitySearchEndpoint: '/api/admin/items', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: lockpick, magnum, rocket_launcher', helpText: 'Oggetto unico garantito aggiunto al loot (opzionale)', colSpan: 2 },
     { key: 'uniqueItemQuantity', label: 'Quantità Unico', type: 'number', defaultValue: 1, helpText: 'Quantità dell\'oggetto unico' },
     { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista stanze segrete' },
+  ],
+  recipes: [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: craft_pistol_ammo' },
+    { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Munizioni Pistola' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', colSpan: 3, placeholder: 'Descrizione della ricetta...' },
+    { key: 'icon', label: 'Icona', type: 'text', placeholder: 'es: 🔶' },
+    { key: 'category', label: 'Categoria', type: 'select', options: ['ammo', 'healing', 'booster'], enumGroup: 'recipeCategory' },
+    { key: 'ingredients', label: 'Ingredienti', type: 'item-box-defaults', colSpan: 3, helpText: 'Aggiungi gli ingredienti necessari per il craft. Ogni riga = un ingrediente con ID oggetto e quantità.' },
+    { key: 'resultItemId', label: 'Risultato', type: 'entity-search', entitySearchEndpoint: '/api/admin/items', entitySearchLabelKey: 'name', entityIconKey: 'icon', placeholder: 'es: ammo_pistol', required: true, colSpan: 2, helpText: 'L\'oggetto che si ottiene dal craft' },
+    { key: 'resultQty', label: 'Quantità Risultato', type: 'number', defaultValue: 1 },
+    { key: 'difficulty', label: 'Difficoltà', type: 'select', options: ['easy', 'medium', 'hard'], enumGroup: 'craftDifficulty' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0 },
   ],
   'avatars': [],
   'start-screen': [],
@@ -574,7 +652,11 @@ const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
     },
   ],
   'enemy-abilities': [],
+  'boss-phases': [],
+  'achievements': [],
+  'endings': [],
   'secret-rooms': [],
+  recipes: [],
   'avatars': [],
   'start-screen': [],
   settings:     [],
@@ -647,18 +729,81 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
     },
     {
       key: '_stats',
-      label: 'Stats',
-      width: 'w-48',
+      label: 'Stats / Effetti',
+      width: 'w-56',
       render: (row) => {
-        const type = String(row.type);
         const parts: string[] = [];
-        if (row.atkBonus) parts.push(`⚔️${row.atkBonus}`);
-        if (row.defBonus) parts.push(`🛡️${row.defBonus}`);
-        if (row.hpBonus) parts.push(`❤️${row.hpBonus}`);
-        if (row.spdBonus) parts.push(`💨${row.spdBonus}`);
-        if (row.critBonus) parts.push(`💥${row.critBonus}%`);
+        const itemType = String(row.type ?? '');
+        // For weapons without effects, show weapon type
+        if ((itemType === 'weapon' || itemType === 'weapon_mod') && row.weaponType) {
+          parts.push(row.weaponType === 'melee' ? '🗡️ Melee' : '🔫 Ranged');
+          if (row.ammoType) parts.push(`🔶 ${String(row.ammoType)}`);
+          if (row.modType) parts.push(`🔗 ${String(row.modType)}`);
+        }
+        // Parse effects to show all effect types
+        try {
+          const effects = typeof row.effects === 'string' ? JSON.parse(row.effects) : (row.effects || []);
+          if (Array.isArray(effects)) {
+            for (const e of effects) {
+              switch (e.type) {
+                case 'buff_stat': {
+                  const icons: Record<string, string> = { atk: '⚔️', def: '🛡️', hp: '❤️', spd: '💨', crit: '💥' };
+                  const pct = e.percent ? `${e.percent}%` : '';
+                  const flat = e.flat ? `${e.amount}` : '';
+                  const val = pct || flat;
+                  const label = e.stat ? (icons[e.stat] || '') : '';
+                  const suffix = e.stat === 'crit' && e.flat ? '%' : '';
+                  if (val) parts.push(`${label}${val}${suffix}`);
+                  break;
+                }
+                case 'heal': {
+                  const pct = e.percent ? `❤️${e.percent >= 100 ? 'Full HP' : e.percent + '%'}` : '';
+                  const flat = e.amount ? `❤️+${e.amount} HP` : '';
+                  parts.push(pct || flat);
+                  break;
+                }
+                case 'deal_damage': {
+                  const mult = e.powerMultiplier ? `💥×${e.powerMultiplier}` : (e.power ? `💥${e.power}` : '💥DMG');
+                  if (e.target === 'all_enemies') parts.push(`${mult} (AOE)`);
+                  else parts.push(mult);
+                  break;
+                }
+                case 'remove_status': {
+                  const statuses: string[] = Array.isArray(e.statuses) ? e.statuses : [];
+                  if (statuses.length > 0) parts.push(`✨ Cure ${statuses.join('/')}`);
+                  break;
+                }
+                case 'add_slots': {
+                  parts.push(`🧳+${e.amount || 0} slot`);
+                  break;
+                }
+                case 'shield': {
+                  parts.push(`🛡️${e.amount || 0} HP`);
+                  break;
+                }
+                case 'hot': {
+                  parts.push(`💚${e.amountPerTurn || e.amount || 0} HP/t`);
+                  break;
+                }
+                case 'reflect': {
+                  parts.push(`🔥${e.percent || 0}% rifletti`);
+                  break;
+                }
+                case 'status_resist': {
+                  const sLabels: Record<string, string> = { poison: 'Veleno', bleeding: 'Sangui', stunned: 'Stord', all: 'Tutti' };
+                  parts.push(`🧪${sLabels[e.statusType] || e.statusType} ${e.value}%`);
+                  break;
+                }
+                case 'status_chance_boost': {
+                  parts.push(`☠️+${e.amount}% status`);
+                  break;
+                }
+              }
+            }
+          }
+        } catch { /* ignore parse errors */ }
         if (parts.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
-        return <span className="text-[10px] text-white/50 flex flex-wrap gap-x-2">{parts.map(p => <span key={p}>{p}</span>)}</span>;
+        return <span className="text-[10px] text-white/50 flex flex-wrap gap-x-2 gap-y-0.5">{parts.map(p => <span key={p}>{p}</span>)}</span>;
       },
     },
   ],
@@ -1150,6 +1295,113 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       },
     },
   ],
+  'boss-phases': [
+    { key: 'id', label: 'ID', width: 'w-48' },
+    {
+      key: 'enemyId',
+      label: 'Boss',
+      width: 'w-36',
+      render: (row) => {
+        const bossNames: Record<string, string> = { tyrant_boss: 'T-103', nemesis_boss: 'NEMESIS', proto_tyrant: 'Proto-Tyrant' };
+        const name = bossNames[String(row.enemyId)] || String(row.enemyId);
+        return <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-500/30 text-red-400 bg-red-500/10">{name}</Badge>;
+      },
+    },
+    { key: 'name', label: 'Fase', width: 'w-28' },
+    {
+      key: 'hpThreshold',
+      label: 'HP %',
+      width: 'w-16',
+      render: (row) => <span className="text-[10px] text-red-400/80 font-mono">{Math.round(Number(row.hpThreshold) * 100)}%</span>,
+    },
+    {
+      key: 'mults',
+      label: 'Molt.',
+      width: 'w-36',
+      render: (row) => {
+        const hp = Number(row.hpMultiplier);
+        const atk = Number(row.atkMultiplier);
+        const def = Number(row.defMultiplier);
+        const spd = Number(row.spdMultiplier);
+        const parts: string[] = [];
+        if (hp !== 1.0) parts.push(`HP×${hp}`);
+        if (atk !== 1.0) parts.push(`ATK×${atk}`);
+        if (def !== 1.0) parts.push(`DEF×${def}`);
+        if (spd !== 1.0) parts.push(`SPD×${spd}`);
+        if (parts.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
+        return <span className="text-[10px] text-amber-400/70 font-mono">{parts.join(' ')}</span>;
+      },
+    },
+    {
+      key: 'newAbilities',
+      label: 'Abilità',
+      width: 'w-24',
+      render: (row) => {
+        let count = 0;
+        try { count = typeof row.newAbilities === 'string' ? JSON.parse(row.newAbilities).length : Array.isArray(row.newAbilities) ? row.newAbilities.length : 0; } catch { count = 0; }
+        return count > 0 ? <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-cyan-500/30 text-cyan-400 bg-cyan-500/10">+{count}</Badge> : <span className="text-white/15 text-[10px]">—</span>;
+      },
+    },
+  ],
+  'achievements': [
+    { key: 'id', label: 'ID', width: 'w-40' },
+    { key: 'name', label: 'Nome', width: 'w-40' },
+    { key: 'icon', label: 'Icona', width: 'w-12' },
+    {
+      key: 'category',
+      label: 'Categoria',
+      width: 'w-28',
+      render: (row) => {
+        const catColors: Record<string, string> = {
+          combat: 'border-red-500/30 text-red-400 bg-red-500/10',
+          exploration: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+          collection: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+          story: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
+          special: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+        };
+        const catLabels: Record<string, string> = { combat: 'Combattimento', exploration: 'Esplorazione', collection: 'Collezione', story: 'Storia', special: 'Speciale' };
+        const cat = String(row.category);
+        return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${catColors[cat] || ''}`}>{catLabels[cat] || cat}</Badge>;
+      },
+    },
+    { key: 'condition', label: 'Condizione', width: 'w-44' },
+    {
+      key: 'hidden',
+      label: 'Nascosto',
+      width: 'w-16',
+      render: (row) => row.hidden ? <span className="text-[10px] text-amber-400">✓</span> : <span className="text-white/15 text-[10px]">—</span>,
+    },
+    { key: 'reward', label: 'Ricompensa', width: 'w-36' },
+  ],
+  'endings': [
+    { key: 'id', label: 'ID', width: 'w-40' },
+    { key: 'title', label: 'Titolo', width: 'w-40' },
+    { key: 'icon', label: 'Icona', width: 'w-12' },
+    {
+      key: 'priority',
+      label: 'Priorità',
+      width: 'w-20',
+      render: (row) => <span className="text-[10px] text-white/50 font-mono">{row.priority}</span>,
+    },
+    {
+      key: 'color',
+      label: 'Colore',
+      width: 'w-20',
+      render: (row) => (
+        <span className="w-4 h-4 rounded-sm inline-block" style={{ backgroundColor: String(row.color ?? '#22c55e') }} />
+      ),
+    },
+    {
+      key: 'requirements',
+      label: 'Req.',
+      width: 'w-16',
+      render: (row) => {
+        let count = 0;
+        try { count = typeof row.requirements === 'string' ? JSON.parse(row.requirements).length : Array.isArray(row.requirements) ? row.requirements.length : 0; } catch { count = 0; }
+        return <span className="text-[10px] text-white/40 font-mono">{count}</span>;
+      },
+    },
+  ],
   'secret-rooms': [
     { key: 'id', label: 'ID', width: 'w-52' },
     { key: 'name', label: 'Nome', width: 'w-44' },
@@ -1173,6 +1425,54 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Prob %',
       width: 'w-18',
       render: (row) => <span className="text-[10px] text-white/50 font-mono">{row.searchChance}%</span>,
+    },
+  ],
+  recipes: [
+    { key: 'id', label: 'ID', width: 'w-40' },
+    { key: 'name', label: 'Nome' },
+    {
+      key: 'icon',
+      label: '',
+      width: 'w-10',
+      render: (row) => <span className="text-sm">{String(row.icon ?? '🔧')}</span>,
+    },
+    {
+      key: 'category',
+      label: 'Categoria',
+      width: 'w-28',
+      render: (row) => {
+        const colors: Record<string, string> = { ammo: 'border-amber-500/30 text-amber-400 bg-amber-500/10', healing: 'border-green-500/30 text-green-400 bg-green-500/10', booster: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10' };
+        return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${colors[String(row.category)] ?? ''}`}>{getEnumLabel('recipeCategory', String(row.category))}</Badge>;
+      },
+    },
+    {
+      key: 'ingredients',
+      label: 'Ingredienti',
+      width: 'w-48',
+      render: (row) => {
+        let ings: { itemId: string; quantity: number }[] = [];
+        try { ings = typeof row.ingredients === 'string' ? JSON.parse(row.ingredients) : (Array.isArray(row.ingredients) ? row.ingredients : []); } catch { ings = []; }
+        if (ings.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
+        return <span className="text-[10px] text-white/50 font-mono">{ings.map((i: { itemId: string; quantity: number }) => `${i.quantity ?? 1}×${i.itemId}`).join(', ')}</span>;
+      },
+    },
+    {
+      key: 'resultItemId',
+      label: 'Risultato',
+      width: 'w-40',
+      render: (row) => {
+        if (!row.resultItemId) return <span className="text-white/15 text-[10px]">—</span>;
+        return <span className="text-[10px] text-white/70 font-mono">{row.resultQty > 1 ? `${row.resultQty}×` : ''}{String(row.resultItemId)}</span>;
+      },
+    },
+    {
+      key: 'difficulty',
+      label: 'Difficoltà',
+      width: 'w-24',
+      render: (row) => {
+        const colors: Record<string, string> = { easy: 'text-green-400', medium: 'text-amber-400', hard: 'text-red-400' };
+        return <span className={`text-[10px] ${colors[String(row.difficulty)] ?? 'text-white/50'}`}>{getEnumLabel('craftDifficulty', String(row.difficulty))}</span>;
+      },
     },
   ],
   'avatars': [],
@@ -1826,6 +2126,77 @@ function TextListEditor({ value, onChange }: { value: unknown; onChange: (v: str
         className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Aggiungi testo
+      </button>
+    </div>
+  );
+}
+
+/** Requirements Editor — visual editor for ending requirements */
+const REQUIREMENT_TYPES = [
+  { value: 'boss_defeated', label: 'Boss Sconfitto', icon: '💀', hint: 'ID del boss (es: tyrant_boss)' },
+  { value: 'npc_saved', label: 'NPC Salvato', icon: '👤', hint: 'ID dell\'NPC (es: npc_marco)' },
+  { value: 'documents_found', label: 'Documenti Trovati', icon: '📄', hint: 'Numero minimo di documenti' },
+  { value: 'turn_limit', label: 'Limite Turni', icon: '⏱️', hint: 'Turni massimi per il completamento' },
+  { value: 'party_alive', label: 'Gruppo Intero', icon: '👥', hint: 'Tutti i PG sopravvivono (valore: true)' },
+  { value: 'secret_rooms', label: 'Stanze Segrete', icon: '🚪', hint: 'Numero minimo di stanze segrete' },
+];
+
+function RequirementsEditor({ value, onChange }: { value: unknown; onChange: (v: string) => void }) {
+  let reqs: { type: string; value: string }[] = [];
+  if (Array.isArray(value)) {
+    reqs = value.map((r: unknown) => {
+      if (typeof r === 'object' && r !== null) {
+        const o = r as Record<string, unknown>;
+        return { type: String(o.type ?? 'boss_defeated'), value: String(o.value ?? '') };
+      }
+      return { type: String(r), value: '' };
+    });
+  } else if (typeof value === 'string') {
+    try { reqs = JSON.parse(value) || []; } catch { reqs = []; }
+  }
+
+  const add = () => onChange(JSON.stringify([...reqs, { type: 'boss_defeated', value: '' }]));
+  const remove = (idx: number) => onChange(JSON.stringify(reqs.filter((_, i) => i !== idx)));
+  const update = (idx: number, field: string, val: string) => {
+    const updated = reqs.map((r, i) => i === idx ? { ...r, [field]: val } : r);
+    onChange(JSON.stringify(updated));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="space-y-1.5 max-h-52 overflow-y-auto admin-scrollbar">
+        {reqs.map((req, i) => {
+          const typeDef = REQUIREMENT_TYPES.find(t => t.value === req.type);
+          return (
+            <div key={i} className="flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg px-2 py-1.5">
+              <span className="shrink-0 w-5 text-[9px] text-white/20 font-mono">{i + 1}.</span>
+              <select
+                value={req.type}
+                onChange={e => update(i, 'type', e.target.value)}
+                className="shrink-0 text-[10px] bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 focus:outline-none focus:border-yellow-500/40"
+              >
+                {REQUIREMENT_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
+                ))}
+              </select>
+              <input
+                value={req.value}
+                onChange={e => update(i, 'value', e.target.value)}
+                placeholder={typeDef?.hint ?? 'valore...'}
+                className="flex-1 min-w-0 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40"
+              />
+              <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          );
+        })}
+        {reqs.length === 0 && (
+          <p className="text-[10px] text-white/15 italic text-center py-2">Nessun requisito — clicca + per aggiungere</p>
+        )}
+      </div>
+      <button type="button" onClick={add} className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors">
+        <Plus className="w-3 h-3" /> Aggiungi requisito
       </button>
     </div>
   );
@@ -2931,6 +3302,8 @@ const EFFECT_STAT_LIST = [
   { key: 'atk', label: 'ATK (Danni)' },
   { key: 'def', label: 'DEF (Difesa)' },
   { key: 'spd', label: 'SPD (Velocità)' },
+  { key: 'hp', label: 'HP (Vita)' },
+  { key: 'crit', label: 'CRIT (Critico %)' },
 ];
 
 type EffectCategory = 'offensive' | 'defensive' | 'support' | 'control';
@@ -3013,13 +3386,14 @@ const EFFECT_TYPES_CONFIG: EffectTypeDef[] = [
     key: 'buff_stat',
     label: 'Aumenta Statistica',
     emoji: '📈',
-    tooltip: 'Aumenta temporaneamente una statistica del bersaglio. L\'importo è una percentuale (es. 50 = +50% DEF per N turni).',
+    tooltip: 'Aumenta una statistica del bersaglio. Con flat=true (on_equip) è un bonus fisso permanente. Senza flat è un % temporaneo (durata in turni).',
     category: 'defensive',
     defaultTarget: 'self',
     fields: [
-      { key: 'stat', label: 'Statistica', tooltip: 'La statistica da aumentare. ATK = danni, DEF = riduzione danni ricevuti, SPD = velocità in combattimento.', type: 'select', options: EFFECT_STAT_LIST, defaultValue: 'atk' },
-      { key: 'amount', label: 'Aumento %', tooltip: 'Percentuale di aumento (es. 30 = +30% della statistica base).', type: 'number', defaultValue: 30, min: 1, max: 200, step: 1 },
-      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata del buff. Al termine, la statistica torna al valore normale.', type: 'number', defaultValue: 3, min: 1, max: 20, step: 1 },
+      { key: 'stat', label: 'Statistica', tooltip: 'La statistica da aumentare. ATK=danni, DEF=difesa, SPD=velocità, HP=vita, CRIT=critico%.', type: 'select', options: EFFECT_STAT_LIST, defaultValue: 'atk' },
+      { key: 'amount', label: 'Valore', tooltip: 'Importo dell\'aumento. Se flat=true è un bonus fisso (es. +5 ATK). Se false è una % (es. 30 = +30%).', type: 'number', defaultValue: 5, min: 1, max: 200, step: 1 },
+      { key: 'flat', label: 'Bonus Fisso', tooltip: 'Se attivo, amount è un bonus piatto aggiunto direttamente (es. +5 ATK). Usato con on_equip per equipaggiamento permanente.', type: 'boolean', defaultValue: false },
+      { key: 'duration', label: 'Durata (turni)', tooltip: 'Turni di durata del buff. 0 o vuoto = permanente (per on_equip). Ignorato se flat=true senza durata.', type: 'number', defaultValue: 0, min: 0, max: 20, step: 1 },
     ],
   },
   {
@@ -3116,6 +3490,29 @@ const EFFECT_TYPES_CONFIG: EffectTypeDef[] = [
       { key: 'maxSlots', label: 'Slot Massimi', tooltip: 'Limite massimo di slot (default 12). L\'effetto non supera questo cap.', type: 'number', defaultValue: 12, min: 1, max: 99, step: 1 },
     ],
   },
+  {
+    key: 'status_resist',
+    label: 'Resistenza Status',
+    emoji: '🧪',
+    tooltip: 'Conferisce resistenza a uno status negativo (veleno, sanguinamento, stordimento). Attivo finché equipaggiato (on_equip).',
+    category: 'defensive',
+    defaultTarget: 'self',
+    fields: [
+      { key: 'statusType', label: 'Tipo Status', tooltip: 'Lo status a cui resistere. "all" = resistenza a tutti.', type: 'select', options: [{ key: 'poison', label: 'Veleno' }, { key: 'bleeding', label: 'Sanguinamento' }, { key: 'stunned', label: 'Stordimento' }, { key: 'all', label: 'Tutti' }], defaultValue: 'poison' },
+      { key: 'value', label: 'Resistenza %', tooltip: 'Percentuale di riduzione probabilità (es. 50 = 50% meno probabilità di essere avvelenati).', type: 'number', defaultValue: 50, min: 1, max: 100, step: 1 },
+    ],
+  },
+  {
+    key: 'status_chance_boost',
+    label: 'Bonus Status Chance',
+    emoji: '☠️',
+    tooltip: 'Aumenta la probabilità di applicare status negativi quando si attacca. Per weapon mod.',
+    category: 'offensive',
+    defaultTarget: 'self',
+    fields: [
+      { key: 'amount', label: 'Bonus %', tooltip: 'Percentuale extra aggiunta alla probabilità di applicare status (es. 30 = +30% in più).', type: 'number', defaultValue: 20, min: 1, max: 100, step: 1 },
+    ],
+  },
 ];
 
 const EFFECT_CATEGORY_COLORS: Record<EffectCategory, string> = {
@@ -3144,6 +3541,7 @@ function getDefaultEffect(typeKey: string): Record<string, unknown> {
 }
 
 const TRIGGER_OPTIONS = [
+  { value: 'on_equip', label: "All'equip", emoji: '🛡️', tooltip: "Attivo finché l'oggetto è equipaggiato. Per bonus statistici permanenti (armi, armature, accessori, mod)." },
   { value: 'on_use', label: "All'uso", emoji: '🫳', tooltip: "Si attiva quando il giocatore usa l'oggetto (consumabili)" },
   { value: 'on_hit', label: 'Al colpo', emoji: '⚔️', tooltip: "Si attiva dopo un attacco base (armi)" },
   { value: 'on_take_hit', label: 'Quando colpiti', emoji: '🛡️', tooltip: "Si attiva quando il personaggio riceve danni (armature)" },
@@ -4064,7 +4462,7 @@ function EntityForm({
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(f => {
           const val = data[f.key] ?? f.defaultValue ?? '';
-          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'status-cured' || f.type === 'special-effect' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || f.type === 'starting-items' || f.type === 'effects-editor' || f.type === 'item-box-defaults' || (f.colSpan === 3);
+          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'status-cured' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || f.type === 'starting-items' || f.type === 'effects-editor' || f.type === 'item-box-defaults' || f.type === 'requirements-editor' || (f.colSpan === 3);
           const isDoubleWidth = f.colSpan === 2 && !isFullWidth;
 
           if (isEdit && f.key === 'id') {
@@ -4185,11 +4583,6 @@ function EntityForm({
                   value={val}
                   onChange={v => handleChange(f.key, v)}
                 />
-              ) : f.type === 'special-effect' ? (
-                <SpecialEffectEditor
-                  value={val}
-                  onChange={v => handleChange(f.key, v)}
-                />
               ) : f.type === 'effects-editor' ? (
                 <EffectsArrayEditor
                   value={val}
@@ -4219,6 +4612,16 @@ function EntityForm({
                 />
               ) : f.type === 'starting-items' ? (
                 <StartingItemsEditor
+                  value={val}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'item-box-defaults' ? (
+                <ItemBoxDefaultsEditor
+                  value={typeof val === 'string' ? val : JSON.stringify(val)}
+                  onChange={v => handleChange(f.key, v)}
+                />
+              ) : f.type === 'requirements-editor' ? (
+                <RequirementsEditor
                   value={val}
                   onChange={v => handleChange(f.key, v)}
                 />
@@ -5559,30 +5962,178 @@ function StartScreenEditor() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Difficulty Config Editor — Embedded in Settings tab
+// ═══════════════════════════════════════════════════════════════
+
+const DIFFICULTY_LEVELS = ['sopravvissuto', 'normale', 'incubo'] as const;
+type DiffLevel = typeof DIFFICULTY_LEVELS[number];
+
+interface DiffConfig {
+  label: string;
+  color: string;
+  icon: string;
+  statMult: number;
+  lootMult: number;
+  minEnemies: number;
+  maxEnemies: number;
+  expMult: number;
+  enemyCritChance: number;
+  description: string;
+}
+
+const DIFFICULTY_DEFAULTS: Record<DiffLevel, DiffConfig> = {
+  sopravvissuto: { label: 'Sopravvissuto', color: '#22c55e', icon: '🏃', statMult: 0.6, lootMult: 1.5, minEnemies: 1, maxEnemies: 2, expMult: 1.4, enemyCritChance: 5, description: 'Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia.' },
+  normale: { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 0.85, lootMult: 1.1, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 10, description: 'Bilanciato. La vera esperienza di Raccoon City.' },
+  incubo: { label: 'Incubo', color: '#ef4444', icon: '💀', statMult: 1.4, lootMult: 0.6, minEnemies: 2, maxEnemies: 4, expMult: 0.8, enemyCritChance: 20, description: 'Nemici potenti, poco bottino. Solo per i più coraggiosi.' },
+};
+
+function DifficultyConfigEditor({
+  settings,
+  onChange,
+}: {
+  settings: Record<string, string>;
+  onChange: (key: string, value: string) => void;
+}) {
+  // Parse difficulty configs from settings (derived, no effect needed)
+  const diffConfigs = useMemo<Record<DiffLevel, DiffConfig>>(() => {
+    const parsed: Record<DiffLevel, DiffConfig> = { ...DIFFICULTY_DEFAULTS };
+    for (const lvl of DIFFICULTY_LEVELS) {
+      const key = `difficulty.${lvl}`;
+      if (settings[key]) {
+        try {
+          parsed[lvl] = JSON.parse(settings[key]);
+        } catch { /* keep default */ }
+      }
+    }
+    return parsed;
+  }, [settings]);
+
+  const updateDiff = (level: DiffLevel, field: keyof DiffConfig, value: string | number) => {
+    const updated = { ...diffConfigs[level], [field]: value };
+    onChange(`difficulty.${level}`, JSON.stringify(updated));
+  };
+
+  const diffMeta: Record<DiffLevel, { badge: string; borderColor: string; bgGlow: string }> = {
+    sopravvissuto: { badge: 'FACILE', borderColor: 'border-green-500/30', bgGlow: 'bg-green-500/5' },
+    normale: { badge: 'NORMALE', borderColor: 'border-yellow-500/30', bgGlow: 'bg-yellow-500/5' },
+    incubo: { badge: 'DIFFICILE', borderColor: 'border-red-500/30', bgGlow: 'bg-red-500/5' },
+  };
+
+  return (
+    <div className="space-y-4">
+      {DIFFICULTY_LEVELS.map(lvl => {
+        const cfg = diffConfigs[lvl];
+        const meta = diffMeta[lvl];
+        return (
+          <div key={lvl} className={`rounded-xl border ${meta.borderColor} ${meta.bgGlow} p-4 space-y-3`}>
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <span className="text-xl">{cfg.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={cfg.label}
+                    onChange={e => updateDiff(lvl, 'label', e.target.value)}
+                    className="text-sm font-bold text-white/90 bg-transparent border-b border-transparent hover:border-white/20 focus:border-white/40 focus:outline-none transition-colors px-0 py-0 w-auto"
+                  />
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ backgroundColor: cfg.color + '20', color: cfg.color }}>
+                    {meta.badge}
+                  </span>
+                </div>
+              </div>
+              {/* Icon + Color pickers */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] text-white/40">Icona</label>
+                <input
+                  type="text"
+                  value={cfg.icon}
+                  onChange={e => updateDiff(lvl, 'icon', e.target.value)}
+                  className="w-10 text-center text-sm bg-black/20 border border-white/[0.08] rounded px-1 py-0.5 text-white/90 focus:outline-none focus:border-white/30"
+                />
+                <label className="text-[10px] text-white/40">Colore</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="color"
+                    value={cfg.color}
+                    onChange={e => updateDiff(lvl, 'color', e.target.value)}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    value={cfg.color}
+                    onChange={e => updateDiff(lvl, 'color', e.target.value)}
+                    className="w-16 text-[10px] font-mono bg-black/20 border border-white/[0.08] rounded px-1.5 py-0.5 text-white/70 focus:outline-none focus:border-white/30"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <input
+              type="text"
+              value={cfg.description}
+              onChange={e => updateDiff(lvl, 'description', e.target.value)}
+              placeholder="Descrizione difficoltà..."
+              className="w-full bg-black/20 border border-white/[0.06] rounded-lg px-3 py-1.5 text-[11px] text-white/60 italic focus:outline-none focus:border-white/20 transition-colors"
+            />
+
+            {/* Numeric fields */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {([
+                ['statMult', 'Moltiplicatore Stat Nemici', 0.1, 3.0, 0.05],
+                ['lootMult', 'Moltiplicatore Bottino', 0.1, 3.0, 0.05],
+                ['expMult', 'Moltiplicatore EXP', 0.1, 3.0, 0.05],
+                ['enemyCritChance', 'Critico Nemico (%)', 0, 100, 1],
+                ['minEnemies', 'Min Nemici', 1, 8, 1],
+                ['maxEnemies', 'Max Nemici', 1, 10, 1],
+              ] as const).map(([field, label, min, max, step]) => (
+                <div key={field} className="space-y-0.5">
+                  <label className="text-[9px] font-medium text-white/40 uppercase tracking-wide">{label}</label>
+                  <input
+                    type="number"
+                    value={cfg[field as keyof DiffConfig] as number}
+                    onChange={e => updateDiff(lvl, field as keyof DiffConfig, parseFloat(e.target.value) || 0)}
+                    min={min}
+                    max={max}
+                    step={step}
+                    className="w-full bg-black/30 border border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-white/90 focus:outline-none focus:border-white/30 transition-colors tabular-nums"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Game Settings Editor — Custom tab for gameplay configuration
 // ═══════════════════════════════════════════════════════════════
 
 interface GameplaySettingDef {
   key: string;
   label: string;
-  type: 'number' | 'text' | 'json';
+  type: 'number' | 'text' | 'json' | 'item-box-defaults';
   group: string;
   groupLabel: string;
-  groupIcon: string;
   placeholder?: string;
   min?: number;
   max?: number;
   step?: number;
   helpText?: string;
+  colSpan?: number;
 }
 
 const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
   // Inventory
-  { key: 'gameplay.startingInventorySlots', label: 'Slot Iniziali', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', groupIcon: '📦', min: 2, max: 20, helpText: 'Numero di slot quando il personaggio viene creato' },
-  { key: 'gameplay.maxInventorySlots', label: 'Slot Massimi', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', groupIcon: '📦', min: 6, max: 30, helpText: 'Limite massimo di slot espandibili con le borse' },
+  { key: 'gameplay.startingInventorySlots', label: 'Slot Iniziali', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', min: 2, max: 20, helpText: 'Numero di slot quando il personaggio viene creato' },
+  { key: 'gameplay.maxInventorySlots', label: 'Slot Massimi', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', min: 6, max: 30, helpText: 'Limite massimo di slot espandibili con le borse' },
   // Item Box
-  { key: 'gameplay.maxItemBoxSlots', label: 'Slot Massimi', type: 'number', group: 'itembox', groupLabel: '🗃️ Item Box', groupIcon: '🗃️', min: 10, max: 200, helpText: 'Numero massimo di slot nella cassa degli oggetti (safe room)' },
-  { key: 'gameplay.defaultItemBoxItems', label: 'Oggetti Default', type: 'item-box-defaults', group: 'itembox', groupLabel: '🗃️ Item Box', groupIcon: '🗃️', colSpan: 3, helpText: 'Oggetti presenti nella Item Box al primo accesso a una safe room' },
+  { key: 'gameplay.maxItemBoxSlots', label: 'Slot Massimi', type: 'number', group: 'itembox', groupLabel: '🗃️ Item Box', min: 10, max: 200, helpText: 'Numero massimo di slot nella cassa degli oggetti (safe room)' },
+  { key: 'gameplay.defaultItemBoxItems', label: 'Oggetti Default', type: 'item-box-defaults', group: 'itembox', groupLabel: '🗃️ Item Box', colSpan: 3, helpText: 'Oggetti presenti nella Item Box al primo accesso a una safe room' },
 ];
 
 function GameSettingsEditor() {
@@ -5705,7 +6256,6 @@ function GameSettingsEditor() {
           return (
             <div key={groupId} className="space-y-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm">{groupDef.groupIcon}</span>
                 <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">{groupDef.groupLabel}</h4>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -5766,6 +6316,19 @@ function GameSettingsEditor() {
           );
         })}
 
+        {/* Difficulty Configuration Section */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🎮</span>
+            <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">Configurazione Difficoltà</h4>
+          </div>
+          <p className="text-[10px] text-white/30 -mt-2">Modifica i parametri di bilanciamento per ogni livello di difficoltà. Le modifiche hanno effetto sulle nuove partite.</p>
+          <DifficultyConfigEditor
+            settings={settings}
+            onChange={handleChange}
+          />
+        </div>
+
         {/* Save Button */}
         <div className="flex justify-end pt-4 border-t border-white/[0.06]">
           <Button
@@ -5789,10 +6352,17 @@ function GameSettingsEditor() {
 export default function AdminPanel() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('items');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const g of TAB_GROUPS) {
+      initial[g.id] = g.defaultOpen !== true;
+    }
+    return initial;
+  });
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<Record<TabId, number>>({
-    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'secret-rooms': 0, avatars: 0, 'start-screen': 0, settings: 0,
+    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'boss-phases': 0, achievements: 0, endings: 0, 'secret-rooms': 0, recipes: 0, avatars: 0, 'start-screen': 0, settings: 0,
   });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -5912,10 +6482,6 @@ export default function AdminPanel() {
         if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
-        // special-effect is an object {type, value} — serialize it
-        if (f.type === 'special-effect' && processed[f.key] != null && typeof processed[f.key] === 'object') {
-          processed[f.key] = JSON.stringify(processed[f.key]);
-        }
         if (processed[f.key] === '' || processed[f.key] === undefined) {
           delete processed[f.key];
         }
@@ -5961,10 +6527,6 @@ export default function AdminPanel() {
         }
         // status-cured is a string[] — serialize it
         if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
-          processed[f.key] = JSON.stringify(processed[f.key]);
-        }
-        // special-effect is an object {type, value} — serialize it
-        if (f.type === 'special-effect' && processed[f.key] != null && typeof processed[f.key] === 'object') {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
         if (processed[f.key] === '' || processed[f.key] === undefined) {
@@ -6089,34 +6651,62 @@ export default function AdminPanel() {
 
         {/* Body: Sidebar + Content */}
         <div className="flex flex-1 overflow-hidden">
-          {/* ── Vertical Sidebar ── */}
-          <div className="w-[200px] shrink-0 border-r border-white/[0.06] bg-white/[0.01] flex flex-col py-2">
-            {TABS.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setSearchQuery('');
-                }}
-                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-yellow-500/10 text-yellow-300 border-l-2 border-yellow-500'
-                    : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04] border-l-2 border-transparent'
-                }`}
-              >
-                <span className="shrink-0">{tab.icon}</span>
-                <span className="text-xs font-semibold flex-1 truncate">{tab.label}</span>
-                {!tab.custom && (
-                <span className={`text-[10px] min-w-[20px] text-center px-1.5 py-0.5 rounded-full font-mono ${
-                  activeTab === tab.id
-                    ? 'bg-yellow-500/20 text-yellow-200'
-                    : 'bg-white/[0.06] text-white/30'
-                }`}>
-                  {counts[tab.id] ?? 0}
-                </span>
-                )}
-              </button>
-            ))}
+          {/* ── Vertical Sidebar with Groups ── */}
+          <div className="w-[200px] shrink-0 border-r border-white/[0.06] bg-white/[0.01] flex flex-col py-2 overflow-y-auto admin-scrollbar">
+            {TAB_GROUPS.map(group => {
+              const isCollapsed = collapsedGroups[group.id];
+              const groupCount = group.tabs.reduce((sum, t) => sum + (counts[t.id] ?? 0), 0);
+              const isActiveInGroup = group.tabs.some(t => t.id === activeTab);
+              return (
+                <div key={group.id} className="mb-1">
+                  {/* Group Header */}
+                  <button
+                    onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-all ${
+                      isActiveInGroup && !isCollapsed
+                        ? 'text-white/60'
+                        : 'text-white/30 hover:text-white/50'
+                    }`}
+                  >
+                    <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                    <span className="text-[10px]">{group.icon}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider flex-1">{group.label}</span>
+                    <span className="text-[9px] font-mono text-white/20">{groupCount}</span>
+                  </button>
+                  {/* Group Tabs */}
+                  {!isCollapsed && (
+                    <div className="relative ml-1 border-l border-white/[0.06]">
+                      {group.tabs.map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setSearchQuery('');
+                          }}
+                          className={`w-full flex items-center gap-2 pl-3 pr-3 py-2 text-left transition-all ${
+                            activeTab === tab.id
+                              ? 'bg-yellow-500/10 text-yellow-300 border-l-2 border-yellow-500 -ml-[1px]'
+                              : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04] border-l-2 border-transparent -ml-[1px]'
+                          }`}
+                        >
+                          <span className="shrink-0">{tab.icon}</span>
+                          <span className="text-[11px] font-medium flex-1 truncate">{tab.label}</span>
+                          {!tab.custom && (
+                            <span className={`text-[10px] min-w-[18px] text-center px-1 py-0.5 rounded-full font-mono ${
+                              activeTab === tab.id
+                                ? 'bg-yellow-500/20 text-yellow-200'
+                                : 'bg-white/[0.06] text-white/25'
+                            }`}>
+                              {counts[tab.id] ?? 0}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* ── Content Area ── */}

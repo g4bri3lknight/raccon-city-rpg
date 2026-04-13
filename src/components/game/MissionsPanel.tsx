@@ -6,7 +6,7 @@ import { useGameStore } from '@/game/store';
 import { NPCS } from '@/game/data/loader';
 import { QUESTS } from '@/game/data/loader';
 import { ITEMS } from '@/game/data/loader';
-import { NPC_PORTRAIT_URLS } from '@/game/data/npc-images';
+import { getNpcPortraitUrl } from '@/game/data/npc-images';
 import ItemIcon from './ItemIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +37,7 @@ function getQuestDetails(questId: string): { npcName: string; npcPortrait: strin
       return {
         npcName: npc.name,
         npcPortrait: npc.portrait,
-        npcPortraitUrl: NPC_PORTRAIT_URLS[npc.id],
+        npcPortraitUrl: getNpcPortraitUrl(npc.id),
         quest: npc.quest,
       };
     }
@@ -52,7 +52,7 @@ function getQuestDetails(questId: string): { npcName: string; npcPortrait: strin
       if (npc) {
         npcName = npc.name;
         npcPortrait = npc.portrait;
-        npcPortraitUrl = NPC_PORTRAIT_URLS[npc.id];
+        npcPortraitUrl = getNpcPortraitUrl(npc.id);
       }
     }
     return { npcName, npcPortrait, npcPortraitUrl, quest: dbQuest };
@@ -76,7 +76,7 @@ function ProgressBar({ current, target }: { current: number; target: number }) {
 }
 
 function NpcPortrait({ npcId, portrait, size = 'sm' }: { npcId: string; portrait: string; size?: 'sm' | 'lg' }) {
-  const portraitUrl = NPC_PORTRAIT_URLS[npcId];
+  const portraitUrl = getNpcPortraitUrl(npcId);
   const dim = size === 'lg' ? 'w-10 h-10' : 'w-7 h-7';
 
   return (

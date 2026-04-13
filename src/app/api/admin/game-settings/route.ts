@@ -29,6 +29,11 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'gameplay.maxItemBoxSlots':       { value: '48',  label: 'Slot Massimi Item Box',           group: 'gameplay.itembox',   sortOrder: 110 },
   'gameplay.defaultItemBoxItems':   { value: '[]',  label: 'Oggetti Default Item Box (JSON)', group: 'gameplay.itembox',   sortOrder: 111 },
   'gameplay.startingInventorySlots':{ value: '6',   label: 'Slot Iniziali Inventario',        group: 'gameplay.inventory', sortOrder: 101 },
+
+  // ── Difficulty ──
+  'difficulty.sopravvissuto': { value: '{"label":"Sopravvissuto","color":"#22c55e","icon":"🏃","statMult":0.6,"lootMult":1.5,"minEnemies":1,"maxEnemies":2,"expMult":1.4,"enemyCritChance":5,"description":"Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia."}', label: 'Difficoltà: Sopravvissuto', group: 'difficulty', sortOrder: 200 },
+  'difficulty.normale':       { value: '{"label":"Normale","color":"#eab308","icon":"⚔️","statMult":0.85,"lootMult":1.1,"minEnemies":1,"maxEnemies":3,"expMult":1.0,"enemyCritChance":10,"description":"Bilanciato. La vera esperienza di Raccoon City."}', label: 'Difficoltà: Normale', group: 'difficulty', sortOrder: 201 },
+  'difficulty.incubo':        { value: '{"label":"Incubo","color":"#ef4444","icon":"💀","statMult":1.4,"lootMult":0.6,"minEnemies":2,"maxEnemies":4,"expMult":0.8,"enemyCritChance":20,"description":"Nemici potenti, poco bottino. Solo per i più coraggiosi."}', label: 'Difficoltà: Incubo', group: 'difficulty', sortOrder: 202 },
 };
 
 async function ensureDefaults() {

@@ -41,7 +41,7 @@ export type SpecialCategory = 'offensive' | 'defensive' | 'support' | 'control';
 export type EffectTarget = 'self' | 'enemy' | 'all_enemies' | 'ally' | 'all_allies' | 'lowest_hp_ally' | 'random_enemy';
 
 // When an effect triggers
-export type EffectTrigger = 'on_use' | 'on_hit' | 'on_take_hit' | 'on_turn_start' | 'on_critical';
+export type EffectTrigger = 'on_use' | 'on_hit' | 'on_take_hit' | 'on_turn_start' | 'on_critical' | 'on_equip';
 
 // All atomic effect types
 export type SpecialEffectType =
@@ -57,7 +57,9 @@ export type SpecialEffectType =
   | 'revive'
   | 'hot'
   | 'reflect'
-  | 'add_slots';
+  | 'add_slots'
+  | 'status_resist'
+  | 'status_chance_boost';
 
 // --- Atomic effect interfaces ---
 
@@ -112,18 +114,20 @@ export interface RemoveStatusEffect extends BaseEffect {
 export interface BuffStatEffect extends BaseEffect {
   type: 'buff_stat';
   /** Which stat to boost */
-  stat: 'atk' | 'def' | 'spd';
-  /** Percentage increase (e.g. 30 = +30%) */
+  stat: 'atk' | 'def' | 'spd' | 'hp' | 'crit';
+  /** Amount of increase. If flat=true, this is a flat bonus (e.g. +5 ATK). If false, percentage (e.g. 30 = +30%). */
   amount: number;
-  /** How many turns the buff lasts */
-  duration: number;
+  /** How many turns the buff lasts (0 or undefined = permanent, used with on_equip) */
+  duration?: number;
+  /** If true, amount is a flat bonus added directly. If false/undefined, amount is a percentage. */
+  flat?: boolean;
 }
 
 export interface DebuffStatEffect extends BaseEffect {
   type: 'debuff_stat';
   stat: 'atk' | 'def' | 'spd';
   amount: number;
-  duration: number;
+  duration?: number;
 }
 
 export interface ShieldEffect extends BaseEffect {
@@ -178,6 +182,20 @@ export interface AddSlotsEffect extends BaseEffect {
   amount: number;
 }
 
+export interface StatusResistEffect extends BaseEffect {
+  type: 'status_resist';
+  /** Status to resist: 'poison', 'bleeding', 'stunned', or 'all' */
+  statusType: 'poison' | 'bleeding' | 'stunned' | 'all';
+  /** Percentage reduction (e.g. 50 = 50% less chance to be afflicted) */
+  value: number;
+}
+
+export interface StatusChanceBoostEffect extends BaseEffect {
+  type: 'status_chance_boost';
+  /** Extra percentage added to status apply chance (e.g. 30 = +30% to apply poison/bleed/stun) */
+  amount: number;
+}
+
 // Discriminated union of all effects
 export type SpecialEffect =
   | DealDamageEffect
@@ -192,7 +210,9 @@ export type SpecialEffect =
   | ReviveEffect
   | HotEffect
   | ReflectEffect
-  | AddSlotsEffect;
+  | AddSlotsEffect
+  | StatusResistEffect
+  | StatusChanceBoostEffect;
 
 // Active effect tracked during combat (buffs, shields, HoTs, etc.)
 export interface ActiveCombatEffect {
@@ -276,12 +296,12 @@ export interface Character {
 export interface WeaponInstance {
   itemId: string;
   name: string;
-  atkBonus: number;
   type: 'melee' | 'ranged';
-  special?: string;
   ammoType?: string; // itemId of required ammo (e.g. 'ammo_pistol')
   // #3 Weapon mods
   modSlots: string[]; // installed mod IDs (max 2)
+  /** Atomic effects — includes on_equip stat bonuses, on_hit triggers, etc. */
+  effects?: SpecialEffect[];
 }
 
 // ==========================================
@@ -294,11 +314,9 @@ export interface WeaponMod {
   description: string;
   icon: string;
   rarity: Rarity;
-  atkBonus?: number;
-  critBonus?: number; // % extra crit chance
-  dodgeBonus?: number; // % enemy dodge chance reduction
-  statusBonus?: number; // % extra status effect apply chance
   type: 'melee' | 'ranged' | 'any'; // weapon type compatibility
+  /** Atomic effects — on_equip bonuses (atk, crit, status, dodge) */
+  effects?: SpecialEffect[];
 }
 
 // ==========================================
@@ -313,17 +331,8 @@ export interface EquipmentInstance {
   slot: EquipmentSlot;
   icon: string;
   rarity: Rarity;
-  defBonus?: number;
-  hpBonus?: number;
-  spdBonus?: number;
-  atkBonus?: number;
-  critBonus?: number;
   description: string;
-  specialEffect?: {
-    type: 'poison_resist' | 'bleed_resist' | 'stun_resist' | 'hp_regen' | 'thorns' | 'crit_shield';
-    value: number; // percentage or flat value depending on type
-  };
-  /** Atomic effects array — passive effects that fire on specific triggers during combat */
+  /** Atomic effects — on_equip stat bonuses, on_turn_start/on_take_hit triggers, resistances */
   effects?: SpecialEffect[];
 }
 
@@ -364,6 +373,12 @@ export interface ItemDefinition {
   stackable: boolean;
   maxStack: number;
   unico: boolean;
+  /** Weapon type: melee | ranged (only for type=weapon) */
+  weaponType?: string;
+  /** Ammo item ID this weapon uses (only for ranged weapons) */
+  ammoType?: string;
+  /** Weapon mod compatibility: melee | ranged | any (only for type=weapon_mod) */
+  modType?: string;
   /** Atomic effects array (data-driven system — same format as specials) */
   effects?: SpecialEffect[];
 }

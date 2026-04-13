@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { ALL_SPECIAL_ABILITIES } from '@/game/data/specials';
+import { SEED_SPECIALS } from '@/seed-data/specials';
 
 /**
  * POST /api/admin/seed-specials — seed specials from static data into DB
@@ -11,7 +11,7 @@ export async function POST() {
     let created = 0;
     let updated = 0;
 
-    for (const spec of ALL_SPECIAL_ABILITIES) {
+    for (const spec of SEED_SPECIALS) {
       const existing = await db.gameSpecial.findUnique({ where: { id: spec.id } });
       if (existing) {
         await db.gameSpecial.update({
@@ -46,7 +46,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      total: ALL_SPECIAL_ABILITIES.length,
+      total: SEED_SPECIALS.length,
       created,
       updated,
     });

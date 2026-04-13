@@ -1,19 +1,14 @@
-import { STATIC_ITEMS } from './items';
-import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS, EQUIPMENT_STATS } from './equipment';
-import { WEAPON_MODS } from './weapon-mods';
-import { STATIC_DYNAMIC_EVENTS } from './dynamic-events';
-import { STATIC_DOCUMENTS } from './documents';
-import { STATIC_LOCATIONS } from './locations';
-import { SECRET_ROOMS as STATIC_SECRET_ROOMS } from './secrets';
-import { NPCS as STATIC_NPCS } from './npcs';
-import { CHARACTER_ARCHETYPES as STATIC_CHARACTERS, ARCHETYPE_STAT_POINTS as STATIC_STAT_POINTS, getCustomStartingItems as _getCustomStartingItems, getCustomPassiveDescription as _getCustomPassiveDescription } from './characters';
-import { ALL_SPECIAL_ABILITIES as STATIC_SPECIALS, ARCHETYPE_SPECIAL_MAP as STATIC_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP as STATIC_CATEGORY_MAP } from './specials';
-import { ENEMIES as STATIC_ENEMIES, ENEMY_IMAGES, CHARACTER_IMAGES, BOSS_PHASES } from './enemies';
+import { setDifficultyConfigs } from './difficulty';
+import { CRAFTING_RECIPES, CraftingRecipe } from './crafting';
+import { getCustomStartingItems as _getCustomStartingItems, getCustomPassiveDescription as _getCustomPassiveDescription } from './characters';
+import { ENEMY_IMAGES, CHARACTER_IMAGES } from './enemies';
+import { rebuildWeaponModsFromItems } from './weapon-mods';
+import { rebuildEquipmentFromItems } from './equipment';
 import type { ItemDefinition, ItemType, Rarity, LocationDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition } from '../types';
-import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, SecretRoom, SpecialEffect } from '../types';
+import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, SecretRoom, SpecialEffect, DifficultyConfig, AchievementDefinition, EndingDefinition } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
@@ -26,22 +21,33 @@ export let SPECIALS_DATA: SpecialAbilityDefinition[] = [];
 export let ENEMIES_DATA: Record<string, EnemyDefinition> = {};
 export let ENEMY_ABILITIES_DATA: Record<string, EnemyAbility> = {};
 export let SECRET_ROOMS_DATA: Record<string, SecretRoom> = {};
+export let RECIPES_DATA: CraftingRecipe[] = [];
+export let BOSS_PHASES_DATA: Record<string, BossPhase[]> = {};
+export let ACHIEVEMENTS_DATA: Record<string, AchievementDefinition> = {};
+export let ENDINGS_DATA: Record<string, EndingDefinition> = {};
 
 // Backward compat aliases
 export { NPCS_DATA as NPCS };
+export { ENDINGS_DATA as ENDINGS };
 export { CHARACTERS_DATA as CHARACTER_ARCHETYPES };
 export { SPECIALS_DATA as ALL_SPECIAL_ABILITIES };
 
-// Re-export secret rooms (DB-loaded with static fallback)
+// Re-export secret rooms (DB-loaded)
 export { SECRET_ROOMS_DATA as SECRET_ROOMS };
 
 // Re-export image maps (these are URL templates, no DB storage)
-export { ENEMY_IMAGES, CHARACTER_IMAGES, BOSS_PHASES };
+export { ENEMY_IMAGES, CHARACTER_IMAGES };
+
+// Boss phases — loaded from DB at runtime
+export { BOSS_PHASES_DATA as BOSS_PHASES };
+
+// Achievements — loaded from DB at runtime
+export { ACHIEVEMENTS_DATA as ACHIEVEMENTS };
 
 // Computed config: rebuilt from loaded character data on each load
-export let ARCHETYPE_STAT_POINTS = { ...STATIC_STAT_POINTS };
-export let ARCHETYPE_SPECIAL_MAP = { ...STATIC_SPECIAL_MAP };
-export let ARCHETYPE_CATEGORY_MAP = { ...STATIC_CATEGORY_MAP };
+export let ARCHETYPE_STAT_POINTS: Record<string, { hp: number; atk: number; def: number; spd: number }> = {};
+export let ARCHETYPE_SPECIAL_MAP: Record<string, { special1: string; special2: string }> = {};
+export let ARCHETYPE_CATEGORY_MAP: Record<string, string> = {};
 
 // Re-export helper functions from characters module
 export { _getCustomStartingItems as getCustomStartingItems, _getCustomPassiveDescription as getCustomPassiveDescription };
@@ -68,9 +74,10 @@ interface DbItem {
   stackable: boolean;
   maxStack: number;
   unico: boolean;
-  specialEffect: string | null;
+  weaponType: string | null;
+  ammoType: string | null;
+  modType: string | null;
   effects: string | null;
-  // … other fields we don't need for the in-memory map
 }
 
 interface DbEvent {
@@ -226,6 +233,19 @@ interface DbEnemyAbility {
   createdAt: Date;
 }
 
+interface DbRecipe {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  ingredients: string;
+  resultItemId: string;
+  resultQty: number;
+  difficulty: string;
+  sortOrder: number;
+}
+
 interface DbSecretRoom {
   id: string;
   locationId: string;
@@ -239,6 +259,47 @@ interface DbSecretRoom {
   lootTable: string;
   uniqueItemId: string | null;
   uniqueItemQuantity: number | null;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbBossPhase {
+  id: string;
+  enemyId: string;
+  name: string;
+  hpThreshold: number;
+  hpMultiplier: number;
+  atkMultiplier: number;
+  defMultiplier: number;
+  spdMultiplier: number;
+  newAbilities: string;
+  message: string;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbAchievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  condition: string;
+  hidden: boolean;
+  reward: string;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbEnding {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: string;
+  color: string;
+  requirements: string;
+  priority: number;
   sortOrder: number;
   createdAt: Date;
 }
@@ -269,6 +330,9 @@ function mapDbItem(item: DbItem): ItemDefinition {
     stackable: item.stackable ?? true,
     maxStack: item.maxStack ?? 99,
     unico: item.unico ?? false,
+    weaponType: item.weaponType ?? undefined,
+    ammoType: item.ammoType ?? undefined,
+    modType: item.modType ?? undefined,
     effects: effects.length > 0 ? effects : undefined,
   };
 }
@@ -516,14 +580,138 @@ function mapDbSecretRoom(row: DbSecretRoom): SecretRoom {
   };
 }
 
+function loadRecipes(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  if (api?.recipes && api.recipes.length > 0) {
+    RECIPES_DATA = (api.recipes as DbRecipe[]).map(row => {
+      let ingredients: CraftingRecipe['ingredients'] = [];
+      try { ingredients = JSON.parse(row.ingredients || '[]'); } catch { ingredients = []; }
+      return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        icon: row.icon,
+        category: row.category as CraftingRecipe['category'],
+        ingredients,
+        result: { itemId: row.resultItemId, quantity: row.resultQty },
+        difficulty: row.difficulty as CraftingRecipe['difficulty'],
+      };
+    });
+    CRAFTING_RECIPES = RECIPES_DATA;
+  } else {
+    RECIPES_DATA = [];
+  }
+}
+
 function loadSecretRooms(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  SECRET_ROOMS_DATA = {};
   if (api?.secretRooms && api.secretRooms.length > 0) {
-    SECRET_ROOMS_DATA = {};
     for (const row of api.secretRooms) {
       SECRET_ROOMS_DATA[row.id] = mapDbSecretRoom(row as DbSecretRoom);
     }
-  } else {
-    SECRET_ROOMS_DATA = { ...STATIC_SECRET_ROOMS };
+  }
+}
+
+function loadBossPhases(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  BOSS_PHASES_DATA = {};
+  if (api?.bossPhases && api.bossPhases.length > 0) {
+    for (const row of api.bossPhases) {
+      const phase = row as DbBossPhase;
+      // Parse newAbilities JSON — resolve ability IDs to full EnemyAbility objects
+      let newAbilities: EnemyAbility[] = [];
+      try {
+        const abilityIds: string[] = JSON.parse(phase.newAbilities || '[]');
+        if (Array.isArray(abilityIds)) {
+          newAbilities = abilityIds.map((id: string) => ENEMY_ABILITIES_DATA[id]).filter(Boolean);
+        }
+      } catch { /* ignore parse errors */ }
+
+      const bossPhase: BossPhase = {
+        name: phase.name,
+        hpThreshold: phase.hpThreshold,
+        hpMultiplier: phase.hpMultiplier,
+        atkMultiplier: phase.atkMultiplier,
+        defMultiplier: phase.defMultiplier,
+        spdMultiplier: phase.spdMultiplier,
+        message: phase.message,
+        ...(newAbilities.length > 0 ? { newAbilities } : {}),
+      };
+
+      if (!BOSS_PHASES_DATA[phase.enemyId]) {
+        BOSS_PHASES_DATA[phase.enemyId] = [];
+      }
+      BOSS_PHASES_DATA[phase.enemyId].push(bossPhase);
+    }
+  }
+}
+
+function loadAchievements(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  ACHIEVEMENTS_DATA = {};
+  if (api?.achievements && api.achievements.length > 0) {
+    for (const row of api.achievements) {
+      const ach = row as DbAchievement;
+      ACHIEVEMENTS_DATA[ach.id] = {
+        id: ach.id,
+        name: ach.name,
+        description: ach.description,
+        icon: ach.icon,
+        category: ach.category as AchievementDefinition['category'],
+        condition: ach.condition,
+        hidden: ach.hidden,
+        reward: ach.reward || undefined,
+      };
+    }
+  }
+}
+
+async function loadEndings(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  ENDINGS_DATA = {};
+  if (api?.endings && api.endings.length > 0) {
+    for (const row of api.endings) {
+      const e = row as DbEnding;
+      let requirements: EndingDefinition['requirements'] = [];
+      try {
+        const parsed = JSON.parse(e.requirements || '[]');
+        if (Array.isArray(parsed)) {
+          requirements = parsed as EndingDefinition['requirements'];
+        }
+      } catch { /* ignore parse errors */ }
+
+      ENDINGS_DATA[e.id] = {
+        id: e.id as EndingDefinition['id'],
+        title: e.title,
+        subtitle: e.subtitle,
+        description: e.description,
+        icon: e.icon,
+        color: e.color,
+        requirements,
+        priority: e.priority,
+      };
+    }
+  }
+}
+
+async function loadDifficultyConfigs(): Promise<void> {
+  try {
+    const resp = await fetch('/api/game-settings');
+    if (!resp.ok) return;
+    const settings: Record<string, string> = await resp.json();
+    const configs: Record<string, DifficultyConfig> = {};
+    for (const key of ['sopravvissuto', 'normale', 'incubo']) {
+      const raw = settings[`difficulty.${key}`];
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object' && parsed.label) {
+            configs[key] = parsed as DifficultyConfig;
+          }
+        } catch { /* skip invalid JSON */ }
+      }
+    }
+    if (Object.keys(configs).length > 0) {
+      setDifficultyConfigs(configs);
+    }
+  } catch {
+    /* keep defaults */
   }
 }
 
@@ -535,17 +723,33 @@ function rebuildStatPoints(): void {
     const hp = Math.round(char.maxHp / 10);
     pts[char.id] = { hp, atk: char.atk, def: char.def, spd: char.spd };
   }
-  // Keep 'custom' fallback from static
-  pts.custom = STATIC_STAT_POINTS.custom;
+  // Hardcoded default for 'custom' archetype
+  pts.custom = { hp: 10, atk: 12, def: 10, spd: 8 };
   ARCHETYPE_STAT_POINTS = pts;
 }
 
 function rebuildSpecialMap(): void {
-  // Build from loaded specials + character archetype mapping
-  const spMap: typeof ARCHETYPE_SPECIAL_MAP = { ...STATIC_SPECIAL_MAP };
-  ARCHETYPE_SPECIAL_MAP = spMap;
+  const spMap: typeof ARCHETYPE_SPECIAL_MAP = {};
+  const catMap: typeof ARCHETYPE_CATEGORY_MAP = {};
 
-  const catMap: typeof ARCHETYPE_CATEGORY_MAP = { ...STATIC_CATEGORY_MAP };
+  // Build from loaded characters + specials data
+  for (const char of CHARACTERS_DATA) {
+    // Find special by name to get its ID
+    const spec1 = SPECIALS_DATA.find(s => s.name === char.specialName);
+    const spec2 = SPECIALS_DATA.find(s => s.name === char.special2Name);
+    if (spec1 || spec2) {
+      spMap[char.id] = {
+        special1: spec1?.id ?? '',
+        special2: spec2?.id ?? '',
+      };
+    }
+    // Determine category from first special
+    if (spec1) {
+      catMap[char.id] = spec1.category;
+    }
+  }
+
+  ARCHETYPE_SPECIAL_MAP = spMap;
   ARCHETYPE_CATEGORY_MAP = catMap;
 }
 
@@ -563,6 +767,10 @@ async function loadFromApi(): Promise<{
   enemies: DbEnemy[];
   enemyAbilities: DbEnemyAbility[];
   secretRooms: DbSecretRoom[];
+  recipes: DbRecipe[];
+  bossPhases: DbBossPhase[];
+  achievements: DbAchievement[];
+  endings: DbEnding[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -574,35 +782,29 @@ async function loadFromApi(): Promise<{
 }
 
 async function loadItems(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  ITEMS = {};
   if (api?.items && api.items.length > 0) {
-    ITEMS = {};
     for (const item of api.items) {
       ITEMS[item.id] = mapDbItem(item);
     }
-  } else {
-    ITEMS = { ...STATIC_ITEMS, ...EQUIPMENT_ITEM_DEFINITIONS, ...MOD_ITEM_DEFINITIONS };
   }
 }
 
 async function loadEvents(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  DYNAMIC_EVENTS = {};
   if (api?.events && api.events.length > 0) {
-    DYNAMIC_EVENTS = {};
     for (const event of api.events) {
       DYNAMIC_EVENTS[event.id] = mapDbEvent(event);
     }
-  } else {
-    DYNAMIC_EVENTS = { ...STATIC_DYNAMIC_EVENTS };
   }
 }
 
 async function loadDocuments(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  DOCUMENTS = {};
   if (api?.documents && api.documents.length > 0) {
-    DOCUMENTS = {};
     for (const doc of api.documents) {
       DOCUMENTS[doc.id] = mapDbDocument(doc);
     }
-  } else {
-    DOCUMENTS = { ...STATIC_DOCUMENTS };
   }
 }
 
@@ -616,117 +818,108 @@ async function loadQuests(api: Awaited<ReturnType<typeof loadFromApi>>): Promise
 }
 
 async function loadLocations(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  LOCATIONS = {};
   if (api?.locations && api.locations.length > 0) {
-    LOCATIONS = {};
     for (const loc of api.locations) {
       LOCATIONS[loc.id] = mapDbLocation(loc);
     }
-  } else {
-    LOCATIONS = { ...STATIC_LOCATIONS };
   }
 }
 
 async function loadNpcs(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  NPCS_DATA = {};
   if (api?.npcs && api.npcs.length > 0) {
-    NPCS_DATA = {};
     for (const row of api.npcs) {
       NPCS_DATA[row.id] = mapDbNpc(row);
     }
-  } else {
-    NPCS_DATA = { ...STATIC_NPCS };
   }
 }
 
 async function loadCharacters(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  CHARACTERS_DATA = [];
   if (api?.characters && api.characters.length > 0) {
-    CHARACTERS_DATA = [];
     for (const row of api.characters) {
       CHARACTERS_DATA.push(mapDbCharacter(row));
     }
-  } else {
-    CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
   }
-  // Rebuild stat points from loaded data
+  // Rebuild computed config from loaded data
   rebuildStatPoints();
+  rebuildSpecialMap();
 }
 
 async function loadSpecials(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  SPECIALS_DATA = [];
   if (api?.specials && api.specials.length > 0) {
-    SPECIALS_DATA = [];
     for (const row of api.specials) {
       SPECIALS_DATA.push(mapDbSpecial(row));
     }
-  } else {
-    SPECIALS_DATA = [...STATIC_SPECIALS];
   }
 }
 
 async function loadEnemies(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  ENEMIES_DATA = {};
   if (api?.enemies && api.enemies.length > 0) {
-    ENEMIES_DATA = {};
     for (const row of api.enemies) {
       ENEMIES_DATA[row.id] = mapDbEnemy(row);
     }
-  } else {
-    ENEMIES_DATA = { ...STATIC_ENEMIES };
   }
 }
 
 export async function initGameData(): Promise<void> {
   if (initialized) return;
-  try {
-    const api = await loadFromApi();
-    await Promise.all([
-      loadItems(api),
-      loadEvents(api),
-      loadDocuments(api),
-      loadQuests(api),
-      loadLocations(api),
-      loadNpcs(api),
-      loadCharacters(api),
-      loadSpecials(api),
-      loadEnemyAbilities(api),
-      loadEnemies(api),
-      loadSecretRooms(api),
-    ]);
-    initialized = true;
-  } catch (err) {
-    console.warn('[DataLoader] API load failed, using static fallback:', err);
-    ITEMS = { ...STATIC_ITEMS, ...EQUIPMENT_ITEM_DEFINITIONS, ...MOD_ITEM_DEFINITIONS };
-    DYNAMIC_EVENTS = { ...STATIC_DYNAMIC_EVENTS };
-    DOCUMENTS = { ...STATIC_DOCUMENTS };
-    LOCATIONS = { ...STATIC_LOCATIONS };
-    NPCS_DATA = { ...STATIC_NPCS };
-    CHARACTERS_DATA = STATIC_CHARACTERS.map(c => ({ ...c, startingItems: c.startingItems.map(i => ({ ...i })) }));
-    SPECIALS_DATA = [...STATIC_SPECIALS];
-    ENEMIES_DATA = { ...STATIC_ENEMIES };
-    SECRET_ROOMS_DATA = { ...STATIC_SECRET_ROOMS };
-    initialized = true;
-  }
+  const api = await loadFromApi();
+  await Promise.all([
+    loadItems(api),
+    loadEvents(api),
+    loadDocuments(api),
+    loadQuests(api),
+    loadLocations(api),
+    loadNpcs(api),
+    loadCharacters(api),
+    loadSpecials(api),
+    loadEnemyAbilities(api),
+    loadEnemies(api),
+    loadSecretRooms(api),
+    loadRecipes(api),
+    loadAchievements(api),
+    loadEndings(api),
+    loadDifficultyConfigs(),
+  ]);
+  // Boss phases must load AFTER enemy abilities (resolves ability IDs)
+  loadBossPhases(api);
+  // Rebuild equipment/mod lookups from loaded ITEMS
+  rebuildWeaponModsFromItems();
+  rebuildEquipmentFromItems();
+  initialized = true;
 }
 
 /** Force reload all data from DB (used after admin CRUD operations) */
 export async function refreshGameData(): Promise<void> {
-  try {
-    const api = await loadFromApi();
-    await Promise.all([
-      loadItems(api),
-      loadEvents(api),
-      loadDocuments(api),
-      loadQuests(api),
-      loadLocations(api),
-      loadNpcs(api),
-      loadCharacters(api),
-      loadSpecials(api),
-      loadEnemyAbilities(api),
-      loadEnemies(api),
-      loadSecretRooms(api),
-    ]);
-    DATA_VERSION++;
-    initialized = true;
-  } catch (err) {
-    console.warn('[DataLoader] API refresh failed:', err);
-  }
+  const api = await loadFromApi();
+  await Promise.all([
+    loadItems(api),
+    loadEvents(api),
+    loadDocuments(api),
+    loadQuests(api),
+    loadLocations(api),
+    loadNpcs(api),
+    loadCharacters(api),
+    loadSpecials(api),
+    loadEnemyAbilities(api),
+    loadEnemies(api),
+    loadSecretRooms(api),
+    loadRecipes(api),
+    loadAchievements(api),
+    loadEndings(api),
+    loadDifficultyConfigs(),
+  ]);
+  // Boss phases must load AFTER enemy abilities (resolves ability IDs)
+  loadBossPhases(api);
+  // Rebuild equipment/mod lookups from loaded ITEMS
+  rebuildWeaponModsFromItems();
+  rebuildEquipmentFromItems();
+  DATA_VERSION++;
+  initialized = true;
 }
 
 export function isGameDataLoaded(): boolean {
@@ -751,7 +944,7 @@ export function validateEffectsIntegrity(): EmptyEffectEntry[] | null {
   const problems: EmptyEffectEntry[] = [];
 
   // 1. Check player specials
-  const allSpecials = SPECIALS_DATA.length > 0 ? SPECIALS_DATA : STATIC_SPECIALS;
+  const allSpecials = SPECIALS_DATA;
   for (const spec of allSpecials) {
     if (!spec.effects || spec.effects.length === 0) {
       problems.push({ name: spec.name || spec.id, source: 'Speciale giocatore' });
@@ -765,8 +958,8 @@ export function validateEffectsIntegrity(): EmptyEffectEntry[] | null {
     }
   }
 
-  // 3. Check static enemy abilities embedded in ENEMIES_DATA
-  const allEnemies = ENEMIES_DATA && Object.keys(ENEMIES_DATA).length > 0 ? ENEMIES_DATA : STATIC_ENEMIES;
+  // 3. Check enemy abilities embedded in ENEMIES_DATA
+  const allEnemies = ENEMIES_DATA;
   for (const [enemyId, enemyDef] of Object.entries(allEnemies)) {
     for (const ab of enemyDef.abilities) {
       if (!ab.effects || ab.effects.length === 0) {
@@ -776,7 +969,7 @@ export function validateEffectsIntegrity(): EmptyEffectEntry[] | null {
   }
 
   // 4. Check boss phase abilities
-  for (const [bossId, phases] of Object.entries(BOSS_PHASES)) {
+  for (const [bossId, phases] of Object.entries(BOSS_PHASES_DATA)) {
     for (const phase of phases) {
       if (phase.newAbilities) {
         for (const ab of phase.newAbilities) {
@@ -791,12 +984,9 @@ export function validateEffectsIntegrity(): EmptyEffectEntry[] | null {
   return problems.length > 0 ? problems : null;
 }
 
-/** Get a special ability by ID from loaded data (prefers DB data, falls back to static) */
+/** Get a special ability by ID from loaded data */
 export function getSpecialById(id: string): SpecialAbilityDefinition | undefined {
-  if (SPECIALS_DATA.length > 0) {
-    return SPECIALS_DATA.find(s => s.id === id);
-  }
-  return STATIC_SPECIALS.find(s => s.id === id);
+  return SPECIALS_DATA.find(s => s.id === id);
 }
 
 /**

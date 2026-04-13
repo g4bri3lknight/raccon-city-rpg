@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { STATIC_DYNAMIC_EVENTS } from '@/game/data/dynamic-events';
+import { SEED_EVENTS } from '@/seed-data/events';
 import { NextResponse } from 'next/server';
 
 /**
@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  */
 export async function POST() {
   try {
-    const entries = Object.values(STATIC_DYNAMIC_EVENTS);
+    const entries = Object.values(SEED_EVENTS);
     let created = 0;
     let updated = 0;
 

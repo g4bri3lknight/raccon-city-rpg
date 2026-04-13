@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { ITEMS } from '@/game/data/loader';
-import { NPC_PORTRAIT_URLS, NPC_BADGES } from '@/game/data/npc-images';
+import { getNpcPortraitUrl, NPC_BADGES } from '@/game/data/npc-images';
 import ItemIcon from './ItemIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +32,7 @@ export default function NPCDialogPanel() {
   const hasQuest = quest && !questCompleted;
 
   // NPC portrait image + fallback emoji
-  const portraitUrl = npc ? NPC_PORTRAIT_URLS[npc.id] : null;
+  const portraitUrl = npc ? getNpcPortraitUrl(npc.id) : null;
   const badge = npc ? NPC_BADGES[npc.id] : null;
 
   // Initialize greeting when NPC changes

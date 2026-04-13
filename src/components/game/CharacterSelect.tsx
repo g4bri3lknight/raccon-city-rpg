@@ -627,108 +627,103 @@ export default function CharacterSelect() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="sticky bottom-0 p-4 sm:p-5 glass-dark-accent border-t border-red-900/30"
+        className="sticky bottom-0 p-3 sm:p-5 glass-dark-accent border-t border-red-900/30"
       >
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="text-base sm:text-lg text-gray-400 mb-2">
-              <span className="text-red-400 font-bold text-lg sm:text-xl">{totalSelected}</span><span className="text-gray-500 text-sm">/3 selezionati</span>
-            </div>
-            {totalSelected === 0 && (
-              <span className="text-gray-600 text-sm">— Seleziona almeno un personaggio o creane uno nuovo</span>
-            )}
-            {totalSelected > 0 && (
-              <div className="flex gap-2 flex-wrap">
-                {Array.from(selected).map(itemId => {
-                  const item = allItems.find(it => it.id === itemId);
-                  if (!item) return null;
-                  const Icon = item.kind === 'preset' ? getArchetypeIcon(item.archetypeId) : User;
-                  return (
-                    <button
-                      key={itemId}
-                      onClick={() => {
-                        // Navigate to this item in carousel
-                        const idx = allItems.findIndex(it => it.id === itemId);
-                        if (idx >= 0) goTo(idx);
-                      }}
-                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all ${
-                        item.kind === 'custom'
-                          ? 'bg-purple-900/30 border-purple-700/40 text-purple-200 hover:border-purple-500'
-                          : 'bg-white/5 border-white/10 text-gray-200 hover:border-red-600/50 hover:text-white'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {item.displayName}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Difficulty Selection */}
-            <div className="mt-2">
-              <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5">{'Difficolt\u00E0'}</div>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => selectDifficulty('sopravvissuto')}
-                  className={"flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all " + (selectedDifficulty === 'sopravvissuto' ? 'border-green-500 bg-green-900/40 text-green-300 shadow-[0_0_12px_rgba(34,197,94,0.2)]' : 'border-green-700/50 bg-green-950/30 text-green-400 opacity-50 hover:opacity-80')}
-                >
-                  <span>{'\u{1F3C3}'}</span>
-                  <span className="hidden sm:inline">Sopravvissuto</span>
-                  <span className="sm:hidden text-[10px]">Sopr</span>
-                </button>
-                <button
-                  onClick={() => selectDifficulty('normale')}
-                  className={"flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all " + (selectedDifficulty === 'normale' ? 'border-yellow-500 bg-yellow-900/40 text-yellow-300 shadow-[0_0_12px_rgba(234,179,8,0.2)]' : 'border-yellow-700/50 bg-yellow-950/30 text-yellow-400 opacity-50 hover:opacity-80')}
-                >
-                  <span>{'\u2694\uFE0F'}</span>
-                  <span className="hidden sm:inline">Normale</span>
-                  <span className="sm:hidden text-[10px]">Norm</span>
-                </button>
-                <button
-                  onClick={() => selectDifficulty('incubo')}
-                  className={"flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all " + (selectedDifficulty === 'incubo' ? 'border-red-500 bg-red-900/40 text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.2)]' : 'border-red-700/50 bg-red-950/30 text-red-400 opacity-50 hover:opacity-80')}
-                >
-                  <span>{'\u{1F480}'}</span>
-                  <span className="hidden sm:inline">Incubo</span>
-                  <span className="sm:hidden text-[10px]">Incu</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Randomizer Toggle */}
-            <div className="mt-2">
-              <button
-                onClick={toggleRandomizerMode}
-                className={"flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all w-full " + (randomizerMode
-                  ? 'border-purple-500 bg-purple-900/40 text-purple-300 shadow-[0_0_14px_rgba(168,85,247,0.25)]'
-                  : 'border-purple-700/50 bg-purple-950/30 text-purple-400 opacity-50 hover:opacity-80'
-                )}
-              >
-                <Dices className="w-4 h-4" />
-                <span className="hidden sm:inline">🎲 Modalità Randomizer</span>
-                <span className="sm:hidden">🎲 Randomizer</span>
-                {randomizerMode && <Check className="w-3.5 h-3.5 ml-auto text-purple-300" />}
-              </button>
-              {randomizerMode && (
-                <p className="text-[10px] text-purple-300/60 mt-1 leading-relaxed">
-                  ⚠️ Nemici, oggetti e percorsi saranno casuali! Il gioco rimane completable.
-                </p>
-              )}
-            </div>
+        <div className="max-w-5xl mx-auto grid grid-cols-2 gap-2 sm:gap-4 items-end">
+          {/* Row 1 */}
+          {/* Col 1: Character counter */}
+          <div className="flex items-baseline gap-1">
+            <span className="text-red-400 font-bold text-xl sm:text-2xl">{totalSelected}</span>
+            <span className="text-gray-500 text-sm sm:text-base">/3</span>
           </div>
+          {/* Col 2: Difficulty selector (no label) */}
+          <div className="flex justify-end gap-1 sm:gap-1.5">
+            <button
+              onClick={() => selectDifficulty('sopravvissuto')}
+              className={"flex items-center gap-0.5 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg border text-[10px] sm:text-sm font-medium transition-all " + (selectedDifficulty === 'sopravvissuto' ? 'border-green-500 bg-green-900/40 text-green-300 shadow-[0_0_12px_rgba(34,197,94,0.2)]' : 'border-green-700/50 bg-green-950/30 text-green-400 opacity-50 hover:opacity-80')}
+            >
+              <span>{'\u{1F3C3}'}</span>
+              <span className="hidden sm:inline">Sopravvissuto</span>
+              <span className="sm:hidden">Sopr</span>
+            </button>
+            <button
+              onClick={() => selectDifficulty('normale')}
+              className={"flex items-center gap-0.5 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg border text-[10px] sm:text-sm font-medium transition-all " + (selectedDifficulty === 'normale' ? 'border-yellow-500 bg-yellow-900/40 text-yellow-300 shadow-[0_0_12px_rgba(234,179,8,0.2)]' : 'border-yellow-700/50 bg-yellow-950/30 text-yellow-400 opacity-50 hover:opacity-80')}
+            >
+              <span>{'\u2694\uFE0F'}</span>
+              <span className="hidden sm:inline">Normale</span>
+              <span className="sm:hidden">Norm</span>
+            </button>
+            <button
+              onClick={() => selectDifficulty('incubo')}
+              className={"flex items-center gap-0.5 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg border text-[10px] sm:text-sm font-medium transition-all " + (selectedDifficulty === 'incubo' ? 'border-red-500 bg-red-900/40 text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.2)]' : 'border-red-700/50 bg-red-950/30 text-red-400 opacity-50 hover:opacity-80')}
+            >
+              <span>{'\u{1F480}'}</span>
+              <span className="hidden sm:inline">Incubo</span>
+              <span className="sm:hidden">Incu</span>
+            </button>
+          </div>
+          {/* Row 2 */}
+          {/* Col 1: Randomizer toggle */}
+          <button
+            onClick={toggleRandomizerMode}
+            className={"flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-[10px] sm:text-sm font-medium transition-all " + (randomizerMode
+              ? 'border-purple-500 bg-purple-900/40 text-purple-300 shadow-[0_0_14px_rgba(168,85,247,0.25)]'
+              : 'border-purple-700/50 bg-purple-950/30 text-purple-400 opacity-50 hover:opacity-80'
+            )}
+          >
+            <Dices className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Modalità Randomizer</span>
+            <span className="sm:hidden">Randomizer</span>
+            {randomizerMode && <Check className="w-3 h-3.5 sm:w-3.5 sm:h-3.5 ml-auto text-purple-300" />}
+          </button>
+          {/* Col 2: Start button */}
           <Button
             onClick={handleStart}
             disabled={totalSelected === 0 || !selectedDifficulty}
-            className="horror-btn px-6 sm:px-10 py-3 sm:py-4 text-sm sm:text-base tracking-wider uppercase
+            className="horror-btn w-full px-4 sm:px-10 py-2 sm:py-4 text-xs sm:text-base tracking-wider uppercase
               bg-red-900/40 hover:bg-red-800/50 border-2 border-red-700/60 hover:border-red-500
               text-red-100 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed
               transition-all duration-300 hover:shadow-[0_0_20px_rgba(220,38,38,0.3)]"
           >
-            Inizia l&apos;Avventura
-            <ChevronRight className="w-4 h-4 ml-2" />
+            <span className="hidden sm:inline">Inizia l&apos;Avventura</span>
+            <span className="sm:hidden">Inizia</span>
+            <ChevronRight className="w-4 h-4 ml-1 sm:ml-2" />
           </Button>
         </div>
+        {/* Selected characters pills (compact, below grid) */}
+        {totalSelected > 0 && (
+          <div className="max-w-5xl mx-auto mt-2 flex gap-1.5 sm:gap-2 flex-wrap">
+            {Array.from(selected).map(itemId => {
+              const item = allItems.find(it => it.id === itemId);
+              if (!item) return null;
+              const Icon = item.kind === 'preset' ? getArchetypeIcon(item.archetypeId) : User;
+              return (
+                <button
+                  key={itemId}
+                  onClick={() => {
+                    const idx = allItems.findIndex(it => it.id === itemId);
+                    if (idx >= 0) goTo(idx);
+                  }}
+                  className={`flex items-center gap-1 text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-lg border transition-all ${
+                    item.kind === 'custom'
+                      ? 'bg-purple-900/30 border-purple-700/40 text-purple-200 hover:border-purple-500'
+                      : 'bg-white/5 border-white/10 text-gray-200 hover:border-red-600/50 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-3 h-3 sm:w-4 sm:h-4" />
+                  {item.displayName}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {/* Randomizer warning */}
+        {randomizerMode && (
+          <p className="max-w-5xl mx-auto mt-1.5 text-[10px] sm:text-xs text-purple-300/60 leading-relaxed">
+            ⚠️ Nemici, oggetti e percorsi saranno casuali! Il gioco rimane completable.
+          </p>
+        )}
       </motion.div>
     </div>
   );

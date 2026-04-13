@@ -17,6 +17,7 @@ import {
 import SafeRoomPanel from './SafeRoomPanel';
 import MissionsPanel from './MissionsPanel';
 import { getEffectiveLocation } from '@/game/data/randomizer';
+import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 
 export default function ExplorationScreen() {
   const dataVersion = useGameStore(s => s.dataVersion);
@@ -230,7 +231,7 @@ export default function ExplorationScreen() {
                   </div>
                   {/* Stats row */}
                   <div className="flex gap-2 sm:gap-3 text-[11px] sm:text-xs font-semibold text-white/40">
-                    <span>ATK {char.baseAtk + (char.weapon?.atkBonus || 0)}</span>
+                    <span>ATK {char.baseAtk + getEquipStatBonus(char.weapon?.effects, 'atk')}</span>
                     <span>DEF {char.baseDef}</span>
                     <span>SPD {char.baseSpd}</span>
                     <span>INV {char.inventory.length}/{char.maxInventorySlots}</span>

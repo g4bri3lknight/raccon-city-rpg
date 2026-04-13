@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useGameStore, getMaxItemBoxSlots } from '@/game/store';
 import { ItemInstance } from '@/game/types';
 import { getItemEffectDescriptions } from '@/game/utils/item-effects';
+import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
@@ -174,7 +175,7 @@ export default function ItemBoxPanel() {
             imageSrc={mediaUrl(selectedChar.avatarUrl || CHARACTER_IMAGES[selectedChar.archetype] || '', dataVersion)}
           />
           <div className="flex gap-3 text-xs mt-1.5">
-            <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + (selectedChar.weapon?.atkBonus || 0)}</span>
+            <span className="text-white/40">⚔️ ATK {selectedChar.baseAtk + getEquipStatBonus(selectedChar.weapon?.effects, 'atk')}</span>
             <span className="text-white/40">🛡️ DEF {selectedChar.baseDef}</span>
             <span className="text-white/40">💨 SPD {selectedChar.baseSpd}</span>
             <span className="text-white/30">Lv.{selectedChar.level}</span>
@@ -250,7 +251,7 @@ export default function ItemBoxPanel() {
 
             {selected.item.weaponStats && (
               <div className="flex gap-3 mb-2 text-xs">
-                <span className="text-amber-400/80">⚔️ ATK +{selected.item.weaponStats.atkBonus}</span>
+                <span className="text-amber-400/80">⚔️ ATK +{getEquipStatBonus(selected.item.weaponStats.effects, 'atk')}</span>
                 <span className="text-white/40">{selected.item.weaponStats.type === 'melee' ? 'Corpo a Corpo' : 'A Distanza'}</span>
               </div>
             )}

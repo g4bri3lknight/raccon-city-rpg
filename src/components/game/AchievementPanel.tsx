@@ -6,7 +6,7 @@ import { useGameStore } from '@/game/store';
 import {
   ACHIEVEMENTS,
   ACHIEVEMENT_CATEGORY_LABELS,
-  TOTAL_ACHIEVEMENTS,
+  getTotalAchievements,
 } from '@/game/data/achievements';
 import { AchievementDefinition } from '@/game/types';
 import { Badge } from '@/components/ui/badge';
@@ -137,7 +137,8 @@ export default function AchievementPanel() {
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
 
   const unlockedCount = achievements.unlockedIds.length;
-  const progressPct = TOTAL_ACHIEVEMENTS > 0 ? (unlockedCount / TOTAL_ACHIEVEMENTS) * 100 : 0;
+  const totalAchievements = getTotalAchievements();
+  const progressPct = totalAchievements > 0 ? (unlockedCount / totalAchievements) * 100 : 0;
 
   const allAchievements = useMemo(() => Object.values(ACHIEVEMENTS), []);
   const categoryAchievements = useMemo(() => {
@@ -179,7 +180,7 @@ export default function AchievementPanel() {
                     Traguardi
                   </h2>
                   <p className="text-[11px] text-white/40 mt-0.5">
-                    {unlockedCount}/{TOTAL_ACHIEVEMENTS} Sbloccati
+                    {unlockedCount}/{totalAchievements} Sbloccati
                   </p>
                 </div>
               </div>

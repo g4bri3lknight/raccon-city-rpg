@@ -6,6 +6,7 @@ import { useGameStore } from '@/game/store';
 import { WEAPON_MODS } from '@/game/data/weapon-mods';
 import { EQUIPMENT_STATS } from '@/game/data/equipment';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp, getCharacterCritBonus } from '@/game/engine/combat';
+import { getEquipStatBonus, getStatusResistLabel, getHotValue, getReflectValue, getStatusChanceBoost, getEffectSpecialLabel } from '@/game/utils/effect-helpers';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, Wrench, Plus, Minus, Shield, Shirt, Gem, Swords, ChevronRight } from 'lucide-react';
@@ -226,7 +227,7 @@ function WeaponModSection({
             {weapon.type === 'melee' ? '🗡️' : '🔫'} {weapon.name}
           </span>
           <Badge className="bg-white/10 text-white/50 border-0 text-[10px]">
-            ATK +{weapon.atkBonus}
+            ATK +{getEquipStatBonus(weapon.effects, 'atk')}
           </Badge>
         </div>
 
@@ -247,10 +248,10 @@ function WeaponModSection({
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-semibold text-white/90 truncate">{mod.name}</div>
                 <div className="text-[10px] text-white/50">
-                  {mod.atkBonus ? `+${mod.atkBonus} ATK ` : ''}
-                  {mod.critBonus ? `+${mod.critBonus}% Crit ` : ''}
-                  {mod.statusBonus ? `+${mod.statusBonus}% Status ` : ''}
-                  {mod.dodgeBonus ? `+${mod.dodgeBonus}% Dodge ` : ''}
+                  {getEquipStatBonus(mod.effects, 'atk') ? `+${getEquipStatBonus(mod.effects, 'atk')} ATK ` : ''}
+                  {getEquipStatBonus(mod.effects, 'crit') ? `+${getEquipStatBonus(mod.effects, 'crit')}% Crit ` : ''}
+                  {getStatusChanceBoost(mod.effects) ? `+${getStatusChanceBoost(mod.effects)}% Status ` : ''}
+                  {getEquipStatBonus(mod.effects, 'spd') ? `+${getEquipStatBonus(mod.effects, 'spd')}% Dodge ` : ''}
                 </div>
               </div>
               <button
@@ -292,10 +293,10 @@ function WeaponModSection({
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white/90 truncate">{mod.name}</div>
                       <div className="text-[10px] text-white/50">
-                        {mod.atkBonus ? `+${mod.atkBonus} ATK ` : ''}
-                        {mod.critBonus ? `+${mod.critBonus}% Crit ` : ''}
-                        {mod.statusBonus ? `+${mod.statusBonus}% Status ` : ''}
-                        {mod.dodgeBonus ? `+${mod.dodgeBonus}% Dodge ` : ''}
+                        {getEquipStatBonus(mod.effects, 'atk') ? `+${getEquipStatBonus(mod.effects, 'atk')} ATK ` : ''}
+                        {getEquipStatBonus(mod.effects, 'crit') ? `+${getEquipStatBonus(mod.effects, 'crit')}% Crit ` : ''}
+                        {getStatusChanceBoost(mod.effects) ? `+${getStatusChanceBoost(mod.effects)}% Status ` : ''}
+                        {getEquipStatBonus(mod.effects, 'spd') ? `+${getEquipStatBonus(mod.effects, 'spd')}% Dodge ` : ''}
                       </div>
                     </div>
                   </div>
@@ -381,10 +382,10 @@ function ArmorSection({
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white/90 truncate">{eq.name}</div>
                       <div className="text-[10px] text-white/50">
-                        {eq.defBonus ? `+${eq.defBonus} DEF ` : ''}
-                        {eq.hpBonus ? `+${eq.hpBonus} HP ` : ''}
-                        {eq.spdBonus ? `+${eq.spdBonus} SPD ` : ''}
-                        {eq.atkBonus ? `+${eq.atkBonus} ATK ` : ''}
+                        {getEquipStatBonus(eq.effects, 'def') ? `+${getEquipStatBonus(eq.effects, 'def')} DEF ` : ''}
+                        {getEquipStatBonus(eq.effects, 'hp') ? `+${getEquipStatBonus(eq.effects, 'hp')} HP ` : ''}
+                        {getEquipStatBonus(eq.effects, 'spd') ? `+${getEquipStatBonus(eq.effects, 'spd')} SPD ` : ''}
+                        {getEquipStatBonus(eq.effects, 'atk') ? `+${getEquipStatBonus(eq.effects, 'atk')} ATK ` : ''}
                       </div>
                     </div>
                   </div>
@@ -396,11 +397,11 @@ function ArmorSection({
                     Equipaggia
                   </button>
                 </div>
-                {eq.specialEffect && (
+                {(() => { const lbl = getEffectSpecialLabel(eq.effects); return lbl ? (
                   <div className="text-[10px] text-purple-300/70 mt-1">
-                    ✨ {formatSpecialEffect(eq.specialEffect.type, eq.specialEffect.value)}
+                    ✨ {lbl}
                   </div>
-                )}
+                ) : null; })()}
                 <p className="text-[10px] text-white/40 mt-1">{eq.description}</p>
               </div>
             );
@@ -475,11 +476,11 @@ function AccessorySection({
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white/90 truncate">{eq.name}</div>
                       <div className="text-[10px] text-white/50">
-                        {eq.defBonus ? `+${eq.defBonus} DEF ` : ''}
-                        {eq.hpBonus ? `+${eq.hpBonus} HP ` : ''}
-                        {eq.spdBonus ? `+${eq.spdBonus} SPD ` : ''}
-                        {eq.atkBonus ? `+${eq.atkBonus} ATK ` : ''}
-                        {eq.critBonus ? `+${eq.critBonus}% Crit ` : ''}
+                        {getEquipStatBonus(eq.effects, 'def') ? `+${getEquipStatBonus(eq.effects, 'def')} DEF ` : ''}
+                        {getEquipStatBonus(eq.effects, 'hp') ? `+${getEquipStatBonus(eq.effects, 'hp')} HP ` : ''}
+                        {getEquipStatBonus(eq.effects, 'spd') ? `+${getEquipStatBonus(eq.effects, 'spd')} SPD ` : ''}
+                        {getEquipStatBonus(eq.effects, 'atk') ? `+${getEquipStatBonus(eq.effects, 'atk')} ATK ` : ''}
+                        {getEquipStatBonus(eq.effects, 'crit') ? `+${getEquipStatBonus(eq.effects, 'crit')}% Crit ` : ''}
                       </div>
                     </div>
                   </div>
@@ -491,11 +492,11 @@ function AccessorySection({
                     Equipaggia
                   </button>
                 </div>
-                {eq.specialEffect && (
+                {(() => { const lbl = getEffectSpecialLabel(eq.effects); return lbl ? (
                   <div className="text-[10px] text-purple-300/70 mt-1">
-                    ✨ {formatSpecialEffect(eq.specialEffect.type, eq.specialEffect.value)}
+                    ✨ {lbl}
                   </div>
-                )}
+                ) : null; })()}
                 <p className="text-[10px] text-white/40 mt-1">{eq.description}</p>
               </div>
             );
@@ -533,17 +534,17 @@ function EquippedCard({
         <div className="flex-1 min-w-0">
           <div className="text-sm font-bold text-white/90 truncate">{equip.name}</div>
           <div className="flex flex-wrap gap-2 mt-1 text-[10px] text-white/50">
-            {equip.defBonus && <span>🛡️ +{equip.defBonus} DEF</span>}
-            {equip.hpBonus && <span>❤️ +{equip.hpBonus} HP</span>}
-            {equip.spdBonus && <span>💨 +{equip.spdBonus} SPD</span>}
-            {equip.atkBonus && <span>⚔️ +{equip.atkBonus} ATK</span>}
-            {equip.critBonus && <span>💥 +{equip.critBonus}% Crit</span>}
+            {getEquipStatBonus(equip.effects, 'def') && <span>🛡️ +{getEquipStatBonus(equip.effects, 'def')} DEF</span>}
+            {getEquipStatBonus(equip.effects, 'hp') && <span>❤️ +{getEquipStatBonus(equip.effects, 'hp')} HP</span>}
+            {getEquipStatBonus(equip.effects, 'spd') && <span>💨 +{getEquipStatBonus(equip.effects, 'spd')} SPD</span>}
+            {getEquipStatBonus(equip.effects, 'atk') && <span>⚔️ +{getEquipStatBonus(equip.effects, 'atk')} ATK</span>}
+            {getEquipStatBonus(equip.effects, 'crit') && <span>💥 +{getEquipStatBonus(equip.effects, 'crit')}% Crit</span>}
           </div>
-          {equip.specialEffect && (
+          {(() => { const lbl = getEffectSpecialLabel(equip.effects); return lbl ? (
             <div className="text-[10px] text-purple-300/70 mt-1">
-              ✨ {formatSpecialEffect(equip.specialEffect.type, equip.specialEffect.value)}
+              ✨ {lbl}
             </div>
-          )}
+          ) : null; })()}
         </div>
         <button
           onClick={onUnequip}
@@ -557,15 +558,4 @@ function EquippedCard({
   );
 }
 
-// ── Helpers ──
-function formatSpecialEffect(type: string, value: number): string {
-  const labels: Record<string, string> = {
-    poison_resist: `${value}% resistenza veleno`,
-    bleed_resist: `${value}% resistenza sanguinamento`,
-    stun_resist: `${value}% resistenza stordimento`,
-    hp_regen: `Rigenera ${value} HP/turno`,
-    thorns: `Riflette ${value} danni`,
-    crit_shield: `${value}% riduzione critici subiti`,
-  };
-  return labels[type] || type;
-}
+

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { ENEMIES as STATIC_ENEMIES } from '@/game/data/enemies';
+import { SEED_ENEMIES } from '@/seed-data/enemies';
+import { BOSS_PHASE_ABILITIES } from '@/seed-data/boss-phase-abilities';
 
 type SeedResult = { entity: string; total: number; created: number; updated: number };
 
@@ -54,23 +55,15 @@ export async function POST() {
       });
     }
 
-    for (const enemy of Object.values(STATIC_ENEMIES)) {
+    for (const enemy of Object.values(SEED_ENEMIES)) {
       for (const ab of enemy.abilities) {
         processAbility(ab);
       }
     }
 
-    // Also add boss phase abilities
-    for (const enemy of Object.values(STATIC_ENEMIES)) {
-      if ((enemy as any).bossPhases) {
-        for (const phase of (enemy as any).bossPhases) {
-          if (phase.newAbilities) {
-            for (const ab of phase.newAbilities) {
-              processAbility(ab);
-            }
-          }
-        }
-      }
+    // Also add boss phase abilities from seed-data/boss-phase-abilities.ts
+    for (const ab of BOSS_PHASE_ABILITIES) {
+      processAbility(ab);
     }
 
     // Upsert to DB
@@ -95,7 +88,7 @@ export async function POST() {
 
     // Also re-seed enemies with ability ID arrays instead of full objects
     let enemiesUpdated = 0;
-    for (const enemy of Object.values(STATIC_ENEMIES)) {
+    for (const enemy of Object.values(SEED_ENEMIES)) {
       const abilityIds: string[] = [];
       for (const ab of enemy.abilities) {
         const key = abilityKey(ab);

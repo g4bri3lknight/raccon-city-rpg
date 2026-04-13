@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { STATIC_DOCUMENTS } from '@/game/data/documents';
+import { SEED_DOCUMENTS } from '@/seed-data/documents';
 import { NextResponse } from 'next/server';
 
 /**
@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  */
 export async function POST() {
   try {
-    const entries = Object.values(STATIC_DOCUMENTS);
+    const entries = Object.values(SEED_DOCUMENTS);
     let created = 0;
     let updated = 0;
 

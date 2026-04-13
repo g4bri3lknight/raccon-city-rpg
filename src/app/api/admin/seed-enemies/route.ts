@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { ENEMIES as STATIC_ENEMIES } from '@/game/data/enemies';
+import { SEED_ENEMIES } from '@/seed-data/enemies';
 
 type SeedResult = { entity: string; total: number; created: number; updated: number };
 
 async function seedEnemies(): Promise<SeedResult> {
-  const entries = Object.values(STATIC_ENEMIES);
+  const entries = Object.values(SEED_ENEMIES);
   let created = 0, updated = 0;
   for (let i = 0; i < entries.length; i++) {
     const enemy = entries[i];

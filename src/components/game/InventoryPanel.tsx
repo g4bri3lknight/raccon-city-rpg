@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, getMaxInventorySlots } from '@/game/store';
 import { ItemInstance } from '@/game/types';
 import { getItemEffectDescriptions } from '@/game/utils/item-effects';
+import { getEquipStatBonus, getEffectSpecialLabel, getStatusChanceBoost } from '@/game/utils/effect-helpers';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
@@ -218,7 +219,7 @@ export default function InventoryPanel() {
               {/* Item stats */}
               {selectedItem.weaponStats && (
                 <div className="flex gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm">
-                  <span className="text-amber-400/80">⚔️ ATK +{selectedItem.weaponStats.atkBonus}</span>
+                  <span className="text-amber-400/80">⚔️ ATK +{getEquipStatBonus(selectedItem.weaponStats.effects, 'atk')}</span>
                   <span className="text-white/40">{selectedItem.weaponStats.type === 'melee' ? 'Corpo a Corpo' : 'A Distanza'}</span>
                   {selectedItem.weaponStats.modSlots && selectedItem.weaponStats.modSlots.length > 0 && (
                     <span className="text-cyan-400/60">🔧 {selectedItem.weaponStats.modSlots.length}/2 mod</span>
@@ -228,23 +229,23 @@ export default function InventoryPanel() {
               {/* #29 Equipment stats */}
               {selectedItem.equipmentStats && (
                 <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4 text-xs md:text-sm">
-                  {selectedItem.equipmentStats.defBonus && <span className="text-blue-400/80">🛡️ +{selectedItem.equipmentStats.defBonus} DEF</span>}
-                  {selectedItem.equipmentStats.hpBonus && <span className="text-green-400/80">❤️ +{selectedItem.equipmentStats.hpBonus} HP</span>}
-                  {selectedItem.equipmentStats.spdBonus && <span className="text-yellow-400/80">💨 +{selectedItem.equipmentStats.spdBonus} SPD</span>}
-                  {selectedItem.equipmentStats.atkBonus && <span className="text-amber-400/80">⚔️ +{selectedItem.equipmentStats.atkBonus} ATK</span>}
-                  {selectedItem.equipmentStats.critBonus && <span className="text-orange-400/80">💥 +{selectedItem.equipmentStats.critBonus}% Crit</span>}
-                  {selectedItem.equipmentStats.specialEffect && (
-                    <span className="text-purple-400/80">✨ {formatEquipEffect(selectedItem.equipmentStats.specialEffect.type, selectedItem.equipmentStats.specialEffect.value)}</span>
-                  )}
+                  {getEquipStatBonus(selectedItem.equipmentStats.effects, 'def') && <span className="text-blue-400/80">🛡️ +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'def')} DEF</span>}
+                  {getEquipStatBonus(selectedItem.equipmentStats.effects, 'hp') && <span className="text-green-400/80">❤️ +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'hp')} HP</span>}
+                  {getEquipStatBonus(selectedItem.equipmentStats.effects, 'spd') && <span className="text-yellow-400/80">💨 +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'spd')} SPD</span>}
+                  {getEquipStatBonus(selectedItem.equipmentStats.effects, 'atk') && <span className="text-amber-400/80">⚔️ +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'atk')} ATK</span>}
+                  {getEquipStatBonus(selectedItem.equipmentStats.effects, 'crit') && <span className="text-orange-400/80">💥 +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'crit')}% Crit</span>}
+                  {(() => { const lbl = getEffectSpecialLabel(selectedItem.equipmentStats.effects); return lbl ? (
+                    <span className="text-purple-400/80">✨ {lbl}</span>
+                  ) : null; })()}
                 </div>
               )}
               {/* #3 Mod stats */}
               {selectedItem.modStats && (
                 <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4 text-xs md:text-sm">
-                  {selectedItem.modStats.atkBonus && <span className="text-amber-400/80">⚔️ +{selectedItem.modStats.atkBonus} ATK</span>}
-                  {selectedItem.modStats.critBonus && <span className="text-orange-400/80">💥 +{selectedItem.modStats.critBonus}% Crit</span>}
-                  {selectedItem.modStats.statusBonus && <span className="text-purple-400/80">☠️ +{selectedItem.modStats.statusBonus}% Status</span>}
-                  {selectedItem.modStats.dodgeBonus && <span className="text-cyan-400/80">💨 +{selectedItem.modStats.dodgeBonus}% Dodge</span>}
+                  {getEquipStatBonus(selectedItem.modStats.effects, 'atk') && <span className="text-amber-400/80">⚔️ +{getEquipStatBonus(selectedItem.modStats.effects, 'atk')} ATK</span>}
+                  {getEquipStatBonus(selectedItem.modStats.effects, 'crit') && <span className="text-orange-400/80">💥 +{getEquipStatBonus(selectedItem.modStats.effects, 'crit')}% Crit</span>}
+                  {getStatusChanceBoost(selectedItem.modStats.effects) && <span className="text-purple-400/80">☠️ +{getStatusChanceBoost(selectedItem.modStats.effects)}% Status</span>}
+                  {getEquipStatBonus(selectedItem.modStats.effects, 'spd') && <span className="text-cyan-400/80">💨 +{getEquipStatBonus(selectedItem.modStats.effects, 'spd')}% Dodge</span>}
                   <span className="text-white/40">{selectedItem.modStats.type === 'any' ? 'Tutte le armi' : selectedItem.modStats.type === 'ranged' ? 'A distanza' : 'Corpo a corpo'}</span>
                 </div>
               )}
@@ -414,14 +415,4 @@ export default function InventoryPanel() {
   );
 }
 
-function formatEquipEffect(type: string, value: number): string {
-  const labels: Record<string, string> = {
-    poison_resist: `${value}% resistenza veleno`,
-    bleed_resist: `${value}% resistenza sanguinamento`,
-    stun_resist: `${value}% resistenza stordimento`,
-    hp_regen: `Rigenera ${value} HP/turno`,
-    thorns: `Riflette ${value} danni`,
-    crit_shield: `${value}% riduzione critici`,
-  };
-  return labels[type] || type;
-}
+

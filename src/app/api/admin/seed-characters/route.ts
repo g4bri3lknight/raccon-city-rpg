@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { CHARACTER_ARCHETYPES } from '@/game/data/characters';
+import { SEED_CHARACTERS } from '@/seed-data/characters';
 import { NextResponse } from 'next/server';
 
 /**
@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  */
 export async function POST() {
   try {
-    const archetypes = CHARACTER_ARCHETYPES;
+    const archetypes = SEED_CHARACTERS;
     let seeded = 0;
 
     for (let i = 0; i < archetypes.length; i++) {

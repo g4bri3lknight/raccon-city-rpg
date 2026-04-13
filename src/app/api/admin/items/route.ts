@@ -1,10 +1,15 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
-// GET /api/admin/items — list all
-export async function GET() {
+// GET /api/admin/items — list all (optional ?type= filter)
+export async function GET(request: NextRequest) {
   try {
-    const items = await db.item.findMany({ orderBy: { createdAt: 'asc' } });
+    const { searchParams } = new URL(request.url);
+    const typeFilter = searchParams.get('type');
+    const items = await db.item.findMany({
+      where: typeFilter ? { type: typeFilter } : undefined,
+      orderBy: { createdAt: 'asc' },
+    });
     return NextResponse.json(items);
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

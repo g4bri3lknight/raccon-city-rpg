@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { NPCS } from '@/game/data/npcs';
+import { SEED_NPCS } from '@/seed-data/npcs';
 import { NextResponse } from 'next/server';
 
 /**
@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  */
 export async function POST() {
   try {
-    const npcEntries = Object.values(NPCS);
+    const npcEntries = Object.values(SEED_NPCS);
     let created = 0;
     let updated = 0;
 

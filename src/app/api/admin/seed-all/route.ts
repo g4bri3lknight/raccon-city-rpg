@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { STATIC_ITEMS } from '@/game/data/items';
-import { STATIC_DYNAMIC_EVENTS } from '@/game/data/dynamic-events';
-import { STATIC_DOCUMENTS } from '@/game/data/documents';
-import { STATIC_LOCATIONS } from '@/game/data/locations';
-import { NPCS } from '@/game/data/npcs';
-import { CHARACTER_ARCHETYPES } from '@/game/data/characters';
-import { ALL_SPECIAL_ABILITIES } from '@/game/data/specials';
-import { ENEMIES as STATIC_ENEMIES } from '@/game/data/enemies';
-import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '@/game/data/equipment';
-import { WEAPON_MODS } from '@/game/data/weapon-mods';
+import { SEED_ITEMS } from '@/seed-data/items';
+import { SEED_EVENTS } from '@/seed-data/events';
+import { SEED_DOCUMENTS } from '@/seed-data/documents';
+import { SEED_LOCATIONS } from '@/seed-data/locations';
+import { SEED_NPCS } from '@/seed-data/npcs';
+import { SEED_CHARACTERS } from '@/seed-data/characters';
+import { SEED_SPECIALS } from '@/seed-data/specials';
+import { SEED_ENEMIES } from '@/seed-data/enemies';
+import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, WEAPON_MODS } from '@/seed-data/equipment';
 
 const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; danger: string }> = {
   city_outskirts: { row: 2, col: 1, icon: '🏚️', danger: 'bassa' },
@@ -23,7 +22,7 @@ const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; dange
 type SeedResult = { entity: string; total: number; created: number; updated: number };
 
 async function seedItems(): Promise<SeedResult> {
-  const entries = Object.values(STATIC_ITEMS);
+  const entries = Object.values(SEED_ITEMS);
   let created = 0, updated = 0;
   for (const item of entries) {
     const existing = await db.item.findUnique({ where: { id: item.id } });
@@ -32,7 +31,7 @@ async function seedItems(): Promise<SeedResult> {
       icon: item.icon, usable: item.usable, equippable: item.equippable,
       stackable: item.stackable ?? true, maxStack: item.maxStack ?? 99,
       unico: (item as any).unico ?? false,
-      weaponType: (item as any).weaponType ?? null, atkBonus: (item as any).atkBonus ?? null,
+      weaponType: (item as any).weaponType ?? null,
       ammoType: (item as any).ammoType ?? null,
       effects: (item as any).effects ? JSON.stringify((item as any).effects) : '[]',
     };
@@ -43,7 +42,7 @@ async function seedItems(): Promise<SeedResult> {
 }
 
 async function seedEvents(): Promise<SeedResult> {
-  const entries = Object.values(STATIC_DYNAMIC_EVENTS);
+  const entries = Object.values(SEED_EVENTS);
   let created = 0, updated = 0;
   for (const evt of entries) {
     const existing = await db.dynamicEvent.findUnique({ where: { id: evt.id } });
@@ -66,7 +65,7 @@ async function seedEvents(): Promise<SeedResult> {
 }
 
 async function seedDocuments(): Promise<SeedResult> {
-  const entries = Object.values(STATIC_DOCUMENTS);
+  const entries = Object.values(SEED_DOCUMENTS);
   let created = 0, updated = 0;
   for (const doc of entries) {
     const existing = await db.document.findUnique({ where: { id: doc.id } });
@@ -82,7 +81,7 @@ async function seedDocuments(): Promise<SeedResult> {
 }
 
 async function seedLocations(): Promise<SeedResult> {
-  const entries = Object.values(STATIC_LOCATIONS);
+  const entries = Object.values(SEED_LOCATIONS);
   let created = 0, updated = 0;
   for (const loc of entries) {
     const layout = MAP_LAYOUT[loc.id];
@@ -106,7 +105,7 @@ async function seedLocations(): Promise<SeedResult> {
 }
 
 async function seedQuests(): Promise<SeedResult> {
-  const npcEntries = Object.values(NPCS);
+  const npcEntries = Object.values(SEED_NPCS);
   let created = 0, updated = 0, total = 0;
   for (const npc of npcEntries) {
     const quest = (npc as any).quest;
@@ -128,7 +127,7 @@ async function seedQuests(): Promise<SeedResult> {
 }
 
 async function seedNpcs(): Promise<SeedResult> {
-  const entries = Object.values(NPCS);
+  const entries = Object.values(SEED_NPCS);
   let created = 0, updated = 0;
   for (let i = 0; i < entries.length; i++) {
     const npc = entries[i];
@@ -149,7 +148,7 @@ async function seedNpcs(): Promise<SeedResult> {
 }
 
 async function seedCharacters(): Promise<SeedResult> {
-  const entries = CHARACTER_ARCHETYPES;
+  const entries = SEED_CHARACTERS;
   let created = 0, updated = 0;
   for (let i = 0; i < entries.length; i++) {
     const arch = entries[i];
@@ -172,7 +171,7 @@ async function seedCharacters(): Promise<SeedResult> {
 }
 
 async function seedSpecials(): Promise<SeedResult> {
-  const entries = ALL_SPECIAL_ABILITIES;
+  const entries = SEED_SPECIALS;
   let created = 0, updated = 0;
   for (const spec of entries) {
     const existing = await db.gameSpecial.findUnique({ where: { id: spec.id } });
@@ -188,7 +187,7 @@ async function seedSpecials(): Promise<SeedResult> {
 }
 
 async function seedEnemies(): Promise<SeedResult> {
-  const entries = Object.values(STATIC_ENEMIES);
+  const entries = Object.values(SEED_ENEMIES);
   let created = 0, updated = 0;
   for (let i = 0; i < entries.length; i++) {
     const enemy = entries[i];
@@ -220,11 +219,7 @@ async function seedEquipment(): Promise<SeedResult> {
       name: eq.name, description: eq.description, type: eq.slot,
       rarity: eq.rarity, icon: eq.icon, usable: false, equippable: true,
       stackable: false, maxStack: 1, unico: true,
-      defBonus: eq.defBonus ?? null, hpBonus: eq.hpBonus ?? null,
-      spdBonus: eq.spdBonus ?? null, atkBonus: eq.atkBonus ?? null,
-      critBonus: eq.critBonus ?? null,
-      specialEffect: eq.specialEffect ? JSON.stringify(eq.specialEffect) : null,
-      effects: (eq as any).effects ? JSON.stringify((eq as any).effects) : '[]',
+      effects: JSON.stringify(eq.effects || []),
     };
     if (existing) { await db.item.update({ where: { id }, data }); updated++; }
     else { await db.item.create({ data: { id, ...data } }); created++; }
@@ -239,9 +234,8 @@ async function seedEquipment(): Promise<SeedResult> {
       name: mod.name, description: mod.description, type: 'weapon_mod',
       rarity: mod.rarity, icon: mod.icon, usable: false, equippable: false,
       stackable: false, maxStack: 1, unico: true,
-      atkBonus: mod.atkBonus ?? null, critBonus: mod.critBonus ?? null,
-      dodgeBonus: mod.dodgeBonus ?? null, statusBonus: mod.statusBonus ?? null,
       modType: mod.type,
+      effects: JSON.stringify(mod.effects || []),
     };
     if (existing) { await db.item.update({ where: { id: modId }, data }); updated++; }
     else { await db.item.create({ data: { id: modId, ...data } }); created++; }
@@ -273,6 +267,21 @@ export async function POST() {
     const abilitiesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-enemy-abilities`, { method: 'POST' });
     const abilitiesData = await abilitiesRes.json();
     results.push({ entity: 'enemy-abilities', total: abilitiesData.abilitiesCount ?? 0, created: abilitiesData.result?.created ?? 0, updated: abilitiesData.result?.updated ?? 0 });
+
+    // Seed boss phases (after enemy-abilities since they reference ability IDs)
+    const bossPhasesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-boss-phases`, { method: 'POST' });
+    const bossPhasesData = await bossPhasesRes.json();
+    results.push({ entity: 'boss-phases', total: bossPhasesData.result?.total ?? 0, created: bossPhasesData.result?.created ?? 0, updated: bossPhasesData.result?.updated ?? 0 });
+
+    // Seed achievements
+    const achievementsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-achievements`, { method: 'POST' });
+    const achievementsData = await achievementsRes.json();
+    results.push({ entity: 'achievements', total: achievementsData.result?.total ?? 0, created: achievementsData.result?.created ?? 0, updated: achievementsData.result?.updated ?? 0 });
+
+    // Seed endings
+    const endingsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-endings`, { method: 'POST' });
+    const endingsData = await endingsRes.json();
+    results.push({ entity: 'endings', total: endingsData.result?.total ?? 0, created: endingsData.result?.created ?? 0, updated: endingsData.result?.updated ?? 0 });
 
     const summary = results.map(r => `${r.entity}: ${r.created} nuovi, ${r.updated} agg. (totale ${r.total})`).join('\n');
 

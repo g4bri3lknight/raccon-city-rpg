@@ -18,8 +18,10 @@ const ENEMY_TIERS: Record<string, string[]> = {
 // Regular enemies (non-boss) organized by tier
 const BOSS_ENEMIES = ['tyrant_boss', 'nemesis_boss', 'proto_tyrant'];
 
-// Key items that MUST remain accessible for game progression
-const CRITICAL_KEY_ITEMS = ['key_rpd', 'key_sewers', 'key_lab', 'crank_handle', 'fuse'];
+// Key items that MUST remain accessible for game progression — derived dynamically from ITEMS registry
+function getCriticalKeyItems(): string[] {
+  return Object.values(ITEMS).filter(i => i.type === 'utility').map(i => i.id);
+}
 
 // All non-boss, non-key item IDs for pool randomization
 const UTILITY_ITEM_IDS = [
@@ -197,7 +199,7 @@ function distributeKeyItems(
 
   // Strategy: place key items in the first half of locations to ensure they're found early
   const firstHalf = shuffledMainLocations.slice(0, Math.max(2, Math.ceil(shuffledMainLocations.length / 2)));
-  const shuffledKeys = shuffle(CRITICAL_KEY_ITEMS);
+  const shuffledKeys = shuffle(getCriticalKeyItems());
 
   for (let i = 0; i < shuffledKeys.length; i++) {
     const locId = firstHalf[i % firstHalf.length];

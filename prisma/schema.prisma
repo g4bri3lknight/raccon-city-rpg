@@ -20,17 +20,9 @@ model Item {
   maxStack         Int      @default(99)
   // Weapon fields (nullable, only for weapons)
   weaponType       String?  // melee | ranged
-  atkBonus         Int?
   ammoType         String?  // itemId of ammo it uses
-  // Equipment fields (nullable, for armor/accessory/weapon_mod)
-  defBonus         Int?
-  hpBonus          Int?
-  spdBonus         Int?
-  critBonus        Int?     // % extra crit chance (weapon_mod & accessory)
-  dodgeBonus       Int?     // % enemy dodge reduction (weapon_mod)
-  statusBonus      Int?     // % extra status apply chance (weapon_mod)
+  // Equipment fields (nullable, for weapon_mod)
   modType          String?  // melee | ranged | any (weapon_mod compatibility)
-  specialEffect    String?  // JSON: {"type":"poison_resist","value":50}
   effects          String   @default("[]") // JSON array of atomic effects: [{type,trigger,target,...params}]
   unico            Boolean  @default(false) // true = can only be dropped/obtained once per game
   createdAt        DateTime @default(now())
@@ -278,4 +270,64 @@ model SecretRoom {
   sortOrder           Int      @default(0)
   createdAt           DateTime @default(now())
   @@map("secret_rooms")
+}
+
+model GameRecipe {
+  id            String   @id
+  name          String
+  description   String   @default("")
+  icon          String   @default("🔧")
+  category      String   @default("ammo")    // ammo | healing | booster
+  ingredients   String   @default("[]")      // JSON: [{itemId, quantity}]
+  resultItemId  String
+  resultQty     Int      @default(1)
+  difficulty    String   @default("easy")    // easy | medium | hard
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@map("game_recipes")
+}
+
+model GameBossPhase {
+  id             String   @id
+  enemyId        String                      // references GameEnemy.id
+  name           String                      // phase name, e.g. "Terminus", "Cortus"
+  hpThreshold    Float                       // 0.0-1.0, HP % trigger
+  hpMultiplier   Float    @default(1.0)
+  atkMultiplier  Float    @default(1.0)
+  defMultiplier  Float    @default(1.0)
+  spdMultiplier  Float    @default(1.0)
+  newAbilities   String   @default("[]")      // JSON: ability IDs from game_enemy_abilities
+  message        String   @default("")        // phase transition message
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  @@map("game_boss_phases")
+}
+
+model GameAchievement {
+  id          String   @id
+  name        String
+  description String
+  icon        String   @default("🏆")
+  category    String   @default("combat") // combat | exploration | collection | story | special
+  condition   String
+  hidden      Boolean  @default(false)
+  reward      String   @default("")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  @@map("game_achievements")
+}
+
+model GameEnding {
+  id           String   @id
+  title        String
+  subtitle     String   @default("")
+  description  String
+  icon         String   @default("🏆")
+  color        String   @default("#22c55e")
+  requirements String   @default("[]") // JSON: [{type,value}]
+  priority     Int      @default(0)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  @@map("game_endings")
 }

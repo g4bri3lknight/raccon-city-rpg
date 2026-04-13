@@ -1,7 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '@/game/data/equipment';
-import { WEAPON_MODS } from '@/game/data/weapon-mods';
+import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, WEAPON_MODS } from '@/seed-data/equipment';
 
 export async function POST() {
   try {
@@ -24,12 +23,7 @@ export async function POST() {
         stackable: false,
         maxStack: 1,
         unico: true,
-        defBonus: eq.defBonus ?? null,
-        hpBonus: eq.hpBonus ?? null,
-        spdBonus: eq.spdBonus ?? null,
-        atkBonus: eq.atkBonus ?? null,
-        critBonus: eq.critBonus ?? null,
-        specialEffect: eq.specialEffect ? JSON.stringify(eq.specialEffect) : null,
+        effects: JSON.stringify(eq.effects || []),
       };
       if (existing) {
         await db.item.update({ where: { id }, data });
@@ -56,11 +50,8 @@ export async function POST() {
         stackable: false,
         maxStack: 1,
         unico: true,
-        atkBonus: mod.atkBonus ?? null,
-        critBonus: mod.critBonus ?? null,
-        dodgeBonus: mod.dodgeBonus ?? null,
-        statusBonus: mod.statusBonus ?? null,
         modType: mod.type, // 'melee' | 'ranged' | 'any'
+        effects: JSON.stringify(mod.effects || []),
       };
       if (existing) {
         await db.item.update({ where: { id: modId }, data });

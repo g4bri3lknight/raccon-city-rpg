@@ -1,304 +1,15 @@
+// Static special ability data has been moved to src/seed-data/specials.ts for seed routes.
+// At runtime, specials are loaded from DB via loader.ts → /api/game-data.
+
 import { SpecialAbilityDefinition, SpecialCategory, SpecialEffect } from '../types';
 
-// ==========================================
-// SPECIAL ABILITIES POOL
-// At least 8 specials across 3 categories
-// Custom characters can pick any 2 from this pool
-// ==========================================
-
-export const ALL_SPECIAL_ABILITIES: SpecialAbilityDefinition[] = [
-  // ── OFFENSIVE ──
-  {
-    id: 'colpo_mortale',
-    name: 'Colpo Mortale',
-    description: 'Un attacco mirato e devastante che infligge danni critici massimi al bersaglio.',
-    icon: '💀',
-    targetType: 'enemy',
-    cooldown: 2,
-    category: 'offensive',
-    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 1.6 }],
-  },
-  {
-    id: 'raffica',
-    name: 'Raffica',
-    description: 'Spara una raffica che colpisce il bersaglio principale e danneggia anche gli altri nemici vicini.',
-    icon: '🔥',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'offensive',
-    effects: [
-      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.3 },
-      { type: 'deal_damage', target: 'all_enemies', powerMultiplier: 0.6, excludePrimaryTarget: true },
-    ],
-  },
-  {
-    id: 'sparo_mirato',
-    name: 'Sparo Mirato',
-    description: 'Un colpo precisissimo che non può mancare e infligge ingenti danni al bersaglio.',
-    icon: '🎯',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'offensive',
-    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 2.0, noMiss: true }],
-  },
-  {
-    id: 'veleno_acido',
-    name: 'Veleno Acido',
-    description: 'Lancia una sostanza corrosiva che avvelena il nemico e infligge danni moderati.',
-    icon: '☣️',
-    targetType: 'enemy',
-    cooldown: 2,
-    category: 'offensive',
-    effects: [
-      { type: 'deal_damage', target: 'enemy', powerMultiplier: 0.9 },
-      { type: 'apply_status', target: 'enemy', statusType: 'poison', chance: 70 },
-    ],
-  },
-  {
-    id: 'attacco_carica',
-    name: 'Attacco di Carica',
-    description: 'Una carica brutale che infligge danni considerevoli e può stordire il nemico.',
-    icon: '🏃',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'offensive',
-    effects: [
-      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.4 },
-      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 50 },
-    ],
-  },
-
-  // ── DEFENSIVE ──
-  {
-    id: 'barricata',
-    name: 'Barricata',
-    description: 'Solleva una barricata improvvisata, riducendo drasticamente i danni subiti per il prossimo turno.',
-    icon: '🛡️',
-    targetType: 'self',
-    cooldown: 2,
-    category: 'defensive',
-    effects: [{ type: 'buff_stat', target: 'all_allies', stat: 'def', amount: 50, duration: 3 }],
-  },
-  {
-    id: 'immolazione',
-    name: 'Immolazione',
-    description: 'Si espone per attirare tutti gli attacchi nemici su di sé, proteggendo gli alleati. Danni ridotti.',
-    icon: '🔥',
-    targetType: 'self',
-    cooldown: 3,
-    category: 'defensive',
-    effects: [
-      { type: 'taunt', target: 'self', duration: 2 },
-      { type: 'buff_stat', target: 'self', stat: 'def', amount: 30, duration: 2 },
-    ],
-  },
-  {
-    id: 'scudo_vitale',
-    name: 'Scudo Vitale',
-    description: 'Attiva uno scudo energetico che ripristina 30 HP e riduce i danni subiti fino al prossimo turno.',
-    icon: '✨',
-    targetType: 'self',
-    cooldown: 3,
-    category: 'defensive',
-    effects: [
-      { type: 'heal', target: 'self', amount: 30 },
-      { type: 'buff_stat', target: 'self', stat: 'def', amount: 40, duration: 2 },
-    ],
-  },
-  {
-    id: 'recupero_tattico',
-    name: 'Recupero Tattico',
-    description: 'Sfrutta le conoscenze di sopravvivenza per curarsi rapidamente e tornare in forze.',
-    icon: '🔧',
-    targetType: 'self',
-    cooldown: 2,
-    category: 'defensive',
-    effects: [{ type: 'heal', target: 'self', amount: 50 }],
-  },
-  {
-    id: 'resistenza_attiva',
-    name: 'Resistenza Attiva',
-    description: 'Attiva un protocollo di resistenza che rimuove tutti gli status negativi e ripristina una modesta quantità di HP.',
-    icon: '💊',
-    targetType: 'self',
-    cooldown: 3,
-    category: 'defensive',
-    effects: [
-      { type: 'heal', target: 'self', amount: 25 },
-      { type: 'remove_status', target: 'self', statuses: ['poison', 'bleeding', 'stunned'] },
-    ],
-  },
-
-  // ── SUPPORT ──
-  {
-    id: 'pronto_soccorso',
-    name: 'Pronto Soccorso',
-    description: 'Un intervento medico rapido che cura un alleato di 70 HP e rimuove avvelenamento e sanguinamento.',
-    icon: '💊',
-    targetType: 'ally',
-    cooldown: 2,
-    category: 'support',
-    effects: [
-      { type: 'heal', target: 'ally', amount: 70 },
-      { type: 'remove_status', target: 'ally', statuses: ['poison', 'bleeding'] },
-    ],
-  },
-  {
-    id: 'cura_gruppo',
-    name: 'Cura Gruppo',
-    description: 'Distribuisce cure a tutto il gruppo, curando ogni alleato di una quantità moderata di HP.',
-    icon: '💚',
-    targetType: 'all_allies',
-    cooldown: 3,
-    category: 'support',
-    effects: [{ type: 'heal', target: 'all_allies', amount: 35 }],
-  },
-  {
-    id: 'adrenalina',
-    name: 'Adrenalina',
-    description: 'Inietta adrenalina a un alleato, ripristinando 40 HP e aumentando i danni inflitti del 25% per 2 turni.',
-    icon: '💉',
-    targetType: 'ally',
-    cooldown: 3,
-    category: 'support',
-    effects: [
-      { type: 'heal', target: 'ally', amount: 40 },
-      { type: 'apply_status', target: 'ally', statusType: 'adrenaline', chance: 100 },
-    ],
-  },
-  {
-    id: 'iniezione_stimolante',
-    name: 'Iniezione Stimolante',
-    description: 'Un potente siero che cura un alleato di una grande quantità di HP e rimuove tutti gli effetti negativi.',
-    icon: '🧪',
-    targetType: 'ally',
-    cooldown: 3,
-    category: 'support',
-    effects: [
-      { type: 'heal', target: 'ally', amount: 45 },
-      { type: 'remove_status', target: 'ally', statuses: ['poison', 'bleeding', 'stunned'] },
-    ],
-  },
-  {
-    id: 'disinfezione_totale',
-    name: 'Disinfezione Totale',
-    description: 'Distribuisce un antisettico a tutto il gruppo, rimuovendo tutti gli status negativi e curando leggermente ogni alleato.',
-    icon: '🧴',
-    targetType: 'all_allies',
-    cooldown: 3,
-    category: 'support',
-    effects: [
-      { type: 'heal', target: 'all_allies', amount: 20 },
-      { type: 'remove_status', target: 'all_allies', statuses: ['poison', 'bleeding', 'stunned'] },
-    ],
-  },
-
-  // ── CONTROL ──
-  {
-    id: 'gas_venefico',
-    name: 'Gas Venefico',
-    description: 'Lancia una granata di gas che avvelena tutti i nemici e infligge danni moderati.',
-    icon: '💨',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'control',
-    effects: [
-      { type: 'deal_damage', target: 'all_enemies', powerMultiplier: 0.7 },
-      { type: 'apply_status', target: 'all_enemies', statusType: 'poison', chance: 65 },
-    ],
-  },
-  {
-    id: 'cristalli_sonici',
-    name: 'Cristalli Sonici',
-    description: 'Attiva un dispositivo sonico che stordisce il bersaglio e infligge danni moderati.',
-    icon: '🔔',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'control',
-    effects: [
-      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.1 },
-      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 60 },
-    ],
-  },
-  {
-    id: 'frecce_etiche',
-    name: 'Frecce Elettriche',
-    description: 'Spara una scarica elettrica che paralizza il nemico con alta probabilità e infligge danni moderati.',
-    icon: '⚡',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'control',
-    effects: [
-      { type: 'deal_damage', target: 'enemy', powerMultiplier: 0.9 },
-      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 55 },
-    ],
-  },
-  {
-    id: 'granata_stordente',
-    name: 'Granata Stordente',
-    description: 'Lancia una granata concussiva che infligge danni moderati a tutti i nemici con alta probabilità di stordirli.',
-    icon: '💣',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'control',
-    effects: [
-      { type: 'deal_damage', target: 'all_enemies', powerMultiplier: 0.8 },
-      { type: 'apply_status', target: 'all_enemies', statusType: 'stunned', chance: 60 },
-    ],
-  },
-  {
-    id: 'siero_inibitore',
-    name: 'Siero Inibitore',
-    description: 'Inietta un siero neurotossico al nemico, avvelenandolo e stordendolo simultaneamente.',
-    icon: '🧬',
-    targetType: 'enemy',
-    cooldown: 3,
-    category: 'control',
-    effects: [
-      { type: 'deal_damage', target: 'enemy', powerMultiplier: 1.0 },
-      { type: 'apply_status', target: 'enemy', statusType: 'poison', chance: 70 },
-      { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 40 },
-    ],
-  },
-];
-
 export function getSpecialByIdStatic(id: string): SpecialAbilityDefinition | undefined {
-  return ALL_SPECIAL_ABILITIES.find(s => s.id === id);
+  // This is now a stub — specials are loaded from DB via loader.ts
+  // Use getSpecialById from loader.ts instead
+  return undefined;
 }
 
-// Alias for backward compatibility (used by CombatScreen & CharacterSelect)
-export const getSpecialById = getSpecialByIdStatic;
-
-// Map predefined archetype specials to the pool IDs (for backward compatibility)
-export const ARCHETYPE_SPECIAL_MAP: Record<string, { special1: string; special2: string }> = {
-  tank: { special1: 'barricata', special2: 'immolazione' },
-  healer: { special1: 'pronto_soccorso', special2: 'cura_gruppo' },
-  dps: { special1: 'colpo_mortale', special2: 'raffica' },
-  control: { special1: 'gas_venefico', special2: 'cristalli_sonici' },
-};
-
-// Maps each preset archetype to the special ability category it draws from
-export const ARCHETYPE_CATEGORY_MAP: Record<string, SpecialCategory> = {
-  tank: 'defensive',
-  healer: 'support',
-  dps: 'offensive',
-  control: 'control',
-};
-
-// Generate a passive description based on the highest custom stat
-export function getCustomPassiveDescription(stats: { hp: number; atk: number; def: number; spd: number }): string {
-  const entries = Object.entries(stats) as [keyof typeof stats, number][];
-  const highest = entries.reduce((a, b) => (b[1] > a[1] ? b : a), entries[0]);
-  const descriptions: Record<string, string> = {
-    hp: 'Tenacia Sopravvissuta: Rigenera lentamente HP ogni turno grazie alla sua straordinaria vitalità.',
-    atk: 'Istinto Predatorio: I colpi critici infliggono danni aggiuntivi grazie alla sua ferocia in combattimento.',
-    def: 'Pelle Corazzata: Riduce ulteriormente i danni subiti grazie alla sua resilienza eccezionale.',
-    spd: 'Riflessi Fulminei: Ha una chance di schivare gli attacchi nemici grazie alla sua velocità.',
-  };
-  return descriptions[highest[0]] || descriptions.atk;
-}
-
-// Stat point budget for custom archetype characters
+// Stat point budget for custom archetype characters (Category C — pure config)
 export const CUSTOM_STAT_BUDGET = {
   totalPoints: 50,
   minPerStat: 5,
@@ -306,7 +17,7 @@ export const CUSTOM_STAT_BUDGET = {
   defaults: { hp: 10, atk: 12, def: 10, spd: 8 },
 };
 
-// Default starting items for custom characters (generic survival kit)
+// Default starting items for custom characters (Category C)
 export const CUSTOM_STARTING_ITEMS: { itemId: string; name: string; description: string; type: string; rarity: string; icon: string; usable: boolean; equippable: boolean; quantity: number; effect?: any; weaponStats?: any }[] = [
   {
     itemId: 'pipe',
@@ -318,7 +29,7 @@ export const CUSTOM_STARTING_ITEMS: { itemId: string; name: string; description:
     usable: false,
     equippable: true,
     quantity: 1,
-    weaponStats: { itemId: 'pipe', name: 'Tubo di Piombo', atkBonus: 5, type: 'melee' },
+    weaponStats: { itemId: 'pipe', name: 'Tubo di Piombo', type: 'melee', modSlots: [], effects: [{ type: 'buff_stat', trigger: 'on_equip', target: 'self', stat: 'atk', amount: 5, flat: true }] },
   },
   {
     itemId: 'bandage',
@@ -346,7 +57,7 @@ export const CUSTOM_STARTING_ITEMS: { itemId: string; name: string; description:
   },
 ];
 
-// Predefined avatar options (RE-themed) — images loaded from DB
+// Predefined avatar options (Category B — no DB table yet)
 export const PREDEFINED_AVATARS = [
   { id: 'avatar_soldier', name: 'Avatar 1', path: '/api/media/image?id=avatar_soldier', emoji: '🪖' },
   { id: 'avatar_medic', name: 'Avatar 2', path: '/api/media/image?id=avatar_medic', emoji: '🩺' },

@@ -14,75 +14,131 @@ import {
   ItemDefinition,
 } from '../types';
 import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById, ITEMS } from '../data/loader';
+import { ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '../data/equipment';
 import { WEAPON_MODS } from '../data/weapon-mods';
-import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '../data/equipment';
 
 // ==========================================
-// #3+#29 — STAT BONUS HELPERS
+// #3+#29 — STAT BONUS HELPERS (EFFECTS-DRIVEN)
 // ==========================================
 
-/** Get total DEF for a character including armor + accessories */
+/** Collect all on_equip effects from weapon, armor, accessory, and weapon mods */
+function getOnEquipEffects(char: Character): SpecialEffect[] {
+  const effects: SpecialEffect[] = [];
+  // Weapon effects
+  if (char.weapon) {
+    for (const e of (char.weapon.effects || [])) {
+      if (e.trigger === 'on_equip' || !e.trigger) effects.push(e);
+    }
+    // Installed mod effects
+    if (char.weapon.modSlots) {
+      for (const modId of char.weapon.modSlots) {
+        const mod = WEAPON_MODS[modId];
+        if (mod?.effects) {
+          for (const e of mod.effects) {
+            if (e.trigger === 'on_equip' || !e.trigger) effects.push(e);
+          }
+        }
+      }
+    }
+  }
+  // Armor effects
+  if (char.armor?.effects) {
+    for (const e of char.armor.effects) {
+      if (e.trigger === 'on_equip' || !e.trigger) effects.push(e);
+    }
+  }
+  // Accessory effects
+  if (char.accessory?.effects) {
+    for (const e of char.accessory.effects) {
+      if (e.trigger === 'on_equip' || !e.trigger) effects.push(e);
+    }
+  }
+  return effects;
+}
+
+/** Get total DEF for a character including armor + accessories (via on_equip effects) */
 export function getCharacterDef(char: Character): number {
   let def = char.baseDef;
-  if (char.armor?.defBonus) def += char.armor.defBonus;
-  if (char.accessory?.defBonus) def += char.accessory.defBonus;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'buff_stat' && e.stat === 'def') {
+      def += e.flat ? e.amount : Math.floor(char.baseDef * e.amount / 100);
+    }
+  }
   return def;
 }
 
-/** Get total ATK for a character including weapon + accessories */
+/** Get total ATK for a character including weapon + accessories + mods (via on_equip effects) */
 export function getCharacterAtk(char: Character): number {
-  let atk = char.baseAtk + (char.weapon?.atkBonus || 0);
-  if (char.accessory?.atkBonus) atk += char.accessory.atkBonus;
+  let atk = char.baseAtk;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'buff_stat' && e.stat === 'atk') {
+      atk += e.flat ? e.amount : Math.floor(char.baseAtk * e.amount / 100);
+    }
+  }
   return atk;
 }
 
-/** Get total maxHP for a character including equipment */
+/** Get total maxHP for a character including equipment (via on_equip effects) */
 export function getCharacterMaxHp(char: Character): number {
   let hp = char.maxHp;
-  if (char.armor?.hpBonus) hp += char.armor.hpBonus;
-  if (char.accessory?.hpBonus) hp += char.accessory.hpBonus;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'buff_stat' && e.stat === 'hp') {
+      hp += e.flat ? e.amount : Math.floor(char.maxHp * e.amount / 100);
+    }
+  }
   return hp;
 }
 
-/** Get total SPD for a character including equipment */
+/** Get total SPD for a character including equipment (via on_equip effects) */
 export function getCharacterSpd(char: Character): number {
   let spd = char.baseSpd;
-  if (char.accessory?.spdBonus) spd += char.accessory.spdBonus;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'buff_stat' && e.stat === 'spd') {
+      spd += e.flat ? e.amount : Math.floor(char.baseSpd * e.amount / 100);
+    }
+  }
   return spd;
 }
 
-/** Get extra crit chance from weapon mods + accessories */
+/** Get extra crit chance from weapon mods + accessories (via on_equip effects) */
 export function getCharacterCritBonus(char: Character): number {
   let crit = 0;
-  // #3 Weapon mod crit bonuses
-  if (char.weapon?.modSlots) {
-    for (const modId of char.weapon.modSlots) {
-      const mod = WEAPON_MODS[modId];
-      if (mod?.critBonus) crit += mod.critBonus;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'buff_stat' && e.stat === 'crit' && e.flat) {
+      crit += e.amount;
     }
   }
-  // #29 Accessory crit bonus
-  if (char.accessory?.critBonus) crit += char.accessory.critBonus;
   return crit;
 }
 
-/** Get status effect apply chance bonus from weapon mods */
+/** Get status effect apply chance bonus from weapon mods (via on_equip effects) */
 export function getCharacterStatusBonus(char: Character): number {
   let statusBonus = 0;
-  if (char.weapon?.modSlots) {
-    for (const modId of char.weapon.modSlots) {
-      const mod = WEAPON_MODS[modId];
-      if (mod?.statusBonus) statusBonus += mod.statusBonus;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'status_chance_boost') {
+      statusBonus += e.amount;
     }
   }
   return statusBonus;
 }
 
-/** Check if character has specific resistance from equipment */
+/** Check if character has specific resistance from equipment (via on_equip status_resist effects) */
 export function getCharacterResistance(char: Character, effectType: string): number {
   let resist = 0;
-  if (char.armor?.specialEffect?.type === effectType) resist += char.armor.specialEffect.value;
-  if (char.accessory?.specialEffect?.type === effectType) resist += char.accessory.specialEffect.value;
+  // Map legacy names to new statusType values
+  const statusMap: Record<string, string> = {
+    'poison_resist': 'poison',
+    'bleed_resist': 'bleeding',
+    'stun_resist': 'stunned',
+  };
+  const targetStatus = statusMap[effectType] || effectType;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'status_resist') {
+      if (e.statusType === targetStatus || e.statusType === 'all') {
+        resist += e.value;
+      }
+    }
+  }
   return resist;
 }
 
@@ -208,14 +264,11 @@ export function calculateHeal(
 // COMBAT ACTIONS
 // ==========================================
 
-// Weapon → ammo mapping
-export const WEAPON_AMMO: Record<string, string> = {
-  pistol: 'ammo_pistol',
-  shotgun: 'ammo_shotgun',
-  magnum: 'ammo_magnum',
-  machinegun: 'ammo_machinegun',
-  grenade_launcher: 'ammo_grenade',
-};
+/** Get the ammo item ID required by a ranged weapon, from the DB-loaded item's ammoType field.
+ *  Returns null for melee weapons or unknown items. */
+export function getWeaponAmmoType(weaponItemId: string): string | null {
+  return ITEMS[weaponItemId]?.ammoType ?? null;
+}
 
 export interface AppliedBuff {
   targetId: string;
@@ -249,28 +302,23 @@ export function executePlayerAttack(
   let isMeleeFallback = false;
 
   // Check ammo for ranged weapons
-  let weaponBonus: number;
   let actionLabel = 'Attacco';
 
   if (isRanged) {
-    const requiredAmmoId = WEAPON_AMMO[weapon!.itemId];
+    const requiredAmmoId = getWeaponAmmoType(weapon!.itemId);
     const ammoItem = requiredAmmoId
       ? character.inventory.find(i => i.itemId === requiredAmmoId && (i.quantity || 0) > 0)
       : undefined;
 
     if (ammoItem) {
       // Has ammo → full ranged attack
-      weaponBonus = weapon!.atkBonus;
       consumedAmmoUid = ammoItem.uid;
       actionLabel = `${weapon!.name}`;
     } else {
-      // No ammo → melee fallback (butt/pistol whip), no weapon bonus
+      // No ammo → melee fallback (butt/pistol whip)
       isMeleeFallback = true;
-      weaponBonus = 0;
       actionLabel = 'Colpo corpo a corpo';
     }
-  } else {
-    weaponBonus = weapon?.atkBonus || 0;
   }
 
   const totalAtk = getCharacterAtk(character);

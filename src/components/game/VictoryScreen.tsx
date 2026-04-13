@@ -6,6 +6,7 @@ import { useGameStore } from '@/game/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ENDINGS } from '@/game/data/endings';
+import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { Star, RotateCcw, Save, Plus, Sparkles, X, Clock } from 'lucide-react';
 
 export default function VictoryScreen() {
@@ -255,7 +256,7 @@ export default function VictoryScreen() {
                   <div className="flex gap-3 mt-0.5 text-xs text-gray-500">
                     <span>Lv.{char.level}</span>
                     <span>HP: {char.currentHp}/{char.maxHp}</span>
-                    <span>ATK: {char.baseAtk + (char.weapon?.atkBonus || 0)}</span>
+                    <span>ATK: {char.baseAtk + getEquipStatBonus(char.weapon?.effects, 'atk')}</span>
                     <span>DEF: {char.baseDef}</span>
                   </div>
                 </div>

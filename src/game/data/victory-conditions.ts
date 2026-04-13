@@ -1,3 +1,7 @@
+// ⚠️ DEAD CODE — This module is not imported anywhere in the codebase.
+// It may be intended for future use (victory condition system).
+// TODO: Either migrate to DB-driven or remove if no longer planned.
+
 import { VictoryCondition, EnemyInstance } from '../types';
 
 // ==========================================

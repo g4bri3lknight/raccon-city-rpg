@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { STATIC_LOCATIONS } from '@/game/data/locations';
+import { SEED_LOCATIONS } from '@/seed-data/locations';
 import { NextResponse } from 'next/server';
 
 const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; danger: string }> = {
@@ -18,7 +18,7 @@ const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; dange
  */
 export async function POST() {
   try {
-    const entries = Object.values(STATIC_LOCATIONS);
+    const entries = Object.values(SEED_LOCATIONS);
     let seeded = 0;
 
     for (const loc of entries) {

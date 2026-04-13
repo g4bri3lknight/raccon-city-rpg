@@ -7,7 +7,7 @@ import { CombatAction } from '@/game/types';
 import LogText from '@/components/game/LogText';
 import { ENEMY_IMAGES, CHARACTER_IMAGES, getSpecialById, ARCHETYPE_SPECIAL_MAP, mediaUrl } from '@/game/data/loader';
 import ItemIcon from './ItemIcon';
-import { WEAPON_AMMO, resolveSpecialId } from '@/game/engine/combat';
+import { getWeaponAmmoType, resolveSpecialId } from '@/game/engine/combat';
 import { audio } from '@/game/engine/sounds';
 import { playEnemyAttack, playEnemyDeath, playZombieMoan } from '@/game/engine/sounds';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
@@ -384,7 +384,7 @@ export default function CombatScreen() {
   // Ammo count for current character's ranged weapon
   const currentWeaponAmmoCount = (() => {
     if (!currentCharacter?.weapon || currentCharacter.weapon.type !== 'ranged') return null;
-    const requiredAmmoId = WEAPON_AMMO[currentCharacter.weapon.itemId];
+    const requiredAmmoId = getWeaponAmmoType(currentCharacter.weapon.itemId);
     if (!requiredAmmoId) return null;
     const ammoItems = currentCharacter.inventory.filter(i => i.itemId === requiredAmmoId);
     const total = ammoItems.reduce((sum, i) => sum + (i.quantity || 0), 0);
@@ -759,7 +759,7 @@ export default function CombatScreen() {
                 )}
                 {/* Ammo indicator for ranged weapons */}
                 {char.weapon?.type === 'ranged' && !isDead && (() => {
-                  const ammoId = WEAPON_AMMO[char.weapon.itemId];
+                  const ammoId = getWeaponAmmoType(char.weapon.itemId);
                   if (!ammoId) return null;
                   const ammoCount = char.inventory.filter(i => i.itemId === ammoId).reduce((s, i) => s + (i.quantity || 0), 0);
                   return (

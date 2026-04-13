@@ -1,13 +1,10 @@
-// NPC portrait image URLs — loaded from DB via /api/media/image
+// NPC portrait image URLs — generated dynamically from NPC ID
 // Falls back to emoji if image is missing in DB
 
-export const NPC_PORTRAIT_URLS: Record<string, string> = {
-  npc_marco: '/api/media/image?id=npc_marco',
-  npc_dr_chen: '/api/media/image?id=npc_dr_chen',
-  npc_soldier_reyes: '/api/media/image?id=npc_soldier_reyes',
-  npc_hannah: '/api/media/image?id=npc_hannah',
-  npc_umbrella_scientist: '/api/media/image?id=npc_umbrella_scientist',
-};
+/** Generate the portrait image URL for an NPC by ID */
+export function getNpcPortraitUrl(npcId: string): string {
+  return `/api/media/image?id=${npcId}`;
+}
 
 // NPC badge labels
 export const NPC_BADGES: Record<string, { label: string; icon: string; color: string }> = {

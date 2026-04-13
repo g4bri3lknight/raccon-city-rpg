@@ -15,7 +15,7 @@ export interface CraftingRecipe {
   difficulty: 'easy' | 'medium' | 'hard';
 }
 
-export const CRAFTING_RECIPES: CraftingRecipe[] = [
+export let CRAFTING_RECIPES: CraftingRecipe[] = [
   // ── Ammunition (recycling gunpowder + scrap) ──
   {
     id: 'craft_pistol_ammo',
