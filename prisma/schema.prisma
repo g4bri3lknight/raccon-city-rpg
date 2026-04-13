@@ -135,6 +135,7 @@ model GameLocation {
   mapCol          Int?
   mapIcon         String?
   mapDanger       String?
+  shortName       String?
   createdAt       DateTime @default(now())
   @@map("game_locations")
 }
@@ -150,6 +151,9 @@ model GameNPC {
   questId                String?                   // references SideQuest.id
   tradeInventory         String   @default("[]")   // JSON: [{itemId,priceItemId,priceQuantity}]
   questCompletedDialogue String   @default("[]")   // JSON: ["line1"]
+  badgeLabel             String   @default("")     // e.g. "Meccanico", "Medico"
+  badgeIcon              String   @default("")     // e.g. "🔧", "🥼"
+  badgeColor             String   @default("")     // Tailwind classes, e.g. "bg-emerald-900/40 text-emerald-300 border-emerald-700/30"
   sortOrder              Int      @default(0)
   createdAt              DateTime @default(now())
   @@map("game_npcs")
@@ -330,4 +334,13 @@ model GameEnding {
   sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
   @@map("game_endings")
+}
+
+model GameAvatar {
+  id        String   @id
+  name      String                      // display name
+  emoji     String   @default("👤")     // fallback emoji when no image
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  @@map("game_avatars")
 }

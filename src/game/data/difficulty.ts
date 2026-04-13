@@ -24,5 +24,3 @@ export function setDifficultyConfigs(configs: Record<string, DifficultyConfig>) 
   }
   DIFFICULTY_CONFIGS = updated;
 }
-
-export { DIFFICULTY_CONFIGS };

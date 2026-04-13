@@ -499,6 +499,12 @@ export interface LocationDefinition {
   searchChance?: number; // 0-100 base success chance (default 60)
   docChance?: number;    // 0-100 document find chance (default 35)
   searchMax?: number;    // max searches per location (null=random 1-3, 0=unlimited)
+  // Map layout fields (optional, for GameMap visual positioning)
+  shortName?: string;    // abbreviated name for map display
+  mapRow?: number;       // vertical position (0 = top)
+  mapCol?: number;       // horizontal position (0 = center, -1 = left, 1 = right)
+  mapIcon?: string;      // emoji icon for map node
+  mapDanger?: number;    // danger level 0-3 for visual color
 }
 
 export interface StoryEvent {
@@ -843,6 +849,16 @@ export interface GameNPC {
   tradeInventory?: NPCTradeItem[];
   questCompletedDialogue?: string[];
   farewell: string;
+  badgeLabel?: string;
+  badgeIcon?: string;
+  badgeColor?: string;
+}
+
+export interface AvatarDefinition {
+  id: string;
+  name: string;
+  emoji: string;
+  sortOrder: number;
 }
 
 // ==========================================

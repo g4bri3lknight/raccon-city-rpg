@@ -24,6 +24,10 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'titleScreen.btnTextColor':    { value: '#fee2e2',   label: 'Testo Pulsanti (hex)',     group: 'titleScreen.style',   sortOrder: 34 },
   'titleScreen.btnGlowHover':    { value: 'rgba(220,38,38,0.4)', label: 'Glow Hover Pulsanti (rgba)', group: 'titleScreen.style', sortOrder: 35 },
 
+  // ── Custom Character ──
+  'customCharacter.statBudget':     { value: '{"totalPoints":50,"minPerStat":5,"maxPerStat":25,"defaults":{"hp":10,"atk":12,"def":10,"spd":8}}', label: 'Budget Punti Stat Personalizzato', group: 'customCharacter', sortOrder: 50 },
+  'customCharacter.startingItems':  { value: '[{"itemId":"pipe","quantity":1},{"itemId":"bandage","quantity":2},{"itemId":"herb_green","quantity":2}]', label: 'Oggetti Iniziali Personalizzato (JSON)', group: 'customCharacter', sortOrder: 51 },
+
   // ── Gameplay ──
   'gameplay.maxInventorySlots':     { value: '12',  label: 'Slot Massimi Inventario',          group: 'gameplay.inventory', sortOrder: 100 },
   'gameplay.maxItemBoxSlots':       { value: '48',  label: 'Slot Massimi Item Box',           group: 'gameplay.itembox',   sortOrder: 110 },
@@ -34,6 +38,25 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'difficulty.sopravvissuto': { value: '{"label":"Sopravvissuto","color":"#22c55e","icon":"🏃","statMult":0.6,"lootMult":1.5,"minEnemies":1,"maxEnemies":2,"expMult":1.4,"enemyCritChance":5,"description":"Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia."}', label: 'Difficoltà: Sopravvissuto', group: 'difficulty', sortOrder: 200 },
   'difficulty.normale':       { value: '{"label":"Normale","color":"#eab308","icon":"⚔️","statMult":0.85,"lootMult":1.1,"minEnemies":1,"maxEnemies":3,"expMult":1.0,"enemyCritChance":10,"description":"Bilanciato. La vera esperienza di Raccoon City."}', label: 'Difficoltà: Normale', group: 'difficulty', sortOrder: 201 },
   'difficulty.incubo':        { value: '{"label":"Incubo","color":"#ef4444","icon":"💀","statMult":1.4,"lootMult":0.6,"minEnemies":2,"maxEnemies":4,"expMult":0.8,"enemyCritChance":20,"description":"Nemici potenti, poco bottino. Solo per i più coraggiosi."}', label: 'Difficoltà: Incubo', group: 'difficulty', sortOrder: 202 },
+
+  // ── Combat Constants ──
+  'combat.missChance':             { value: '8',    label: '% Probabilità Mancata Base',           group: 'combat', sortOrder: 300 },
+  'combat.baseCritChance':         { value: '10',   label: '% Probabilità Critico Base',          group: 'combat', sortOrder: 301 },
+  'combat.dpsCritChance':          { value: '25',   label: '% Probabilità Critico DPS',            group: 'combat', sortOrder: 302 },
+  'combat.critMultiplier':         { value: '1.8',  label: 'Moltiplicatore Critico',              group: 'combat', sortOrder: 303 },
+  'combat.defenseConstant':        { value: '50',   label: 'Costante Difesa (formula)',           group: 'combat', sortOrder: 304 },
+  'combat.defendMultiplier':       { value: '1.8',  label: 'Moltiplicatore Difesa (in difesa)',   group: 'combat', sortOrder: 305 },
+  'combat.maxDefendReduction':     { value: '0.9',  label: 'Riduzione Difesa Max (cap)',           group: 'combat', sortOrder: 306 },
+  'combat.adrenalineDmgBonus':     { value: '1.25', label: 'Bonus Danno Adrenalina',              group: 'combat', sortOrder: 307 },
+  'combat.controlStatusBonus':     { value: '20',   label: '% Bonus Status Control',               group: 'combat', sortOrder: 308 },
+  'combat.healerCritHealChance':   { value: '20',   label: '% Prob Crit Heal Healer',             group: 'combat', sortOrder: 309 },
+  'combat.healerCritHealMult':     { value: '1.5',  label: 'Moltiplicatore Crit Heal',            group: 'combat', sortOrder: 310 },
+  'combat.damageVarianceMin':      { value: '85',   label: '% Varianza Danno Min',                 group: 'combat', sortOrder: 311 },
+  'combat.damageVarianceMax':      { value: '115',  label: '% Varianza Danno Max',                 group: 'combat', sortOrder: 312 },
+  'combat.noMissDmgVarianceMin':   { value: '90',   label: '% Varianza Danno No-Miss Min',        group: 'combat', sortOrder: 313 },
+  'combat.noMissDmgVarianceMax':   { value: '110',  label: '% Varianza Danno No-Miss Max',        group: 'combat', sortOrder: 314 },
+  'combat.defaultStatusDuration':  { value: '3',    label: 'Durata Status Default (turni)',       group: 'combat', sortOrder: 315 },
+  'combat.defaultCooldown':        { value: '2',    label: 'Cooldown Speciale Default (turni)',   group: 'combat', sortOrder: 316 },
 };
 
 async function ensureDefaults() {

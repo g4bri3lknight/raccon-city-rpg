@@ -13,7 +13,7 @@ import {
   ActiveCombatEffect,
   ItemDefinition,
 } from '../types';
-import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById, ITEMS } from '../data/loader';
+import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById, ITEMS, COMBAT_CONFIG } from '../data/loader';
 import { ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '../data/equipment';
 import { WEAPON_MODS } from '../data/weapon-mods';
 
@@ -122,26 +122,6 @@ export function getCharacterStatusBonus(char: Character): number {
   return statusBonus;
 }
 
-/** Check if character has specific resistance from equipment (via on_equip status_resist effects) */
-export function getCharacterResistance(char: Character, effectType: string): number {
-  let resist = 0;
-  // Map legacy names to new statusType values
-  const statusMap: Record<string, string> = {
-    'poison_resist': 'poison',
-    'bleed_resist': 'bleeding',
-    'stun_resist': 'stunned',
-  };
-  const targetStatus = statusMap[effectType] || effectType;
-  for (const e of getOnEquipEffects(char)) {
-    if (e.type === 'status_resist') {
-      if (e.statusType === targetStatus || e.statusType === 'all') {
-        resist += e.value;
-      }
-    }
-  }
-  return resist;
-}
-
 // ==========================================
 // UTILITY
 // ==========================================
@@ -154,10 +134,10 @@ function chance(percent: number): boolean {
   return Math.random() * 100 < percent;
 }
 
-// Control archetype passive: +20% chance to apply status effects
+// Control archetype passive: +X% chance to apply status effects (configurable)
 function getStatusChance(baseChance: number, archetype?: Archetype): number {
   if (archetype === 'control') {
-    return Math.min(baseChance + 20, 100);
+    return Math.min(baseChance + COMBAT_CONFIG.controlStatusBonus, 100);
   }
   return baseChance;
 }
@@ -181,35 +161,35 @@ export function calculateDamage(
   critBonus: number = 0, // #3+#29 extra crit from mods/accessories
 ): { damage: number; isCritical: boolean; isMiss: boolean } {
   // Miss chance (reduced by dodge bonus from mods — effectively increases hit rate)
-  const missChance = 8;
+  const missChance = COMBAT_CONFIG.missChance;
   if (chance(missChance)) {
     return { damage: 0, isCritical: false, isMiss: true };
   }
 
   // Base damage formula
-  let baseDamage = attackerAtk * random(85, 115) / 100;
+  let baseDamage = attackerAtk * random(COMBAT_CONFIG.damageVarianceMin, COMBAT_CONFIG.damageVarianceMax) / 100;
 
-  // Adrenaline buff: +25% damage
+  // Adrenaline buff: configurable damage bonus
   if (attackerHasAdrenaline) {
-    baseDamage *= 1.25;
+    baseDamage *= COMBAT_CONFIG.adrenalineDmgBonus;
   }
   
   // Defense reduction
-  let defMultiplier = defenderDef / (defenderDef + 50);
+  let defMultiplier = defenderDef / (defenderDef + COMBAT_CONFIG.defenseConstant);
   
   // Defending bonus
   if (isDefending) {
-    defMultiplier = Math.min(defMultiplier * 1.8, 0.9);
+    defMultiplier = Math.min(defMultiplier * COMBAT_CONFIG.defendMultiplier, COMBAT_CONFIG.maxDefendReduction);
   }
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
   // Critical hit (base + archetype + #3 mods + #29 accessories)
-  let critChance = 10 + critBonus;
-  if (attackerArchetype === 'dps') critChance = 25 + critBonus;
+  let critChance = COMBAT_CONFIG.baseCritChance + critBonus;
+  if (attackerArchetype === 'dps') critChance = COMBAT_CONFIG.dpsCritChance + critBonus;
   const isCritical = chance(critChance);
   if (isCritical) {
-    damage = Math.floor(damage * 1.8);
+    damage = Math.floor(damage * COMBAT_CONFIG.critMultiplier);
   }
 
   return { damage, isCritical, isMiss: false };
@@ -224,26 +204,26 @@ export function calculateDamageNoMiss(
   critBonus: number = 0,
 ): { damage: number; isCritical: boolean; isMiss: false } {
   // Guaranteed hit (for Sparo Mirato)
-  let baseDamage = attackerAtk * random(90, 110) / 100;
+  let baseDamage = attackerAtk * random(COMBAT_CONFIG.noMissDmgVarianceMin, COMBAT_CONFIG.noMissDmgVarianceMax) / 100;
 
-  // Adrenaline buff: +25% damage
+  // Adrenaline buff: configurable damage bonus
   if (attackerHasAdrenaline) {
-    baseDamage *= 1.25;
+    baseDamage *= COMBAT_CONFIG.adrenalineDmgBonus;
   }
 
-  let defMultiplier = defenderDef / (defenderDef + 50);
+  let defMultiplier = defenderDef / (defenderDef + COMBAT_CONFIG.defenseConstant);
   
   if (isDefending) {
-    defMultiplier = Math.min(defMultiplier * 1.8, 0.9);
+    defMultiplier = Math.min(defMultiplier * COMBAT_CONFIG.defendMultiplier, COMBAT_CONFIG.maxDefendReduction);
   }
 
   let damage = Math.max(1, Math.floor(baseDamage * (1 - defMultiplier)));
 
-  let critChance = 10 + critBonus;
-  if (attackerArchetype === 'dps') critChance = 25 + critBonus;
+  let critChance = COMBAT_CONFIG.baseCritChance + critBonus;
+  if (attackerArchetype === 'dps') critChance = COMBAT_CONFIG.dpsCritChance + critBonus;
   const isCritical = chance(critChance);
   if (isCritical) {
-    damage = Math.floor(damage * 1.8);
+    damage = Math.floor(damage * COMBAT_CONFIG.critMultiplier);
   }
 
   return { damage, isCritical, isMiss: false };
@@ -255,7 +235,7 @@ export function calculateHeal(
 ): number {
   let heal = baseHeal;
   if (healerArchetype === 'healer') {
-    if (chance(20)) heal = Math.floor(heal * 1.5);
+    if (chance(COMBAT_CONFIG.healerCritHealChance)) heal = Math.floor(heal * COMBAT_CONFIG.healerCritHealMult);
   }
   return heal;
 }

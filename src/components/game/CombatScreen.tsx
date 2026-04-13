@@ -15,7 +15,7 @@ import { useResizableSplit } from '@/hooks/useResizableSplit';
 import { Badge } from '@/components/ui/badge';
 import {
   Swords, Shield, Heart, Zap, Footprints, Package,
-  Crosshair, Loader2, ArrowLeft, Hand, X
+  Crosshair, Loader2, X
 } from 'lucide-react';
 
 export default function CombatScreen() {
@@ -25,8 +25,7 @@ export default function CombatScreen() {
     selectCombatAction, selectCombatTarget, selectCombatItem, executeCombatTurn,
     toggleAutoCombat, executeAutoCombatTurn } = state;
 
-  // ── UI state ──
-  const [showMenu, setShowMenu] = useState(false);
+  // ── UI state (menu always visible during combat) ──
   const [targetingMode, setTargetingMode] = useState<'enemy' | 'ally' | null>(null);
   const [pendingAction, setPendingAction] = useState<CombatAction | null>(null);
   const [showItemSelect, setShowItemSelect] = useState(false);
@@ -241,28 +240,15 @@ export default function CombatScreen() {
     }
   }, [isPlayerTurn, scrollToBottom]);
 
-  // ── Menu management: reset overlays + auto-open on player turn ──
+  // ── Menu management: reset overlays on turn change (menu stays always open) ──
   useEffect(() => {
-    if (isPlayerTurn && !autoCombat) {
-      // Reset overlays and open menu after a short delay (async to satisfy lint)
-      const t = setTimeout(() => {
-        setTargetingMode(null);
-        setShowItemSelect(false);
-        setPendingAction(null);
-        setShowMenu(true);
-      }, 350);
-      return () => clearTimeout(t);
-    } else {
-      // Not player turn or auto-combat enabled — close everything
-      const t = setTimeout(() => {
-        setShowMenu(false);
-        setTargetingMode(null);
-        setShowItemSelect(false);
-        setPendingAction(null);
-      }, 50);
-      return () => clearTimeout(t);
-    }
-  }, [isPlayerTurn, autoCombat, combat?.currentActorId]);
+    const t = setTimeout(() => {
+      setTargetingMode(null);
+      setShowItemSelect(false);
+      setPendingAction(null);
+    }, 100);
+    return () => clearTimeout(t);
+  }, [combat?.currentActorId]);
 
   // Keyboard support — reads store methods directly, refs for state
   useEffect(() => {
@@ -308,21 +294,13 @@ export default function CombatScreen() {
 
   useEffect(() => {
     if (autoCombat && isPlayerTurn) {
-      let actionTimer: ReturnType<typeof setTimeout> | null = null;
       const timer = setTimeout(() => {
-        setShowMenu(true); // Show menu just before AI acts so user sees the highlight
-        actionTimer = setTimeout(() => {
-          setShowMenu(false);
-          setTargetingMode(null);
-          setShowItemSelect(false);
-          setPendingAction(null);
-          executeAutoCombatTurn();
-        }, 800);
-      }, 300);
-      return () => {
-        clearTimeout(timer);
-        if (actionTimer) clearTimeout(actionTimer);
-      };
+        setTargetingMode(null);
+        setShowItemSelect(false);
+        setPendingAction(null);
+        executeAutoCombatTurn();
+      }, 900);
+      return () => clearTimeout(timer);
     }
   }, [autoCombat, isPlayerTurn, combat?.currentActorId]);
 
@@ -391,18 +369,10 @@ export default function CombatScreen() {
     return total;
   })();
 
-  // ── Click active character → toggle action menu ──
-  const handleActiveCharClick = (e: React.MouseEvent) => {
-    if (!isPlayerTurn) return;
-    e.stopPropagation();
-    setShowMenu(prev => !prev);
-    setTargetingMode(null);
-    setShowItemSelect(false);
-  };
+  // ── Click ally in arena during targeting ──
 
   // ── Select action from context menu ──
   const handleMenuAction = (action: CombatAction) => {
-    setShowMenu(false);
     selectCombatAction(action);
 
     if (action === 'attack') {
@@ -489,9 +459,8 @@ export default function CombatScreen() {
     }
   };
 
-  // ── Cancel any overlay ──
+  // ── Cancel targeting/item overlays ──
   const cancelAll = () => {
-    setShowMenu(false);
     setTargetingMode(null);
     setShowItemSelect(false);
     setPendingAction(null);
@@ -659,25 +628,15 @@ export default function CombatScreen() {
             return (
               <div
                 key={char.id}
-                onClick={(e) => {
-                  if (isActive && !showMenu && !targetingMode && !showItemSelect) {
-                    handleActiveCharClick(e);
-                  } else if (isTargetable) {
+                onClick={() => {
+                  if (isTargetable) {
                     handleArenaAllyClick(char.id);
                   }
                 }}
                 className={`relative flex flex-col items-center gap-0.5 ${animClass} ${isDead ? 'grayscale opacity-30' : ''} transition-all duration-150 ${
-                  isActive && !showMenu && !targetingMode && !showItemSelect ? 'cursor-pointer' : ''
-                } ${isTargetable ? 'cursor-crosshair scale-105 hover:scale-110' : ''}`}
+                  isTargetable ? 'cursor-crosshair scale-105 hover:scale-110' : ''
+                }`}
               >
-                {/* Active turn indicator */}
-                {isActive && !showMenu && !targetingMode && !showItemSelect && (
-                  <>
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-0.5 text-[8px] text-yellow-300 font-bold whitespace-nowrap animate-bounce">
-                      <Hand className="w-3 h-3" /> Tocca
-                    </span>
-                  </>
-                )}
                 {isHurt && !isCrit && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
                 {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-orange-500/35 damage-flash pointer-events-none" />}
                 {isMissAnim && <div className="absolute -inset-1 rounded-lg bg-yellow-500/15 pointer-events-none animate-dodge" />}
@@ -789,7 +748,7 @@ export default function CombatScreen() {
 
       {/* ── CONTEXT MENU (action buttons) — floating in arena (DESKTOP only) ── */}
       <AnimatePresence>
-        {(showMenu || autoCombat) && isPlayerTurn && (
+        {!isCombatEnd && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -802,14 +761,17 @@ export default function CombatScreen() {
               <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">
                 {autoCombat ? '🤖 Azioni AI' : 'Azioni'}
               </span>
-              {!autoCombat && <button onClick={cancelAll} className="text-white/40 hover:text-white transition-colors">
-                <X className="w-3.5 h-3.5" />
-              </button>}
+              {!isPlayerTurn && (
+                <span className="flex items-center gap-1 text-[9px] text-red-400/60">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {enemies.find(e => e.id === combat.currentActorId)?.name}...
+                </span>
+              )}
             </div>
             <div className="p-1.5 space-y-0.5">
               <button
-                onClick={() => !autoCombat && handleMenuAction('attack')}
-                disabled={autoCombat}
+                onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('attack')}
+                disabled={autoCombat || !isPlayerTurn}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
                   aiPredictedAction === 'attack'
                     ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.3)] animate-pulse'
@@ -828,8 +790,8 @@ export default function CombatScreen() {
                 )}
               </button>
               <button
-                onClick={() => !autoCombat && handleMenuAction('special')}
-                disabled={specialCd > 0 || autoCombat}
+                onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('special')}
+                disabled={specialCd > 0 || autoCombat || !isPlayerTurn}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
                   aiPredictedAction === 'special'
                     ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse'
@@ -843,8 +805,8 @@ export default function CombatScreen() {
                 )}
               </button>
               <button
-                onClick={() => !autoCombat && handleMenuAction('special2')}
-                disabled={special2Cd > 0 || autoCombat}
+                onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('special2')}
+                disabled={special2Cd > 0 || autoCombat || !isPlayerTurn}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
                   aiPredictedAction === 'special2'
                     ? 'bg-orange-500/20 border border-orange-500/40 text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.3)] animate-pulse'
@@ -858,8 +820,8 @@ export default function CombatScreen() {
                 )}
               </button>
               <button
-                onClick={() => !autoCombat && handleMenuAction('use_item')}
-                disabled={usableItems.length === 0 || autoCombat}
+                onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('use_item')}
+                disabled={usableItems.length === 0 || autoCombat || !isPlayerTurn}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
                   aiPredictedAction === 'use_item'
                     ? 'bg-green-500/20 border border-green-500/40 text-green-200 shadow-[0_0_12px_rgba(34,197,94,0.3)] animate-pulse'
@@ -871,8 +833,8 @@ export default function CombatScreen() {
                 <span className="ml-auto text-[9px] text-gray-500">{usableItems.length}</span>
               </button>
               <button
-                onClick={() => !autoCombat && handleMenuAction('defend')}
-                disabled={autoCombat}
+                onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('defend')}
+                disabled={autoCombat || !isPlayerTurn}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
                   aiPredictedAction === 'defend'
                     ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.3)] animate-pulse'
@@ -883,8 +845,8 @@ export default function CombatScreen() {
                 Difesa
               </button>
               <button
-                onClick={() => handleMenuAction('flee')}
-                disabled={enemies.some(e => e.isBoss)}
+                onClick={() => isPlayerTurn && handleMenuAction('flee')}
+                disabled={enemies.some(e => e.isBoss) || !isPlayerTurn}
                 className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 hover:border-gray-600 border border-transparent transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Footprints className="w-3.5 h-3.5" />
@@ -1056,14 +1018,10 @@ export default function CombatScreen() {
           </div>
         </div>
       )}
-      {/* Player turn hint + AI toggle (mobile) */}
-      {isPlayerTurn && !showMenu && !targetingMode && !showItemSelect && !isCombatEnd && (
+      {/* AI toggle (mobile) */}
+      {isPlayerTurn && !targetingMode && !showItemSelect && !isCombatEnd && (
         <div className="shrink-0 border-t border-gray-800/50 bg-gray-950/80 px-4 py-1.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[10px] text-gray-500">
-              <Hand className="w-3 h-3" />
-              <span>Clicca su <strong className="text-yellow-300">{currentCharacter?.name}</strong> per agire</span>
-            </div>
+          <div className="flex items-center justify-end">
             <button
               onClick={toggleAutoCombat}
               className={`lg:hidden text-[10px] px-2.5 py-1 rounded border font-semibold transition-all whitespace-nowrap ${
@@ -1185,7 +1143,7 @@ export default function CombatScreen() {
 
       {/* ── MOBILE ACTION BAR — below arena/log, never overlaps characters ── */}
       <AnimatePresence>
-        {(showMenu || autoCombat) && isPlayerTurn && (
+        {!isCombatEnd && (
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1198,16 +1156,17 @@ export default function CombatScreen() {
                 <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">
                   {autoCombat ? '🤖 AI' : '⚔️ Azioni'}
                 </span>
-                {!autoCombat && (
-                  <button onClick={cancelAll} className="text-white/40 hover:text-white transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
+                {!isPlayerTurn && (
+                  <span className="flex items-center gap-1 text-[9px] text-red-400/60">
+                    <Loader2 className="w-3.5 h-3 animate-spin" />
+                    {enemies.find(e => e.id === combat.currentActorId)?.name}...
+                  </span>
                 )}
               </div>
               <div className="grid grid-cols-3 gap-1 p-1.5">
                 <button
-                  onClick={() => !autoCombat && handleMenuAction('attack')}
-                  disabled={autoCombat}
+                  onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('attack')}
+                  disabled={autoCombat || !isPlayerTurn}
                   className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
                     aiPredictedAction === 'attack'
                       ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
@@ -1223,8 +1182,8 @@ export default function CombatScreen() {
                   )}
                 </button>
                 <button
-                  onClick={() => !autoCombat && handleMenuAction('special')}
-                  disabled={specialCd > 0 || autoCombat}
+                  onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('special')}
+                  disabled={specialCd > 0 || autoCombat || !isPlayerTurn}
                   className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed relative ${
                     aiPredictedAction === 'special'
                       ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.3)] animate-pulse'
@@ -1238,8 +1197,8 @@ export default function CombatScreen() {
                   )}
                 </button>
                 <button
-                  onClick={() => !autoCombat && handleMenuAction('special2')}
-                  disabled={special2Cd > 0 || autoCombat}
+                  onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('special2')}
+                  disabled={special2Cd > 0 || autoCombat || !isPlayerTurn}
                   className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed relative ${
                     aiPredictedAction === 'special2'
                       ? 'bg-orange-500/20 border border-orange-500/40 text-orange-200 shadow-[0_0_10px_rgba(249,115,22,0.3)] animate-pulse'
@@ -1253,8 +1212,8 @@ export default function CombatScreen() {
                   )}
                 </button>
                 <button
-                  onClick={() => !autoCombat && handleMenuAction('use_item')}
-                  disabled={usableItems.length === 0 || autoCombat}
+                  onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('use_item')}
+                  disabled={usableItems.length === 0 || autoCombat || !isPlayerTurn}
                   className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
                     aiPredictedAction === 'use_item'
                       ? 'bg-green-500/20 border border-green-500/40 text-green-200 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
@@ -1266,8 +1225,8 @@ export default function CombatScreen() {
                   <span className="text-[8px] text-gray-500">{usableItems.length}</span>
                 </button>
                 <button
-                  onClick={() => !autoCombat && handleMenuAction('defend')}
-                  disabled={autoCombat}
+                  onClick={() => !autoCombat && isPlayerTurn && handleMenuAction('defend')}
+                  disabled={autoCombat || !isPlayerTurn}
                   className={`flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
                     aiPredictedAction === 'defend'
                       ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse'
@@ -1278,8 +1237,8 @@ export default function CombatScreen() {
                   <span>Difesa</span>
                 </button>
                 <button
-                  onClick={() => handleMenuAction('flee')}
-                  disabled={enemies.some(e => e.isBoss)}
+                  onClick={() => isPlayerTurn && handleMenuAction('flee')}
+                  disabled={enemies.some(e => e.isBoss) || !isPlayerTurn}
                   className="flex flex-col items-center gap-0.5 px-1 py-2.5 rounded-lg text-[10px] font-medium text-gray-500 active:bg-gray-800/60 active:text-gray-200 border border-transparent transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <Footprints className="w-5 h-5" />

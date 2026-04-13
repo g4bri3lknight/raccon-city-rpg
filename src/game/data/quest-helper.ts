@@ -1,7 +1,7 @@
 import { QUESTS } from './loader';
 import type { NPCQuest } from '../types';
 
-export function getQuestsForNpc(npcId: string): NPCQuest[] {
+function getQuestsForNpc(npcId: string): NPCQuest[] {
   return Object.values(QUESTS)
     .filter(q => q && q.npcId === npcId)
     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));

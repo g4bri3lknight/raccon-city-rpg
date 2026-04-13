@@ -1,9 +1,9 @@
 'use client';
 
+import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS } from '@/game/data/loader';
-import { ITEMS } from '@/game/data/loader';
+import { LOCATIONS, ITEMS } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,25 +22,41 @@ interface MapNode {
   dangerLevel: number; // 0-3 for visual color
 }
 
-const MAP_NODES: MapNode[] = [
-  { id: 'city_outskirts', name: 'Periferia di Raccoon City', shortName: 'Periferia', icon: '🏙️', row: 0, col: 0, isBoss: false, dangerLevel: 0 },
-  { id: 'rpd_station', name: 'Stazione di Polizia R.P.D.', shortName: 'R.P.D.', icon: '🏛️', row: 1, col: -1, isBoss: false, dangerLevel: 1 },
-  { id: 'hospital_district', name: 'Ospedale di Raccoon City', shortName: 'Ospedale', icon: '🏥', row: 1, col: 1, isBoss: false, dangerLevel: 2 },
-  { id: 'sewers', name: 'Fogne Sottostanti', shortName: 'Fogne', icon: '🌀', row: 2, col: -1, isBoss: false, dangerLevel: 2 },
-  { id: 'laboratory_entrance', name: 'Laboratorio Umbrella', shortName: 'Lab Umbrella', icon: '⚗️', row: 3, col: 0, isBoss: false, dangerLevel: 3 },
-  { id: 'clock_tower', name: "Torre dell'Orologio", shortName: 'Boss Finale', icon: '🗼', row: 4, col: 0, isBoss: true, dangerLevel: 3 },
-];
+// Derive map nodes from DB-loaded LOCATIONS data
+function buildMapNodes(): MapNode[] {
+  return Object.values(LOCATIONS)
+    .filter(loc => loc.mapRow != null && loc.mapRow >= 0)
+    .sort((a, b) => (a.mapRow ?? 0) - (b.mapRow ?? 0))
+    .map(loc => ({
+      id: loc.id,
+      name: loc.name,
+      shortName: loc.shortName || loc.name.split(' ').slice(0, 2).join(' '),
+      icon: loc.mapIcon || '📍',
+      row: loc.mapRow ?? 0,
+      col: loc.mapCol ?? 0,
+      isBoss: loc.isBossArea || false,
+      dangerLevel: loc.mapDanger ?? 0,
+    }));
+}
 
-// ── Connections: [fromId, toId, requiredKeyId | null] ──
-const CONNECTIONS: { from: string; to: string; keyId: string | null }[] = [
-  { from: 'city_outskirts', to: 'rpd_station', keyId: 'key_rpd' },
-  { from: 'city_outskirts', to: 'hospital_district', keyId: null },
-  { from: 'rpd_station', to: 'hospital_district', keyId: null },
-  { from: 'rpd_station', to: 'sewers', keyId: 'key_sewers' },
-  { from: 'hospital_district', to: 'laboratory_entrance', keyId: 'key_lab' },
-  { from: 'sewers', to: 'laboratory_entrance', keyId: 'key_lab' },
-  { from: 'laboratory_entrance', to: 'clock_tower', keyId: null },
-];
+// Derive connections from LOCATIONS nextLocations + lockedLocations
+function buildConnections(): { from: string; to: string; keyId: string | null }[] {
+  const conns: { from: string; to: string; keyId: string | null }[] = [];
+  for (const [locId, loc] of Object.entries(LOCATIONS)) {
+    for (const nextId of (loc.nextLocations || [])) {
+      const locked = (loc.lockedLocations || []).find(l => l.locationId === nextId);
+      conns.push({ from: locId, to: nextId, keyId: locked?.requiredItemId || null });
+    }
+  }
+  // Deduplicate (A→B and B→A treated as same edge)
+  const seen = new Set<string>();
+  return conns.filter(c => {
+    const key = [c.from, c.to].sort().join('→');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 const dangerColors = [
   'border-gray-600/40 bg-white/[0.04] text-white/70',    // 0 - safe
@@ -64,6 +80,9 @@ export default function GameMap() {
     unlockedPaths,
     party,
   } = useGameStore();
+
+  const mapNodes = useMemo(() => buildMapNodes(), []);
+  const connections = useMemo(() => buildConnections(), []);
 
   // Check if player has a specific key
   const hasKey = (keyId: string) => party.some(p => p.inventory.some(i => i.itemId === keyId));
@@ -122,7 +141,7 @@ export default function GameMap() {
 
               {/* Map grid */}
               <div className="relative flex flex-col items-center gap-1">
-                {MAP_NODES.map((node, idx) => {
+                {mapNodes.map((node, idx) => {
                   const isCurrent = currentLocationId === node.id;
                   const isVisited = visitedLocations.includes(node.id);
                   const nodeStyle = dangerColors[node.dangerLevel];
@@ -138,14 +157,14 @@ export default function GameMap() {
                       {/* Connection indicators from other nodes */}
                       {idx > 0 && (
                         <div className="flex justify-center mb-1 flex-wrap gap-1">
-                          {CONNECTIONS
+                          {connections
                             .filter(c => c.to === node.id)
                             .map((conn, ci) => {
                               const unlocked = conn.keyId
                                 ? isPathUnlocked(conn.from, conn.to)
                                 : true;
                               const hasRequiredKey = conn.keyId ? hasKey(conn.keyId) : true;
-                              const fromNode = MAP_NODES.find(n => n.id === conn.from);
+                              const fromNode = mapNodes.find(n => n.id === conn.from);
                               const isFromVisited = visitedLocations.includes(conn.from);
 
                               return (
@@ -236,16 +255,16 @@ export default function GameMap() {
                         </div>
 
                         {/* Connection indicators FROM this node */}
-                        {CONNECTIONS.filter(c => c.from === node.id).length > 0 && (
+                        {connections.filter(c => c.from === node.id).length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {CONNECTIONS
+                            {connections
                               .filter(c => c.from === node.id)
                               .map((conn, ci) => {
                                 const unlocked = conn.keyId
                                   ? isPathUnlocked(conn.from, conn.to)
                                   : true;
                                 const hasRequiredKey = conn.keyId ? hasKey(conn.keyId) : true;
-                                const toNode = MAP_NODES.find(n => n.id === conn.to);
+                                const toNode = mapNodes.find(n => n.id === conn.to);
                                 const isToVisited = visitedLocations.includes(conn.to);
 
                                 return (
@@ -271,7 +290,7 @@ export default function GameMap() {
                       </motion.div>
 
                       {/* Down arrow connector */}
-                      {idx < MAP_NODES.length - 1 && (
+                      {idx < mapNodes.length - 1 && (
                         <div className="flex justify-center mt-1 mb-1">
                           <div className="w-px h-3 sm:h-5 bg-gradient-to-b from-gray-700 to-gray-800" />
                         </div>
@@ -287,10 +306,14 @@ export default function GameMap() {
                   Chiavi in possesso
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {['key_rpd', 'key_sewers', 'key_lab'].map(keyId => {
+                  {connections
+                    .filter(c => c.keyId)
+                    .map(c => c.keyId!)
+                    .filter((v, i, a) => a.indexOf(v) === i)
+                    .map(keyId => {
                     const keyDef = ITEMS[keyId];
                     const owned = hasKey(keyId);
-                    const paths = CONNECTIONS.filter(c => c.keyId === keyId);
+                    const paths = connections.filter(c => c.keyId === keyId);
                     const allUnlocked = paths.every(c => isPathUnlocked(c.from, c.to));
                     return (
                       <div

@@ -2,101 +2,38 @@
 
 import { useMemo } from 'react';
 import { useGameStore } from '@/game/store';
-import { ITEMS } from '@/game/data/loader';
+import { ITEMS, RECIPES_DATA } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Hammer, Check, AlertCircle } from 'lucide-react';
-
-interface CraftingRecipe {
-  name: string;
-  description: string;
-  ingredients: { itemId: string; qty: number }[];
-  result: { itemId: string; qty: number };
-}
-
-const RECIPES: CraftingRecipe[] = [
-  {
-    name: 'Erba Mista',
-    description: 'Miscuglio di due erbe verdi per una cura più potente.',
-    ingredients: [{ itemId: 'herb_green', qty: 2 }],
-    result: { itemId: 'herb_mixed', qty: 1 },
-  },
-  {
-    name: 'Spray Medicale (Mista+Rossa)',
-    description: 'Erba Mista + Erba Rossa → Spray potente.',
-    ingredients: [{ itemId: 'herb_mixed', qty: 1 }, { itemId: 'herb_red', qty: 1 }],
-    result: { itemId: 'spray', qty: 1 },
-  },
-  {
-    name: 'Spray Medicale (Verde+Rossa)',
-    description: 'Erba Verde + Erba Rossa → Spray Medicale.',
-    ingredients: [{ itemId: 'herb_green', qty: 1 }, { itemId: 'herb_red', qty: 1 }],
-    result: { itemId: 'spray', qty: 1 },
-  },
-  {
-    name: 'Cartucce da Fucile',
-    description: 'Ricicla 3 munizioni da pistola in 1 cartuccia da fucile.',
-    ingredients: [{ itemId: 'ammo_pistol', qty: 3 }],
-    result: { itemId: 'ammo_shotgun', qty: 1 },
-  },
-  {
-    name: 'Munizioni .357 Magnum',
-    description: '2 cartucce da fucile → 1 munizione magnum devastante.',
-    ingredients: [{ itemId: 'ammo_shotgun', qty: 2 }],
-    result: { itemId: 'ammo_magnum', qty: 1 },
-  },
-  {
-    name: 'Spray Antidoto',
-    description: 'Erba Verde + Antidoto → 2 Antidoti potenziati.',
-    ingredients: [{ itemId: 'herb_green', qty: 1 }, { itemId: 'antidote', qty: 1 }],
-    result: { itemId: 'antidote', qty: 2 },
-  },
-  {
-    name: 'Kit Pronto Soccorso',
-    description: '3 Bende → Kit medico completo con cura totale.',
-    ingredients: [{ itemId: 'bandage', qty: 3 }],
-    result: { itemId: 'first_aid', qty: 1 },
-  },
-  {
-    name: 'Granate 40mm',
-    description: '5 Munizioni Pistola + Erba Verde → 1 Granata esplosiva.',
-    ingredients: [{ itemId: 'ammo_pistol', qty: 5 }, { itemId: 'herb_green', qty: 1 }],
-    result: { itemId: 'ammo_grenade', qty: 1 },
-  },
-  {
-    name: 'Spray Potenziato',
-    description: '2 Erbe Rosse → Spray Medicale con potenziamento ATK.',
-    ingredients: [{ itemId: 'herb_red', qty: 2 }],
-    result: { itemId: 'spray', qty: 1 },
-  },
-];
 
 export default function CraftingPanel() {
   const party = useGameStore(s => s.party);
   const itemBoxItems = useGameStore(s => s.itemBoxItems);
   const craftItem = useGameStore(s => s.craftItem);
 
+  const recipes = RECIPES_DATA;
+
   const ingredientAvailability = useMemo(() => {
     const counts: Record<string, number> = {};
-
-    // Count from party + item box
     const allSources = [...itemBoxItems, ...party.flatMap(p => p.inventory)];
     for (const item of allSources) {
       counts[item.itemId] = (counts[item.itemId] || 0) + item.quantity;
     }
 
-    return RECIPES.map(recipe => {
-      const canCraft = recipe.ingredients.every(ing => (counts[ing.itemId] || 0) >= ing.qty);
+    return recipes.map(recipe => {
+      const canCraft = recipe.ingredients.every(ing => (counts[ing.itemId] || 0) >= ing.quantity);
       const ingredientStatus = recipe.ingredients.map(ing => ({
-        ...ing,
+        itemId: ing.itemId,
+        qty: ing.quantity,
         have: counts[ing.itemId] || 0,
-        enough: (counts[ing.itemId] || 0) >= ing.qty,
+        enough: (counts[ing.itemId] || 0) >= ing.quantity,
         itemDef: ITEMS[ing.itemId],
       }));
       const resultDef = ITEMS[recipe.result.itemId];
       return { recipe, canCraft, ingredientStatus, resultDef };
     });
-  }, [party, itemBoxItems]);
+  }, [party, itemBoxItems, recipes]);
 
   return (
     <div className="space-y-2.5">
@@ -104,7 +41,7 @@ export default function CraftingPanel() {
         <Hammer className="w-5 h-5 text-amber-400" />
         <h3 className="text-base font-bold text-white/90">Crafting</h3>
         <Badge className="text-xs bg-amber-900/40 text-amber-300 border-amber-700/30 ml-auto">
-          {RECIPES.length} ricette
+          {recipes.length} ricette
         </Badge>
       </div>
 
@@ -113,7 +50,7 @@ export default function CraftingPanel() {
           const { recipe, canCraft, ingredientStatus, resultDef } = entry;
           return (
             <div
-              key={idx}
+              key={recipe.id || idx}
               className={`p-3 rounded-lg border transition-all ${
                 canCraft
                   ? 'border-green-500/20 bg-green-950/10 hover:border-green-500/30'
@@ -123,7 +60,7 @@ export default function CraftingPanel() {
               <div className="flex items-start justify-between gap-2.5 mb-2">
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-white/90 truncate">
-                    {resultDef?.icon} {recipe.name}
+                    {recipe.icon} {recipe.name}
                   </div>
                   <p className="text-xs text-white/40 mt-1 line-clamp-1">
                     {recipe.description}
@@ -168,7 +105,7 @@ export default function CraftingPanel() {
                 }`}
               >
                 <Hammer className="w-3.5 h-3.5 mr-1.5" />
-                Craft: {resultDef?.icon} {resultDef?.name} x{recipe.result.qty}
+                Craft: {resultDef?.icon} {resultDef?.name} x{recipe.result.quantity}
               </Button>
             </div>
           );

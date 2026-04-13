@@ -283,6 +283,11 @@ export async function POST() {
     const endingsData = await endingsRes.json();
     results.push({ entity: 'endings', total: endingsData.result?.total ?? 0, created: endingsData.result?.created ?? 0, updated: endingsData.result?.updated ?? 0 });
 
+    // Seed avatars
+    const avatarsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-avatars`, { method: 'POST' });
+    const avatarsData = await avatarsRes.json();
+    results.push({ entity: 'avatars', total: avatarsData.result?.total ?? 9, created: 0, updated: 0 });
+
     const summary = results.map(r => `${r.entity}: ${r.created} nuovi, ${r.updated} agg. (totale ${r.total})`).join('\n');
 
     return NextResponse.json({

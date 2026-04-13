@@ -30,8 +30,8 @@ import {
   DynamicEventChoice,
   RandomizedLocationData,
 } from './types';
-import { getCharacterStats, computeGrowthRates } from './data/characters';
-import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES, validateEffectsIntegrity } from './data/loader';
+import { computeGrowthRates } from './data/characters';
+import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES, validateEffectsIntegrity, RECIPES_DATA } from './data/loader';
 import { generateRandomizedData, getEffectiveLocation } from './data/randomizer';
 import {
   executePlayerAttack,
@@ -241,7 +241,7 @@ function newEnemyId() { return `enemy_${++enemyUid}`; }
 // ── Weapon stats are now built dynamically from item effects (on_equip system) ──
 
 // Re-export difficulty from dedicated module for backward compat
-export { DIFFICULTY_CONFIGS, getDifficultyConfig } from './data/difficulty';
+export { getDifficultyConfig } from './data/difficulty';
 
 function createCharacter(archetypeId: Archetype): Character {
   const archetype = CHARACTER_ARCHETYPES.find(a => a.id === archetypeId);
@@ -3573,9 +3573,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
       updatedCooldowns2 = decrementedCooldowns2;
+    }
 
+    const nextActor = allActors[nextIdx];
+
+    // Process status effects at new turn start
+    let updatedParty = party.map(p => ({ ...p, isDefending: false }));
+    let updatedStatusDurations: Record<string, StatusDuration[]> = JSON.parse(JSON.stringify(statusDurations));
+
+    // Initialize currentActiveEffects in function scope so it's accessible everywhere
+    let currentActiveEffects = combat.activeEffects || [];
+
+    if (isNewTurn) {
       // Process active combat effects tick (HoT, buff/debuff, shield, reflect)
-      let currentActiveEffects = combat.activeEffects || [];
       if (currentActiveEffects.length > 0) {
         const tickResult = processActiveEffectsTick(currentActiveEffects, updatedParty, enemies, newTurn);
         statusLogEntries.push(...tickResult.log);
@@ -3587,15 +3597,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ...currentActiveEffects.filter(e => !expiredIds.has(e.id)));
         }
       }
-    }
 
-    const nextActor = allActors[nextIdx];
-
-    // Process status effects at new turn start
-    let updatedParty = party.map(p => ({ ...p, isDefending: false }));
-    let updatedStatusDurations: Record<string, StatusDuration[]> = JSON.parse(JSON.stringify(statusDurations));
-
-    if (isNewTurn) {
+      // Process status effects on party members
       for (const p of updatedParty) {
         const charDurations = updatedStatusDurations[p.id] || [];
         let hp = p.currentHp;
@@ -5531,21 +5534,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const char = state.party.find(p => p.id === state.selectedCharacterId) || state.party.find(p => p.currentHp > 0);
     if (!char) return false;
 
-    // Crafting recipes
-    const recipes = [
-      { ingredients: [{ itemId: 'herb_green', qty: 2 }], result: { itemId: 'herb_mixed', qty: 1 } },
-      { ingredients: [{ itemId: 'herb_mixed', qty: 1 }, { itemId: 'herb_red', qty: 1 }], result: { itemId: 'spray', qty: 1 } },
-      { ingredients: [{ itemId: 'herb_green', qty: 1 }, { itemId: 'herb_red', qty: 1 }], result: { itemId: 'spray', qty: 1 } },
-      { ingredients: [{ itemId: 'ammo_pistol', qty: 3 }], result: { itemId: 'ammo_shotgun', qty: 1 } },
-      { ingredients: [{ itemId: 'ammo_shotgun', qty: 2 }], result: { itemId: 'ammo_magnum', qty: 1 } },
-      { ingredients: [{ itemId: 'herb_green', qty: 1 }, { itemId: 'antidote', qty: 1 }], result: { itemId: 'antidote', qty: 2 } },
-      { ingredients: [{ itemId: 'bandage', qty: 3 }], result: { itemId: 'first_aid', qty: 1 } },
-      { ingredients: [{ itemId: 'ammo_pistol', qty: 5 }, { itemId: 'herb_green', qty: 1 }], result: { itemId: 'ammo_grenade', qty: 1 } },
-      { ingredients: [{ itemId: 'herb_red', qty: 2 }], result: { itemId: 'spray', qty: 1 } },
-    ];
-
+    // Crafting recipes from DB
+    const recipes = RECIPES_DATA;
+    if (recipeIndex < 0 || recipeIndex >= recipes.length) return false;
     const recipe = recipes[recipeIndex];
-    if (!recipe) return false;
 
     // Count available ingredients across all party members
     const ingredientCounts: Record<string, number> = {};
@@ -5564,7 +5556,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Check if all ingredients are available
     for (const ing of recipe.ingredients) {
-      if ((ingredientCounts[ing.itemId] || 0) < ing.qty) return false;
+      if ((ingredientCounts[ing.itemId] || 0) < ing.quantity) return false;
     }
 
     // Remove ingredients (prefer item box first, then inventory)
@@ -5572,7 +5564,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let updatedParty = state.party.map(p => ({ ...p, inventory: [...p.inventory] }));
 
     for (const ing of recipe.ingredients) {
-      let remaining = ing.qty;
+      let remaining = ing.quantity;
 
       // Take from item box first
       const boxIdx = updatedBox.findIndex(ib => ib.itemId === ing.itemId);
@@ -5620,7 +5612,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       equippable: resultDef.equippable,
       effect: resultDef.effect,
       effects: resultDef.effects,
-      quantity: recipe.result.qty,
+      quantity: recipe.result.quantity,
     };
 
     // Stack if possible
@@ -5628,7 +5620,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const existingResultIdx = charInventory.findIndex(i => i.itemId === recipe.result.itemId);
     if (existingResultIdx >= 0) {
       charInventory = [...charInventory];
-      charInventory[existingResultIdx] = { ...charInventory[existingResultIdx], quantity: charInventory[existingResultIdx].quantity + recipe.result.qty };
+      charInventory[existingResultIdx] = { ...charInventory[existingResultIdx], quantity: charInventory[existingResultIdx].quantity + recipe.result.quantity };
     } else {
       charInventory = [...charInventory, resultItem];
     }
@@ -5638,7 +5630,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       party: updatedParty,
       itemBoxItems: updatedBox,
-      messageLog: [...state.messageLog, `[${state.turnCount}] 🔨 ${char.name} ha creato ${resultItem.icon} ${resultItem.name} x${recipe.result.qty}!`],
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🔨 ${char.name} ha creato ${resultItem.icon} ${resultItem.name} x${recipe.result.quantity}!`],
     });
     return true;
   },

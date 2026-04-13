@@ -1,14 +1,14 @@
 import { setDifficultyConfigs } from './difficulty';
-import { CRAFTING_RECIPES, CraftingRecipe } from './crafting';
-import { getCustomStartingItems as _getCustomStartingItems, getCustomPassiveDescription as _getCustomPassiveDescription } from './characters';
+import { CraftingRecipe } from './crafting';
+import { getCustomPassiveDescription as _getCustomPassiveDescription } from './characters';
 import { ENEMY_IMAGES, CHARACTER_IMAGES } from './enemies';
 import { rebuildWeaponModsFromItems } from './weapon-mods';
 import { rebuildEquipmentFromItems } from './equipment';
 import type { ItemDefinition, ItemType, Rarity, LocationDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
-import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition } from '../types';
-import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, SecretRoom, SpecialEffect, DifficultyConfig, AchievementDefinition, EndingDefinition } from '../types';
+import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition, Archetype } from '../types';
+import type { EnemyDefinition, BossPhase, LootEntry, EnemyAbility, SecretRoom, SpecialEffect, DifficultyConfig, AchievementDefinition, EndingDefinition, AvatarDefinition } from '../types';
 
 export let ITEMS: Record<string, ItemDefinition> = {};
 export let DYNAMIC_EVENTS: Record<string, DynamicEvent> = {};
@@ -25,6 +25,7 @@ export let RECIPES_DATA: CraftingRecipe[] = [];
 export let BOSS_PHASES_DATA: Record<string, BossPhase[]> = {};
 export let ACHIEVEMENTS_DATA: Record<string, AchievementDefinition> = {};
 export let ENDINGS_DATA: Record<string, EndingDefinition> = {};
+export let AVATARS_DATA: AvatarDefinition[] = [];
 
 // Backward compat aliases
 export { NPCS_DATA as NPCS };
@@ -35,7 +36,7 @@ export { SPECIALS_DATA as ALL_SPECIAL_ABILITIES };
 // Re-export secret rooms (DB-loaded)
 export { SECRET_ROOMS_DATA as SECRET_ROOMS };
 
-// Re-export image maps (these are URL templates, no DB storage)
+// Re-export image maps
 export { ENEMY_IMAGES, CHARACTER_IMAGES };
 
 // Boss phases — loaded from DB at runtime
@@ -44,13 +45,59 @@ export { BOSS_PHASES_DATA as BOSS_PHASES };
 // Achievements — loaded from DB at runtime
 export { ACHIEVEMENTS_DATA as ACHIEVEMENTS };
 
+// Avatars — loaded from DB at runtime
+export { AVATARS_DATA as PREDEFINED_AVATARS };
+
 // Computed config: rebuilt from loaded character data on each load
 export let ARCHETYPE_STAT_POINTS: Record<string, { hp: number; atk: number; def: number; spd: number }> = {};
 export let ARCHETYPE_SPECIAL_MAP: Record<string, { special1: string; special2: string }> = {};
 export let ARCHETYPE_CATEGORY_MAP: Record<string, string> = {};
 
-// Re-export helper functions from characters module
-export { _getCustomStartingItems as getCustomStartingItems, _getCustomPassiveDescription as getCustomPassiveDescription };
+// Custom character config — loaded from GameSetting DB
+export let CUSTOM_STAT_BUDGET: { totalPoints: number; minPerStat: number; maxPerStat: number; defaults: { hp: number; atk: number; def: number; spd: number } } = {
+  totalPoints: 50, minPerStat: 5, maxPerStat: 25, defaults: { hp: 10, atk: 12, def: 10, spd: 8 },
+};
+
+// Combat constants — loaded from GameSetting DB
+export let COMBAT_CONFIG: Record<string, number> = {
+  missChance: 8, baseCritChance: 10, dpsCritChance: 25, critMultiplier: 1.8,
+  defenseConstant: 50, defendMultiplier: 1.8, maxDefendReduction: 0.9,
+  adrenalineDmgBonus: 1.25, controlStatusBonus: 20,
+  healerCritHealChance: 20, healerCritHealMult: 1.5,
+  damageVarianceMin: 85, damageVarianceMax: 115,
+  noMissDmgVarianceMin: 90, noMissDmgVarianceMax: 110,
+  defaultStatusDuration: 3, defaultCooldown: 2,
+};
+
+let CUSTOM_STARTING_ITEM_IDS: { itemId: string; quantity: number }[] = [
+  { itemId: 'pipe', quantity: 1 },
+  { itemId: 'bandage', quantity: 2 },
+  { itemId: 'herb_green', quantity: 2 },
+];
+
+// Create starting item instances from DB-loaded config + ITEMS registry
+export function getCustomStartingItems(_baseArchetype?: Archetype): ItemInstance[] {
+  return CUSTOM_STARTING_ITEM_IDS.map((entry) => {
+    const itemDef = ITEMS[entry.itemId];
+    if (!itemDef) return null;
+    const uid = `${entry.itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      uid,
+      itemId: itemDef.id,
+      name: itemDef.name,
+      description: itemDef.description,
+      type: itemDef.type,
+      rarity: itemDef.rarity,
+      icon: itemDef.icon,
+      usable: itemDef.usable,
+      equippable: itemDef.equippable,
+      quantity: entry.quantity,
+    } as ItemInstance;
+  }).filter(Boolean) as ItemInstance[];
+}
+
+// Re-export helper function from characters module
+export { _getCustomPassiveDescription as getCustomPassiveDescription };
 
 // Enemies loaded from DB, aliased as ENEMIES for backward compat
 export { ENEMIES_DATA as ENEMIES };
@@ -148,6 +195,7 @@ interface DbLocation {
   mapCol: number | null;
   mapIcon: string | null;
   mapDanger: string | null;
+  shortName: string | null;
 }
 
 interface DbNPC {
@@ -161,6 +209,9 @@ interface DbNPC {
   questId: string | null;
   tradeInventory: string;
   questCompletedDialogue: string;
+  badgeLabel: string;
+  badgeIcon: string;
+  badgeColor: string;
   sortOrder: number;
   createdAt: Date;
 }
@@ -304,6 +355,13 @@ interface DbEnding {
   createdAt: Date;
 }
 
+interface DbAvatar {
+  id: string;
+  name: string;
+  emoji: string;
+  sortOrder: number;
+}
+
 // ── Mappers ──
 
 function mapDbItem(item: DbItem): ItemDefinition {
@@ -410,6 +468,12 @@ function mapDbLocation(loc: DbLocation): LocationDefinition {
     ...(loc.searchChance != null ? { searchChance: loc.searchChance } : {}),
     ...(loc.docChance != null ? { docChance: loc.docChance } : {}),
     ...(loc.searchMax != null ? { searchMax: loc.searchMax } : {}),
+    // Map layout fields
+    ...(loc.shortName ? { shortName: loc.shortName } : {}),
+    ...(loc.mapRow != null ? { mapRow: loc.mapRow } : {}),
+    ...(loc.mapCol != null ? { mapCol: loc.mapCol } : {}),
+    ...(loc.mapIcon ? { mapIcon: loc.mapIcon } : {}),
+    ...(loc.mapDanger != null ? { mapDanger: parseInt(loc.mapDanger, 10) || 0 } : {}),
   };
 }
 
@@ -428,6 +492,9 @@ function mapDbNpc(row: DbNPC): GameNPC {
     farewell: row.farewell,
     tradeInventory: tradeInventory.length > 0 ? tradeInventory : undefined,
     questCompletedDialogue: questCompletedDialogue.length > 0 ? questCompletedDialogue : undefined,
+    ...(row.badgeLabel ? { badgeLabel: row.badgeLabel } : {}),
+    ...(row.badgeIcon ? { badgeIcon: row.badgeIcon } : {}),
+    ...(row.badgeColor ? { badgeColor: row.badgeColor } : {}),
   };
 }
 
@@ -596,7 +663,7 @@ function loadRecipes(api: Awaited<ReturnType<typeof loadFromApi>>): void {
         difficulty: row.difficulty as CraftingRecipe['difficulty'],
       };
     });
-    CRAFTING_RECIPES = RECIPES_DATA;
+    // RECIPES_DATA is now the canonical export (no longer writes back to crafting.ts)
   } else {
     RECIPES_DATA = [];
   }
@@ -690,11 +757,25 @@ async function loadEndings(api: Awaited<ReturnType<typeof loadFromApi>>): void {
   }
 }
 
-async function loadDifficultyConfigs(): Promise<void> {
+async function loadAvatars(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  AVATARS_DATA = [];
+  if (api?.avatars && api.avatars.length > 0) {
+    AVATARS_DATA = (api.avatars as DbAvatar[]).map(row => ({
+      id: row.id,
+      name: row.name,
+      emoji: row.emoji,
+      sortOrder: row.sortOrder,
+    }));
+  }
+}
+
+async function loadGameSettings(): Promise<void> {
   try {
     const resp = await fetch('/api/game-settings');
     if (!resp.ok) return;
     const settings: Record<string, string> = await resp.json();
+
+    // Difficulty configs
     const configs: Record<string, DifficultyConfig> = {};
     for (const key of ['sopravvissuto', 'normale', 'incubo']) {
       const raw = settings[`difficulty.${key}`];
@@ -710,6 +791,37 @@ async function loadDifficultyConfigs(): Promise<void> {
     if (Object.keys(configs).length > 0) {
       setDifficultyConfigs(configs);
     }
+
+    // Custom character stat budget
+    const budgetRaw = settings['customCharacter.statBudget'];
+    if (budgetRaw) {
+      try {
+        const parsed = JSON.parse(budgetRaw);
+        if (parsed && typeof parsed === 'object' && parsed.totalPoints) {
+          CUSTOM_STAT_BUDGET = parsed;
+        }
+      } catch { /* keep default */ }
+    }
+
+    // Custom character starting items
+    const itemsRaw = settings['customCharacter.startingItems'];
+    if (itemsRaw) {
+      try {
+        const parsed = JSON.parse(itemsRaw);
+        if (Array.isArray(parsed)) {
+          CUSTOM_STARTING_ITEM_IDS = parsed;
+        }
+      } catch { /* keep default */ }
+    }
+
+    // Combat constants
+    for (const [key, defaultValue] of Object.entries(COMBAT_CONFIG)) {
+      const raw = settings[`combat.${key}`];
+      if (raw) {
+        const parsed = parseFloat(raw);
+        if (!isNaN(parsed)) COMBAT_CONFIG[key] = parsed;
+      }
+    }
   } catch {
     /* keep defaults */
   }
@@ -723,8 +835,8 @@ function rebuildStatPoints(): void {
     const hp = Math.round(char.maxHp / 10);
     pts[char.id] = { hp, atk: char.atk, def: char.def, spd: char.spd };
   }
-  // Hardcoded default for 'custom' archetype
-  pts.custom = { hp: 10, atk: 12, def: 10, spd: 8 };
+  // Default for 'custom' archetype — use DB-loaded budget defaults
+  pts.custom = { ...CUSTOM_STAT_BUDGET.defaults };
   ARCHETYPE_STAT_POINTS = pts;
 }
 
@@ -771,6 +883,7 @@ async function loadFromApi(): Promise<{
   bossPhases: DbBossPhase[];
   achievements: DbAchievement[];
   endings: DbEnding[];
+  avatars: DbAvatar[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -809,8 +922,8 @@ async function loadDocuments(api: Awaited<ReturnType<typeof loadFromApi>>): Prom
 }
 
 async function loadQuests(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
+  QUESTS = {};
   if (api?.quests && api.quests.length > 0) {
-    QUESTS = {};
     for (const quest of api.quests) {
       QUESTS[quest.id] = mapDbQuest(quest);
     }
@@ -883,7 +996,8 @@ export async function initGameData(): Promise<void> {
     loadRecipes(api),
     loadAchievements(api),
     loadEndings(api),
-    loadDifficultyConfigs(),
+    loadAvatars(api),
+    loadGameSettings(),
   ]);
   // Boss phases must load AFTER enemy abilities (resolves ability IDs)
   loadBossPhases(api);
@@ -911,7 +1025,8 @@ export async function refreshGameData(): Promise<void> {
     loadRecipes(api),
     loadAchievements(api),
     loadEndings(api),
-    loadDifficultyConfigs(),
+    loadAvatars(api),
+    loadGameSettings(),
   ]);
   // Boss phases must load AFTER enemy abilities (resolves ability IDs)
   loadBossPhases(api);
@@ -920,10 +1035,6 @@ export async function refreshGameData(): Promise<void> {
   rebuildEquipmentFromItems();
   DATA_VERSION++;
   initialized = true;
-}
-
-export function isGameDataLoaded(): boolean {
-  return initialized;
 }
 
 // ==========================================

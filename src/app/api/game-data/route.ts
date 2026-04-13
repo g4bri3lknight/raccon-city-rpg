@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
  */
 export async function GET() {
   try {
-    const [items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings] = await Promise.all([
+    const [items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars] = await Promise.all([
       db.item.findMany({ orderBy: { createdAt: 'asc' } }),
       db.dynamicEvent.findMany({ orderBy: { createdAt: 'asc' } }),
       db.document.findMany({ orderBy: { createdAt: 'asc' } }),
@@ -24,9 +24,10 @@ export async function GET() {
       db.gameBossPhase.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
       db.gameAchievement.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
       db.gameEnding.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
+      db.gameAvatar.findMany({ orderBy: { sortOrder: 'asc' } }),
     ]);
 
-    return NextResponse.json({ items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings });
+    return NextResponse.json({ items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars });
   } catch (error) {
     console.error('[game-data] Failed to load:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });

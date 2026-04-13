@@ -26,8 +26,7 @@ import {
   Sparkles,
   Check,
 } from 'lucide-react';
-import { PREDEFINED_AVATARS, CUSTOM_STAT_BUDGET } from '@/game/data/specials';
-import { ALL_SPECIAL_ABILITIES, SPECIALS_DATA, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomPassiveDescription, ARCHETYPE_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP } from '@/game/data/loader';
+import { PREDEFINED_AVATARS, CUSTOM_STAT_BUDGET, ALL_SPECIAL_ABILITIES, SPECIALS_DATA, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomPassiveDescription, ARCHETYPE_SPECIAL_MAP, ARCHETYPE_CATEGORY_MAP } from '@/game/data/loader';
 import type { CustomCharacterConfig, Archetype, SpecialCategory } from '@/game/types';
 
 // ==========================================
@@ -209,7 +208,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
     if (customAvatarDataUrl) return customAvatarDataUrl;
     if (selectedAvatarId) {
       const avatar = PREDEFINED_AVATARS.find(a => a.id === selectedAvatarId);
-      return avatar?.path || '';
+      return `/api/media/image?id=${avatar.id}`;
     }
     return '';
   }, [selectedAvatarId, customAvatarDataUrl]);
@@ -602,7 +601,7 @@ export default function CharacterCreator({ onComplete, onCancel }: CharacterCrea
                           >
                             <div className="aspect-square bg-zinc-900/80 relative overflow-hidden">
                               <img
-                                src={avatar.path}
+                                src={`/api/media/image?id=${avatar.id}`}
                                 alt={avatar.name}
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 pointer-events-none"
                                 style={{ imageRendering: 'auto' }}
