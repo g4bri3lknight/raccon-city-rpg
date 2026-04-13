@@ -104,7 +104,7 @@ function NpcPortrait({ npcId, portrait, size = 'sm' }: { npcId: string; portrait
 }
 
 export default function MissionsPanel() {
-  const { missionsOpen, toggleMissions, npcQuestProgress } = useGameStore();
+  const { missionsOpen, toggleMissions, npcQuestProgress, encounterNpc } = useGameStore();
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
   const questEntries = Object.entries(npcQuestProgress);
@@ -302,12 +302,16 @@ export default function MissionsPanel() {
                                 if (!details) return null;
                                 const npcId = Object.keys(NPCS).find(id => NPCS[id].quest?.id === questId) || '';
 
+                                // Find NPC id from DB quest if not from static
+                                const dbNpcId = QUESTS[questId]?.npcId || npcId;
+
                                 return (
                                   <motion.div
                                     key={questId}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-white/[0.04] bg-white/[0.01] opacity-60"
+                                    onClick={() => { toggleMissions(); encounterNpc(dbNpcId); }}
+                                    className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-white/[0.04] bg-white/[0.01] opacity-60 cursor-pointer hover:opacity-90 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all"
                                   >
                                     <CheckCircle2 className="w-3 h-3 text-green-500/60 shrink-0" />
                                     <NpcPortrait npcId={npcId} portrait={details.npcPortrait} />

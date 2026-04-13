@@ -210,7 +210,7 @@ function getEnumHint(enumGroup: string, value: string): string | undefined {
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'status-cured' | 'special-effect' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items' | 'effects-editor';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'status-cured' | 'special-effect' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items' | 'effects-editor' | 'item-box-defaults';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
@@ -1694,6 +1694,81 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
             {items.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-2 py-4 text-center text-white/15 italic">
+                  Nessun oggetto — clicca + per aggiungere
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={addItem}
+        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+      >
+        <Plus className="w-3 h-3" /> Aggiungi oggetto
+      </button>
+    </div>
+  );
+}
+
+/** Item Box Defaults Editor — table with itemId and quantity (no chance) */
+function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onChange: (v: { itemId: string; quantity: number }[]) => void }) {
+  let items: { itemId: string; quantity: number }[] = [];
+  try { items = JSON.parse(value) || []; } catch { items = []; }
+
+  const addItem = () => onChange([...items, { itemId: '', quantity: 1 }]);
+
+  const removeItem = (idx: number) => onChange(items.filter((_, i) => i !== idx));
+
+  const updateItem = (idx: number, field: string, val: string | number) => {
+    onChange(items.map((item, i) => i === idx ? { ...item, [field]: val } : item));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[10px]">
+          <thead className="sticky top-0 bg-gray-900/95">
+            <tr className="border-b border-white/[0.06]">
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Item ID</th>
+              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-24">Quantità</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, i) => (
+              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+                <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
+                <td className="px-1 py-1">
+                  <MiniEntitySearch
+                    value={item.itemId}
+                    onChange={v => updateItem(i, 'itemId', v)}
+                    endpoint="/api/admin/items"
+                    labelKey="name"
+                    iconKey="icon"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <input
+                    type="number"
+                    value={item.quantity}
+                    onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
+                    min={1}
+                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <button type="button" onClick={() => removeItem(i)} className="text-white/15 hover:text-red-400 transition-colors">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-2 py-4 text-center text-white/15 italic">
                   Nessun oggetto — clicca + per aggiungere
                 </td>
               </tr>
@@ -3989,7 +4064,7 @@ function EntityForm({
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(f => {
           const val = data[f.key] ?? f.defaultValue ?? '';
-          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'status-cured' || f.type === 'special-effect' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || f.type === 'starting-items' || f.type === 'effects-editor' || (f.colSpan === 3);
+          const isFullWidth = f.type === 'textarea' || f.type === 'tag-editor' || f.type === 'entity-tag-editor' || f.type === 'item-pool' || f.type === 'text-list' || f.type === 'locked-locs' || f.type === 'sub-areas' || f.type === 'story-event' || f.type === 'status-apply' || f.type === 'status-cured' || f.type === 'special-effect' || f.type === 'quest-rewards' || f.type === 'event-choices' || f.type === 'rich-text-editor' || f.type === 'trade-inventory' || f.type === 'starting-items' || f.type === 'effects-editor' || f.type === 'item-box-defaults' || (f.colSpan === 3);
           const isDoubleWidth = f.colSpan === 2 && !isFullWidth;
 
           if (isEdit && f.key === 'id') {
@@ -5507,7 +5582,7 @@ const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
   { key: 'gameplay.maxInventorySlots', label: 'Slot Massimi', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', groupIcon: '📦', min: 6, max: 30, helpText: 'Limite massimo di slot espandibili con le borse' },
   // Item Box
   { key: 'gameplay.maxItemBoxSlots', label: 'Slot Massimi', type: 'number', group: 'itembox', groupLabel: '🗃️ Item Box', groupIcon: '🗃️', min: 10, max: 200, helpText: 'Numero massimo di slot nella cassa degli oggetti (safe room)' },
-  { key: 'gameplay.defaultItemBoxItems', label: 'Oggetti Default (JSON)', type: 'json', group: 'itembox', groupLabel: '🗃️ Item Box', groupIcon: '🗃️', placeholder: '[{"itemId":"herb_green","quantity":2},{"itemId":"ammo_pistol","quantity":10}]', helpText: 'Oggetti presenti nella Item Box al primo accesso. Formato: array di {itemId, quantity}' },
+  { key: 'gameplay.defaultItemBoxItems', label: 'Oggetti Default', type: 'item-box-defaults', group: 'itembox', groupLabel: '🗃️ Item Box', groupIcon: '🗃️', colSpan: 3, helpText: 'Oggetti presenti nella Item Box al primo accesso a una safe room' },
 ];
 
 function GameSettingsEditor() {
@@ -5634,8 +5709,10 @@ function GameSettingsEditor() {
                 <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">{groupDef.groupLabel}</h4>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {fields.map(field => (
-                  <div key={field.key} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-2">
+                {fields.map(field => {
+                  const isFull = field.type === 'item-box-defaults' || field.type === 'json' || field.colSpan === 3;
+                  return (
+                  <div key={field.key} className={`rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-2 ${isFull ? 'md:col-span-2' : ''}`}>
                     <label className="text-[11px] font-semibold text-white/60 block">
                       {field.label}
                     </label>
@@ -5648,6 +5725,11 @@ function GameSettingsEditor() {
                         max={field.max}
                         step={field.step || 1}
                         className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-yellow-500/40 transition-colors"
+                      />
+                    ) : field.type === 'item-box-defaults' ? (
+                      <ItemBoxDefaultsEditor
+                        value={settings[field.key] || '[]'}
+                        onChange={(v) => handleChange(field.key, JSON.stringify(v))}
                       />
                     ) : field.type === 'json' ? (
                       <div>
@@ -5677,7 +5759,8 @@ function GameSettingsEditor() {
                       <p className="text-[10px] text-white/30">{field.helpText}</p>
                     )}
                   </div>
-                ))}
+                );
+                })}
               </div>
             </div>
           );
@@ -5808,7 +5891,7 @@ export default function AdminPanel() {
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -5859,7 +5942,7 @@ export default function AdminPanel() {
       if (editingId && !processed.id) {
         processed.id = editingId;
       }
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);

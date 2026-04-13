@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS, CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
+import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS } from '@/game/data/loader';
 import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
 import { CompactHpPanel } from './HpBar';
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Compass, Search, Package, MapPin, ChevronRight,
   Skull, ArrowRightLeft, AlertTriangle, Users, Map, Trophy, BookOpen,
-  FileText, Zap, Dices, Home, ScrollText
+  FileText, Zap, Dices, Home, ScrollText, MessageSquare
 } from 'lucide-react';
 import SafeRoomPanel from './SafeRoomPanel';
 import MissionsPanel from './MissionsPanel';
@@ -30,7 +30,7 @@ export default function ExplorationScreen() {
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
     handleDynamicEventChoice,
-    startQTE, enterSafeRoom,
+    startQTE, enterSafeRoom, encounterNpc, npcsEncountered,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
@@ -47,6 +47,10 @@ export default function ExplorationScreen() {
   const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
   const activeMissions = Object.entries(npcQuestProgress)
     .filter(([_, progress]) => !progress.completed).length;
+  // NPCs present in this location that have already been encountered
+  const localNpcs = Object.values(NPCS).filter(
+    n => n.locationId === currentLocationId && npcsEncountered.includes(n.id)
+  );
   const explorationLogRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll exploration log to bottom

@@ -4826,26 +4826,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
   encounterNpc: (npcId: string) => {
     const npc = NPCS[npcId];
     if (!npc) return;
-    // Play NPC encounter sound (#36)
-    try { playNPCEncounter(); } catch {}
+
+    const state = get();
+    const alreadyEncountered = state.npcsEncountered.includes(npcId);
+
+    // Play NPC encounter sound only on first encounter
+    if (!alreadyEncountered) {
+      try { playNPCEncounter(); } catch {}
+    }
 
     // Check for DB-backed quests first, fallback to static NPC quest
-    const state = get();
     const completedQuestIds = Object.keys(state.npcQuestProgress).filter(id => state.npcQuestProgress[id]?.completed);
     const dbQuest = getFirstAvailableQuest(npcId, completedQuestIds);
     const npcWithQuest = dbQuest ? { ...npc, quest: dbQuest } : npc;
 
     set({
       activeNpc: npcWithQuest,
-      npcsEncountered: [...state.npcsEncountered, npcId],
-      messageLog: [...state.messageLog, `[${state.turnCount}] 👤 Incontrate ${npc.name}! "${npc.greeting}"`],
-      notification: {
-        id: `notif_${++notifId}`,
-        type: 'item_found',
-        message: npc.name,
-        icon: npc.portrait,
-        subMessage: 'Sopravvissuto trovato!',
-      },
+      npcsEncountered: alreadyEncountered ? state.npcsEncountered : [...state.npcsEncountered, npcId],
+      ...(alreadyEncountered ? {} : {
+        messageLog: [...state.messageLog, `[${state.turnCount}] 👤 Incontrate ${npc.name}! "${npc.greeting}"`],
+        notification: {
+          id: `notif_${++notifId}`,
+          type: 'item_found',
+          message: npc.name,
+          icon: npc.portrait,
+          subMessage: 'Sopravvissuto trovato!',
+        },
+      }),
     });
   },
 
