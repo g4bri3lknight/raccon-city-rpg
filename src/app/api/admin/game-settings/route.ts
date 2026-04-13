@@ -57,6 +57,8 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'combat.noMissDmgVarianceMax':   { value: '110',  label: '% Varianza Danno No-Miss Max',        group: 'combat', sortOrder: 314 },
   'combat.defaultStatusDuration':  { value: '3',    label: 'Durata Status Default (turni)',       group: 'combat', sortOrder: 315 },
   'combat.defaultCooldown':        { value: '2',    label: 'Cooldown Speciale Default (turni)',   group: 'combat', sortOrder: 316 },
+  'combat.speed':                  { value: '1.0',  label: 'Velocità Combattimento',             group: 'combat', sortOrder: 320 },
+  'combat.autoUseItems':           { value: 'true', label: 'AI usa oggetti',                     group: 'combat', sortOrder: 321 },
 };
 
 async function ensureDefaults() {

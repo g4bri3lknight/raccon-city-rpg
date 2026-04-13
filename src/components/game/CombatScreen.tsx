@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { CombatAction } from '@/game/types';
 import LogText from '@/components/game/LogText';
-import { ENEMY_IMAGES, CHARACTER_IMAGES, getSpecialById, ARCHETYPE_SPECIAL_MAP, mediaUrl } from '@/game/data/loader';
+import { ENEMY_IMAGES, CHARACTER_IMAGES, getSpecialById, mediaUrl } from '@/game/data/loader';
 import ItemIcon from './ItemIcon';
 import { getWeaponAmmoType, resolveSpecialId } from '@/game/engine/combat';
 import { audio } from '@/game/engine/sounds';
@@ -35,6 +35,7 @@ export default function CombatScreen() {
   const [hitTargetId, setHitTargetId] = useState<string | null>(null);
   const [hitIsCritical, setHitIsCritical] = useState(false);
   const [deathTargetId, setDeathTargetId] = useState<string | null>(null);
+  const zombieTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bossPhaseId, setBossPhaseId] = useState<string | null>(null);
 
   const { percent: desktopPercent, containerRef: desktopContainerRef, handleMouseDown: desktopMouseDown, handleTouchStart: desktopTouchStart } = useResizableSplit({ initialPercent: 80, minPercent: 55, maxPercent: 88, direction: 'horizontal' });
@@ -90,12 +91,12 @@ export default function CombatScreen() {
         setKillFlash(true);
         setTimeout(() => setKillFlash(false), 800);
       });
-      // #41: Trigger death animation on each dead enemy
+      // #41: Trigger death animation on each dead enemy (staggered)
       queueMicrotask(() => {
-        for (const did of deathIds) {
-          setDeathTargetId(did);
-          setTimeout(() => setDeathTargetId(null), 800);
-        }
+        deathIds.forEach((did, i) => {
+          setTimeout(() => setDeathTargetId(did), i * 200);
+          setTimeout(() => setDeathTargetId(null), i * 200 + 800);
+        });
       });
     }
   }, [enemies, combat?.isVictory]);
@@ -110,15 +111,18 @@ export default function CombatScreen() {
       return name.includes('zombie') || name.includes('zombi') || name.includes('cadavere');
     });
     if (!hasZombie) return;
-    // Play a random zombie moan every 4-8 seconds
+    // Play a random zombie moan every 4-8 seconds (recursive)
     const scheduleNext = () => {
       const delay = 4000 + Math.random() * 4000; // 4–8 seconds
       return setTimeout(() => {
         try { playZombieMoan(); } catch {}
+        zombieTimerRef.current = scheduleNext();
       }, delay);
     };
-    const timerId = scheduleNext();
-    return () => clearTimeout(timerId);
+    zombieTimerRef.current = scheduleNext();
+    return () => {
+      if (zombieTimerRef.current) clearTimeout(zombieTimerRef.current);
+    };
   }, [combat?.isVictory, combat?.isDefeat, enemies]);
 
   // ── Derived data ──
@@ -255,7 +259,6 @@ export default function CombatScreen() {
     const handleKey = (e: KeyboardEvent) => {
       const tm = targetingModeRef.current;
       const doCancel = () => {
-        setShowMenu(false);
         setTargetingMode(null);
         setShowItemSelect(false);
         setPendingAction(null);
@@ -307,7 +310,7 @@ export default function CombatScreen() {
   const currentCharacter = party.find(p => p.id === combat.currentActorId);
   const aliveEnemies = enemies.filter(e => e.currentHp > 0);
   const aliveParty = party.filter(p => p.currentHp > 0);
-  const usableItems = currentCharacter?.inventory.filter(i => i.usable) || [];
+  const usableItems = currentCharacter?.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod' && i.type !== 'weapon') || [];
   const specialCd = combat.specialCooldowns?.[currentCharacter?.id || ''] ?? 0;
   const special2Cd = combat.special2Cooldowns?.[currentCharacter?.id || ''] ?? 0;
   const arch = currentCharacter?.archetype;
@@ -348,7 +351,7 @@ export default function CombatScreen() {
       if (s1?.category === 'offensive' && sCd === 0) return 'special' as CombatAction;
     }
     // Predict item usage: cure status, heal_full for critical, or regular heal
-    const myUsable = currentCharacter.inventory.filter(i => i.usable);
+    const myUsable = currentCharacter.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod');
     const hasStatusCure = aliveParty.some(p => p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'));
     if (hasStatusCure && myUsable.some(i => i.effects?.some(e => e.type === 'remove_status'))) return 'use_item' as CombatAction;
     const worstAlly = aliveParty.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
@@ -418,10 +421,10 @@ export default function CombatScreen() {
       if (usableItems.length === 0) return;
       setShowItemSelect(true);
     } else if (action === 'defend') {
-      setTimeout(() => executeCombatTurn(), 300);
+      // defend is handled immediately by selectCombatAction in store
     } else if (action === 'flee') {
       if (enemies.some(e => e.isBoss)) return;
-      setTimeout(() => executeCombatTurn(), 300);
+      // flee is handled immediately by selectCombatAction in store
     }
   };
 
@@ -541,12 +544,15 @@ export default function CombatScreen() {
                 {isHurt && !isCrit && <div className="absolute -inset-1 rounded-lg bg-red-500/25 damage-flash pointer-events-none" />}
                 {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-orange-500/35 damage-flash pointer-events-none" />}
                 {isMissAnim && <div className="absolute -inset-1 rounded-lg bg-yellow-500/15 pointer-events-none animate-dodge" />}
-                {/* Keyboard shortcut badge */}
-                {isTargetable && (
-                  <span className="absolute -top-2 -left-1 z-30 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow animate-pulse">
-                    {idx + 1}
-                  </span>
-                )}
+                {/* Keyboard shortcut badge (alive-only index) */}
+                {isTargetable && (() => {
+                  const aliveIdx = enemies.filter((e, i) => i <= idx && e.currentHp > 0).length - 1;
+                  return (
+                    <span className="absolute -top-2 -left-1 z-30 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow animate-pulse">
+                      {aliveIdx + 1}
+                    </span>
+                  );
+                })()}
                 <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor} ${bossGlowClass}`}>
                   <img src={mediaUrl(ENEMY_IMAGES[enemy.definitionId] || '', dataVersion)} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} onError={(e) => {
                     const t = e.currentTarget;
@@ -641,12 +647,15 @@ export default function CombatScreen() {
                 {isCrit && isHurt && <div className="absolute -inset-1 rounded-lg bg-orange-500/35 damage-flash pointer-events-none" />}
                 {isMissAnim && <div className="absolute -inset-1 rounded-lg bg-yellow-500/15 pointer-events-none animate-dodge" />}
                 {isHealing && <div className="absolute -inset-1 rounded-lg bg-green-500/20 heal-effect pointer-events-none" />}
-                {/* Keyboard shortcut badge for ally targeting */}
-                {isTargetable && (
-                  <span className="absolute -top-2 -left-1 z-30 bg-green-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow animate-pulse">
-                    {idx + 1}
-                  </span>
-                )}
+                {/* Keyboard shortcut badge for ally targeting (alive-only index) */}
+                {isTargetable && (() => {
+                  const aliveIdx = party.filter((c, i) => i <= idx && c.currentHp > 0).length - 1;
+                  return (
+                    <span className="absolute -top-2 -left-1 z-30 bg-green-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow animate-pulse">
+                      {aliveIdx + 1}
+                    </span>
+                  );
+                })()}
                 <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}`}>
                   <img src={mediaUrl(char.avatarUrl || CHARACTER_IMAGES[char.archetype] || '', dataVersion)} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
                   {/* ── BLEEDING VISUAL: blood drips on left + red pulse ── */}
@@ -714,7 +723,9 @@ export default function CombatScreen() {
                   }} />
                 </div>
                 {(isPoisoned || isBleeding) && !isDead && (
-                  <span className="text-[7px] animate-pulse leading-none">{isPoisoned ? '☠️' : '🩸'}</span>
+                  <span className="text-[7px] animate-pulse leading-none">
+                    {isPoisoned && '☠️'}{isBleeding && '🩸'}
+                  </span>
                 )}
                 {/* Ammo indicator for ranged weapons */}
                 {char.weapon?.type === 'ranged' && !isDead && (() => {

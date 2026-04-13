@@ -14,7 +14,7 @@ import {
   ItemDefinition,
 } from '../types';
 import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById, ITEMS, COMBAT_CONFIG } from '../data/loader';
-import { ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS } from '../data/equipment';
+import { ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, EQUIPMENT_STATS } from '../data/equipment';
 import { WEAPON_MODS } from '../data/weapon-mods';
 
 // ==========================================
@@ -448,7 +448,7 @@ function resolveTargets(
   if (t === 'all_enemies') {
     return { enemies: enemies.filter(e => e.currentHp > 0), allies: [] };
   }
-  if (t === 'ally') {
+  if (t === 'ally' || t === 'one_ally') {
     if ('statusEffects' in target && !('definitionId' in target)) {
       return { enemies: [], allies: [target as Character] };
     }
@@ -489,6 +489,7 @@ function handleDealDamage(
 
   let updatedEnemies: EnemyInstance[] | undefined;
   let totalDmg = 0;
+  let primaryDmg = 0;
   let isCritical = false;
   let isMiss = false;
   const splashLog: string[] = [];
@@ -515,6 +516,7 @@ function handleDealDamage(
 
     totalDmg += calcResult.damage;
     if (isPrimary) {
+      primaryDmg = calcResult.damage;
       isCritical = guaranteedCrit || calcResult.isCritical;
     }
 
@@ -526,15 +528,15 @@ function handleDealDamage(
     return { ...e, currentHp: newHp, isDefending: false };
   });
 
-  let message = `${character.name} usa ${character === target ? '' : ''}`;
+  let message = '';
   const primaryTarget = primaryEnemy || enemyTargets[0];
   if (primaryTarget && !excludePrimaryTarget) {
     if (isMiss) {
       message = `${character.name} attacca ${primaryTarget.name} ma manca il bersaglio!`;
     } else if (isCritical || guaranteedCrit) {
-      message = `${character.name} infligge un COLPO CRITICO a ${primaryTarget.name} per ${totalDmg} danni!`;
+      message = `${character.name} infligge un COLPO CRITICO a ${primaryTarget.name} per ${primaryDmg} danni!`;
     } else {
-      message = `${character.name} attacca ${primaryTarget.name} e infligge ${totalDmg} danni.`;
+      message = `${character.name} attacca ${primaryTarget.name} e infligge ${primaryDmg} danni.`;
     }
   } else {
     message = `${character.name} infligge ${totalDmg} danni totali!`;
@@ -647,7 +649,7 @@ function handleApplyStatus(
 
   if (appliedNames.length === 0) return {};
 
-  const statusLabel = statusType === 'poison' ? 'avvelenato' : statusType === 'stunned' ? 'stordito' : statusType === 'bleeding' ? 'sanguinante' : 'adrenalina';
+  const statusLabel = statusType === 'poison' ? 'avvelenato' : statusType === 'stunned' ? 'stordito' : statusType === 'bleeding' ? 'sanguinante' : statusType === 'adrenaline' ? 'adrenalina' : statusType;
   const message = appliedNames.length > 1
     ? `${appliedNames.join(', ')} sono ${statusLabel}!`
     : `${appliedNames[0]} è ${statusLabel}!`;
@@ -1400,7 +1402,16 @@ export function executeEnemyAttack(
   enemies?: EnemyInstance[],
 ): { log: CombatLogEntry; updatedParty: Character[]; updatedEnemies?: EnemyInstance[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number }; activeEffects?: ActiveCombatEffect[] } {
   // Pick random ability
-  const ability = enemy.abilities.find(() => chance(100)) || enemy.abilities[0];
+  const ability = enemy.abilities.length > 0
+    ? enemy.abilities[random(0, enemy.abilities.length - 1)]
+    : null;
+
+  if (!ability) {
+    return {
+      log: { turn, actorName: enemy.name, actorType: 'enemy', action: 'Idle', message: `${enemy.name} guarda nella direzione dei giocatori.` },
+      updatedParty: party,
+    };
+  }
   
   // Pick random alive target (or forced target from taunt)
   const aliveTargets = party.filter(p => p.currentHp > 0);
@@ -1844,7 +1855,9 @@ function executeEnemyAbilityEffects(
 
 export function calculateFleeChance(party: Character[], enemies: EnemyInstance[]): boolean {
   if (enemies.some(e => e.isBoss)) return false;
-  const avgSpd = party.filter(p => p.currentHp > 0).reduce((sum, p) => sum + p.baseSpd, 0) / party.length;
+  const aliveParty = party.filter(p => p.currentHp > 0);
+  if (aliveParty.length === 0) return false;
+  const avgSpd = aliveParty.reduce((sum, p) => sum + p.baseSpd, 0) / aliveParty.length;
   const enemyAvgSpd = enemies.reduce((sum, e) => sum + e.spd, 0) / enemies.length;
   const fleeChance = 30 + (avgSpd - enemyAvgSpd) * 5;
   return chance(Math.min(Math.max(fleeChance, 10), 80));

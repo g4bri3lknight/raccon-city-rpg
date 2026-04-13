@@ -67,7 +67,20 @@ export let COMBAT_CONFIG: Record<string, number> = {
   damageVarianceMin: 85, damageVarianceMax: 115,
   noMissDmgVarianceMin: 90, noMissDmgVarianceMax: 110,
   defaultStatusDuration: 3, defaultCooldown: 2,
+  speed: 1.0,
 };
+
+// Combat boolean settings — loaded from GameSetting DB
+export let COMBAT_BOOL_CONFIG: Record<string, boolean> = {
+  autoUseItems: true,
+};
+
+/** Helper: get combat delay in ms adjusted by speed setting.
+ *  Higher speed = shorter delay. Clamped to min 50ms. */
+export function getCombatDelay(baseMs: number): number {
+  const speed = Math.max(0.1, COMBAT_CONFIG.speed || 1.0);
+  return Math.max(50, Math.round(baseMs / speed));
+}
 
 let CUSTOM_STARTING_ITEM_IDS: { itemId: string; quantity: number }[] = [
   { itemId: 'pipe', quantity: 1 },
@@ -91,6 +104,7 @@ export function getCustomStartingItems(_baseArchetype?: Archetype): ItemInstance
       icon: itemDef.icon,
       usable: itemDef.usable,
       equippable: itemDef.equippable,
+      effects: itemDef.effects,
       quantity: entry.quantity,
     } as ItemInstance;
   }).filter(Boolean) as ItemInstance[];
@@ -820,6 +834,14 @@ async function loadGameSettings(): Promise<void> {
       if (raw) {
         const parsed = parseFloat(raw);
         if (!isNaN(parsed)) COMBAT_CONFIG[key] = parsed;
+      }
+    }
+
+    // Combat boolean settings
+    for (const [key, defaultValue] of Object.entries(COMBAT_BOOL_CONFIG)) {
+      const raw = settings[`combat.${key}`];
+      if (raw !== undefined) {
+        COMBAT_BOOL_CONFIG[key] = raw === 'true';
       }
     }
   } catch {

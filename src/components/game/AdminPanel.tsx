@@ -6315,7 +6315,7 @@ function DifficultyConfigEditor({
 interface GameplaySettingDef {
   key: string;
   label: string;
-  type: 'number' | 'text' | 'json' | 'item-box-defaults';
+  type: 'number' | 'text' | 'json' | 'item-box-defaults' | 'range' | 'toggle';
   group: string;
   groupLabel: string;
   placeholder?: string;
@@ -6351,6 +6351,8 @@ const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
   { key: 'combat.noMissDmgVarianceMax', label: '% Varianza No-Miss Max', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 100, max: 200, step: 1, helpText: 'Varianza max per attacchi garantiti (Sparo Mirato)' },
   { key: 'combat.defaultStatusDuration', label: 'Durata Status Default', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 10, step: 1, helpText: 'Durata in turni degli status inflitti in combattimento (se non specificata)' },
   { key: 'combat.defaultCooldown', label: 'Cooldown Speciale Default', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 10, step: 1, helpText: 'Cooldown in turni delle abilità speciali (se non specificato)' },
+  { key: 'combat.speed', label: 'Velocità Combattimento', type: 'range', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0.5, max: 3.0, step: 0.1, helpText: 'Velocità delle animazioni di combattimento. 0.5 = lento, 1.0 = normale, 3.0 = veloce' },
+  { key: 'combat.autoUseItems', label: 'AI usa oggetti', type: 'toggle', group: 'combat', groupLabel: '⚔️ Combattimento', helpText: 'Se attivo, il combattimento automatico usa pozze e oggetti di cura quando necessario' },
 ];
 
 function GameSettingsEditor() {
@@ -6493,6 +6495,36 @@ function GameSettingsEditor() {
                         step={field.step || 1}
                         className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-emerald-500/40 transition-colors"
                       />
+                    ) : field.type === 'range' ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <input
+                            type="range"
+                            value={settings[field.key] || '1'}
+                            onChange={(e) => handleChange(field.key, e.target.value)}
+                            min={field.min}
+                            max={field.max}
+                            step={field.step || 1}
+                            className="flex-1 accent-emerald-500"
+                          />
+                          <span className="text-[13px] font-mono text-emerald-400 ml-3 min-w-[2.5rem] text-right">{settings[field.key] || '1'}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-white/20">
+                          <span>{field.min}</span>
+                          <span>{field.max}</span>
+                        </div>
+                      </div>
+                    ) : field.type === 'toggle' ? (
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleChange(field.key, settings[field.key] === 'true' ? 'false' : 'true')}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings[field.key] === 'true' ? 'bg-emerald-500' : 'bg-white/10'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings[field.key] === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                        <span className="text-[12px] text-white/40">{settings[field.key] === 'true' ? 'Attivo' : 'Disattivo'}</span>
+                      </div>
                     ) : field.type === 'item-box-defaults' ? (
                       <ItemBoxDefaultsEditor
                         value={settings[field.key] || '[]'}

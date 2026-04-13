@@ -31,7 +31,7 @@ import {
   RandomizedLocationData,
 } from './types';
 import { computeGrowthRates } from './data/characters';
-import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES, validateEffectsIntegrity, RECIPES_DATA } from './data/loader';
+import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES, validateEffectsIntegrity, RECIPES_DATA, getCombatDelay, COMBAT_BOOL_CONFIG } from './data/loader';
 import { generateRandomizedData, getEffectiveLocation } from './data/randomizer';
 import {
   executePlayerAttack,
@@ -3311,7 +3311,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const character = state.party.find(p => p.id === state.combat!.currentActorId);
     if (!character || character.currentHp <= 0) {
       // Dead character set as current actor — recover by advancing to next alive
-      setTimeout(() => get().advanceToNextActor(), 300);
+      setTimeout(() => get().advanceToNextActor(), getCombatDelay(300));
       return;
     }
 
@@ -3329,7 +3329,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (woundedCount >= 2 && special2Cd === 0) {
         get().selectCombatAction('special2');
         get().selectCombatTarget(character.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
       // Heal single wounded ally if special available
@@ -3337,14 +3337,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (wounded && specialCd === 0) {
         get().selectCombatAction('special');
         get().selectCombatTarget(wounded.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
       // Otherwise attack weakest enemy
       const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
       get().selectCombatAction('attack');
       get().selectCombatTarget(weakest.id);
-      setTimeout(() => get().executeCombatTurn(), 600);
+      setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
       return;
     }
 
@@ -3353,20 +3353,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (special2Cd === 0 && aliveEnemies.length >= 2) {
         get().selectCombatAction('special2');
         get().selectCombatTarget(character.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
       // Barricata if available and HP < 70%
       if (specialCd === 0 && character.currentHp < character.maxHp * 0.7) {
         get().selectCombatAction('special');
         get().selectCombatTarget(character.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
       // Defend if HP low and specials on cooldown
       if (character.currentHp < character.maxHp * 0.3) {
         get().selectCombatAction('defend');
-        setTimeout(() => get().executeCombatTurn(), 600);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
     }
@@ -3377,14 +3377,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
         get().selectCombatAction('special2');
         get().selectCombatTarget(weakest.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
       if (specialCd === 0) {
         const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
         get().selectCombatAction('special');
         get().selectCombatTarget(weakest.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
     }
@@ -3394,7 +3394,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
       get().selectCombatAction('special2');
       get().selectCombatTarget(weakest.id);
-      setTimeout(() => get().executeCombatTurn(), 600);
+      setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
       return;
     }
     // DPS: use Colpo Mortale if available and only 1 enemy or boss
@@ -3402,103 +3402,107 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const weakest = aliveEnemies.reduce((a, b) => a.currentHp < b.currentHp ? a : b);
       get().selectCombatAction('special');
       get().selectCombatTarget(weakest.id);
-      setTimeout(() => get().executeCombatTurn(), 600);
+      setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
       return;
     }
 
     // 5. Universal item usage — healing, curing, emergency items
     // Only use items from the CURRENT character's inventory (consistent with manual play)
-    const myUsableItems = character.inventory.filter(i => i.usable);
+    // Guarded by combat.autoUseItems setting
+    const autoUseItems = COMBAT_BOOL_CONFIG.autoUseItems !== false;
+    const myUsableItems = character.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod');
 
-    // 5a. Cure status effects (poison/bleeding) — high priority
-    const statusCuredAlly = aliveParty.find(p =>
-      p.currentHp > 0 && (p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'))
-    );
-    if (statusCuredAlly) {
-      // Prefer herb_mixed (heals + cures) if the ally's HP is also low
-      const mixedHerb = myUsableItems.find(i => i.itemId === 'herb_mixed');
-      if (mixedHerb && statusCuredAlly.currentHp < statusCuredAlly.maxHp * 0.7) {
-        get().selectCombatAction('use_item');
-        get().selectCombatItem(mixedHerb.uid);
-        get().selectCombatTarget(statusCuredAlly.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
-        return;
-      }
-      // Use antidote for poison-only
-      if (statusCuredAlly.statusEffects.includes('poison')) {
-        const antidote = myUsableItems.find(i => i.itemId === 'antidote');
-        if (antidote) {
+    if (autoUseItems && myUsableItems.length > 0) {
+      // 5a. Cure status effects (poison/bleeding) — high priority
+      const statusCuredAlly = aliveParty.find(p =>
+        p.currentHp > 0 && (p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'))
+      );
+      if (statusCuredAlly) {
+        // Prefer herb_mixed (heals + cures) if the ally's HP is also low
+        const mixedHerb = myUsableItems.find(i => i.itemId === 'herb_mixed');
+        if (mixedHerb && statusCuredAlly.currentHp < statusCuredAlly.maxHp * 0.7) {
           get().selectCombatAction('use_item');
-          get().selectCombatItem(antidote.uid);
+          get().selectCombatItem(mixedHerb.uid);
           get().selectCombatTarget(statusCuredAlly.id);
-          setTimeout(() => get().executeCombatTurn(), 600);
+          setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+          return;
+        }
+        // Use antidote for poison-only
+        if (statusCuredAlly.statusEffects.includes('poison')) {
+          const antidote = myUsableItems.find(i => i.itemId === 'antidote');
+          if (antidote) {
+            get().selectCombatAction('use_item');
+            get().selectCombatItem(antidote.uid);
+            get().selectCombatTarget(statusCuredAlly.id);
+            setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+            return;
+          }
+        }
+        // Use first_aid (heal_full + cures) on status-afflicted ally
+        const firstAidKit = myUsableItems.find(i => getItemHealInfo(i)?.isFullHeal && getItemHasStatusCure(i));
+        if (firstAidKit) {
+          get().selectCombatAction('use_item');
+          get().selectCombatItem(firstAidKit.uid);
+          get().selectCombatTarget(statusCuredAlly.id);
+          setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
           return;
         }
       }
-      // Use first_aid (heal_full + cures) on status-afflicted ally
-      const firstAidKit = myUsableItems.find(i => getItemHealInfo(i)?.isFullHeal && getItemHasStatusCure(i));
-      if (firstAidKit) {
-        get().selectCombatAction('use_item');
-        get().selectCombatItem(firstAidKit.uid);
-        get().selectCombatTarget(statusCuredAlly.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
-        return;
+
+      // 5b. Find the most critical ally (lowest HP%)
+      const mostCriticalAlly = aliveParty.reduce((a, b) =>
+        (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b
+      );
+      const criticalPct = mostCriticalAlly.currentHp / mostCriticalAlly.maxHp;
+
+      // 5c. Use heal_full items (first_aid) on critically wounded ally (< 35%)
+      if (criticalPct < 0.35) {
+        const fullHealItem = myUsableItems.find(i => {
+          const heal = getItemHealInfo(i);
+          const target = getItemEffectTarget(i);
+          return heal?.isFullHeal && (target === 'one_ally' || target === 'all_allies');
+        });
+        if (fullHealItem) {
+          const target = getItemEffectTarget(fullHealItem) === 'all_allies'
+            ? character
+            : mostCriticalAlly;
+          get().selectCombatAction('use_item');
+          get().selectCombatItem(fullHealItem.uid);
+          get().selectCombatTarget(target.id);
+          setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+          return;
+        }
       }
-    }
 
-    // 5b. Find the most critical ally (lowest HP%)
-    const mostCriticalAlly = aliveParty.reduce((a, b) =>
-      (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b
-    );
-    const criticalPct = mostCriticalAlly.currentHp / mostCriticalAlly.maxHp;
+      // 5d. Use regular healing items on anyone below 55% HP
+      if (criticalPct < 0.55) {
+        // Find the best healing item in current character's inventory
+        const healItems = myUsableItems.filter(i => {
+          const heal = getItemHealInfo(i);
+          const target = getItemEffectTarget(i);
+          return heal && !heal.isFullHeal && (target === 'one_ally' || target === 'self' || target === 'all_allies');
+        }).sort((a, b) => (getItemHealInfo(b)?.amount || 0) - (getItemHealInfo(a)?.amount || 0));
 
-    // 5c. Use heal_full items (first_aid) on critically wounded ally (< 35%)
-    if (criticalPct < 0.35) {
-      const fullHealItem = myUsableItems.find(i => {
-        const heal = getItemHealInfo(i);
-        const target = getItemEffectTarget(i);
-        return heal?.isFullHeal && (target === 'one_ally' || target === 'all_allies');
-      });
-      if (fullHealItem) {
-        const target = getItemEffectTarget(fullHealItem) === 'all_allies'
-          ? character
-          : mostCriticalAlly;
-        get().selectCombatAction('use_item');
-        get().selectCombatItem(fullHealItem.uid);
-        get().selectCombatTarget(target.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
-        return;
+        const allyNeedingHeal = aliveParty.find(p => p.currentHp < p.maxHp * 0.55);
+        if (allyNeedingHeal && healItems.length > 0) {
+          const chosen = healItems[0];
+          const target = getItemEffectTarget(chosen) === 'one_ally' || getItemEffectTarget(chosen) === 'all_allies'
+            ? allyNeedingHeal
+            : character;
+          get().selectCombatAction('use_item');
+          get().selectCombatItem(chosen.uid);
+          get().selectCombatTarget(target.id);
+          setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+          return;
+        }
       }
-    }
-
-    // 5d. Use regular healing items on anyone below 55% HP
-    if (criticalPct < 0.55) {
-      // Find the best healing item in current character's inventory
-      const healItems = myUsableItems.filter(i => {
-        const heal = getItemHealInfo(i);
-        const target = getItemEffectTarget(i);
-        return heal && !heal.isFullHeal && (target === 'one_ally' || target === 'self' || target === 'all_allies');
-      }).sort((a, b) => (getItemHealInfo(b)?.amount || 0) - (getItemHealInfo(a)?.amount || 0));
-
-      const allyNeedingHeal = aliveParty.find(p => p.currentHp < p.maxHp * 0.55);
-      if (allyNeedingHeal && healItems.length > 0) {
-        const chosen = healItems[0];
-        const target = getItemEffectTarget(chosen) === 'one_ally' || getItemEffectTarget(chosen) === 'all_allies'
-          ? allyNeedingHeal
-          : character;
-        get().selectCombatAction('use_item');
-        get().selectCombatItem(chosen.uid);
-        get().selectCombatTarget(target.id);
-        setTimeout(() => get().executeCombatTurn(), 600);
-        return;
-      }
-    }
+    } // end autoUseItems guard
 
     // 6. Default: attack — target lowest HP% enemy
     const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
     get().selectCombatAction('attack');
     get().selectCombatTarget(weakest.id);
-    setTimeout(() => get().executeCombatTurn(), 600);
+    setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
   },
 
   advanceToNextActor: (combatState: GameStore['combat'] & { party?: Character[]; enemies?: EnemyInstance[] }) => {
@@ -3582,7 +3586,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let updatedStatusDurations: Record<string, StatusDuration[]> = JSON.parse(JSON.stringify(statusDurations));
 
     // Initialize currentActiveEffects in function scope so it's accessible everywhere
-    let currentActiveEffects = combat.activeEffects || [];
+    let currentActiveEffects = [...(combat.activeEffects || [])];
 
     if (isNewTurn) {
       // Process active combat effects tick (HoT, buff/debuff, shield, reflect)
@@ -3712,17 +3716,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
             });
           }
           if (sd.effect === 'stunned') {
-            // Stun tick message (actual skip is handled when enemy's turn arrives)
+            // Stun tick message only — actual skip and decrement handled when enemy's turn arrives
             statusLogEntries.push({
               turn: newTurn,
               actorName: enemy.name,
               actorType: 'enemy',
               action: 'Stordito',
-              message: `💫 ${enemy.name} è stordito! (${sd.turnsLeft - 1} turni rimasti)`,
+              message: `💫 ${enemy.name} è stordito! (${sd.turnsLeft} turni rimasti)`,
             });
           }
           // Decrement turns; keep only effects that still have turns left
-          const newTurnsLeft = sd.turnsLeft - 1;
+          // Note: stun decrement is handled separately in the enemy turn check below
+          const newTurnsLeft = sd.effect === 'stunned' ? sd.turnsLeft : sd.turnsLeft - 1;
           if (newTurnsLeft > 0) {
             remainingDurations.push({ effect: sd.effect, turnsLeft: newTurnsLeft });
           } else {
@@ -3818,7 +3823,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const enemy = updatedEnemiesForStatus.find(e => e.id === effectiveNextActor.id);
       if (!enemy || enemy.currentHp <= 0) {
         // Enemy died from DOT, skip to next
-        setTimeout(() => get().advanceToNextActor(), 300);
+        setTimeout(() => get().advanceToNextActor(), getCombatDelay(300));
         return;
       }
 
@@ -3888,7 +3893,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
         // If next is also enemy, chain
         if (stunNextActor.type === 'enemy') {
-          setTimeout(() => get().advanceToNextActor(), 900);
+          setTimeout(() => get().advanceToNextActor(), getCombatDelay(900));
         }
         return;
       }
@@ -3973,7 +3978,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       // If next is also enemy, chain
       if (nextNextActor.type === 'enemy') {
-        setTimeout(() => get().advanceToNextActor(), 900);
+        setTimeout(() => get().advanceToNextActor(), getCombatDelay(900));
       }
       return;
     }
