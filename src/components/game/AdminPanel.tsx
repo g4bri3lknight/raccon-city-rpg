@@ -693,7 +693,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Tipo',
       width: 'w-32',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('itemType', String(row.type))}
         </Badge>
       ),
@@ -706,12 +706,12 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         const r = String(row.rarity);
         const rarityColor: Record<string, string> = {
           common: 'border-gray-500/30 text-gray-400 bg-gray-500/10',
-          uncommon: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
-          rare: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
-          legendary: 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10',
+          uncommon: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/10',
+          rare: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/15',
+          legendary: 'border-emerald-300/40 text-emerald-200 bg-emerald-300/15',
         };
         return (
-          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${rarityColor[r] ?? ''}`}>
+          <Badge variant="outline" className={`text-[12px] px-1.5 py-0 ${rarityColor[r] ?? ''}`}>
             {getEnumLabel('rarity', r)}
           </Badge>
         );
@@ -722,7 +722,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Unico',
       width: 'w-16',
       render: (row) => (
-        <span className={row.unico ? 'text-yellow-400' : 'text-white/20'}>
+        <span className={row.unico ? 'text-emerald-400' : 'text-white/20'}>
           {row.unico ? '★' : '—'}
         </span>
       ),
@@ -802,8 +802,8 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
             }
           }
         } catch { /* ignore parse errors */ }
-        if (parts.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
-        return <span className="text-[10px] text-white/50 flex flex-wrap gap-x-2 gap-y-0.5">{parts.map(p => <span key={p}>{p}</span>)}</span>;
+        if (parts.length === 0) return <span className="text-white/15 text-[12px]">—</span>;
+        return <span className="text-[12px] text-white/50 flex flex-wrap gap-x-2 gap-y-0.5">{parts.map(p => <span key={p}>{p}</span>)}</span>;
       },
     },
   ],
@@ -816,7 +816,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Tipo',
       width: 'w-32',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('questType', String(row.type))}
         </Badge>
       ),
@@ -830,7 +830,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Tipo',
       width: 'w-32',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('eventType', String(row.type))}
         </Badge>
       ),
@@ -850,7 +850,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Tipo',
       width: 'w-36',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('documentType', String(row.type))}
         </Badge>
       ),
@@ -874,7 +874,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Categoria',
       width: 'w-36',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('soundCategory', String(row.category))}
         </Badge>
       ),
@@ -884,7 +884,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'File',
       width: 'w-20',
       render: (row) => (
-        <span className={`text-[10px] ${typeof row.data === 'string' ? 'text-green-400' : 'text-white/20'}`}>
+        <span className={`text-[12px] ${typeof row.data === 'string' ? 'text-green-400' : 'text-white/20'}`}>
           {typeof row.data === 'string' ? '✓' : '—'}
         </span>
       ),
@@ -907,7 +907,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Categoria',
       width: 'w-32',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('imageCategory', String(row.category))}
         </Badge>
       ),
@@ -917,7 +917,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'File',
       width: 'w-20',
       render: (row) => (
-        <span className={`text-[10px] ${typeof row.data === 'string' ? 'text-green-400' : 'text-white/20'}`}>
+        <span className={`text-[12px] ${typeof row.data === 'string' ? 'text-green-400' : 'text-white/20'}`}>
           {typeof row.data === 'string' ? '✓' : '—'}
         </span>
       ),
@@ -938,7 +938,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
           bag_expand: '🎒 Zaino',
           collectible_found: '💎 Collezionabile',
         };
-        return <span className="text-[11px] text-white/70">{labels[t] || t}</span>;
+        return <span className="text-[13px] text-white/70">{labels[t] || t}</span>;
       },
     },
     { key: 'label', label: 'Etichetta', width: 'w-36' },
@@ -972,7 +972,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Shake',
       width: 'w-16',
       render: (row) => (
-        <span className={row.shake ? 'text-orange-400 text-[10px]' : 'text-white/15 text-[10px]'}>
+        <span className={row.shake ? 'text-emerald-400 text-[12px]' : 'text-white/15 text-[12px]'}>
           {row.shake ? '✓' : '—'}
         </span>
       ),
@@ -981,7 +981,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'duration',
       label: 'Durata',
       width: 'w-20',
-      render: (row) => <span className="text-white/50 text-[11px]">{row.duration}ms</span>,
+      render: (row) => <span className="text-white/50 text-[13px]">{row.duration}ms</span>,
     },
     {
       key: 'media',
@@ -992,7 +992,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         const hasSnd = !!row.soundRef;
         return (
           <div className="flex items-center gap-1">
-            {hasImg ? <ImageIcon className="w-3 h-3 text-cyan-400/70" /> : <ImageIcon className="w-3 h-3 text-white/10" />}
+            {hasImg ? <ImageIcon className="w-3 h-3 text-emerald-400/70" /> : <ImageIcon className="w-3 h-3 text-white/10" />}
             {hasSnd ? <Volume2 className="w-3 h-3 text-green-400/70" /> : <Volume2 className="w-3 h-3 text-white/10" />}
           </div>
         );
@@ -1016,9 +1016,9 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       width: 'w-20',
       render: (row) => {
         const rate = Number(row.encounterRate ?? 0);
-        if (rate === 0) return <span className="text-[10px] text-white/20">—</span>;
-        const color = rate >= 50 ? 'text-red-400' : rate >= 35 ? 'text-amber-400' : 'text-green-400';
-        return <span className={`text-[11px] font-mono ${color}`}>{rate}%</span>;
+        if (rate === 0) return <span className="text-[12px] text-white/20">—</span>;
+        const color = rate >= 50 ? 'text-red-400' : rate >= 35 ? 'text-emerald-400' : 'text-green-400';
+        return <span className={`text-[13px] font-mono ${color}`}>{rate}%</span>;
       },
     },
     {
@@ -1026,7 +1026,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Boss',
       width: 'w-16',
       render: (row) => (
-        <span className={row.isBossArea ? 'text-red-400 text-[10px] font-bold' : 'text-white/15 text-[10px]'}>
+        <span className={row.isBossArea ? 'text-red-400 text-[12px] font-bold' : 'text-white/15 text-[12px]'}>
           {row.isBossArea ? 'BOSS' : '—'}
         </span>
       ),
@@ -1038,7 +1038,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         let exits: string[] = [];
         try { exits = typeof row.nextLocations === 'string' ? JSON.parse(row.nextLocations) : (row.nextLocations as string[] ?? []); } catch { /* empty */ }
-        return <span className="text-[10px] text-white/40 font-mono">{exits.length}</span>;
+        return <span className="text-[12px] text-white/40 font-mono">{exits.length}</span>;
       },
     },
     {
@@ -1048,7 +1048,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         const hasEvent = !!row.storyEvent && String(row.storyEvent).trim() !== '' && String(row.storyEvent) !== '{}';
         return (
-          <span className={hasEvent ? 'text-cyan-400 text-[10px]' : 'text-white/15 text-[10px]'}>
+          <span className={hasEvent ? 'text-emerald-400 text-[12px]' : 'text-white/15 text-[12px]'}>
             {hasEvent ? '✓' : '—'}
           </span>
         );
@@ -1068,14 +1068,14 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'locationId',
       label: 'Location',
       width: 'w-40',
-      render: (row) => <span className="text-[10px] text-white/50 font-mono">{String(row.locationId ?? '')}</span>,
+      render: (row) => <span className="text-[12px] text-white/50 font-mono">{String(row.locationId ?? '')}</span>,
     },
     {
       key: 'questId',
       label: 'Quest',
       width: 'w-16',
       render: (row) => (
-        <span className={row.questId ? 'text-cyan-400 text-[10px]' : 'text-white/15 text-[10px]'}>
+        <span className={row.questId ? 'text-emerald-400 text-[12px]' : 'text-white/15 text-[12px]'}>
           {row.questId ? '✓' : '—'}
         </span>
       ),
@@ -1087,7 +1087,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         let count = 0;
         try { count = typeof row.dialogues === 'string' ? JSON.parse(row.dialogues).length : Array.isArray(row.dialogues) ? row.dialogues.length : 0; } catch { count = 0; }
-        return <span className="text-[10px] text-white/40 font-mono">{count}</span>;
+        return <span className="text-[12px] text-white/40 font-mono">{count}</span>;
       },
     },
   ],
@@ -1099,7 +1099,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Ruolo',
       width: 'w-28',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('archetype', String(row.archetype))}
         </Badge>
       ),
@@ -1115,25 +1115,25 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'maxHp',
       label: 'HP',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-green-400/70 font-mono">{row.maxHp}</span>,
+      render: (row) => <span className="text-[12px] text-green-400/70 font-mono">{row.maxHp}</span>,
     },
     {
       key: 'atk',
       label: 'ATK',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-red-400/70 font-mono">{row.atk}</span>,
+      render: (row) => <span className="text-[12px] text-red-400/70 font-mono">{row.atk}</span>,
     },
     {
       key: 'def',
       label: 'DEF',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-amber-400/70 font-mono">{row.def}</span>,
+      render: (row) => <span className="text-[12px] text-emerald-400/70 font-mono">{row.def}</span>,
     },
     {
       key: 'spd',
       label: 'SPD',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-cyan-400/70 font-mono">{row.spd}</span>,
+      render: (row) => <span className="text-[12px] text-emerald-400/70 font-mono">{row.spd}</span>,
     },
   ],
   specials: [
@@ -1153,12 +1153,12 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         const cat = String(row.category ?? '');
         const catColors: Record<string, string> = {
           offensive: 'border-red-500/30 text-red-400 bg-red-500/10',
-          defensive: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
-          support: 'border-green-500/30 text-green-400 bg-green-500/10',
-          control: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+          defensive: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/10',
+          support: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+          control: 'border-emerald-600/30 text-emerald-500 bg-emerald-600/10',
         };
         return (
-          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${catColors[cat] ?? ''}`}>
+          <Badge variant="outline" className={`text-[12px] px-1.5 py-0 ${catColors[cat] ?? ''}`}>
             {getEnumLabel('specialCategory', cat)}
           </Badge>
         );
@@ -1169,7 +1169,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Bersaglio',
       width: 'w-28',
       render: (row) => (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
           {getEnumLabel('specialTargetType', String(row.targetType))}
         </Badge>
       ),
@@ -1178,7 +1178,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'cooldown',
       label: 'CD',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-white/40 font-mono">{row.cooldown}t</span>,
+      render: (row) => <span className="text-[12px] text-white/40 font-mono">{row.cooldown}t</span>,
     },
   ],
   enemies: [
@@ -1194,38 +1194,38 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'maxHp',
       label: 'HP',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-green-400/70 font-mono">{row.maxHp}</span>,
+      render: (row) => <span className="text-[12px] text-green-400/70 font-mono">{row.maxHp}</span>,
     },
     {
       key: 'atk',
       label: 'ATK',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-red-400/70 font-mono">{row.atk}</span>,
+      render: (row) => <span className="text-[12px] text-red-400/70 font-mono">{row.atk}</span>,
     },
     {
       key: 'def',
       label: 'DEF',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-amber-400/70 font-mono">{row.def}</span>,
+      render: (row) => <span className="text-[12px] text-emerald-400/70 font-mono">{row.def}</span>,
     },
     {
       key: 'spd',
       label: 'SPD',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-cyan-400/70 font-mono">{row.spd}</span>,
+      render: (row) => <span className="text-[12px] text-emerald-400/70 font-mono">{row.spd}</span>,
     },
     {
       key: 'expReward',
       label: 'EXP',
       width: 'w-14',
-      render: (row) => <span className="text-[10px] text-yellow-400/70 font-mono">{row.expReward}</span>,
+      render: (row) => <span className="text-[12px] text-emerald-400/70 font-mono">{row.expReward}</span>,
     },
     {
       key: 'isBoss',
       label: 'Boss',
       width: 'w-16',
       render: (row) => (
-        <span className={row.isBoss ? 'text-red-400 text-[10px] font-bold' : 'text-white/15 text-[10px]'}>
+        <span className={row.isBoss ? 'text-red-400 text-[12px] font-bold' : 'text-white/15 text-[12px]'}>
           {row.isBoss ? 'BOSS' : '—'}
         </span>
       ),
@@ -1236,8 +1236,8 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       width: 'w-24',
       render: (row) => {
         const vg = String(row.variantGroup ?? '');
-        if (!vg) return <span className="text-white/15 text-[10px]">—</span>;
-        return <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">{vg}</Badge>;
+        if (!vg) return <span className="text-white/15 text-[12px]">—</span>;
+        return <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">{vg}</Badge>;
       },
     },
     {
@@ -1247,7 +1247,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         let count = 0;
         try { count = typeof row.abilities === 'string' ? JSON.parse(row.abilities).length : Array.isArray(row.abilities) ? row.abilities.length : 0; } catch { count = 0; }
-        return <span className="text-[10px] text-white/40 font-mono">{count}</span>;
+        return <span className="text-[12px] text-white/40 font-mono">{count}</span>;
       },
     },
   ],
@@ -1260,15 +1260,15 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       width: 'w-20',
       render: (row) => {
         const p = Number(row.power);
-        const color = p >= 2.0 ? 'text-red-400' : p >= 1.5 ? 'text-amber-400' : p >= 1.0 ? 'text-white/70' : 'text-green-400/70';
-        return <span className={`text-[11px] font-mono ${color}`}>{p.toFixed(1)}x</span>;
+        const color = p >= 2.0 ? 'text-red-400' : p >= 1.5 ? 'text-emerald-400' : p >= 1.0 ? 'text-white/70' : 'text-green-400/70';
+        return <span className={`text-[13px] font-mono ${color}`}>{p.toFixed(1)}x</span>;
       },
     },
     {
       key: 'chance',
       label: 'Prob. %',
       width: 'w-18',
-      render: (row) => <span className="text-[10px] text-white/50 font-mono">{row.chance}%</span>,
+      render: (row) => <span className="text-[12px] text-white/50 font-mono">{row.chance}%</span>,
     },
     {
       key: 'statusType',
@@ -1279,16 +1279,16 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         let effectsArr: any[] = [];
         try { effectsArr = row.effects ? JSON.parse(row.effects) : []; } catch {}
         const statusEffect = effectsArr.find((e: any) => e.type === 'apply_status');
-        if (!statusEffect) return <span className="text-white/15 text-[10px]">—</span>;
+        if (!statusEffect) return <span className="text-white/15 text-[12px]">—</span>;
         const st = statusEffect.statusType;
         const statusColors: Record<string, string> = {
-          poison: 'border-green-500/30 text-green-400 bg-green-500/10',
+          poison: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/10',
           bleeding: 'border-red-500/30 text-red-400 bg-red-500/10',
-          stunned: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
-          adrenaline: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
+          stunned: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+          adrenaline: 'border-emerald-600/30 text-emerald-500 bg-emerald-600/10',
         };
         return (
-          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColors[st] ?? ''}`}>
+          <Badge variant="outline" className={`text-[12px] px-1.5 py-0 ${statusColors[st] ?? ''}`}>
             {getEnumLabel('statusEffect', st)} {statusEffect.chance ? `(${statusEffect.chance}%)` : ''}
           </Badge>
         );
@@ -1304,7 +1304,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         const bossNames: Record<string, string> = { tyrant_boss: 'T-103', nemesis_boss: 'NEMESIS', proto_tyrant: 'Proto-Tyrant' };
         const name = bossNames[String(row.enemyId)] || String(row.enemyId);
-        return <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-500/30 text-red-400 bg-red-500/10">{name}</Badge>;
+        return <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-red-500/30 text-red-400 bg-red-500/10">{name}</Badge>;
       },
     },
     { key: 'name', label: 'Fase', width: 'w-28' },
@@ -1312,7 +1312,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'hpThreshold',
       label: 'HP %',
       width: 'w-16',
-      render: (row) => <span className="text-[10px] text-red-400/80 font-mono">{Math.round(Number(row.hpThreshold) * 100)}%</span>,
+      render: (row) => <span className="text-[12px] text-red-400/80 font-mono">{Math.round(Number(row.hpThreshold) * 100)}%</span>,
     },
     {
       key: 'mults',
@@ -1328,8 +1328,8 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         if (atk !== 1.0) parts.push(`ATK×${atk}`);
         if (def !== 1.0) parts.push(`DEF×${def}`);
         if (spd !== 1.0) parts.push(`SPD×${spd}`);
-        if (parts.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
-        return <span className="text-[10px] text-amber-400/70 font-mono">{parts.join(' ')}</span>;
+        if (parts.length === 0) return <span className="text-white/15 text-[12px]">—</span>;
+        return <span className="text-[12px] text-emerald-400/70 font-mono">{parts.join(' ')}</span>;
       },
     },
     {
@@ -1339,7 +1339,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         let count = 0;
         try { count = typeof row.newAbilities === 'string' ? JSON.parse(row.newAbilities).length : Array.isArray(row.newAbilities) ? row.newAbilities.length : 0; } catch { count = 0; }
-        return count > 0 ? <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-cyan-500/30 text-cyan-400 bg-cyan-500/10">+{count}</Badge> : <span className="text-white/15 text-[10px]">—</span>;
+        return count > 0 ? <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-emerald-500/30 text-emerald-400 bg-emerald-500/10">+{count}</Badge> : <span className="text-white/15 text-[12px]">—</span>;
       },
     },
   ],
@@ -1355,13 +1355,13 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
         const catColors: Record<string, string> = {
           combat: 'border-red-500/30 text-red-400 bg-red-500/10',
           exploration: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
-          collection: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
-          story: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
-          special: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+          collection: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+          story: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+          special: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
         };
         const catLabels: Record<string, string> = { combat: 'Combattimento', exploration: 'Esplorazione', collection: 'Collezione', story: 'Storia', special: 'Speciale' };
         const cat = String(row.category);
-        return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${catColors[cat] || ''}`}>{catLabels[cat] || cat}</Badge>;
+        return <Badge variant="outline" className={`text-[12px] px-1.5 py-0 ${catColors[cat] || ''}`}>{catLabels[cat] || cat}</Badge>;
       },
     },
     { key: 'condition', label: 'Condizione', width: 'w-44' },
@@ -1369,7 +1369,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'hidden',
       label: 'Nascosto',
       width: 'w-16',
-      render: (row) => row.hidden ? <span className="text-[10px] text-amber-400">✓</span> : <span className="text-white/15 text-[10px]">—</span>,
+      render: (row) => row.hidden ? <span className="text-[12px] text-emerald-400">✓</span> : <span className="text-white/15 text-[12px]">—</span>,
     },
     { key: 'reward', label: 'Ricompensa', width: 'w-36' },
   ],
@@ -1381,7 +1381,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       key: 'priority',
       label: 'Priorità',
       width: 'w-20',
-      render: (row) => <span className="text-[10px] text-white/50 font-mono">{row.priority}</span>,
+      render: (row) => <span className="text-[12px] text-white/50 font-mono">{row.priority}</span>,
     },
     {
       key: 'color',
@@ -1398,7 +1398,7 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         let count = 0;
         try { count = typeof row.requirements === 'string' ? JSON.parse(row.requirements).length : Array.isArray(row.requirements) ? row.requirements.length : 0; } catch { count = 0; }
-        return <span className="text-[10px] text-white/40 font-mono">{count}</span>;
+        return <span className="text-[12px] text-white/40 font-mono">{count}</span>;
       },
     },
   ],
@@ -1413,18 +1413,18 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         const m = String(row.discoveryMethod ?? 'search');
         const colors: Record<string, string> = {
-          search: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
-          document: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
-          npc_hint: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+          search: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/10',
+          document: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+          npc_hint: 'border-emerald-600/30 text-emerald-500 bg-emerald-600/10',
         };
-        return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${colors[m] ?? ''}`}>{getEnumLabel('discoveryMethod', m)}</Badge>;
+        return <Badge variant="outline" className={`text-[12px] px-1.5 py-0 ${colors[m] ?? ''}`}>{getEnumLabel('discoveryMethod', m)}</Badge>;
       },
     },
     {
       key: 'searchChance',
       label: 'Prob %',
       width: 'w-18',
-      render: (row) => <span className="text-[10px] text-white/50 font-mono">{row.searchChance}%</span>,
+      render: (row) => <span className="text-[12px] text-white/50 font-mono">{row.searchChance}%</span>,
     },
   ],
   recipes: [
@@ -1441,8 +1441,8 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Categoria',
       width: 'w-28',
       render: (row) => {
-        const colors: Record<string, string> = { ammo: 'border-amber-500/30 text-amber-400 bg-amber-500/10', healing: 'border-green-500/30 text-green-400 bg-green-500/10', booster: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10' };
-        return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${colors[String(row.category)] ?? ''}`}>{getEnumLabel('recipeCategory', String(row.category))}</Badge>;
+        const colors: Record<string, string> = { ammo: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10', healing: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/10', booster: 'border-emerald-600/30 text-emerald-500 bg-emerald-600/10' };
+        return <Badge variant="outline" className={`text-[12px] px-1.5 py-0 ${colors[String(row.category)] ?? ''}`}>{getEnumLabel('recipeCategory', String(row.category))}</Badge>;
       },
     },
     {
@@ -1452,8 +1452,8 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       render: (row) => {
         let ings: { itemId: string; quantity: number }[] = [];
         try { ings = typeof row.ingredients === 'string' ? JSON.parse(row.ingredients) : (Array.isArray(row.ingredients) ? row.ingredients : []); } catch { ings = []; }
-        if (ings.length === 0) return <span className="text-white/15 text-[10px]">—</span>;
-        return <span className="text-[10px] text-white/50 font-mono">{ings.map((i: { itemId: string; quantity: number }) => `${i.quantity ?? 1}×${i.itemId}`).join(', ')}</span>;
+        if (ings.length === 0) return <span className="text-white/15 text-[12px]">—</span>;
+        return <span className="text-[12px] text-white/50 font-mono">{ings.map((i: { itemId: string; quantity: number }) => `${i.quantity ?? 1}×${i.itemId}`).join(', ')}</span>;
       },
     },
     {
@@ -1461,8 +1461,8 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Risultato',
       width: 'w-40',
       render: (row) => {
-        if (!row.resultItemId) return <span className="text-white/15 text-[10px]">—</span>;
-        return <span className="text-[10px] text-white/70 font-mono">{row.resultQty > 1 ? `${row.resultQty}×` : ''}{String(row.resultItemId)}</span>;
+        if (!row.resultItemId) return <span className="text-white/15 text-[12px]">—</span>;
+        return <span className="text-[12px] text-white/70 font-mono">{row.resultQty > 1 ? `${row.resultQty}×` : ''}{String(row.resultItemId)}</span>;
       },
     },
     {
@@ -1470,8 +1470,8 @@ const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Difficoltà',
       width: 'w-24',
       render: (row) => {
-        const colors: Record<string, string> = { easy: 'text-green-400', medium: 'text-amber-400', hard: 'text-red-400' };
-        return <span className={`text-[10px] ${colors[String(row.difficulty)] ?? 'text-white/50'}`}>{getEnumLabel('craftDifficulty', String(row.difficulty))}</span>;
+        const colors: Record<string, string> = { easy: 'text-green-400', medium: 'text-emerald-400', hard: 'text-red-400' };
+        return <span className={`text-[12px] ${colors[String(row.difficulty)] ?? 'text-white/50'}`}>{getEnumLabel('craftDifficulty', String(row.difficulty))}</span>;
       },
     },
   ],
@@ -1577,7 +1577,7 @@ function EntitySearchInput({
           onChange={e => handleInputChange(e.target.value)}
           placeholder={placeholder ?? 'Cerca...'}
           disabled={disabled}
-          className="flex-1 min-w-0 text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono disabled:opacity-50"
+          className="flex-1 min-w-0 text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono disabled:opacity-50"
         />
         <button
           type="button"
@@ -1589,13 +1589,13 @@ function EntitySearchInput({
         </button>
       </div>
       {showDropdown && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-white/[0.12] bg-gray-900 shadow-xl admin-scrollbar">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-white/[0.12] bg-black shadow-xl admin-scrollbar">
           {results.map(r => (
             <button
               key={r.id}
               type="button"
               onClick={() => handleSelect(r.id)}
-              className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-2"
+              className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-2"
             >
               {r.icon && <span className="shrink-0 w-5 text-center">{r.icon}</span>}
               <span className="text-white/90 font-mono">{r.id}</span>
@@ -1692,14 +1692,14 @@ function EntityTagEditor({ value, onChange, endpoint, labelKey, iconKey, placeho
       {/* Selected tags */}
       <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 rounded-md bg-white/[0.04] border border-white/[0.1]">
         {selected.length === 0 && !query && (
-          <span className="text-[10px] text-white/20 italic">{placeholder ?? 'Cerca e seleziona...'}</span>
+          <span className="text-[12px] text-white/20 italic">{placeholder ?? 'Cerca e seleziona...'}</span>
         )}
         {selected.map((entity, i) => (
-          <span key={entity.id + '-' + i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-[10px] text-yellow-300 group/tag">
+          <span key={entity.id + '-' + i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[12px] text-emerald-300 group/tag">
             {entity.icon && <span className="mr-0.5">{entity.icon}</span>}
-            <span className="font-mono text-yellow-400/60">{entity.id}</span>
+            <span className="font-mono text-emerald-400/60">{entity.id}</span>
             <span className="text-white/50">{entity.label}</span>
-            <button type="button" onClick={() => removeTag(i)} className="text-yellow-500/40 hover:text-red-400 transition-colors ml-0.5">
+            <button type="button" onClick={() => removeTag(i)} className="text-emerald-500/40 hover:text-red-400 transition-colors ml-0.5">
               <X className="w-3 h-3" />
             </button>
           </span>
@@ -1714,22 +1714,22 @@ function EntityTagEditor({ value, onChange, endpoint, labelKey, iconKey, placeho
             if (e.key === 'Escape') { setShowDropdown(false); e.stopPropagation(); }
           }}
           placeholder={selected.length === 0 ? placeholder : 'Cerca...'}
-          className="flex-1 min-w-[100px] text-[10px] bg-transparent border-none outline-none text-white/70 placeholder-white/20"
+          className="flex-1 min-w-[100px] text-[12px] bg-transparent border-none outline-none text-white/70 placeholder-white/20"
         />
       </div>
       {/* Dropdown */}
       {showDropdown && filteredOptions.length > 0 && (
         <div className="relative z-50">
-          <div className="absolute top-0 left-0 right-0 max-h-52 overflow-y-auto rounded-lg border border-white/[0.12] bg-gray-900/98 shadow-xl admin-scrollbar">
+          <div className="absolute top-0 left-0 right-0 max-h-52 overflow-y-auto rounded-lg border border-white/[0.12] bg-black/98 shadow-xl admin-scrollbar">
             {filteredOptions.map(opt => (
               <button
                 key={opt.id}
                 type="button"
                 onClick={() => handleSelect(opt.id)}
-                className="w-full text-left px-3 py-2 text-[11px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-2"
               >
                 {opt.icon && <span className="shrink-0 w-5 text-center">{opt.icon}</span>}
-                <span className="font-mono text-cyan-300/80 shrink-0">{opt.id}</span>
+                <span className="font-mono text-emerald-300/80 shrink-0">{opt.id}</span>
                 <span className="text-white/50 truncate">{opt.label}</span>
               </button>
             ))}
@@ -1737,11 +1737,11 @@ function EntityTagEditor({ value, onChange, endpoint, labelKey, iconKey, placeho
         </div>
       )}
       {!loaded && (
-        <div className="flex items-center gap-1.5 text-[9px] text-white/20">
+        <div className="flex items-center gap-1.5 text-[11px] text-white/20">
           <Loader2 className="w-3 h-3 animate-spin" /> Caricamento entità...
         </div>
       )}
-      <p className="text-[9px] text-white/15">
+      <p className="text-[11px] text-white/15">
         Seleziona dalla lista · {tags.length} selezionati · {entities.length - tags.length} disponibili
       </p>
     </div>
@@ -1822,26 +1822,26 @@ function MiniEntitySearch({ value, onChange, endpoint, labelKey, iconKey }: {
           if (query.length > 0) handleInputChange(query);
         }}
         placeholder="Cerca..."
-        className="w-full text-[10px] bg-gray-900 border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40"
+        className="w-full text-[12px] bg-black border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-emerald-500/40"
       />
       {showDropdown && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-40 overflow-y-auto rounded-md border border-white/[0.12] bg-gray-950 shadow-xl admin-scrollbar">
+        <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-40 overflow-y-auto rounded-md border border-white/[0.12] bg-black shadow-xl admin-scrollbar">
           {results.map(r => (
             <button
               key={r.id}
               type="button"
               onClick={() => handleSelect(r.id)}
-              className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-1.5"
+              className="w-full text-left px-2 py-1.5 text-[12px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-1.5"
             >
               {r.icon && <span className="shrink-0 w-4 text-center text-xs">{r.icon}</span>}
-              <span className="font-mono text-cyan-300/70 shrink-0">{r.id}</span>
+              <span className="font-mono text-emerald-300/70 shrink-0">{r.id}</span>
               <span className="text-white/40 truncate">{r.label}</span>
             </button>
           ))}
         </div>
       )}
       {currentEntity && !showDropdown && (
-        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-white/20 truncate max-w-[100px] pointer-events-none">
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-white/20 truncate max-w-[100px] pointer-events-none">
           {currentEntity.label}
         </div>
       )}
@@ -1886,12 +1886,12 @@ function TagEditor({ value, onChange, placeholder }: { value: unknown; onChange:
     <div className="space-y-1.5">
       <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 rounded-md bg-white/[0.04] border border-white/[0.1]">
         {tags.length === 0 && !inputVal && (
-          <span className="text-[10px] text-white/20 italic">{placeholder ?? 'Premi Invio per aggiungere...'}</span>
+          <span className="text-[12px] text-white/20 italic">{placeholder ?? 'Premi Invio per aggiungere...'}</span>
         )}
         {tags.map((tag, i) => (
-          <span key={`${tag}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-[10px] text-yellow-300 font-mono group/tag">
+          <span key={`${tag}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[12px] text-emerald-300 font-mono group/tag">
             {tag}
-            <button type="button" onClick={() => removeTag(i)} className="text-yellow-500/40 hover:text-red-400 transition-colors ml-0.5">
+            <button type="button" onClick={() => removeTag(i)} className="text-emerald-500/40 hover:text-red-400 transition-colors ml-0.5">
               <X className="w-3 h-3" />
             </button>
           </span>
@@ -1903,10 +1903,10 @@ function TagEditor({ value, onChange, placeholder }: { value: unknown; onChange:
           onChange={e => setInputVal(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
           placeholder={tags.length === 0 ? placeholder : 'Aggiungi...'}
-          className="flex-1 min-w-[80px] text-[10px] bg-transparent border-none outline-none text-white/70 placeholder-white/20 font-mono"
+          className="flex-1 min-w-[80px] text-[12px] bg-transparent border-none outline-none text-white/70 placeholder-white/20 font-mono"
         />
       </div>
-      <p className="text-[9px] text-white/15">Premi <kbd className="px-1 py-0.5 rounded bg-white/[0.06] text-white/25 font-mono">Invio</kbd> per aggiungere</p>
+      <p className="text-[11px] text-white/15">Premi <kbd className="px-1 py-0.5 rounded bg-white/[0.06] text-white/25 font-mono">Invio</kbd> per aggiungere</p>
     </div>
   );
 }
@@ -1942,8 +1942,8 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
   return (
     <div className="space-y-1.5">
       <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-gray-900/95">
+        <table className="w-full text-[12px]">
+          <thead className="sticky top-0 bg-black/95">
             <tr className="border-b border-white/[0.06]">
               <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
               <th className="text-left px-2 py-1.5 text-white/40 font-medium">Item ID</th>
@@ -1954,7 +1954,7 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
           </thead>
           <tbody>
             {items.map((item, i) => (
-              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+              <tr key={i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
                   <MiniEntitySearch
@@ -1972,7 +1972,7 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
                     onChange={e => updateItem(i, 'chance', Number(e.target.value))}
                     min={0}
                     max={100}
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -1981,7 +1981,7 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
                     value={item.quantity}
                     onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                     min={1}
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -2004,7 +2004,7 @@ function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: (v: { i
       <button
         type="button"
         onClick={addItem}
-        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+        className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Aggiungi oggetto
       </button>
@@ -2028,8 +2028,8 @@ function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onChange: (
   return (
     <div className="space-y-1.5">
       <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-gray-900/95">
+        <table className="w-full text-[12px]">
+          <thead className="sticky top-0 bg-black/95">
             <tr className="border-b border-white/[0.06]">
               <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
               <th className="text-left px-2 py-1.5 text-white/40 font-medium">Item ID</th>
@@ -2039,7 +2039,7 @@ function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onChange: (
           </thead>
           <tbody>
             {items.map((item, i) => (
-              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+              <tr key={i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
                   <MiniEntitySearch
@@ -2056,7 +2056,7 @@ function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onChange: (
                     value={item.quantity}
                     onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                     min={1}
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -2079,7 +2079,7 @@ function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onChange: (
       <button
         type="button"
         onClick={addItem}
-        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+        className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Aggiungi oggetto
       </button>
@@ -2103,13 +2103,13 @@ function TextListEditor({ value, onChange }: { value: unknown; onChange: (v: str
       <div className="space-y-1 max-h-48 overflow-y-auto admin-scrollbar">
         {texts.map((text, i) => (
           <div key={i} className="flex items-start gap-1.5">
-            <span className="shrink-0 w-5 text-[9px] text-white/20 font-mono pt-1.5">{i + 1}.</span>
+            <span className="shrink-0 w-5 text-[11px] text-white/20 font-mono pt-1.5">{i + 1}.</span>
             <textarea
               value={text}
               onChange={e => updateText(i, e.target.value)}
               placeholder={`Testo ambientale ${i + 1}...`}
               rows={2}
-              className="flex-1 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 resize-y focus:outline-none focus:border-yellow-500/40 italic"
+              className="flex-1 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 resize-y focus:outline-none focus:border-emerald-500/40 italic"
             />
             <button type="button" onClick={() => removeText(i)} className="shrink-0 mt-1.5 text-white/15 hover:text-red-400 transition-colors">
               <Trash2 className="w-3 h-3" />
@@ -2117,13 +2117,13 @@ function TextListEditor({ value, onChange }: { value: unknown; onChange: (v: str
           </div>
         ))}
         {texts.length === 0 && (
-          <p className="text-[10px] text-white/15 italic text-center py-2">Nessun testo — clicca + per aggiungere</p>
+          <p className="text-[12px] text-white/15 italic text-center py-2">Nessun testo — clicca + per aggiungere</p>
         )}
       </div>
       <button
         type="button"
         onClick={addText}
-        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+        className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Aggiungi testo
       </button>
@@ -2169,11 +2169,11 @@ function RequirementsEditor({ value, onChange }: { value: unknown; onChange: (v:
           const typeDef = REQUIREMENT_TYPES.find(t => t.value === req.type);
           return (
             <div key={i} className="flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg px-2 py-1.5">
-              <span className="shrink-0 w-5 text-[9px] text-white/20 font-mono">{i + 1}.</span>
+              <span className="shrink-0 w-5 text-[11px] text-white/20 font-mono">{i + 1}.</span>
               <select
                 value={req.type}
                 onChange={e => update(i, 'type', e.target.value)}
-                className="shrink-0 text-[10px] bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 focus:outline-none focus:border-yellow-500/40"
+                className="shrink-0 text-[12px] bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 focus:outline-none focus:border-emerald-500/40"
               >
                 {REQUIREMENT_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
@@ -2183,7 +2183,7 @@ function RequirementsEditor({ value, onChange }: { value: unknown; onChange: (v:
                 value={req.value}
                 onChange={e => update(i, 'value', e.target.value)}
                 placeholder={typeDef?.hint ?? 'valore...'}
-                className="flex-1 min-w-0 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40"
+                className="flex-1 min-w-0 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40"
               />
               <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
                 <Trash2 className="w-3 h-3" />
@@ -2192,10 +2192,10 @@ function RequirementsEditor({ value, onChange }: { value: unknown; onChange: (v:
           );
         })}
         {reqs.length === 0 && (
-          <p className="text-[10px] text-white/15 italic text-center py-2">Nessun requisito — clicca + per aggiungere</p>
+          <p className="text-[12px] text-white/15 italic text-center py-2">Nessun requisito — clicca + per aggiungere</p>
         )}
       </div>
-      <button type="button" onClick={add} className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors">
+      <button type="button" onClick={add} className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors">
         <Plus className="w-3 h-3" /> Aggiungi requisito
       </button>
     </div>
@@ -2226,8 +2226,8 @@ function QuestRewardsEditor({ value, onChange }: { value: unknown; onChange: (v:
   return (
     <div className="space-y-1.5">
       <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-gray-900/95">
+        <table className="w-full text-[12px]">
+          <thead className="sticky top-0 bg-black/95">
             <tr className="border-b border-white/[0.06]">
               <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
               <th className="text-left px-2 py-1.5 text-white/40 font-medium">Oggetto</th>
@@ -2237,7 +2237,7 @@ function QuestRewardsEditor({ value, onChange }: { value: unknown; onChange: (v:
           </thead>
           <tbody>
             {rewards.map((reward, i) => (
-              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+              <tr key={i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
                   <MiniEntitySearch
@@ -2254,7 +2254,7 @@ function QuestRewardsEditor({ value, onChange }: { value: unknown; onChange: (v:
                     value={reward.quantity}
                     onChange={e => update(i, 'quantity', Number(e.target.value))}
                     min={1}
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -2277,7 +2277,7 @@ function QuestRewardsEditor({ value, onChange }: { value: unknown; onChange: (v:
       <button
         type="button"
         onClick={add}
-        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+        className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Aggiungi ricompensa
       </button>
@@ -2361,13 +2361,13 @@ function EventChoicesEditor({ value, onChange }: {
           <div key={i} className="rounded-md border border-white/[0.08] overflow-hidden">
             {/* Choice header */}
             <div className="flex items-center gap-2 bg-white/[0.03] px-2 py-1.5 border-b border-white/[0.06]">
-              <span className="shrink-0 text-[9px] text-white/25 font-mono w-4">{i + 1}.</span>
+              <span className="shrink-0 text-[11px] text-white/25 font-mono w-4">{i + 1}.</span>
               <input
                 type="text"
                 value={choice.text}
                 onChange={e => updateText(i, e.target.value)}
                 placeholder="Testo della scelta (es: 'Esplorare l'edificio')..."
-                className="flex-1 text-[11px] bg-transparent border-none outline-none text-yellow-300/80 placeholder-white/15 font-medium"
+                className="flex-1 text-[13px] bg-transparent border-none outline-none text-emerald-300/80 placeholder-white/15 font-medium"
               />
               <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
                 <Trash2 className="w-3.5 h-3.5" />
@@ -2376,24 +2376,24 @@ function EventChoicesEditor({ value, onChange }: {
             {/* Outcome fields */}
             <div className="p-2 space-y-1.5">
               <div>
-                <label className="text-[9px] text-white/30 mb-0.5 block">Descrizione Risultato</label>
+                <label className="text-[11px] text-white/30 mb-0.5 block">Descrizione Risultato</label>
                 <textarea
                   value={choice.outcome.description}
                   onChange={e => updateOutcome(i, 'description', e.target.value)}
                   placeholder="Cosa succede quando il giocatore fa questa scelta..."
                   rows={2}
-                  className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 resize-y focus:outline-none focus:border-yellow-500/40"
+                  className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 resize-y focus:outline-none focus:border-emerald-500/40"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[9px] text-white/30 mb-0.5 block">Cambio HP</label>
+                  <label className="text-[11px] text-white/30 mb-0.5 block">Cambio HP</label>
                   <input
                     type="number"
                     value={choice.outcome.hpChange}
                     onChange={e => updateOutcome(i, 'hpChange', Number(e.target.value))}
                     placeholder="0"
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </div>
                 <div className="flex items-end pb-0.5">
@@ -2402,20 +2402,20 @@ function EventChoicesEditor({ value, onChange }: {
                       type="checkbox"
                       checked={choice.outcome.endEvent}
                       onChange={e => updateOutcome(i, 'endEvent', e.target.checked)}
-                      className="w-4 h-4 rounded bg-white/[0.04] border-white/[0.2] text-yellow-500 focus:ring-yellow-500/50 accent-yellow-500"
+                      className="w-4 h-4 rounded bg-white/[0.04] border-white/[0.2] text-emerald-500 focus:ring-emerald-500/50 accent-emerald-500"
                     />
-                    <span className="text-[10px] text-white/50">Termina Evento</span>
+                    <span className="text-[12px] text-white/50">Termina Evento</span>
                   </label>
                 </div>
               </div>
               {/* Receive Items sub-section */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[9px] text-white/30">Oggetti Ricevuti (Ricompensa)</label>
+                  <label className="text-[11px] text-white/30">Oggetti Ricevuti (Ricompensa)</label>
                   <button
                     type="button"
                     onClick={() => addRewardItem(i)}
-                    className="text-[9px] text-emerald-400/60 hover:text-emerald-400 flex items-center gap-0.5 transition-colors"
+                    className="text-[11px] text-emerald-400/60 hover:text-emerald-400 flex items-center gap-0.5 transition-colors"
                   >
                     <Plus className="w-2.5 h-2.5" /> Agg.
                   </button>
@@ -2429,14 +2429,14 @@ function EventChoicesEditor({ value, onChange }: {
                           value={item.itemId}
                           onChange={e => updateRewardItem(i, ri, 'itemId', e.target.value)}
                           placeholder="itemId (es: ammo_pistol)"
-                          className="flex-1 text-[9px] bg-transparent border-none outline-none text-emerald-300/80 placeholder-white/10 font-mono min-w-0"
+                          className="flex-1 text-[11px] bg-transparent border-none outline-none text-emerald-300/80 placeholder-white/10 font-mono min-w-0"
                         />
                         <input
                           type="number"
                           value={item.quantity}
                           onChange={e => updateRewardItem(i, ri, 'quantity', Number(e.target.value))}
                           min={1}
-                          className="w-10 text-[9px] bg-white/[0.04] border border-white/[0.06] rounded px-1 py-0.5 text-white/60 text-center font-mono focus:outline-none focus:border-emerald-500/40"
+                          className="w-10 text-[11px] bg-white/[0.04] border border-white/[0.06] rounded px-1 py-0.5 text-white/60 text-center font-mono focus:outline-none focus:border-emerald-500/40"
                         />
                         <button type="button" onClick={() => removeRewardItem(i, ri)} className="text-white/15 hover:text-red-400 transition-colors shrink-0">
                           <Minus className="w-3 h-3" />
@@ -2446,20 +2446,20 @@ function EventChoicesEditor({ value, onChange }: {
                   </div>
                 )}
                 {(choice.outcome.receiveItems || []).length === 0 && (
-                  <p className="text-[9px] text-white/10 italic">Nessun oggetto</p>
+                  <p className="text-[11px] text-white/10 italic">Nessun oggetto</p>
                 )}
               </div>
             </div>
           </div>
         ))}
         {choices.length === 0 && (
-          <p className="text-[10px] text-white/15 italic text-center py-3">Nessuna scelta — clicca + per aggiungere</p>
+          <p className="text-[12px] text-white/15 italic text-center py-3">Nessuna scelta — clicca + per aggiungere</p>
         )}
       </div>
       <button
         type="button"
         onClick={add}
-        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+        className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Aggiungi scelta
       </button>
@@ -2612,20 +2612,20 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
     <div className="space-y-1.5">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 p-1.5 rounded-t-md bg-white/[0.06] border border-white/[0.08] border-b-0">
-        <ToolbarBtn onClick={() => execCmd('bold')} title="Grassetto"><b className="text-[11px]">B</b></ToolbarBtn>
-        <ToolbarBtn onClick={() => execCmd('italic')} title="Corsivo"><i className="text-[11px]">I</i></ToolbarBtn>
-        <ToolbarBtn onClick={() => execCmd('underline')} title="Sottolineato"><u className="text-[11px]">S</u></ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('bold')} title="Grassetto"><b className="text-[13px]">B</b></ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('italic')} title="Corsivo"><i className="text-[13px]">I</i></ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('underline')} title="Sottolineato"><u className="text-[13px]">S</u></ToolbarBtn>
         <div className="w-px h-4 bg-white/[0.1] mx-1" />
-        <ToolbarBtn onClick={() => execCmd('formatBlock', '<h3>')} title="Titolo 3" className="font-bold text-[10px]">H3</ToolbarBtn>
-        <ToolbarBtn onClick={() => execCmd('formatBlock', '<p>')} title="Paragrafo" className="text-[10px]">¶</ToolbarBtn>
-        <ToolbarBtn onClick={toggleUnorderedList} title="Lista" className="text-[10px]">•≡</ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('formatBlock', '<h3>')} title="Titolo 3" className="font-bold text-[12px]">H3</ToolbarBtn>
+        <ToolbarBtn onClick={() => execCmd('formatBlock', '<p>')} title="Paragrafo" className="text-[12px]">¶</ToolbarBtn>
+        <ToolbarBtn onClick={toggleUnorderedList} title="Lista" className="text-[12px]">•≡</ToolbarBtn>
         <div className="w-px h-4 bg-white/[0.1] mx-1" />
         {/* Color picker */}
         <PickerDropdown
-          trigger={<><span className="text-[11px]">A</span><span className="w-2.5 h-2.5 rounded-sm bg-yellow-500 block" /></>}
+          trigger={<><span className="text-[13px]">A</span><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 block" /></>}
           title="Colore testo"
         >
-          {['#22c55e', '#ef4444', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#ffffff', '#94a3b8'].map(c => (
+          {['#22c55e', '#ef4444', '#10b981', '#06b6d4', '#a855f7', '#ec4899', '#f59e0b', '#ffffff', '#94a3b8'].map(c => (
             <button key={c} type="button" onMouseDown={e => { e.preventDefault(); handleColor(c); }}
               className="w-5 h-5 rounded-sm border border-white/20 hover:scale-110 transition-transform"
               style={{ backgroundColor: c }}
@@ -2635,7 +2635,7 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
         </PickerDropdown>
         {/* Highlight picker */}
         <PickerDropdown
-          trigger={<span className="text-[11px]">🖌</span>}
+          trigger={<span className="text-[13px]">🖌</span>}
           title="Evidenzia"
         >
           {[
@@ -2647,7 +2647,7 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
             { c: 'transparent', l: 'Rimuovi' },
           ].map(h => (
             <button key={h.l} type="button" onMouseDown={e => { e.preventDefault(); handleHighlight(h.c); }}
-              className="px-1.5 py-0.5 text-[9px] rounded border border-white/10 hover:bg-white/10 transition-colors"
+              className="px-1.5 py-0.5 text-[11px] rounded border border-white/10 hover:bg-white/10 transition-colors"
               style={h.c !== 'transparent' ? { backgroundColor: h.c } : {}}
               title={h.l}
             >
@@ -2656,7 +2656,7 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
           ))}
         </PickerDropdown>
         <div className="w-px h-4 bg-white/[0.1] mx-1" />
-        <ToolbarBtn onClick={clearFormatting} title="Rimuovi formattazione" className="text-[10px]">✕</ToolbarBtn>
+        <ToolbarBtn onClick={clearFormatting} title="Rimuovi formattazione" className="text-[12px]">✕</ToolbarBtn>
       </div>
       {/* Editor area */}
       <div
@@ -2672,7 +2672,7 @@ function RichTextEditor({ value, onChange, placeholder }: { value: string; onCha
           syncContent();
         }}
         data-placeholder={placeholder ?? 'Scrivi il contenuto del documento...'}
-        className="min-h-[120px] max-h-[240px] overflow-y-auto admin-scrollbar text-[11px] bg-white/[0.04] border border-white/[0.1] rounded-b-md px-3 py-2.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 prose prose-invert prose-sm prose-p:text-white/80 prose-h3:text-yellow-300/80 prose-strong:text-white/90 prose-em:text-white/70 prose-li:text-white/70 [&_*]:text-[11px] [&_h3]:text-[13px] [&_li]:text-[10px]"
+        className="min-h-[120px] max-h-[240px] overflow-y-auto admin-scrollbar text-[13px] bg-white/[0.04] border border-white/[0.1] rounded-b-md px-3 py-2.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 prose prose-invert prose-sm prose-p:text-white/80 prose-h3:text-emerald-300/80 prose-strong:text-white/90 prose-em:text-white/70 prose-li:text-white/70 [&_*]:text-[13px] [&_h3]:text-[15px] [&_li]:text-[12px]"
         style={{ lineHeight: '1.7' }}
       />
       <style>{`
@@ -2730,7 +2730,7 @@ function PickerDropdown({ children, trigger, title }: { children: React.ReactNod
         {trigger}
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 p-1.5 rounded-md bg-gray-900 border border-white/[0.12] shadow-xl flex flex-wrap gap-1 z-[9999]">
+        <div className="absolute top-full left-0 mt-1 p-1.5 rounded-md bg-black border border-white/[0.12] shadow-xl flex flex-wrap gap-1 z-[9999]">
           {children}
         </div>
       )}
@@ -2776,8 +2776,8 @@ function TradeInventoryEditor({ value, onChange }: { value: unknown; onChange: (
   return (
     <div className="space-y-1.5">
       <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-gray-900/95">
+        <table className="w-full text-[12px]">
+          <thead className="sticky top-0 bg-black/95">
             <tr className="border-b border-white/[0.06]">
               <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
               <th className="text-left px-2 py-1.5 text-white/40 font-medium">Oggetto in Vendita</th>
@@ -2788,7 +2788,7 @@ function TradeInventoryEditor({ value, onChange }: { value: unknown; onChange: (
           </thead>
           <tbody>
             {trades.map((trade, i) => (
-              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+              <tr key={i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
                   <MiniEntitySearch
@@ -2814,7 +2814,7 @@ function TradeInventoryEditor({ value, onChange }: { value: unknown; onChange: (
                     value={trade.priceQuantity}
                     onChange={e => update(i, 'priceQuantity', Number(e.target.value))}
                     min={1}
-                    className="w-full text-[10px] bg-gray-900 border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-yellow-500/40"
+                    className="w-full text-[12px] bg-black border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -2837,7 +2837,7 @@ function TradeInventoryEditor({ value, onChange }: { value: unknown; onChange: (
       <button
         type="button"
         onClick={add}
-        className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+        className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Aggiungi scambio
       </button>
@@ -2849,7 +2849,7 @@ function TradeInventoryEditor({ value, onChange }: { value: unknown; onChange: (
 function SequencePatternEditor({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   const directions = ['up', 'down', 'left', 'right'];
   const dirIcons: Record<string, string> = { up: '▲', down: '▼', left: '◀', right: '▶' };
-  const dirColors: Record<string, string> = { up: 'border-purple-500/30 bg-purple-500/10 text-purple-300', down: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300', left: 'border-amber-500/30 bg-amber-500/10 text-amber-300', right: 'border-green-500/30 bg-green-500/10 text-green-300' };
+  const dirColors: Record<string, string> = { up: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200', down: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300', left: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400', right: 'border-emerald-600/30 bg-emerald-600/10 text-emerald-500' };
   const pattern = Array.isArray(value) ? value : [];
 
   const add = (dir: string) => onChange([...pattern, dir]);
@@ -2864,14 +2864,14 @@ function SequencePatternEditor({ value, onChange }: { value: string[]; onChange:
             key={dir}
             type="button"
             onClick={() => add(dir)}
-            className={`flex items-center gap-1 px-2 py-1 rounded border ${dirColors[dir]} hover:opacity-80 transition-opacity text-[10px]`}
+            className={`flex items-center gap-1 px-2 py-1 rounded border ${dirColors[dir]} hover:opacity-80 transition-opacity text-[12px]`}
           >
             <span className="text-xs">{dirIcons[dir]}</span>
             <span className="uppercase">{dir}</span>
           </button>
         ))}
         {pattern.length > 0 && (
-          <button type="button" onClick={clear} className="text-[9px] text-red-400/50 hover:text-red-400 transition-colors ml-1">
+          <button type="button" onClick={clear} className="text-[11px] text-red-400/50 hover:text-red-400 transition-colors ml-1">
             <Trash2 className="w-3 h-3 inline mr-0.5" />Cancella
           </button>
         )}
@@ -2880,9 +2880,9 @@ function SequencePatternEditor({ value, onChange }: { value: string[]; onChange:
         {pattern.map((dir, i) => (
           <span
             key={i}
-            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${dirColors[dir] ?? 'border-white/10 bg-white/[0.04] text-white/60'} text-[10px] group/seq`}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${dirColors[dir] ?? 'border-white/10 bg-white/[0.04] text-white/60'} text-[12px] group/seq`}
           >
-            <span className="text-[8px] text-white/25 font-mono">{i + 1}</span>
+            <span className="text-[10px] text-white/25 font-mono">{i + 1}</span>
             <span className="text-xs">{dirIcons[dir] ?? '·'}</span>
             <button type="button" onClick={() => remove(i)} className="text-white/20 hover:text-red-400 transition-colors">
               <X className="w-2.5 h-2.5" />
@@ -2890,7 +2890,7 @@ function SequencePatternEditor({ value, onChange }: { value: string[]; onChange:
           </span>
         ))}
         {pattern.length === 0 && (
-          <span className="text-[9px] text-white/15 italic py-0.5">Clicca le frecce per creare la sequenza...</span>
+          <span className="text-[11px] text-white/15 italic py-0.5">Clicca le frecce per creare la sequenza...</span>
         )}
       </div>
     </div>
@@ -2921,8 +2921,8 @@ function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: {
   return (
     <div className="space-y-1.5">
       <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-gray-900/95">
+        <table className="w-full text-[12px]">
+          <thead className="sticky top-0 bg-black/95">
             <tr className="border-b border-white/[0.06]">
               <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
               <th className="text-left px-2 py-1.5 text-white/40 font-medium">Location ID</th>
@@ -2933,7 +2933,7 @@ function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: {
           </thead>
           <tbody>
             {locs.map((loc, i) => (
-              <tr key={i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+              <tr key={i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                 <td className="px-1 py-1">
                   <MiniEntitySearch value={loc.locationId} onChange={v => update(i, 'locationId', v)} endpoint="/api/admin/locations" labelKey="name" />
@@ -2942,7 +2942,7 @@ function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: {
                   <MiniEntitySearch value={loc.requiredItemId} onChange={v => update(i, 'requiredItemId', v)} endpoint="/api/admin/items" labelKey="name" iconKey="icon" />
                 </td>
                 <td className="px-1 py-1">
-                  <input type="text" value={loc.lockedMessage} onChange={e => update(i, 'lockedMessage', e.target.value)} placeholder="La porta è chiusa a chiave..." className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
+                  <input type="text" value={loc.lockedMessage} onChange={e => update(i, 'lockedMessage', e.target.value)} placeholder="La porta è chiusa a chiave..." className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40" />
                 </td>
                 <td className="px-1 py-1">
                   <button type="button" onClick={() => remove(i)} className="text-white/15 hover:text-red-400 transition-colors">
@@ -2957,7 +2957,7 @@ function LockedLocsEditor({ value, onChange }: { value: unknown; onChange: (v: {
           </tbody>
         </table>
       </div>
-      <button type="button" onClick={add} className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors">
+      <button type="button" onClick={add} className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors">
         <Plus className="w-3 h-3" /> Aggiungi blocco
       </button>
     </div>
@@ -2989,12 +2989,12 @@ function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { i
     <div className="space-y-2">
       <div className="max-h-[28rem] overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
         {areas.map((area, i) => (
-          <div key={i} className="border-b border-white/[0.06] bg-gray-900 last:border-b-0">
+          <div key={i} className="border-b border-white/[0.06] bg-black last:border-b-0">
             <div className="flex items-center gap-2 px-3 py-2">
-              <span className="shrink-0 text-[9px] text-white/20 font-mono">{i + 1}.</span>
-              <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-28 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-yellow-500/40" />
-              <input type="text" value={area.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Safe Room" className="w-32 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
-              <input type="text" value={area.description} onChange={e => update(i, 'description', e.target.value)} placeholder="Un rifugio sicuro..." className="flex-1 min-w-0 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40" />
+              <span className="shrink-0 text-[11px] text-white/20 font-mono">{i + 1}.</span>
+              <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-28 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-emerald-500/40" />
+              <input type="text" value={area.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Safe Room" className="w-32 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40" />
+              <input type="text" value={area.description} onChange={e => update(i, 'description', e.target.value)} placeholder="Un rifugio sicuro..." className="flex-1 min-w-0 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40" />
               <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -3002,10 +3002,10 @@ function SubAreasEditor({ value, onChange }: { value: unknown; onChange: (v: { i
           </div>
         ))}
         {areas.length === 0 && (
-          <div className="px-2 py-4 text-center text-white/15 italic text-[10px]">Nessuna sotto-area</div>
+          <div className="px-2 py-4 text-center text-white/15 italic text-[12px]">Nessuna sotto-area</div>
         )}
       </div>
-      <button type="button" onClick={add} className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors">
+      <button type="button" onClick={add} className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors">
         <Plus className="w-3 h-3" /> Aggiungi sotto-area
       </button>
     </div>
@@ -3066,20 +3066,20 @@ function StatusApplyEditor({ value, onChange }: { value: unknown; onChange: (v: 
             type="checkbox"
             checked={enabled}
             onChange={toggleEnabled}
-            className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-orange-500"
+            className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
           />
-          <span className="text-[9px] text-white/40">Applica status negativo al bersaglio</span>
+          <span className="text-[11px] text-white/40">Applica status negativo al bersaglio</span>
         </label>
       </div>
       {enabled && (
-        <div className="rounded-md border border-orange-500/15 bg-orange-500/[0.02] p-2.5">
+        <div className="rounded-md border border-emerald-500/15 bg-emerald-500/[0.02] p-2.5">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[8px] text-white/30 mb-0.5 block">Tipo Status</label>
+              <label className="text-[10px] text-white/30 mb-0.5 block">Tipo Status</label>
               <select
                 value={statusType}
                 onChange={e => handleTypeChange(e.target.value)}
-                className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-orange-500/40 cursor-pointer"
+                className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
               >
                 <option value="poison">Avvelenamento</option>
                 <option value="bleeding">Sanguinamento</option>
@@ -3088,14 +3088,14 @@ function StatusApplyEditor({ value, onChange }: { value: unknown; onChange: (v: 
               </select>
             </div>
             <div>
-              <label className="text-[8px] text-white/30 mb-0.5 block">Probabilità %</label>
+              <label className="text-[10px] text-white/30 mb-0.5 block">Probabilità %</label>
               <input
                 type="number"
                 value={chance}
                 onChange={e => handleChanceChange(Number(e.target.value))}
                 min={1}
                 max={100}
-                className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-orange-500/40"
+                className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
               />
             </div>
           </div>
@@ -3138,9 +3138,9 @@ function StatusCuredEditor({ value, onChange }: { value: unknown; onChange: (v: 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[9px] text-white/40">{anyEnabled ? `${selected.length} status selezionati` : 'Nessuno status selezionato'}</span>
+        <span className="text-[11px] text-white/40">{anyEnabled ? `${selected.length} status selezionati` : 'Nessuno status selezionato'}</span>
       </div>
-      <div className="rounded-md border border-orange-500/15 bg-orange-500/[0.02] p-2.5">
+      <div className="rounded-md border border-emerald-500/15 bg-emerald-500/[0.02] p-2.5">
         <div className="grid grid-cols-2 gap-2">
           {STATUS_OPTIONS.map(opt => {
             const checked = selected.includes(opt.key);
@@ -3150,11 +3150,11 @@ function StatusCuredEditor({ value, onChange }: { value: unknown; onChange: (v: 
                   type="checkbox"
                   checked={checked}
                   onChange={() => toggle(opt.key)}
-                  className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-orange-500"
+                  className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
                 />
-                <span className={`text-[10px] ${checked ? 'text-white/90' : 'text-white/50'} transition-colors`}>{opt.label}</span>
+                <span className={`text-[12px] ${checked ? 'text-white/90' : 'text-white/50'} transition-colors`}>{opt.label}</span>
                 <span
-                  className="text-[9px] text-white/20 group-hover:text-white/40 transition-colors cursor-help"
+                  className="text-[11px] text-white/20 group-hover:text-white/40 transition-colors cursor-help"
                   title={opt.tooltip}
                 >(?)</span>
               </label>
@@ -3232,20 +3232,20 @@ function SpecialEffectEditor({ value, onChange }: { value: unknown; onChange: (v
             type="checkbox"
             checked={enabled}
             onChange={toggleEnabled}
-            className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-violet-500"
+            className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
           />
-          <span className="text-[9px] text-white/40">Abilita effetto passivo</span>
+          <span className="text-[11px] text-white/40">Abilita effetto passivo</span>
         </label>
       </div>
       {enabled && (
-        <div className="rounded-md border border-violet-500/15 bg-violet-500/[0.02] p-2.5">
+        <div className="rounded-md border border-emerald-500/15 bg-emerald-500/[0.02] p-2.5">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[8px] text-white/30 mb-0.5 block">Tipo Effetto</label>
+              <label className="text-[10px] text-white/30 mb-0.5 block">Tipo Effetto</label>
               <select
                 value={effectType}
                 onChange={e => handleTypeChange(e.target.value)}
-                className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-violet-500/40 cursor-pointer"
+                className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
               >
                 {EFFECT_OPTIONS.map(opt => (
                   <option key={opt.key} value={opt.key} title={opt.tooltip}>
@@ -3256,8 +3256,8 @@ function SpecialEffectEditor({ value, onChange }: { value: unknown; onChange: (v
             </div>
             <div>
               <div className="flex items-center gap-1">
-                <label className="text-[8px] text-white/30 mb-0.5 block">Valore</label>
-                <span className="text-[8px] text-white/20 cursor-help" title={currentTooltip}>(?)</span>
+                <label className="text-[10px] text-white/30 mb-0.5 block">Valore</label>
+                <span className="text-[10px] text-white/20 cursor-help" title={currentTooltip}>(?)</span>
               </div>
               <input
                 type="number"
@@ -3265,11 +3265,11 @@ function SpecialEffectEditor({ value, onChange }: { value: unknown; onChange: (v
                 onChange={e => handleValueChange(Number(e.target.value))}
                 min={1}
                 max={100}
-                className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-violet-500/40"
+                className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
               />
             </div>
           </div>
-          <div className="mt-1.5 text-[9px] text-violet-300/40">
+          <div className="mt-1.5 text-[11px] text-emerald-300/40">
             {currentLabel}: <span className="text-white/30">{currentTooltip}</span>
           </div>
         </div>
@@ -3517,9 +3517,9 @@ const EFFECT_TYPES_CONFIG: EffectTypeDef[] = [
 
 const EFFECT_CATEGORY_COLORS: Record<EffectCategory, string> = {
   offensive: 'text-red-400 border-red-500/20 bg-red-500/10',
-  defensive: 'text-amber-400 border-amber-500/20 bg-amber-500/10',
-  support: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10',
-  control: 'text-purple-400 border-purple-500/20 bg-purple-500/10',
+  defensive: 'text-emerald-400 border-emerald-400/20 bg-emerald-400/10',
+  support: 'text-emerald-300 border-emerald-500/20 bg-emerald-500/10',
+  control: 'text-emerald-500 border-emerald-600/20 bg-emerald-600/10',
 };
 
 function parseEffectsArray(value: unknown): Record<string, unknown>[] {
@@ -3591,12 +3591,12 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
     <div className="rounded-md border border-emerald-500/15 bg-emerald-500/[0.03] p-3 space-y-2">
       {effects.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-3">
-          <span className="text-[10px] text-white/30">Nessun effetto configurato</span>
+          <span className="text-[12px] text-white/30">Nessun effetto configurato</span>
           <div className="flex items-center gap-2">
             <select
               value={addType}
               onChange={e => setAddType(e.target.value)}
-              className="text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
+              className="text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
             >
               <option value="">Tipo effetto...</option>
               {EFFECT_TYPES_CONFIG.map(et => (
@@ -3607,7 +3607,7 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
               type="button"
               onClick={addEffect}
               disabled={!addType}
-              className="text-[10px] px-2 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="text-[12px] px-2 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               ➕ Aggiungi
             </button>
@@ -3633,16 +3633,16 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                     onClick={() => setExpandedIdx(isExpanded ? null : idx)}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded border ${catColor}`}>
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded border ${catColor}`}>
                         {typeConfig?.emoji ?? '❓'} {typeConfig?.label ?? typeKey}
                       </span>
-                      <span className="text-[9px] text-white/25 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06]">
+                      <span className="text-[11px] text-white/25 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06]">
                         {showTrigger && effect.trigger ? `${TRIGGER_OPTIONS.find(t => t.value === effect.trigger)?.emoji ?? '⚡'} ${TRIGGER_OPTIONS.find(t => t.value === effect.trigger)?.label ?? String(effect.trigger)} · ` : ''}
                         {getTargetLabel(targetStr)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[8px] text-white/15">#{idx + 1}</span>
+                      <span className="text-[10px] text-white/15">#{idx + 1}</span>
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); removeEffect(idx); }}
@@ -3651,7 +3651,7 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
-                      <span className="text-[9px] text-white/20 ml-0.5">{isExpanded ? '▾' : '▸'}</span>
+                      <span className="text-[11px] text-white/20 ml-0.5">{isExpanded ? '▾' : '▸'}</span>
                     </div>
                   </div>
 
@@ -3670,13 +3670,13 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                           {showTrigger && (
                             <div>
                               <div className="flex items-center gap-1">
-                                <label className="text-[8px] text-white/30">Trigger</label>
-                                <span className="text-[8px] text-white/20 cursor-help" title="Quando si attiva l'effetto in base al tipo di oggetto.">(?)</span>
+                                <label className="text-[10px] text-white/30">Trigger</label>
+                                <span className="text-[10px] text-white/20 cursor-help" title="Quando si attiva l'effetto in base al tipo di oggetto.">(?)</span>
                               </div>
                               <select
                                 value={String(effect.trigger ?? '')}
                                 onChange={e => updateField(idx, 'trigger', e.target.value)}
-                                className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
+                                className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
                               >
                                 <option value="">— Nessun trigger —</option>
                                 {TRIGGER_OPTIONS.map(t => (
@@ -3688,13 +3688,13 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                           {/* Target field — always first */}
                           <div>
                             <div className="flex items-center gap-1">
-                              <label className="text-[8px] text-white/30">Bersaglio</label>
-                              <span className="text-[8px] text-white/20 cursor-help" title="Chi riceve l'effetto. Sé Stesso = il personaggio che usa l'abilità.">(?)</span>
+                              <label className="text-[10px] text-white/30">Bersaglio</label>
+                              <span className="text-[10px] text-white/20 cursor-help" title="Chi riceve l'effetto. Sé Stesso = il personaggio che usa l'abilità.">(?)</span>
                             </div>
                             <select
                               value={targetStr}
                               onChange={e => updateField(idx, 'target', e.target.value)}
-                              className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
+                              className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
                             >
                               {EFFECT_TARGET_OPTIONS.map(t => (
                                 <option key={t.key} value={t.key}>{t.label}</option>
@@ -3713,8 +3713,8 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                                       return (
                                         <div key={field.key} className="col-span-2">
                                           <div className="flex items-center gap-1">
-                                            <label className="text-[8px] text-white/30">{field.label}</label>
-                                            <span className="text-[8px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                            <label className="text-[10px] text-white/30">{field.label}</label>
+                                            <span className="text-[10px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
                                           </div>
                                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-0.5">
                                             {(field.options ?? []).map(opt => {
@@ -3727,7 +3727,7 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                                                     onChange={() => toggleStatusInArray(idx, opt.key)}
                                                     className="w-3 h-3 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
                                                   />
-                                                  <span className={`text-[10px] ${checked ? 'text-white/80' : 'text-white/40'} transition-colors`}>{opt.label}</span>
+                                                  <span className={`text-[12px] ${checked ? 'text-white/80' : 'text-white/40'} transition-colors`}>{opt.label}</span>
                                                 </label>
                                               );
                                             })}
@@ -3740,13 +3740,13 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                                       return (
                                         <div key={field.key}>
                                           <div className="flex items-center gap-1">
-                                            <label className="text-[8px] text-white/30">{field.label}</label>
-                                            <span className="text-[8px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                            <label className="text-[10px] text-white/30">{field.label}</label>
+                                            <span className="text-[10px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
                                           </div>
                                           <select
                                             value={String(effect[field.key] ?? field.defaultValue)}
                                             onChange={e => updateField(idx, field.key, e.target.value)}
-                                            className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
+                                            className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
                                           >
                                             {(field.options ?? []).map(opt => (
                                               <option key={opt.key} value={opt.key}>{opt.label}</option>
@@ -3760,8 +3760,8 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                                     return (
                                       <div key={field.key}>
                                         <div className="flex items-center gap-1">
-                                          <label className="text-[8px] text-white/30">{field.label}</label>
-                                          <span className="text-[8px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                          <label className="text-[10px] text-white/30">{field.label}</label>
+                                          <span className="text-[10px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
                                         </div>
                                         <input
                                           type="number"
@@ -3771,7 +3771,7 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                                           min={field.min}
                                           max={field.max}
                                           step={field.step}
-                                          className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40 mt-0.5"
+                                          className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40 mt-0.5"
                                         />
                                       </div>
                                     );
@@ -3792,8 +3792,8 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                                           onChange={e => updateField(idx, field.key, e.target.checked)}
                                           className="w-3 h-3 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
                                         />
-                                        <span className={`text-[10px] ${checked ? 'text-white/80' : 'text-white/40'} transition-colors`}>{field.label}</span>
-                                        <span className="text-[8px] text-white/20 group-hover:text-white/40 transition-colors cursor-help" title={field.tooltip}>(?)</span>
+                                        <span className={`text-[12px] ${checked ? 'text-white/80' : 'text-white/40'} transition-colors`}>{field.label}</span>
+                                        <span className="text-[10px] text-white/20 group-hover:text-white/40 transition-colors cursor-help" title={field.tooltip}>(?)</span>
                                       </label>
                                     );
                                   })}
@@ -3801,7 +3801,7 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
                               )}
 
                               {/* Effect tooltip hint */}
-                              <div className="text-[9px] text-white/20 italic">
+                              <div className="text-[11px] text-white/20 italic">
                                 {typeConfig.tooltip}
                               </div>
                             </>
@@ -3820,7 +3820,7 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
             <select
               value={addType}
               onChange={e => setAddType(e.target.value)}
-              className="flex-1 text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
+              className="flex-1 text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
             >
               <option value="">➕ Aggiungi effetto...</option>
               {EFFECT_TYPES_CONFIG.map(et => (
@@ -3831,7 +3831,7 @@ function EffectsArrayEditor({ value, onChange, showTrigger = false }: { value: u
               type="button"
               onClick={addEffect}
               disabled={!addType}
-              className="text-[10px] px-2.5 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              className="text-[12px] px-2.5 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
             >
               Aggiungi
             </button>
@@ -3993,11 +3993,11 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
       <div className="space-y-1.5">
         <div className="rounded-md border border-dashed border-white/[0.08] p-4 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-[10px] text-white/20 italic mb-2">Nessun evento storia configurato</p>
+            <p className="text-[12px] text-white/20 italic mb-2">Nessun evento storia configurato</p>
             <button
               type="button"
               onClick={enableEvent}
-              className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors mx-auto"
+              className="flex items-center gap-1 text-[12px] text-emerald-400/70 hover:text-emerald-400 transition-colors mx-auto"
             >
               <Plus className="w-3 h-3" /> Crea Evento Storia
             </button>
@@ -4008,19 +4008,19 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.02] p-3">
+    <div className="space-y-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.02] p-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setCollapsed(!collapsed)} className="text-cyan-400/70 hover:text-cyan-400 transition-colors">
+          <button type="button" onClick={() => setCollapsed(!collapsed)} className="text-emerald-400/70 hover:text-emerald-400 transition-colors">
             {collapsed ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
           </button>
-          <span className="text-[10px] font-semibold text-cyan-300/80 uppercase tracking-wider">Evento Storia</span>
-          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-cyan-500/20 text-cyan-400/60 bg-cyan-500/10">
+          <span className="text-[12px] font-semibold text-emerald-300/80 uppercase tracking-wider">Evento Storia</span>
+          <Badge variant="outline" className="text-[11px] px-1.5 py-0 border-emerald-500/20 text-emerald-400/60 bg-emerald-500/10">
             {(event.choices ?? []).length} scelte
           </Badge>
         </div>
-        <button type="button" onClick={disableEvent} className="flex items-center gap-1 text-[9px] text-red-400/50 hover:text-red-400 transition-colors">
+        <button type="button" onClick={disableEvent} className="flex items-center gap-1 text-[11px] text-red-400/50 hover:text-red-400 transition-colors">
           <Trash2 className="w-3 h-3" /> Rimuovi
         </button>
       </div>
@@ -4030,23 +4030,23 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
           {/* Title & Description */}
           <div className="grid grid-cols-1 gap-2">
             <div>
-              <label className="text-[9px] text-white/40 mb-0.5 block">Titolo Evento</label>
+              <label className="text-[11px] text-white/40 mb-0.5 block">Titolo Evento</label>
               <input
                 type="text"
                 value={event.title ?? ''}
                 onChange={e => updateEvent({ title: e.target.value })}
                 placeholder="es: Primo Contatto"
-                className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/15 focus:outline-none focus:border-cyan-500/40"
+                className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/15 focus:outline-none focus:border-emerald-500/40"
               />
             </div>
             <div>
-              <label className="text-[9px] text-white/40 mb-0.5 block">Descrizione</label>
+              <label className="text-[11px] text-white/40 mb-0.5 block">Descrizione</label>
               <textarea
                 value={event.description ?? ''}
                 onChange={e => updateEvent({ description: e.target.value })}
                 placeholder="Testo narrativo introduttivo dell'evento..."
                 rows={3}
-                className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 resize-y italic focus:outline-none focus:border-cyan-500/40"
+                className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 resize-y italic focus:outline-none focus:border-emerald-500/40"
               />
             </div>
           </div>
@@ -4054,8 +4054,8 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
           {/* Choices */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-semibold text-white/40 uppercase tracking-wider">Scelte</span>
-              <button type="button" onClick={addChoice} className="flex items-center gap-1 text-[9px] text-cyan-400/60 hover:text-cyan-400 transition-colors">
+              <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">Scelte</span>
+              <button type="button" onClick={addChoice} className="flex items-center gap-1 text-[11px] text-emerald-400/60 hover:text-emerald-400 transition-colors">
                 <Plus className="w-3 h-3" /> Aggiungi scelta
               </button>
             </div>
@@ -4063,7 +4063,7 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
               {(event.choices ?? []).map((choice, ci) => (
                 <div key={ci} className="rounded-md border border-white/[0.06] bg-white/[0.02] p-2.5 space-y-2">
                   <div className="flex items-start justify-between">
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-yellow-500/20 text-yellow-400/60 bg-yellow-500/10">
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0 border-emerald-500/20 text-emerald-400/60 bg-emerald-500/10">
                       Scelta {ci + 1}
                     </Badge>
                     <button type="button" onClick={() => removeChoice(ci)} className="text-white/15 hover:text-red-400 transition-colors">
@@ -4075,27 +4075,27 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                     value={choice.text ?? ''}
                     onChange={e => updateChoice(ci, 'text', e.target.value)}
                     placeholder="Testo del pulsante scelta..."
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40"
                   />
 
                   {/* Outcome */}
                   <div className="space-y-1.5 pl-2 border-l-2 border-white/[0.06]">
-                    <span className="text-[8px] text-white/25 uppercase tracking-wider">Risultato</span>
+                    <span className="text-[10px] text-white/25 uppercase tracking-wider">Risultato</span>
                     <textarea
                       value={choice.outcome?.description ?? ''}
                       onChange={e => updateChoice(ci, 'outcome.description', e.target.value)}
                       placeholder="Descrizione del risultato..."
                       rows={2}
-                      className="w-full text-[10px] bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-white/60 placeholder-white/10 resize-y italic focus:outline-none focus:border-yellow-500/30"
+                      className="w-full text-[12px] bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-white/60 placeholder-white/10 resize-y italic focus:outline-none focus:border-emerald-500/30"
                     />
                     <div className="flex gap-2">
                       <div className="flex items-center gap-1.5">
-                        <label className="text-[8px] text-white/25">HP ±</label>
+                        <label className="text-[10px] text-white/25">HP ±</label>
                         <input
                           type="number"
                           value={choice.outcome?.hpChange ?? 0}
                           onChange={e => updateChoice(ci, 'outcome.hpChange', Number(e.target.value))}
-                          className="w-16 text-[10px] bg-white/[0.04] border border-white/[0.06] rounded px-1.5 py-0.5 text-white/60 font-mono focus:outline-none focus:border-yellow-500/30"
+                          className="w-16 text-[12px] bg-white/[0.04] border border-white/[0.06] rounded px-1.5 py-0.5 text-white/60 font-mono focus:outline-none focus:border-emerald-500/30"
                         />
                       </div>
                       <label className="flex items-center gap-1.5 cursor-pointer">
@@ -4105,7 +4105,7 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                           onChange={e => updateChoice(ci, 'outcome.triggerCombat', e.target.checked)}
                           className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-red-500"
                         />
-                        <span className="text-[8px] text-white/30">Combattimento</span>
+                        <span className="text-[10px] text-white/30">Combattimento</span>
                       </label>
                       {choice.outcome?.triggerCombat && (
                         <div className="flex-1">
@@ -4123,8 +4123,8 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                     {/* Reward Items */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[8px] text-white/20">Ricompense</span>
-                        <button type="button" onClick={() => addRewardItem(ci)} className="text-[8px] text-green-400/50 hover:text-green-400 transition-colors">
+                        <span className="text-[10px] text-white/20">Ricompense</span>
+                        <button type="button" onClick={() => addRewardItem(ci)} className="text-[10px] text-green-400/50 hover:text-green-400 transition-colors">
                           + oggetto
                         </button>
                       </div>
@@ -4142,7 +4142,7 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                             value={ri.quantity}
                             onChange={e => updateRewardItem(ci, riIdx, 'quantity', Number(e.target.value))}
                             min={1}
-                            className="w-14 text-[9px] bg-gray-900 border border-white/[0.06] rounded px-1 py-0.5 text-white/50 font-mono focus:outline-none focus:border-green-500/30"
+                            className="w-14 text-[11px] bg-black border border-white/[0.06] rounded px-1 py-0.5 text-white/50 font-mono focus:outline-none focus:border-green-500/30"
                           />
                           <button type="button" onClick={() => removeRewardItem(ci, riIdx)} className="text-white/10 hover:text-red-400 transition-colors">
                             <X className="w-2.5 h-2.5" />
@@ -4154,7 +4154,7 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                 </div>
               ))}
               {(event.choices ?? []).length === 0 && (
-                <p className="text-[10px] text-white/15 italic text-center py-2">Nessuna scelta — aggiungine almeno una</p>
+                <p className="text-[12px] text-white/15 italic text-center py-2">Nessuna scelta — aggiungine almeno una</p>
               )}
             </div>
           </div>
@@ -4162,26 +4162,26 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
           {/* Puzzle section */}
           <div className="pt-2 border-t border-white/[0.06]">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-semibold text-white/40 uppercase tracking-wider">Puzzle Collegato</span>
+              <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">Puzzle Collegato</span>
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={!!event.puzzle}
                   onChange={togglePuzzle}
-                  className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-purple-500"
+                  className="w-3.5 h-3.5 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
                 />
-                <span className="text-[9px] text-white/30">Abilita Puzzle</span>
+                <span className="text-[11px] text-white/30">Abilita Puzzle</span>
               </label>
             </div>
             {event.puzzle && (
-              <div className="mt-2 space-y-2 rounded-md border border-purple-500/15 bg-purple-500/[0.02] p-2.5">
+              <div className="mt-2 space-y-2 rounded-md border border-emerald-500/15 bg-emerald-500/[0.02] p-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[8px] text-white/30 mb-0.5 block">Tipo Puzzle</label>
+                    <label className="text-[10px] text-white/30 mb-0.5 block">Tipo Puzzle</label>
                     <select
                       value={event.puzzle.type ?? 'combination'}
                       onChange={e => updatePuzzle('type', e.target.value)}
-                      className="w-full text-[10px] bg-gray-900 text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-purple-500/40 cursor-pointer"
+                      className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
                     >
                       <option value="combination">Combinazione (codice)</option>
                       <option value="sequence">Sequenza (frecce)</option>
@@ -4190,19 +4190,19 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                   </div>
                   {(event.puzzle.type === 'combination' || event.puzzle.type === 'sequence') && event.puzzle.type === 'combination' && (
                     <div>
-                      <label className="text-[8px] text-white/30 mb-0.5 block">Codice Segreto</label>
+                      <label className="text-[10px] text-white/30 mb-0.5 block">Codice Segreto</label>
                       <input
                         type="text"
                         value={event.puzzle.combinationCode ?? ''}
                         onChange={e => updatePuzzle('combinationCode', e.target.value)}
                         placeholder="1974"
-                        className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/60 font-mono placeholder-white/10 focus:outline-none focus:border-purple-500/40"
+                        className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/60 font-mono placeholder-white/10 focus:outline-none focus:border-emerald-500/40"
                       />
                     </div>
                   )}
                   {event.puzzle.type === 'sequence' && (
                     <div>
-                      <label className="text-[8px] text-white/30 mb-0.5 block">Pattern Sequenza</label>
+                      <label className="text-[10px] text-white/30 mb-0.5 block">Pattern Sequenza</label>
                       <SequencePatternEditor
                         value={event.puzzle.sequencePattern ?? []}
                         onChange={v => updatePuzzle('sequencePattern', v)}
@@ -4212,7 +4212,7 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                   {event.puzzle.type === 'key_required' && (
                     <>
                       <div className="col-span-2">
-                        <label className="text-[8px] text-white/30 mb-0.5 block">Item Richiesto</label>
+                        <label className="text-[10px] text-white/30 mb-0.5 block">Item Richiesto</label>
                         <MiniEntitySearch
                           value={event.puzzle.requiredItemId ?? ''}
                           onChange={v => updatePuzzle('requiredItemId', v)}
@@ -4225,23 +4225,23 @@ function StoryEventEditor({ value, onChange }: { value: unknown; onChange: (v: S
                   )}
                 </div>
                 <div>
-                  <label className="text-[8px] text-white/30 mb-0.5 block">Messaggio Fallimento</label>
+                  <label className="text-[10px] text-white/30 mb-0.5 block">Messaggio Fallimento</label>
                   <input
                     type="text"
                     value={event.puzzle.failMessage ?? ''}
                     onChange={e => updatePuzzle('failMessage', e.target.value)}
                     placeholder="Codice errato! La serratura non si muove."
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/60 placeholder-white/10 focus:outline-none focus:border-purple-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/60 placeholder-white/10 focus:outline-none focus:border-emerald-500/40"
                   />
                 </div>
                 <div>
-                  <label className="text-[8px] text-white/30 mb-0.5 block">Descrizione Successo</label>
+                  <label className="text-[10px] text-white/30 mb-0.5 block">Descrizione Successo</label>
                   <textarea
                     value={event.puzzle?.successOutcome?.description ?? ''}
                     onChange={e => updatePuzzle('successOutcome', { ...(event.puzzle?.successOutcome ?? {}), description: e.target.value })}
                     placeholder="La serratura si apre con un click..."
                     rows={2}
-                    className="w-full text-[10px] bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-white/60 placeholder-white/10 resize-y italic focus:outline-none focus:border-purple-500/30"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-white/60 placeholder-white/10 resize-y italic focus:outline-none focus:border-emerald-500/30"
                   />
                 </div>
               </div>
@@ -4315,8 +4315,8 @@ function StartingItemsEditor({ value, onChange }: { value: unknown; onChange: (v
     <div className="space-y-2">
       {/* Current items */}
       <div className="max-h-36 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-gray-900/95 z-10">
+        <table className="w-full text-[12px]">
+          <thead className="sticky top-0 bg-black/95 z-10">
             <tr className="border-b border-white/[0.06]">
               <th className="text-left px-2 py-1 text-white/40 font-medium w-6">#</th>
               <th className="text-left px-2 py-1 text-white/40 font-medium">Oggetto</th>
@@ -4330,7 +4330,7 @@ function StartingItemsEditor({ value, onChange }: { value: unknown; onChange: (v
               const type = getItemType(entry.itemId);
               const canEquip = ['weapon', 'armor', 'accessory'].includes(type);
               return (
-                <tr key={entry.itemId + '-' + i} className="border-b border-white/[0.03] bg-gray-900 hover:bg-gray-800">
+                <tr key={entry.itemId + '-' + i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                   <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
                   <td className="px-2 py-1 text-white/70">
                     <span className="mr-1">{getItemIcon(entry.itemId)}</span>
@@ -4343,16 +4343,16 @@ function StartingItemsEditor({ value, onChange }: { value: unknown; onChange: (v
                       min={1}
                       value={entry.quantity}
                       onChange={e => updateQty(i, parseInt(e.target.value) || 1)}
-                      className="w-12 text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-0.5 text-white/70 text-center focus:outline-none focus:border-yellow-500/40"
+                      className="w-12 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-0.5 text-white/70 text-center focus:outline-none focus:border-emerald-500/40"
                     />
                   </td>
                   <td className="px-1 py-1">
                     {canEquip ? (
-                      <button type="button" onClick={() => toggleEquip(i)} className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${entry.isEquipped ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/[0.04] text-white/30 border border-white/[0.08] hover:border-white/20'}`}>
+                      <button type="button" onClick={() => toggleEquip(i)} className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${entry.isEquipped ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/[0.04] text-white/30 border border-white/[0.08] hover:border-white/20'}`}>
                         {entry.isEquipped ? 'Sì' : 'No'}
                       </button>
                     ) : (
-                      <span className="text-[9px] text-white/15">—</span>
+                      <span className="text-[11px] text-white/15">—</span>
                     )}
                   </td>
                   <td className="px-1 py-1">
@@ -4378,16 +4378,16 @@ function StartingItemsEditor({ value, onChange }: { value: unknown; onChange: (v
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Cerca oggetto da aggiungere..."
-            className="w-full text-[10px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 focus:outline-none focus:border-yellow-500/40"
+            className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40"
           />
           {searchQuery && filtered.length > 0 && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-32 overflow-y-auto rounded-lg border border-white/[0.12] bg-gray-900/98 shadow-xl admin-scrollbar">
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-32 overflow-y-auto rounded-lg border border-white/[0.12] bg-black/98 shadow-xl admin-scrollbar">
               {filtered.map(item => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => addItem(item.id)}
-                  className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-white/[0.06] transition-colors text-white/70"
+                  className="w-full text-left px-2 py-1.5 text-[12px] hover:bg-white/[0.06] transition-colors text-white/70"
                 >
                   <span className="mr-1">{item.icon}</span>
                   <span className="font-mono text-white/40 mr-1">{item.id}</span>
@@ -4469,15 +4469,15 @@ function EntityForm({
             // ID is read-only in edit mode
             return (
               <div key={f.key} className={isFullWidth ? 'col-span-3' : isDoubleWidth ? 'col-span-2' : ''}>
-                <label className="text-[10px] text-white/50 mb-0.5 block font-medium">
+                <label className="text-[12px] text-white/50 mb-0.5 block font-medium">
                   {f.label}
-                  {f.helpText && <span className="text-[9px] text-white/25 ml-1" title={f.helpText}>(?)</span>}
+                  {f.helpText && <span className="text-[11px] text-white/25 ml-1" title={f.helpText}>(?)</span>}
                 </label>
                 <input
                   type="text"
                   value={String(val)}
                   disabled
-                  className="w-full text-[11px] bg-white/[0.02] border border-white/[0.06] rounded px-2 py-1.5 text-white/30 font-mono cursor-not-allowed"
+                  className="w-full text-[13px] bg-white/[0.02] border border-white/[0.06] rounded px-2 py-1.5 text-white/30 font-mono cursor-not-allowed"
                 />
               </div>
             );
@@ -4485,9 +4485,9 @@ function EntityForm({
 
           return (
             <div key={f.key} className={isFullWidth ? 'col-span-3' : isDoubleWidth ? 'col-span-2' : ''}>
-              <label className="text-[10px] text-white/50 mb-0.5 block font-medium">
+              <label className="text-[12px] text-white/50 mb-0.5 block font-medium">
                 {f.label} {f.required && <span className="text-red-400">*</span>}
-                {f.helpText && <span className="text-[9px] text-white/25 ml-1" title={f.helpText}>(?)</span>}
+                {f.helpText && <span className="text-[11px] text-white/25 ml-1" title={f.helpText}>(?)</span>}
               </label>
               {f.type === 'textarea' ? (
                 <textarea
@@ -4495,20 +4495,20 @@ function EntityForm({
                   onChange={e => handleChange(f.key, e.target.value)}
                   placeholder={f.placeholder}
                   rows={3}
-                  className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 resize-y font-mono"
+                  className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 resize-y font-mono"
                 />
               ) : f.type === 'select' ? (
                 <select
                   value={typeof val === 'string' ? val : ''}
                   onChange={e => handleChange(f.key, e.target.value)}
-                  className="w-full text-[11px] bg-gray-900 text-white border border-white/[0.1] rounded px-2 py-1.5 focus:outline-none focus:border-yellow-500/50 cursor-pointer"
+                  className="w-full text-[13px] bg-black text-white border border-white/[0.1] rounded px-2 py-1.5 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
                 >
-                  <option value="" className="bg-gray-900 text-white">— Nessuno —</option>
+                  <option value="" className="bg-black text-white">— Nessuno —</option>
                   {f.options?.map(opt => {
                     const label = f.enumGroup ? getEnumLabel(f.enumGroup, opt) : opt;
                     const hint = f.enumGroup ? getEnumHint(f.enumGroup, opt) : undefined;
                     return (
-                      <option key={opt} value={opt} className="bg-gray-900 text-white" title={hint}>
+                      <option key={opt} value={opt} className="bg-black text-white" title={hint}>
                         {label} ({opt})
                       </option>
                     );
@@ -4520,9 +4520,9 @@ function EntityForm({
                     type="checkbox"
                     checked={!!val}
                     onChange={e => handleChange(f.key, e.target.checked)}
-                    className="w-4 h-4 rounded bg-white/[0.04] border-white/[0.2] text-yellow-500 focus:ring-yellow-500/50 accent-yellow-500"
+                    className="w-4 h-4 rounded bg-white/[0.04] border-white/[0.2] text-emerald-500 focus:ring-emerald-500/50 accent-emerald-500"
                   />
-                  <span className="text-[10px] text-white/50">{val ? 'Sì' : 'No'}</span>
+                  <span className="text-[12px] text-white/50">{val ? 'Sì' : 'No'}</span>
                 </label>
               ) : f.type === 'entity-search' ? (
                 <EntitySearchInput
@@ -4635,7 +4635,7 @@ function EntityForm({
                     handleChange(f.key, f.type === 'number' ? (raw === '' ? '' : Number(raw)) : raw);
                   }}
                   placeholder={f.placeholder}
-                  className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+                  className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
                 />
               )}
             </div>
@@ -4648,8 +4648,8 @@ function EntityForm({
         <div className="mt-2 pt-3 border-t border-white/[0.06]">
           <div className="flex items-center gap-2 mb-3">
             <CloudUpload className="w-3.5 h-3.5 text-white/30" />
-            <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Media Upload</span>
-            <span className="text-[9px] text-white/15">— immagini e suoni associati a questa entità</span>
+            <span className="text-[12px] font-semibold text-white/40 uppercase tracking-wider">Media Upload</span>
+            <span className="text-[11px] text-white/15">— immagini e suoni associati a questa entità</span>
           </div>
           <div className="space-y-3">
             {mediaUploads.map(mu => (
@@ -4666,7 +4666,7 @@ function EntityForm({
       <div className="flex gap-3 pt-3">
         <Button
           type="submit"
-          className="flex-1 bg-yellow-600/20 border border-yellow-500/30 text-yellow-300 hover:bg-yellow-600/30 hover:text-yellow-200"
+          className="flex-1 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
         >
           <Save className="w-3.5 h-3.5" />
           {submitLabel}
@@ -4788,7 +4788,7 @@ function MediaUploadBox({
   if (!entityId) {
     return (
       <div className="col-span-3 rounded-lg border border-dashed border-white/[0.06] p-4 flex items-center justify-center">
-        <p className="text-[10px] text-white/20 italic">Salva l\'entità prima di caricare i media</p>
+        <p className="text-[12px] text-white/20 italic">Salva l\'entità prima di caricare i media</p>
       </div>
     );
   }
@@ -4798,20 +4798,20 @@ function MediaUploadBox({
       <div className="flex items-center justify-between mb-2.5">
         <div className="flex items-center gap-2">
           {config.mediaType === 'image' ? (
-            <ImageIcon className="w-4 h-4 text-cyan-400/70" />
+            <ImageIcon className="w-4 h-4 text-emerald-400/70" />
           ) : (
             <Volume2 className="w-4 h-4 text-green-400/70" />
           )}
-          <span className="text-[11px] font-semibold text-white/70">{config.label}</span>
+          <span className="text-[13px] font-semibold text-white/70">{config.label}</span>
           {config.helpText && (
-            <span className="text-[9px] text-white/25 ml-1" title={config.helpText}>(?)</span>
+            <span className="text-[11px] text-white/25 ml-1" title={config.helpText}>(?)</span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {checkingExisting ? (
-            <span className="text-[9px] text-white/20">Controllo...</span>
+            <span className="text-[11px] text-white/20">Controllo...</span>
           ) : hasExisting ? (
-            <span className="flex items-center gap-1 text-[9px] text-green-400/70 bg-green-500/10 px-2 py-0.5 rounded-full">
+            <span className="flex items-center gap-1 text-[11px] text-green-400/70 bg-green-500/10 px-2 py-0.5 rounded-full">
               <CheckCircle2 className="w-3 h-3" /> File presente
             </span>
           ) : null}
@@ -4819,7 +4819,7 @@ function MediaUploadBox({
             <button
               type="button"
               onClick={handleRemove}
-              className="flex items-center gap-1 text-[9px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 px-2 py-0.5 rounded-full transition-colors"
+              className="flex items-center gap-1 text-[11px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 px-2 py-0.5 rounded-full transition-colors"
               title="Rimuovi file"
             >
               <Trash className="w-3 h-3" /> Rimuovi
@@ -4839,13 +4839,13 @@ function MediaUploadBox({
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           </div>
-          <span className="text-[10px] text-white/30 font-mono">{mediaId}</span>
+          <span className="text-[12px] text-white/30 font-mono">{mediaId}</span>
         </div>
       )}
       {hasExisting && config.mediaType === 'sound' && (
         <div className="mb-3 flex items-center gap-3">
           <SoundPreviewButton soundId={mediaId} hasFile={true} />
-          <span className="text-[10px] text-white/30 font-mono">{mediaId}</span>
+          <span className="text-[12px] text-white/30 font-mono">{mediaId}</span>
         </div>
       )}
 
@@ -4857,7 +4857,7 @@ function MediaUploadBox({
         onClick={() => inputRef.current?.click()}
         className={`relative cursor-pointer rounded-lg border-2 border-dashed p-4 text-center transition-all ${
           dragOver
-            ? 'border-yellow-500/40 bg-yellow-500/5'
+            ? 'border-emerald-500/40 bg-emerald-500/5'
             : uploading
               ? 'border-white/[0.06] bg-white/[0.01] cursor-wait'
               : 'border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15] hover:bg-white/[0.04]'
@@ -4872,25 +4872,25 @@ function MediaUploadBox({
         />
         {uploading ? (
           <div className="flex items-center justify-center gap-2 py-1">
-            <Loader2 className="w-4 h-4 animate-spin text-yellow-400/70" />
-            <span className="text-[11px] text-white/50">Caricamento...</span>
+            <Loader2 className="w-4 h-4 animate-spin text-emerald-400/70" />
+            <span className="text-[13px] text-white/50">Caricamento...</span>
           </div>
         ) : (
           <div className="flex items-center justify-center gap-2 py-1">
-            <CloudUpload className={`w-4 h-4 ${dragOver ? 'text-yellow-400/70' : 'text-white/20'}`} />
-            <span className="text-[11px] text-white/40">
+            <CloudUpload className={`w-4 h-4 ${dragOver ? 'text-emerald-400/70' : 'text-white/20'}`} />
+            <span className="text-[13px] text-white/40">
               {hasExisting ? 'Trascina per sostituire' : 'Trascina un file o clicca per selezionare'}
             </span>
           </div>
         )}
         {file && (
-          <p className="text-[9px] text-white/25 mt-1 truncate">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
+          <p className="text-[11px] text-white/25 mt-1 truncate">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
         )}
       </div>
 
       {/* Upload result message */}
       {uploadResult && (
-        <div className={`mt-2 flex items-center gap-1.5 text-[10px] px-2 py-1 rounded ${
+        <div className={`mt-2 flex items-center gap-1.5 text-[12px] px-2 py-1 rounded ${
           uploadResult.success
             ? 'text-green-400/70 bg-green-500/5'
             : 'text-red-400/70 bg-red-500/5'
@@ -4901,7 +4901,7 @@ function MediaUploadBox({
       )}
 
       {/* Help text */}
-      <p className="mt-2 text-[9px] text-white/15">
+      <p className="mt-2 text-[11px] text-white/15">
         ID media: <span className="font-mono text-white/25">{mediaId}</span>
         {' · '}
         Accettati: {config.accept.split(',').map(t => t.split('/')[1]).join(', ')}
@@ -5075,7 +5075,7 @@ function NotificationPreviewCard({ config }: { config: Record<string, unknown> }
         {/* Label */}
         {label && (
           <div
-            className="text-[8px] uppercase tracking-[0.2em] mb-0.5 opacity-70"
+            className="text-[10px] uppercase tracking-[0.2em] mb-0.5 opacity-70"
             style={{ color: titleColor }}
           >
             {label}
@@ -5093,10 +5093,10 @@ function NotificationPreviewCard({ config }: { config: Record<string, unknown> }
           {sample.title}
         </div>
         {/* Sub message */}
-        <div className="text-[10px] mt-1 text-gray-400">{sample.sub}</div>
+        <div className="text-[12px] mt-1 text-gray-400">{sample.sub}</div>
         {/* Type badge */}
         <div className="mt-2">
-          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-white/25 font-mono">
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-white/25 font-mono">
             {notifType}
           </span>
         </div>
@@ -5173,7 +5173,7 @@ function NotificationEditDialog({
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         {/* Row 1: ID (read-only) + Type */}
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">ID</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">ID</label>
           <input
             type="text"
             value={String(form.id ?? '')}
@@ -5181,70 +5181,70 @@ function NotificationEditDialog({
             onChange={e => handleChange('id', e.target.value)}
             placeholder="es: notif_encounter"
             className={isEdit
-              ? 'w-full text-[11px] bg-white/[0.02] border border-white/[0.06] rounded px-2 py-1.5 text-white/30 font-mono cursor-not-allowed'
-              : 'w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono'
+              ? 'w-full text-[13px] bg-white/[0.02] border border-white/[0.06] rounded px-2 py-1.5 text-white/30 font-mono cursor-not-allowed'
+              : 'w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono'
             }
           />
         </div>
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Tipo <span className="text-red-400">*</span></label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Tipo <span className="text-red-400">*</span></label>
           <input
             type="text"
             value={String(form.type ?? '')}
             onChange={e => handleChange('type', e.target.value)}
             placeholder="es: encounter"
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
           />
         </div>
 
         {/* Row 2: Label + Icon */}
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Etichetta</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Etichetta</label>
           <input
             type="text"
             value={String(form.label ?? '')}
             onChange={e => handleChange('label', e.target.value)}
             placeholder='es: ⚠ INCONTRO ⚠'
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50"
           />
         </div>
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Icona</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Icona</label>
           <input
             type="text"
             value={String(form.icon ?? '')}
             onChange={e => handleChange('icon', e.target.value)}
             placeholder="es: 🔥"
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50"
           />
         </div>
 
         {/* Row 2.5: imageRef + soundRef */}
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Ref Immagine</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Ref Immagine</label>
           <input
             type="text"
             value={String(form.imageRef ?? '')}
             onChange={e => handleChange('imageRef', e.target.value)}
             placeholder="ID immagine (es: notif_img_notif_encounter)"
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
           />
         </div>
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Ref Suono</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Ref Suono</label>
           <input
             type="text"
             value={String(form.soundRef ?? '')}
             onChange={e => handleChange('soundRef', e.target.value)}
             placeholder="ID suono (es: notif_sfx_notif_encounter)"
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
           />
         </div>
 
         {/* Row 3: Color pickers - cardBg + borderColor */}
         <div className="flex items-end gap-3">
           <div className="flex-1">
-            <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Sfondo Scheda</label>
+            <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Sfondo Scheda</label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -5256,14 +5256,14 @@ function NotificationEditDialog({
                 type="text"
                 value={String(form.cardBg ?? '#1a1a2e')}
                 onChange={e => handleChange('cardBg', e.target.value)}
-                className="flex-1 min-w-0 text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+                className="flex-1 min-w-0 text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
               />
             </div>
           </div>
         </div>
         <div className="flex items-end gap-3">
           <div className="flex-1">
-            <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Colore Bordo</label>
+            <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Colore Bordo</label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -5275,7 +5275,7 @@ function NotificationEditDialog({
                 type="text"
                 value={String(form.borderColor ?? '#333333')}
                 onChange={e => handleChange('borderColor', e.target.value)}
-                className="flex-1 min-w-0 text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+                className="flex-1 min-w-0 text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
               />
             </div>
           </div>
@@ -5283,7 +5283,7 @@ function NotificationEditDialog({
 
         {/* Row 4: titleColor + scanlineColor */}
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Colore Titolo</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Colore Titolo</label>
           <div className="flex items-center gap-2">
             <input
               type="color"
@@ -5295,12 +5295,12 @@ function NotificationEditDialog({
               type="text"
               value={String(form.titleColor ?? '#ffffff')}
               onChange={e => handleChange('titleColor', e.target.value)}
-              className="flex-1 min-w-0 text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+              className="flex-1 min-w-0 text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
             />
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Colore Scanline</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Colore Scanline</label>
           <div className="flex items-center gap-2">
             <input
               type="color"
@@ -5313,48 +5313,48 @@ function NotificationEditDialog({
               value={String(form.scanlineColor ?? 'rgba(255,255,255,0.3)')}
               onChange={e => handleChange('scanlineColor', e.target.value)}
               placeholder="rgba(255,255,255,0.3)"
-              className="flex-1 min-w-0 text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+              className="flex-1 min-w-0 text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
             />
           </div>
         </div>
 
         {/* Row 5: titleGlow (text) + overlayBg (text) */}
         <div className="col-span-2">
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Title Glow (CSS text-shadow)</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Title Glow (CSS text-shadow)</label>
           <input
             type="text"
             value={String(form.titleGlow ?? 'none')}
             onChange={e => handleChange('titleGlow', e.target.value)}
             placeholder="0 0 30px rgba(239,68,68,0.7)"
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
           />
         </div>
         <div className="col-span-2">
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Overlay Background (CSS)</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Overlay Background (CSS)</label>
           <input
             type="text"
             value={String(form.overlayBg ?? 'rgba(0,0,0,0.8)')}
             onChange={e => handleChange('overlayBg', e.target.value)}
             placeholder="rgba(0,0,0,0.8)"
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
           />
         </div>
 
         {/* Row 6: Shake toggle + Duration slider */}
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Screen Shake</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Screen Shake</label>
           <label className="flex items-center gap-2 cursor-pointer py-1.5">
             <input
               type="checkbox"
               checked={!!form.shake}
               onChange={e => handleChange('shake', e.target.checked)}
-              className="w-4 h-4 rounded bg-white/[0.04] border-white/[0.2] text-yellow-500 focus:ring-yellow-500/50 accent-yellow-500"
+              className="w-4 h-4 rounded bg-white/[0.04] border-white/[0.2] text-emerald-500 focus:ring-emerald-500/50 accent-emerald-500"
             />
-            <span className="text-[10px] text-white/50">{form.shake ? 'Sì' : 'No'}</span>
+            <span className="text-[12px] text-white/50">{form.shake ? 'Sì' : 'No'}</span>
           </label>
         </div>
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">
             Durata: <span className="text-white/70">{String(form.duration ?? 2500)}ms</span>
           </label>
           <input
@@ -5364,9 +5364,9 @@ function NotificationEditDialog({
             step={100}
             value={Number(form.duration ?? 2500)}
             onChange={e => handleChange('duration', Number(e.target.value))}
-            className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/[0.08] accent-yellow-500"
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/[0.08] accent-emerald-500"
           />
-          <div className="flex justify-between text-[9px] text-white/20 mt-0.5">
+          <div className="flex justify-between text-[11px] text-white/20 mt-0.5">
             <span>500ms</span>
             <span>5000ms</span>
           </div>
@@ -5374,12 +5374,12 @@ function NotificationEditDialog({
 
         {/* Row 7: sortOrder */}
         <div>
-          <label className="text-[10px] text-white/50 mb-0.5 block font-medium">Ordine</label>
+          <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Ordine</label>
           <input
             type="number"
             value={Number(form.sortOrder ?? 0)}
             onChange={e => handleChange('sortOrder', Number(e.target.value))}
-            className="w-full text-[11px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 font-mono"
+            className="w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono"
           />
         </div>
       </div>
@@ -5389,8 +5389,8 @@ function NotificationEditDialog({
         <div className="pt-3 border-t border-white/[0.06]">
           <div className="flex items-center gap-2 mb-3">
             <CloudUpload className="w-3.5 h-3.5 text-white/30" />
-            <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Media Upload</span>
-            <span className="text-[9px] text-white/15">— immagine e suono personalizzati per questa notifica</span>
+            <span className="text-[12px] font-semibold text-white/40 uppercase tracking-wider">Media Upload</span>
+            <span className="text-[11px] text-white/15">— immagine e suono personalizzati per questa notifica</span>
           </div>
           <div className="space-y-3">
             {mediaUploads.map(mu => (
@@ -5408,8 +5408,8 @@ function NotificationEditDialog({
       <div className="pt-3 border-t border-white/[0.06]">
         <div className="flex items-center gap-2 mb-3">
           <Eye className="w-3.5 h-3.5 text-white/30" />
-          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Anteprima Live</span>
-          <span className="text-[9px] text-white/15">— come apparirà la notifica nel gioco</span>
+          <span className="text-[12px] font-semibold text-white/40 uppercase tracking-wider">Anteprima Live</span>
+          <span className="text-[11px] text-white/15">— come apparirà la notifica nel gioco</span>
         </div>
         <div className="rounded-lg border border-white/[0.08] bg-black/30 p-1">
           <NotificationPreviewCard config={form} />
@@ -5420,7 +5420,7 @@ function NotificationEditDialog({
       <div className="flex gap-3 pt-3">
         <Button
           type="submit"
-          className="flex-1 bg-yellow-600/20 border border-yellow-500/30 text-yellow-300 hover:bg-yellow-600/30 hover:text-yellow-200"
+          className="flex-1 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
         >
           <Save className="w-3.5 h-3.5" />
           {isEdit ? 'Salva Modifiche' : 'Crea Notifica'}
@@ -5445,7 +5445,7 @@ function GalleryBanner({ type }: { type: 'sounds' | 'images' }) {
   return (
     <div className="mb-3 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] flex items-center gap-2">
       <Eye className="w-4 h-4 text-white/25 shrink-0" />
-      <p className="text-[11px] text-white/30">
+      <p className="text-[13px] text-white/30">
         Galleria in <span className="text-white/50 font-medium">sola visualizzazione</span> — il caricamento dei file avviene direttamente nei dialog delle entità ({type === 'sounds' ? 'oggetti, nemici, location...' : 'oggetti, NPC, location...'})
       </p>
     </div>
@@ -5566,7 +5566,7 @@ function AvatarCard({ avatar, hasImage, isUploading, onUpload, onDelete }: {
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={isUploading}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/30 text-cyan-300 text-[11px] hover:bg-cyan-600/30 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-[13px] hover:bg-emerald-600/30 transition-colors disabled:opacity-50"
           >
             {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
             {hasImage ? 'Cambia' : 'Carica'}
@@ -5575,7 +5575,7 @@ function AvatarCard({ avatar, hasImage, isUploading, onUpload, onDelete }: {
             <button
               type="button"
               onClick={() => onDelete(avatar.id)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-[11px] hover:bg-red-600/30 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-[13px] hover:bg-red-600/30 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Rimuovi
@@ -5600,13 +5600,13 @@ function AvatarCard({ avatar, hasImage, isUploading, onUpload, onDelete }: {
       <div className="px-3 py-2.5 border-t border-white/[0.06]">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[12px] text-white/80 font-medium flex items-center gap-1.5">
+            <div className="text-[14px] text-white/80 font-medium flex items-center gap-1.5">
               <span>{avatar.emoji}</span>
               {avatar.name}
             </div>
-            <div className="text-[10px] text-white/25 font-mono mt-0.5">{avatar.id}</div>
+            <div className="text-[12px] text-white/25 font-mono mt-0.5">{avatar.id}</div>
           </div>
-          <span className={`text-[9px] px-1.5 py-0.5 rounded ${hasImage ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/[0.03] border border-white/[0.06] text-white/20'}`}>
+          <span className={`text-[11px] px-1.5 py-0.5 rounded ${hasImage ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/[0.03] border border-white/[0.06] text-white/20'}`}>
             {hasImage ? '✓ Immagine' : '— Nessuna'}
           </span>
         </div>
@@ -5674,17 +5674,17 @@ function AvatarManager() {
       {/* Header */}
       <div className="mb-6">
         <h3 className="text-sm font-bold text-white/80 flex items-center gap-2">
-          <Users className="w-4 h-4 text-cyan-400/60" />
+          <Users className="w-4 h-4 text-emerald-400/60" />
           Avatar Personaggio
         </h3>
-        <p className="text-[11px] text-white/30 mt-1">
+        <p className="text-[13px] text-white/30 mt-1">
           Gestisci le immagini avatar utilizzate nella schermata di creazione personaggio. Ogni avatar ha un ID univoco (&quot;avatar_*&quot;) che viene usato dal gioco per caricare l&apos;immagine.
         </p>
       </div>
 
       {/* Loading */}
       {checking && (
-        <div className="flex items-center gap-2 text-[11px] text-white/30 py-8 justify-center">
+        <div className="flex items-center gap-2 text-[13px] text-white/30 py-8 justify-center">
           <Loader2 className="w-4 h-4 animate-spin" /> Caricamento stato avatar...
         </div>
       )}
@@ -5707,10 +5707,10 @@ function AvatarManager() {
 
       {/* Footer info */}
       <div className="mt-6 p-3 rounded-lg bg-white/[0.02] border border-white/[0.06]">
-        <p className="text-[10px] text-white/30">
+        <p className="text-[12px] text-white/30">
           💡 <span className="text-white/40 font-medium">Consiglio:</span> Utilizza immagini quadrate (256×256 o 512×512) per risultati ottimali nella griglia di selezione personaggio. Formati supportati: PNG, JPG, WebP.
         </p>
-        <p className="text-[10px] text-white/20 mt-1">
+        <p className="text-[12px] text-white/20 mt-1">
           Le immagini vengono caricate nella tabella <span className="font-mono text-white/30">game_images</span> con categoria &quot;avatar&quot; e ID corrispondente. Il CharacterCreator le carica tramite <span className="font-mono text-white/30">/api/media/image?id=avatar_*</span>
         </p>
       </div>
@@ -5814,7 +5814,7 @@ function StartScreenEditor() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-yellow-400/50" />
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-400/50" />
       </div>
     );
   }
@@ -5823,17 +5823,17 @@ function StartScreenEditor() {
     <div className="flex-1 overflow-y-auto admin-scrollbar">
       {/* Banner */}
       <div className="px-6 py-4 border-b border-white/[0.06]">
-        <h3 className="text-sm font-bold text-yellow-400 mb-1">🎮 Schermata Iniziale</h3>
-        <p className="text-[11px] text-white/40">Personalizza tutti i testi, colori e lo stile dei pulsanti della schermata del titolo.</p>
+        <h3 className="text-sm font-bold text-emerald-400 mb-1">🎮 Schermata Iniziale</h3>
+        <p className="text-[13px] text-white/40">Personalizza tutti i testi, colori e lo stile dei pulsanti della schermata del titolo.</p>
       </div>
 
       {/* Background Image Upload */}
       <div className="px-6 py-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-2 mb-3">
-          <ImageIcon className="w-4 h-4 text-cyan-400/70" />
-          <span className="text-[11px] font-semibold text-white/70">Sfondo Schermata (bg_title)</span>
+          <ImageIcon className="w-4 h-4 text-emerald-400/70" />
+          <span className="text-[13px] font-semibold text-white/70">Sfondo Schermata (bg_title)</span>
           {bgHasFile && (
-            <span className="flex items-center gap-1 text-[9px] text-green-400/70 bg-green-500/10 px-2 py-0.5 rounded-full">
+            <span className="flex items-center gap-1 text-[11px] text-green-400/70 bg-green-500/10 px-2 py-0.5 rounded-full">
               <CheckCircle2 className="w-3 h-3" /> Presente
             </span>
           )}
@@ -5846,17 +5846,17 @@ function StartScreenEditor() {
           )}
           <div className="flex-1">
             <div
-              className="border-2 border-dashed border-white/[0.08] rounded-lg px-4 py-4 flex flex-col items-center gap-2 cursor-pointer hover:border-yellow-500/30 hover:bg-yellow-500/[0.03] transition-colors"
+              className="border-2 border-dashed border-white/[0.08] rounded-lg px-4 py-4 flex flex-col items-center gap-2 cursor-pointer hover:border-emerald-500/30 hover:bg-emerald-500/[0.03] transition-colors"
               onClick={() => !uploading && fileRef.current?.click()}
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
               onDrop={e => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) handleBgUpload(f); }}
             >
               {uploading ? (
-                <Loader2 className="w-5 h-5 animate-spin text-yellow-400/50" />
+                <Loader2 className="w-5 h-5 animate-spin text-emerald-400/50" />
               ) : (
                 <>
                   <CloudUpload className="w-5 h-5 text-white/25" />
-                  <span className="text-[10px] text-white/30">
+                  <span className="text-[12px] text-white/30">
                     {bgHasFile ? 'Trascina o clicca per sostituire' : 'Trascina o clicca per caricare (PNG/JPG/WebP, 1920×1080+)'}
                   </span>
                 </>
@@ -5865,7 +5865,7 @@ function StartScreenEditor() {
             </div>
           </div>
           {bgHasFile && (
-            <button onClick={handleBgRemove} className="flex items-center gap-1 text-[10px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg transition-colors shrink-0">
+            <button onClick={handleBgRemove} className="flex items-center gap-1 text-[12px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg transition-colors shrink-0">
               <Trash className="w-3 h-3" /> Rimuovi
             </button>
           )}
@@ -5874,7 +5874,7 @@ function StartScreenEditor() {
 
       {/* Save message */}
       {saveMsg && (
-        <div className={`mx-6 mt-4 px-4 py-2.5 rounded-lg text-[11px] font-medium ${saveMsg.ok ? 'bg-green-500/10 text-green-300 border border-green-500/20' : 'bg-red-500/10 text-red-300 border border-red-500/20'}`}>
+        <div className={`mx-6 mt-4 px-4 py-2.5 rounded-lg text-[13px] font-medium ${saveMsg.ok ? 'bg-green-500/10 text-green-300 border border-green-500/20' : 'bg-red-500/10 text-red-300 border border-red-500/20'}`}>
           {saveMsg.text}
         </div>
       )}
@@ -5883,7 +5883,7 @@ function StartScreenEditor() {
       <div className="px-6 py-4 space-y-6">
         {Object.entries(groups).map(([groupKey, fields]) => (
           <div key={groupKey}>
-            <h4 className="text-[11px] font-bold text-white/50 uppercase tracking-wider mb-3 pb-2 border-b border-white/[0.04]">
+            <h4 className="text-[13px] font-bold text-white/50 uppercase tracking-wider mb-3 pb-2 border-b border-white/[0.04]">
               {fields[0].groupLabel}
             </h4>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -5891,7 +5891,7 @@ function StartScreenEditor() {
                 const val = settings[f.key] ?? '';
                 return (
                   <div key={f.key} className={f.type === 'textarea' ? 'col-span-2' : ''}>
-                    <label className="text-[10px] text-white/50 mb-1 block font-medium">{f.label}</label>
+                    <label className="text-[12px] text-white/50 mb-1 block font-medium">{f.label}</label>
                     {f.type === 'color' ? (
                       <div className="flex items-center gap-2">
                         <input
@@ -5905,7 +5905,7 @@ function StartScreenEditor() {
                           value={val}
                           onChange={e => handleChange(f.key, e.target.value)}
                           placeholder="#ffffff"
-                          className="flex-1 text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 font-mono placeholder-white/20 focus:outline-none focus:border-yellow-500/50"
+                          className="flex-1 text-[13px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 font-mono placeholder-white/20 focus:outline-none focus:border-emerald-500/50"
                         />
                       </div>
                     ) : f.type === 'range' ? (
@@ -5917,9 +5917,9 @@ function StartScreenEditor() {
                           step={f.step ?? 0.1}
                           value={parseFloat(val) || 0}
                           onChange={e => handleChange(f.key, e.target.value)}
-                          className="flex-1 accent-yellow-500"
+                          className="flex-1 accent-emerald-500"
                         />
-                        <span className="text-[10px] text-white/50 font-mono w-8 text-right">{val}</span>
+                        <span className="text-[12px] text-white/50 font-mono w-8 text-right">{val}</span>
                       </div>
                     ) : f.type === 'textarea' ? (
                       <textarea
@@ -5927,7 +5927,7 @@ function StartScreenEditor() {
                         onChange={e => handleChange(f.key, e.target.value)}
                         placeholder={f.placeholder}
                         rows={f.rows ?? 3}
-                        className="w-full text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50 resize-y font-mono"
+                        className="w-full text-[13px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 resize-y font-mono"
                       />
                     ) : (
                       <input
@@ -5935,7 +5935,7 @@ function StartScreenEditor() {
                         value={val}
                         onChange={e => handleChange(f.key, e.target.value)}
                         placeholder={f.placeholder}
-                        className="w-full text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-yellow-500/50"
+                        className="w-full text-[13px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50"
                       />
                     )}
                   </div>
@@ -5947,11 +5947,11 @@ function StartScreenEditor() {
       </div>
 
       {/* Save button */}
-      <div className="px-6 py-4 border-t border-white/[0.06] sticky bottom-0 bg-gray-900/95 backdrop-blur">
+      <div className="px-6 py-4 border-t border-white/[0.06] sticky bottom-0 bg-black/95 backdrop-blur">
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="w-full bg-yellow-600/20 border border-yellow-500/30 text-yellow-300 hover:bg-yellow-600/30 hover:text-yellow-200 text-xs gap-2"
+          className="w-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200 text-xs gap-2"
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
           Salva Impostazioni Schermata Iniziale
@@ -6015,7 +6015,7 @@ function DifficultyConfigEditor({
 
   const diffMeta: Record<DiffLevel, { badge: string; borderColor: string; bgGlow: string }> = {
     sopravvissuto: { badge: 'FACILE', borderColor: 'border-green-500/30', bgGlow: 'bg-green-500/5' },
-    normale: { badge: 'NORMALE', borderColor: 'border-yellow-500/30', bgGlow: 'bg-yellow-500/5' },
+    normale: { badge: 'NORMALE', borderColor: 'border-emerald-500/30', bgGlow: 'bg-emerald-500/5' },
     incubo: { badge: 'DIFFICILE', borderColor: 'border-red-500/30', bgGlow: 'bg-red-500/5' },
   };
 
@@ -6037,21 +6037,21 @@ function DifficultyConfigEditor({
                     onChange={e => updateDiff(lvl, 'label', e.target.value)}
                     className="text-sm font-bold text-white/90 bg-transparent border-b border-transparent hover:border-white/20 focus:border-white/40 focus:outline-none transition-colors px-0 py-0 w-auto"
                   />
-                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ backgroundColor: cfg.color + '20', color: cfg.color }}>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ backgroundColor: cfg.color + '20', color: cfg.color }}>
                     {meta.badge}
                   </span>
                 </div>
               </div>
               {/* Icon + Color pickers */}
               <div className="flex items-center gap-2">
-                <label className="text-[10px] text-white/40">Icona</label>
+                <label className="text-[12px] text-white/40">Icona</label>
                 <input
                   type="text"
                   value={cfg.icon}
                   onChange={e => updateDiff(lvl, 'icon', e.target.value)}
                   className="w-10 text-center text-sm bg-black/20 border border-white/[0.08] rounded px-1 py-0.5 text-white/90 focus:outline-none focus:border-white/30"
                 />
-                <label className="text-[10px] text-white/40">Colore</label>
+                <label className="text-[12px] text-white/40">Colore</label>
                 <div className="flex items-center gap-1">
                   <input
                     type="color"
@@ -6063,7 +6063,7 @@ function DifficultyConfigEditor({
                     type="text"
                     value={cfg.color}
                     onChange={e => updateDiff(lvl, 'color', e.target.value)}
-                    className="w-16 text-[10px] font-mono bg-black/20 border border-white/[0.08] rounded px-1.5 py-0.5 text-white/70 focus:outline-none focus:border-white/30"
+                    className="w-16 text-[12px] font-mono bg-black/20 border border-white/[0.08] rounded px-1.5 py-0.5 text-white/70 focus:outline-none focus:border-white/30"
                   />
                 </div>
               </div>
@@ -6075,7 +6075,7 @@ function DifficultyConfigEditor({
               value={cfg.description}
               onChange={e => updateDiff(lvl, 'description', e.target.value)}
               placeholder="Descrizione difficoltà..."
-              className="w-full bg-black/20 border border-white/[0.06] rounded-lg px-3 py-1.5 text-[11px] text-white/60 italic focus:outline-none focus:border-white/20 transition-colors"
+              className="w-full bg-black/20 border border-white/[0.06] rounded-lg px-3 py-1.5 text-[13px] text-white/60 italic focus:outline-none focus:border-white/20 transition-colors"
             />
 
             {/* Numeric fields */}
@@ -6089,7 +6089,7 @@ function DifficultyConfigEditor({
                 ['maxEnemies', 'Max Nemici', 1, 10, 1],
               ] as const).map(([field, label, min, max, step]) => (
                 <div key={field} className="space-y-0.5">
-                  <label className="text-[9px] font-medium text-white/40 uppercase tracking-wide">{label}</label>
+                  <label className="text-[11px] font-medium text-white/40 uppercase tracking-wide">{label}</label>
                   <input
                     type="number"
                     value={cfg[field as keyof DiffConfig] as number}
@@ -6216,7 +6216,7 @@ function GameSettingsEditor() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-yellow-400/50" />
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-400/50" />
       </div>
     );
   }
@@ -6225,8 +6225,8 @@ function GameSettingsEditor() {
     <div className="flex-1 overflow-y-auto admin-scrollbar">
       {/* Banner */}
       <div className="px-6 py-4 border-b border-white/[0.06]">
-        <h3 className="text-sm font-bold text-yellow-400 mb-1">⚙️ Impostazioni di Gioco</h3>
-        <p className="text-[11px] text-white/40">Configura i parametri generali del gameplay: inventario, item box e altre impostazioni globali.</p>
+        <h3 className="text-sm font-bold text-emerald-400 mb-1">⚙️ Impostazioni di Gioco</h3>
+        <p className="text-[13px] text-white/40">Configura i parametri generali del gameplay: inventario, item box e altre impostazioni globali.</p>
       </div>
 
       {/* Save message */}
@@ -6238,7 +6238,7 @@ function GameSettingsEditor() {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className={`mx-4 mt-3 px-3 py-2 rounded-lg text-[11px] font-medium ${
+            <div className={`mx-4 mt-3 px-3 py-2 rounded-lg text-[13px] font-medium ${
               saveMsg.ok
                 ? 'bg-green-500/10 text-green-300 border border-green-500/20'
                 : 'bg-red-500/10 text-red-300 border border-red-500/20'
@@ -6263,7 +6263,7 @@ function GameSettingsEditor() {
                   const isFull = field.type === 'item-box-defaults' || field.type === 'json' || field.colSpan === 3;
                   return (
                   <div key={field.key} className={`rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-2 ${isFull ? 'md:col-span-2' : ''}`}>
-                    <label className="text-[11px] font-semibold text-white/60 block">
+                    <label className="text-[13px] font-semibold text-white/60 block">
                       {field.label}
                     </label>
                     {field.type === 'number' ? (
@@ -6274,7 +6274,7 @@ function GameSettingsEditor() {
                         min={field.min}
                         max={field.max}
                         step={field.step || 1}
-                        className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-yellow-500/40 transition-colors"
+                        className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-emerald-500/40 transition-colors"
                       />
                     ) : field.type === 'item-box-defaults' ? (
                       <ItemBoxDefaultsEditor
@@ -6288,12 +6288,12 @@ function GameSettingsEditor() {
                           onChange={(e) => handleChange(field.key, e.target.value)}
                           placeholder={field.placeholder}
                           rows={3}
-                          className={`w-full bg-black/30 border rounded-lg px-3 py-2 text-[11px] font-mono text-white/90 focus:outline-none transition-colors resize-y ${
-                            jsonErrors[field.key] ? 'border-red-500/50 focus:border-red-400' : 'border-white/[0.1] focus:border-yellow-500/40'
+                          className={`w-full bg-black/30 border rounded-lg px-3 py-2 text-[13px] font-mono text-white/90 focus:outline-none transition-colors resize-y ${
+                            jsonErrors[field.key] ? 'border-red-500/50 focus:border-red-400' : 'border-white/[0.1] focus:border-emerald-500/40'
                           }`}
                         />
                         {jsonErrors[field.key] && (
-                          <p className="text-[10px] text-red-400 mt-1">{jsonErrors[field.key]}</p>
+                          <p className="text-[12px] text-red-400 mt-1">{jsonErrors[field.key]}</p>
                         )}
                       </div>
                     ) : (
@@ -6302,11 +6302,11 @@ function GameSettingsEditor() {
                         value={settings[field.key] || ''}
                         onChange={(e) => handleChange(field.key, e.target.value)}
                         placeholder={field.placeholder}
-                        className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-yellow-500/40 transition-colors"
+                        className="w-full bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-emerald-500/40 transition-colors"
                       />
                     )}
                     {field.helpText && (
-                      <p className="text-[10px] text-white/30">{field.helpText}</p>
+                      <p className="text-[12px] text-white/30">{field.helpText}</p>
                     )}
                   </div>
                 );
@@ -6322,7 +6322,7 @@ function GameSettingsEditor() {
             <span className="text-sm">🎮</span>
             <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">Configurazione Difficoltà</h4>
           </div>
-          <p className="text-[10px] text-white/30 -mt-2">Modifica i parametri di bilanciamento per ogni livello di difficoltà. Le modifiche hanno effetto sulle nuove partite.</p>
+          <p className="text-[12px] text-white/30 -mt-2">Modifica i parametri di bilanciamento per ogni livello di difficoltà. Le modifiche hanno effetto sulle nuove partite.</p>
           <DifficultyConfigEditor
             settings={settings}
             onChange={handleChange}
@@ -6335,7 +6335,7 @@ function GameSettingsEditor() {
             size="sm"
             onClick={handleSave}
             disabled={saving}
-            className="text-xs gap-2 bg-yellow-600/15 border border-yellow-500/25 text-yellow-300 hover:bg-yellow-600/25 hover:text-yellow-200"
+            className="text-xs gap-2 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             {saving ? 'Salvando...' : 'Salva Impostazioni'}
@@ -6626,8 +6626,8 @@ export default function AdminPanel() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-lg">⚙️</span>
-            <span className="text-sm font-black tracking-wider text-yellow-400">ADMIN PANEL</span>
-            <span className="text-[10px] text-white/20 bg-white/[0.06] px-2 py-0.5 rounded-md font-mono">F3</span>
+            <span className="text-sm font-black tracking-wider text-emerald-400">ADMIN PANEL</span>
+            <span className="text-[12px] text-white/20 bg-white/[0.06] px-2 py-0.5 rounded-md font-mono">F3</span>
           </div>
           <div className="flex items-center gap-3">
             <Button
@@ -6635,7 +6635,7 @@ export default function AdminPanel() {
               size="sm"
               onClick={handleRefreshGameData}
               disabled={refreshing}
-              className="text-xs px-3 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/25 bg-cyan-600/10"
+              className="text-xs px-3 text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10"
             >
               {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Refresh Game Data
@@ -6669,9 +6669,9 @@ export default function AdminPanel() {
                     }`}
                   >
                     <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                    <span className="text-[10px]">{group.icon}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider flex-1">{group.label}</span>
-                    <span className="text-[9px] font-mono text-white/20">{groupCount}</span>
+                    <span className="text-[12px]">{group.icon}</span>
+                    <span className="text-[12px] font-bold uppercase tracking-wider flex-1">{group.label}</span>
+                    <span className="text-[11px] font-mono text-white/20">{groupCount}</span>
                   </button>
                   {/* Group Tabs */}
                   {!isCollapsed && (
@@ -6685,16 +6685,16 @@ export default function AdminPanel() {
                           }}
                           className={`w-full flex items-center gap-2 pl-3 pr-3 py-2 text-left transition-all ${
                             activeTab === tab.id
-                              ? 'bg-yellow-500/10 text-yellow-300 border-l-2 border-yellow-500 -ml-[1px]'
+                              ? 'bg-emerald-500/10 text-emerald-300 border-l-2 border-emerald-500 -ml-[1px]'
                               : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04] border-l-2 border-transparent -ml-[1px]'
                           }`}
                         >
                           <span className="shrink-0">{tab.icon}</span>
-                          <span className="text-[11px] font-medium flex-1 truncate">{tab.label}</span>
+                          <span className="text-[13px] font-medium flex-1 truncate">{tab.label}</span>
                           {!tab.custom && (
-                            <span className={`text-[10px] min-w-[18px] text-center px-1 py-0.5 rounded-full font-mono ${
+                            <span className={`text-[12px] min-w-[18px] text-center px-1 py-0.5 rounded-full font-mono ${
                               activeTab === tab.id
-                                ? 'bg-yellow-500/20 text-yellow-200'
+                                ? 'bg-emerald-500/20 text-emerald-200'
                                 : 'bg-white/[0.06] text-white/25'
                             }`}>
                               {counts[tab.id] ?? 0}
@@ -6724,7 +6724,7 @@ export default function AdminPanel() {
                   exit={{ height: 0, opacity: 0 }}
                   className="shrink-0 overflow-hidden"
                 >
-                  <div className={`px-4 py-1.5 text-[10px] font-medium ${
+                  <div className={`px-4 py-1.5 text-[12px] font-medium ${
                     statusMsg.type === 'success'
                       ? 'bg-green-500/10 text-green-300 border-b border-green-500/20'
                       : 'bg-red-500/10 text-red-300 border-b border-red-500/20'
@@ -6741,7 +6741,7 @@ export default function AdminPanel() {
                 <Button
                   size="sm"
                   onClick={handleOpenCreate}
-                  className="text-xs gap-1.5 bg-yellow-600/15 border border-yellow-500/25 text-yellow-300 hover:bg-yellow-600/25 hover:text-yellow-200"
+                  className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Aggiungi Nuovo {tabConfig.entityLabel}
@@ -6756,7 +6756,7 @@ export default function AdminPanel() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Cerca per ID o nome..."
-                  className="w-full text-[11px] bg-white/[0.04] border border-white/[0.08] rounded-md pl-8 pr-3 py-1.5 text-white/70 placeholder-white/20 focus:outline-none focus:border-yellow-500/30"
+                  className="w-full text-[13px] bg-white/[0.04] border border-white/[0.08] rounded-md pl-8 pr-3 py-1.5 text-white/70 placeholder-white/20 focus:outline-none focus:border-emerald-500/30"
                 />
               </div>
             </div>
@@ -6775,7 +6775,7 @@ export default function AdminPanel() {
                 <div className="px-4 py-2.5 flex items-center gap-2">
                   <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
                     <BannerIcon className="w-4 h-4 text-white/25 shrink-0" />
-                    <p className="text-[11px] text-white/30" dangerouslySetInnerHTML={{ __html: banner.description }} />
+                    <p className="text-[13px] text-white/30" dangerouslySetInnerHTML={{ __html: banner.description }} />
                   </div>
                   <Button
                     size="sm"
@@ -6792,7 +6792,7 @@ export default function AdminPanel() {
                         showStatus(`Errore seed: ${err}`, 'error');
                       }
                     }}
-                    className="text-[10px] gap-1 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/20 bg-cyan-600/10 shrink-0"
+                    className="text-[12px] gap-1 text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/20 bg-emerald-600/10 shrink-0"
                   >
                     <Upload className="w-3 h-3" />
                     Seed Default
@@ -6811,7 +6811,7 @@ export default function AdminPanel() {
                   <p className="text-sm text-white/30 font-medium">
                     {searchQuery ? 'Nessun risultato per la ricerca' : 'Nessun dato trovato'}
                   </p>
-                  <p className="text-[10px] text-white/15">
+                  <p className="text-[12px] text-white/15">
                     {searchQuery ? 'Prova con un termine diverso' : `Crea il primo ${tabConfig.entityLabel.toLowerCase()} per iniziare`}
                   </p>
                 </div>
@@ -6822,13 +6822,13 @@ export default function AdminPanel() {
                       {columns.map(col => (
                         <TableHead
                           key={col.key}
-                          className={`text-[10px] font-semibold text-white/40 uppercase tracking-wider ${col.width ?? ''}`}
+                          className={`text-[12px] font-semibold text-white/40 uppercase tracking-wider ${col.width ?? ''}`}
                         >
                           {col.label}
                         </TableHead>
                       ))}
                       {activeTab !== 'sounds' && activeTab !== 'images' && (
-                        <TableHead className="text-[10px] font-semibold text-white/40 uppercase tracking-wider text-right w-32">
+                        <TableHead className="text-[12px] font-semibold text-white/40 uppercase tracking-wider text-right w-32">
                           Azioni
                         </TableHead>
                       )}
@@ -6843,7 +6843,7 @@ export default function AdminPanel() {
                           className="border-white/[0.04] hover:bg-white/[0.03] group"
                         >
                           {columns.map(col => (
-                            <TableCell key={col.key} className={`text-[11px] text-white/70 py-2 px-2 ${col.width ?? ''}`}>
+                            <TableCell key={col.key} className={`text-[13px] text-white/70 py-2 px-2 ${col.width ?? ''}`}>
                               {col.render
                                 ? col.render(row, activeTab)
                                 : String(row[col.key] ?? '—')
@@ -6857,7 +6857,7 @@ export default function AdminPanel() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEdit(rowId)}
-                                  className="h-7 px-2 text-[10px] gap-1 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10"
+                                  className="h-7 px-2 text-[12px] gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                                 >
                                   <Pencil className="w-3 h-3" />
                                   Modifica
@@ -6866,14 +6866,14 @@ export default function AdminPanel() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleDelete(rowId)}
-                                  className="h-7 px-2 text-[10px] gap-1 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                  className="h-7 px-2 text-[12px] gap-1 text-red-400 hover:text-red-300 hover:bg-red-500/10"
                                 >
                                   <Trash2 className="w-3 h-3" />
                                   Elimina
                                 </Button>
                               </div>
                             ) : (
-                              <span className="text-[10px] text-white/15">—</span>
+                              <span className="text-[12px] text-white/15">—</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -6886,13 +6886,13 @@ export default function AdminPanel() {
 
             {/* Footer */}
             <div className="px-4 py-3 border-t border-white/[0.06] shrink-0 flex items-center justify-between">
-              <span className="text-[10px] text-white/25">
+              <span className="text-[12px] text-white/25">
                 {data.length} record · {tabConfig.label}
                 {searchQuery && ` · ${filteredData.length} filtrati`}
               </span>
               <button
                 onClick={fetchData}
-                className="text-[10px] text-white/30 hover:text-white/50 flex items-center gap-1.5 transition-colors"
+                className="text-[12px] text-white/30 hover:text-white/50 flex items-center gap-1.5 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Ricarica
               </button>
@@ -6907,11 +6907,11 @@ export default function AdminPanel() {
       {activeTab === 'notifications' ? (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-gray-900 border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-black border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
             overlayClassName="z-[120]"
           >
             <DialogHeader>
-              <DialogTitle className="text-yellow-400 text-base">
+              <DialogTitle className="text-emerald-400 text-base">
                 {editingId ? `Modifica Notifica: ${editingId}` : 'Nuova Notifica'}
               </DialogTitle>
               <DialogDescription className="text-white/40 text-xs">
@@ -6934,11 +6934,11 @@ export default function AdminPanel() {
       ) : (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-gray-900 border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-black border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
             overlayClassName="z-[120]"
           >
             <DialogHeader>
-              <DialogTitle className="text-yellow-400 text-base">
+              <DialogTitle className="text-emerald-400 text-base">
                 {editingId ? `Modifica: ${editingId}` : `Nuovo ${tabConfig.entityLabel}`}
               </DialogTitle>
               <DialogDescription className="text-white/40 text-xs">
