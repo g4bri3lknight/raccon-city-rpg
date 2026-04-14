@@ -29,6 +29,7 @@ export default function CombatScreen() {
   const [targetingMode, setTargetingMode] = useState<'enemy' | 'ally' | null>(null);
   const [pendingAction, setPendingAction] = useState<CombatAction | null>(null);
   const [showItemSelect, setShowItemSelect] = useState(false);
+
   const [screenShake, setScreenShake] = useState<string | null>(null);
   const [killFlash, setKillFlash] = useState(false);
   // ── #41 Animation state ──
@@ -447,16 +448,58 @@ export default function CombatScreen() {
   };
 
   // ── Item selection ──
+  // Logic based on item type and alive party count:
+  //   Healing/support items + 1 PG alive → auto-target self (instant use)
+  //   Healing/support items + multiple PGs → show ally selection
+  //   Offensive items → enemy targeting mode
   const handleItemSelect = (itemUid: string) => {
     const item = currentCharacter?.inventory.find(i => i.uid === itemUid);
     if (!item) return;
     selectCombatItem(itemUid);
     setShowItemSelect(false);
+
     const firstEffectTarget = item.effects?.find(e => !e.trigger || e.trigger === 'on_use')?.target;
-    if (firstEffectTarget === 'self') {
+    const isEnemyTarget = firstEffectTarget === 'enemy' || firstEffectTarget === 'all_enemies' || firstEffectTarget === 'random_enemy';
+    const isAllyTarget = firstEffectTarget === 'self' || firstEffectTarget === 'one_ally' || firstEffectTarget === 'all_allies' || firstEffectTarget === 'lowest_hp_ally';
+
+    // Determine target mode
+    let needsAllySelect = false;
+    let needsEnemySelect = false;
+    let instantUse = false;
+
+    if (isEnemyTarget) {
+      needsEnemySelect = true;
+    } else if (isAllyTarget) {
+      if (firstEffectTarget === 'all_allies') {
+        instantUse = true;
+      } else {
+        // self / one_ally / lowest_hp_ally → check alive party count
+        // Use aliveParty (already computed above) for consistency
+        if (aliveParty.length <= 1) {
+          instantUse = true;
+        } else {
+          needsAllySelect = true;
+        }
+      }
+    } else if (item.type === 'healing' || item.type === 'antidote') {
+      // Fallback: healing/antidote items without explicit effects → behave as self-target
+      if (aliveParty.length <= 1) {
+        instantUse = true;
+      } else {
+        needsAllySelect = true;
+      }
+    } else {
+      // Unknown: default to ally targeting
+      needsAllySelect = true;
+    }
+
+    if (instantUse) {
       selectCombatTarget(currentCharacter!.id);
       setTimeout(() => executeCombatTurn(), 300);
-    } else {
+    } else if (needsEnemySelect) {
+      setPendingAction('use_item');
+      setTargetingMode('enemy');
+    } else if (needsAllySelect) {
       setPendingAction('use_item');
       setTargetingMode('ally');
     }

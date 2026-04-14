@@ -574,9 +574,14 @@ function handleHeal(
     const isTarget = healTargets.some(ht => ht.id === p.id);
     if (!isTarget) return p;
 
-    const rawHeal = effect.amount || 0;
-    // If percent is set, interpret amount as % of max HP
-    const healAmount = effect.percent ? Math.floor(p.maxHp * rawHeal / 100) : rawHeal;
+    // percent can be: boolean true (use amount as %), or a number (use directly as %)
+    let healAmount: number;
+    if (effect.percent) {
+      const pctValue = typeof effect.percent === 'number' ? effect.percent : (effect.amount || 0);
+      healAmount = Math.floor(p.maxHp * pctValue / 100);
+    } else {
+      healAmount = effect.amount || 0;
+    }
     const actualHeal = calculateHeal(healAmount, character.archetype);
     totalHeal += actualHeal;
     const newHp = Math.min(p.maxHp, p.currentHp + actualHeal);

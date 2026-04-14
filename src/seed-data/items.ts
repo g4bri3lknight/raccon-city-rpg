@@ -53,46 +53,46 @@ export const SEED_ITEMS: Record<string, ItemDefinition> = {
 
   // Healing
   bandage: {
-    id: 'bandage', name: 'Benda', description: 'Ripristina 25 HP a un alleato.',
+    id: 'bandage', name: 'Benda', description: 'Ripristina 25 HP a se stessi.',
     type: 'healing', rarity: 'common', icon: '🩹', usable: true, equippable: false,
-    effects: [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 25 }],
+    effects: [{ type: 'heal', trigger: 'on_use', target: 'self', amount: 25 }],
   },
   herb_green: {
-    id: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP a un alleato. Può essere miscelata con un\'erba rossa.',
+    id: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP a se stessi. Può essere miscelata con un\'erba rossa.',
     type: 'healing', rarity: 'common', icon: '🍃', usable: true, equippable: false,
-    effects: [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 30 }],
+    effects: [{ type: 'heal', trigger: 'on_use', target: 'self', amount: 30 }],
   },
   herb_red: {
     id: 'herb_red', name: 'Erba Rossa', description: 'Un\'erba potente che da sola non ha effetto. Miscelala con un\'Erba Verde per potenziare la cura.',
     type: 'utility', rarity: 'uncommon', icon: '🩸', usable: false, equippable: false,
   },
   herb_mixed: {
-    id: 'herb_mixed', name: 'Erba Mista', description: 'Un miscuglio di erba verde e rossa. Ripristina 70 HP a un alleato e cura status negativi.',
+    id: 'herb_mixed', name: 'Erba Mista', description: 'Un miscuglio di erba verde e rossa. Ripristina 70 HP a se stessi e cura status negativi.',
     type: 'healing', rarity: 'uncommon', icon: '🌿', usable: true, equippable: false,
     effects: [
-      { type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 70 },
-      { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] },
+      { type: 'heal', trigger: 'on_use', target: 'self', amount: 70 },
+      { type: 'remove_status', trigger: 'on_use', target: 'self', statuses: ['poison', 'bleeding'] },
     ],
   },
   first_aid: {
-    id: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Un kit medico completo. Ripristina tutti gli HP e cura veleno/sanguinamento a un alleato.',
+    id: 'first_aid', name: 'Kit di Pronto Soccorso', description: 'Un kit medico completo. Ripristina tutti gli HP e cura veleno/sanguinamento a se stessi.',
     type: 'healing', rarity: 'uncommon', icon: '✚️', usable: true, equippable: false,
     effects: [
-      { type: 'heal', trigger: 'on_use', target: 'one_ally', percent: 100 },
-      { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] },
+      { type: 'heal', trigger: 'on_use', target: 'self', percent: 100 },
+      { type: 'remove_status', trigger: 'on_use', target: 'self', statuses: ['poison', 'bleeding'] },
     ],
   },
   spray: {
-    id: 'spray', name: 'Spray Medicale', description: 'Uno spray curativo. Ripristina 80 HP a un alleato.',
+    id: 'spray', name: 'Spray Medicale', description: 'Uno spray curativo. Ripristina 80 HP a se stessi.',
     type: 'healing', rarity: 'rare', icon: '🧴', usable: true, equippable: false,
-    effects: [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 80 }],
+    effects: [{ type: 'heal', trigger: 'on_use', target: 'self', amount: 80 }],
   },
 
   // Antidote
   antidote: {
-    id: 'antidote', name: 'Antidoto', description: 'Cura avvelenamento su un alleato.',
+    id: 'antidote', name: 'Antidoto', description: 'Cura avvelenamento su se stessi.',
     type: 'antidote', rarity: 'common', icon: '💉', usable: true, equippable: false,
-    effects: [{ type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison'] }],
+    effects: [{ type: 'remove_status', trigger: 'on_use', target: 'self', statuses: ['poison'] }],
   },
 
   // Ammo

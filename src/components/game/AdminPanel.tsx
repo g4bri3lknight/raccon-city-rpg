@@ -3351,11 +3351,12 @@ const EFFECT_TYPES_CONFIG: EffectTypeDef[] = [
     key: 'heal',
     label: 'Cura',
     emoji: '💚',
-    tooltip: 'Ripristina una quantità fissa di HP al bersaglio. Non rimuove status negativi (usa \'Rimuovi Status\' per quello).',
+    tooltip: 'Ripristina HP al bersaglio. Puoi impostare un numero fisso di HP o una percentuale dei maxHP.',
     category: 'support',
     defaultTarget: 'ally',
     fields: [
-      { key: 'amount', label: 'HP Cura', tooltip: 'HP ripristinati immediatamente. Il valore è un numero fisso, non una percentuale.', type: 'number', defaultValue: 50, min: 1, max: 9999, step: 1 },
+      { key: 'amount', label: 'HP Cura', tooltip: 'Se "Percentuale" è spento: HP fissi da curare. Se "Percentuale" è acceso: percentuale dei maxHP (es. 100 = cura completa).', type: 'number', defaultValue: 50, min: 1, max: 9999, step: 1 },
+      { key: 'percent', label: 'Percentuale', tooltip: 'Se attivo, il valore "HP Cura" viene interpretato come % dei maxHP del bersaglio (es. 100 = cura tutti gli HP).', type: 'boolean', defaultValue: false },
     ],
   },
   {

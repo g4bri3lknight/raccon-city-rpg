@@ -8,8 +8,11 @@ import type { ItemInstance, SpecialEffect } from '../types';
 export function getItemHealInfo(item: ItemInstance): { amount: number; percent: boolean; isFullHeal: boolean } | null {
   const healEffect = item.effects?.find(e => e.type === 'heal' && (!e.trigger || e.trigger === 'on_use'));
   if (healEffect && healEffect.type === 'heal') {
-    const isPercent = 'percent' in healEffect && (healEffect as any).percent !== undefined;
-    const amount = isPercent ? (healEffect as any).percent : (healEffect as any).amount || 0;
+    const pctField = (healEffect as any).percent;
+    const amtField = (healEffect as any).amount || 0;
+    // percent can be: boolean true (amount is the %), a number (direct %), or absent (flat heal)
+    const isPercent = pctField !== undefined && pctField !== false;
+    const amount = typeof pctField === 'number' ? pctField : amtField;
     return { amount, percent: isPercent, isFullHeal: isPercent && amount >= 100 };
   }
   return null;
@@ -43,13 +46,16 @@ export function getItemEffectDescriptions(item: ItemInstance): { emoji: string; 
       if (e.trigger && e.trigger !== 'on_use') continue;
       switch (e.type) {
         case 'heal': {
-          const isPercent = 'percent' in e && (e as any).percent !== undefined;
-          if (isPercent && (e as any).percent >= 100) {
+          const pctField = (e as any).percent;
+          const amtField = (e as any).amount || 0;
+          const isPercent = pctField !== undefined && pctField !== false;
+          const displayAmount = typeof pctField === 'number' ? pctField : amtField;
+          if (isPercent && displayAmount >= 100) {
             descriptions.push({ emoji: '❤️', text: 'Ripristina tutti gli HP', color: 'text-green-400/80' });
           } else if (isPercent) {
-            descriptions.push({ emoji: '❤️', text: `Cura ${(e as any).percent}% HP`, color: 'text-green-400/80' });
+            descriptions.push({ emoji: '❤️', text: `Cura ${displayAmount}% HP`, color: 'text-green-400/80' });
           } else {
-            descriptions.push({ emoji: '❤️', text: `Cura ${(e as any).amount} HP`, color: 'text-green-400/80' });
+            descriptions.push({ emoji: '❤️', text: `Cura ${displayAmount} HP`, color: 'text-green-400/80' });
           }
           break;
         }

@@ -2887,8 +2887,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
         } else {
           itemTarget = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
         }
+
+        // Heal-ally support: if item is self-targeted but user selected a different ally,
+        // clone effects and override target from 'self' to 'one_ally'
+        let effectiveItem = item;
+        if (item.effects && itemTarget.id !== character.id) {
+          const hasSelfTarget = item.effects.some(e =>
+            (e.trigger === 'on_use' || !e.trigger) && e.target === 'self'
+          );
+          if (hasSelfTarget) {
+            effectiveItem = {
+              ...item,
+              effects: item.effects.map(e =>
+                (e.trigger === 'on_use' || !e.trigger) && e.target === 'self'
+                  ? { ...e, target: 'one_ally' as const }
+                  : e
+              ),
+            };
+          }
+        }
         
-        const result = executeUseItem(character, item, itemTarget, updatedParty, updatedEnemies, state.combat.turn);
+        const result = executeUseItem(character, effectiveItem, itemTarget, updatedParty, updatedEnemies, state.combat.turn);
         newLog.push(result.log);
         
         // Handle enemy updates (e.g., deal_damage to all_enemies for rocket launcher)
@@ -3414,36 +3433,39 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     if (autoUseItems && myUsableItems.length > 0) {
       // 5a. Cure status effects (poison/bleeding) — high priority
-      const statusCuredAlly = aliveParty.find(p =>
-        p.currentHp > 0 && (p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'))
-      );
-      if (statusCuredAlly) {
-        // Prefer herb_mixed (heals + cures) if the ally's HP is also low
+      // Check self first, then any ally with status effects
+      const selfHasStatus = character.statusEffects.includes('poison') || character.statusEffects.includes('bleeding');
+      const allyWithStatus = !selfHasStatus
+        ? aliveParty.find(p => p.id !== character.id && (p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding')))
+        : null;
+      const statusTarget = selfHasStatus ? character : allyWithStatus;
+      if (statusTarget) {
+        // Prefer herb_mixed (heals + cures) if target's HP is also low
         const mixedHerb = myUsableItems.find(i => i.itemId === 'herb_mixed');
-        if (mixedHerb && statusCuredAlly.currentHp < statusCuredAlly.maxHp * 0.7) {
+        if (mixedHerb && statusTarget.currentHp < statusTarget.maxHp * 0.7) {
           get().selectCombatAction('use_item');
           get().selectCombatItem(mixedHerb.uid);
-          get().selectCombatTarget(statusCuredAlly.id);
+          get().selectCombatTarget(statusTarget.id);
           setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
           return;
         }
         // Use antidote for poison-only
-        if (statusCuredAlly.statusEffects.includes('poison')) {
+        if (statusTarget.statusEffects.includes('poison')) {
           const antidote = myUsableItems.find(i => i.itemId === 'antidote');
           if (antidote) {
             get().selectCombatAction('use_item');
             get().selectCombatItem(antidote.uid);
-            get().selectCombatTarget(statusCuredAlly.id);
+            get().selectCombatTarget(statusTarget.id);
             setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
             return;
           }
         }
-        // Use first_aid (heal_full + cures) on status-afflicted ally
+        // Use first_aid (heal_full + cures)
         const firstAidKit = myUsableItems.find(i => getItemHealInfo(i)?.isFullHeal && getItemHasStatusCure(i));
         if (firstAidKit) {
           get().selectCombatAction('use_item');
           get().selectCombatItem(firstAidKit.uid);
-          get().selectCombatTarget(statusCuredAlly.id);
+          get().selectCombatTarget(statusTarget.id);
           setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
           return;
         }
@@ -3460,10 +3482,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const fullHealItem = myUsableItems.find(i => {
           const heal = getItemHealInfo(i);
           const target = getItemEffectTarget(i);
-          return heal?.isFullHeal && (target === 'one_ally' || target === 'all_allies');
+          return heal?.isFullHeal && (target === 'one_ally' || target === 'self' || target === 'all_allies');
         });
         if (fullHealItem) {
-          const target = getItemEffectTarget(fullHealItem) === 'all_allies'
+          const effectTarget = getItemEffectTarget(fullHealItem);
+          // Always target the most critical ally (store handles self→one_ally override)
+          const target = effectTarget === 'all_allies'
             ? character
             : mostCriticalAlly;
           get().selectCombatAction('use_item');
@@ -3486,9 +3510,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const allyNeedingHeal = aliveParty.find(p => p.currentHp < p.maxHp * 0.55);
         if (allyNeedingHeal && healItems.length > 0) {
           const chosen = healItems[0];
-          const target = getItemEffectTarget(chosen) === 'one_ally' || getItemEffectTarget(chosen) === 'all_allies'
-            ? allyNeedingHeal
-            : character;
+          // Always target the ally needing heal (store handles self→one_ally override)
+          const target = getItemEffectTarget(chosen) === 'all_allies'
+            ? character
+            : allyNeedingHeal;
           get().selectCombatAction('use_item');
           get().selectCombatItem(chosen.uid);
           get().selectCombatTarget(target.id);

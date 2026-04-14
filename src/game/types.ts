@@ -91,8 +91,8 @@ export interface HealEffect extends BaseEffect {
   type: 'heal';
   /** HP to restore (flat number) */
   amount: number;
-  /** If true, amount is interpreted as % of max HP */
-  percent?: boolean;
+  /** If true, amount is interpreted as % of max HP. If a number (e.g. 100), used directly as % */
+  percent?: boolean | number;
 }
 
 export interface ApplyStatusEffect extends BaseEffect {
