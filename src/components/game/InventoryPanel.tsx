@@ -16,8 +16,15 @@ import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } 
 
 export default function InventoryPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
-  const state = useGameStore();
-  const { party, inventoryOpen, selectedCharacterId, toggleInventory, equipItem, consumeItemOutsideCombat, combineHerbs, selectCharacter, transferItem } = state;
+  const party = useGameStore(s => s.party);
+  const inventoryOpen = useGameStore(s => s.inventoryOpen);
+  const selectedCharacterId = useGameStore(s => s.selectedCharacterId);
+  const toggleInventory = useGameStore(s => s.toggleInventory);
+  const equipItem = useGameStore(s => s.equipItem);
+  const consumeItemOutsideCombat = useGameStore(s => s.consumeItemOutsideCombat);
+  const combineHerbs = useGameStore(s => s.combineHerbs);
+  const selectCharacter = useGameStore(s => s.selectCharacter);
+  const transferItem = useGameStore(s => s.transferItem);
   const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
   const [showTransferPicker, setShowTransferPicker] = useState(false);
 

@@ -2,7 +2,17 @@
 // It may be intended for future use (victory condition system).
 // TODO: Either migrate to DB-driven or remove if no longer planned.
 
-import { VictoryCondition, EnemyInstance } from '../types';
+import { EnemyInstance } from '../types';
+
+// Local type — not yet defined in ../types; define here until migrated
+interface VictoryCondition {
+  type: string;
+  targetEnemyId?: string;
+  turnsRequired?: number;
+  description: string;
+  rewardExpBonus: number;
+  rewardLabel: string;
+}
 
 // ==========================================
 // #15 - VICTORY CONDITION DEFINITIONS

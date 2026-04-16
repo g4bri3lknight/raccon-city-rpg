@@ -608,7 +608,10 @@ function UndiscoveredCard() {
 }
 
 export default function BestiaryPanel() {
-  const { bestiary, bestiaryOpen, toggleBestiary, dataVersion } = useGameStore();
+  const bestiary = useGameStore(s => s.bestiary);
+  const bestiaryOpen = useGameStore(s => s.bestiaryOpen);
+  const toggleBestiary = useGameStore(s => s.toggleBestiary);
+  const dataVersion = useGameStore(s => s.dataVersion);
 
   // Compute dynamically inside component so it reads current ENEMIES after DB load
   const ALL_ENEMY_IDS = Object.keys(ENEMIES);

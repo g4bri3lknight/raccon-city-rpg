@@ -31,7 +31,7 @@ import {
   RandomizedLocationData,
 } from './types';
 import { computeGrowthRates } from './data/characters';
-import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES, validateEffectsIntegrity, RECIPES_DATA, getCombatDelay, COMBAT_BOOL_CONFIG } from './data/loader';
+import { ITEMS, DYNAMIC_EVENTS, DOCUMENTS, QUESTS, LOCATIONS, initGameData, refreshGameData, CHARACTER_ARCHETYPES, ARCHETYPE_STAT_POINTS, getCustomStartingItems, ENEMIES, BOSS_PHASES, validateEffectsIntegrity, RECIPES_DATA, getCombatDelay, COMBAT_BOOL_CONFIG } from './data/loader';
 import { generateRandomizedData, getEffectiveLocation } from './data/randomizer';
 import {
   executePlayerAttack,
@@ -44,8 +44,6 @@ import {
   generateLoot,
   addExp,
   processActiveEffectsTick,
-  onTakeHit,
-  onTurnStart,
 } from './engine/combat';
 import { getAddSlotsAmount, getItemHealInfo, getItemHasStatusCure, getItemEffectTarget } from './utils/item-effects';
 import { WeaponInstance, WeaponMod, EffectTarget, ActiveCombatEffect, SpecialEffect } from './types';
@@ -87,15 +85,15 @@ const DEFAULT_GAME_SETTINGS = {
 
 let _gameSettingsCache: typeof DEFAULT_GAME_SETTINGS | null = null;
 let _gameSettingsLoading = false;
+let _gameSettingsResolveQueue: Array<() => void> = [];
 
 /** Fetch and cache game settings from DB. Returns cached values immediately if available. */
 async function fetchGameSettings(): Promise<typeof DEFAULT_GAME_SETTINGS> {
   if (_gameSettingsCache) return _gameSettingsCache;
   if (_gameSettingsLoading) {
-    // Wait for in-flight request
-    await new Promise(resolve => setTimeout(resolve, 100));
-    if (_gameSettingsCache) return _gameSettingsCache;
-    return { ...DEFAULT_GAME_SETTINGS };
+    // Wait for in-flight request to complete
+    await new Promise<void>(resolve => _gameSettingsResolveQueue.push(resolve));
+    return _gameSettingsCache ?? { ...DEFAULT_GAME_SETTINGS };
   }
   _gameSettingsLoading = true;
   try {
@@ -110,11 +108,16 @@ async function fetchGameSettings(): Promise<typeof DEFAULT_GAME_SETTINGS> {
           try { return JSON.parse(data['gameplay.defaultItemBoxItems'] || '[]'); } catch { return []; }
         })(),
       };
-      return _gameSettingsCache;
     }
   } catch { /* fallback */ }
-  _gameSettingsLoading = false;
-  return { ...DEFAULT_GAME_SETTINGS };
+  finally {
+    _gameSettingsLoading = false;
+    // Resolve all waiting callers
+    const queue = _gameSettingsResolveQueue;
+    _gameSettingsResolveQueue = [];
+    queue.forEach(resolve => resolve());
+  }
+  return _gameSettingsCache ?? { ...DEFAULT_GAME_SETTINGS };
 }
 
 /** Synchronous getter — uses cached settings, falls back to defaults */
@@ -188,7 +191,7 @@ function addItemToParty(
     icon: itemDef.icon,
     usable: itemDef.usable,
     equippable: itemDef.equippable,
-    effect: itemDef.effect,
+
     effects: itemDef.effects,
     quantity,
   };
@@ -395,10 +398,9 @@ function buildKeyPathLookup(): Record<string, { fromId: string; toId: string }[]
   }
   return lookup;
 }
-const KEY_PATH_LOOKUP = buildKeyPathLookup();
 
 function isKeyStillNeeded(itemId: string, unlockedPaths: string[]): boolean {
-  const paths = KEY_PATH_LOOKUP[itemId];
+  const paths = buildKeyPathLookup()[itemId];
   if (!paths) return false; // Not a key or no paths defined
   const remaining = paths.filter(
     p => !unlockedPaths.includes(`${p.fromId}→${p.toId}`)
@@ -553,6 +555,91 @@ export interface SaveSlotInfo {
   collectedRibbons?: number;
 }
 
+// ==========================================
+// ADVENTURE INIT HELPER
+// ==========================================
+function buildStartState(
+  party: Character[],
+  activeDifficulty: DifficultyLevel,
+  randomizerMode: boolean,
+  startMessage: string,
+) {
+  const diffConfig = getDifficultyConfig(activeDifficulty, party.length);
+  const startLocation = LOCATIONS['city_outskirts'];
+
+  // Validate effects integrity on game start
+  const effectsWarnings = validateEffectsIntegrity();
+  const warningLog: string[] = [];
+  if (effectsWarnings) {
+    const grouped = new Map<string, string[]>();
+    for (const w of effectsWarnings) {
+      if (!grouped.has(w.source)) grouped.set(w.source, []);
+      grouped.get(w.source)!.push(w.name);
+    }
+    console.error('[Effects Integrity] Found abilities with empty effects[]:', effectsWarnings);
+    warningLog.push('⚠️ ATTENZIONE: Trovate abilità con effects[] vuoto!');
+    for (const [source, names] of grouped) {
+      warningLog.push(`  📌 ${source}: ${names.join(', ')}`);
+    }
+    warningLog.push('  Queste abilità non produrranno alcun effetto in combattimento.');
+  }
+
+  return {
+    phase: 'exploration' as const,
+    party,
+    currentLocationId: 'city_outskirts' as const,
+    enemies: [],
+    combat: null,
+    activeEvent: startLocation.storyEvent || null,
+    eventOutcome: null,
+    messageLog: [...warningLog, startMessage, `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
+    turnCount: 0,
+    inventoryOpen: false,
+    selectedCharacterId: party[0]?.id || null,
+    searchCounts: {},
+    searchMaxes: {},
+    partySize: party.length,
+    unlockedPaths: [],
+    visitedLocations: ['city_outskirts'],
+    mapOpen: false,
+    skipNextEncounter: false,
+    completedEvents: [],
+    collectedRibbons: 0,
+    gameStartTime: Date.now(),
+    achievements: { unlockedIds: [], unlockTimestamps: {} },
+    achievementsOpen: false,
+    bestiary: [],
+    bestiaryOpen: false,
+    newAchievementNotification: null,
+    difficulty: activeDifficulty,
+    collectedDocuments: [],
+    documentsOpen: false,
+    missionsOpen: false,
+    activeNpc: null,
+    npcQuestProgress: {},
+    npcsEncountered: [],
+    npcsOpen: false,
+    activeDynamicEvent: null,
+    dynamicEventTurnsLeft: 0,
+    storyChoices: [],
+    discoveredSecretRooms: [],
+    endingType: null,
+    exploredSubAreas: {},
+    randomizerMode,
+    randomizedLocationData: randomizerMode ? generateRandomizedData() : null,
+    currentSubArea: null,
+    itemBoxItems: [],
+    searchedSafeRooms: [],
+    readDocuments: [],
+    nemesisPursuitLevel: 0,
+    nemesisLastSeenLocation: null as string | null,
+    nemesisLastSeenTurn: 0,
+    bossPhases: {} as Record<string, any>,
+    notification: null as any,
+    // persistentRibbons is preserved (set externally for New Game+)
+  };
+}
+
 export const useGameStore = create<GameStore>((set, get) => ({
   phase: 'title',
   party: [],
@@ -610,6 +697,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   searchedSafeRooms: [] as string[],
   readDocuments: [] as string[],
   dataVersion: 0,
+  nemesisPursuitLevel: 0,
+  nemesisLastSeenLocation: null as string | null,
+  nemesisLastSeenTurn: 0,
+  bossPhases: {} as Record<string, any>,
+  notification: null as any,
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -620,7 +712,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: 'normale', collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], searchedSafeRooms: [], readDocuments: [] });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: 'normale', collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], searchedSafeRooms: [], readDocuments: [], nemesisPursuitLevel: 0, nemesisLastSeenLocation: null, nemesisLastSeenTurn: 0, bossPhases: {}, notification: null, autoCombat: false, puzzleState: null, puzzleSourceLocationId: null, qteState: null, randomizerMode: false, randomizedLocationData: null });
   },
 
   goToCharacterCreator: () => {
@@ -631,75 +723,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     const party = selectedArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
-    const diffConfig = getDifficultyConfig(activeDifficulty, party.length);
-    const startLocation = LOCATIONS['city_outskirts'];
-
-    // Validate effects integrity on game start
-    const effectsWarnings = validateEffectsIntegrity();
-    const warningLog: string[] = [];
-    if (effectsWarnings) {
-      const grouped = new Map<string, string[]>();
-      for (const w of effectsWarnings) {
-        if (!grouped.has(w.source)) grouped.set(w.source, []);
-        grouped.get(w.source)!.push(w.name);
-      }
-      console.error('[Effects Integrity] Found abilities with empty effects[]:', effectsWarnings);
-      warningLog.push('⚠️ ATTENZIONE: Trovate abilità con effects[] vuoto!');
-      for (const [source, names] of grouped) {
-        warningLog.push(`  📌 ${source}: ${names.join(', ')}`);
-      }
-      warningLog.push('  Queste abilità non produrranno alcun effetto in combattimento.');
-    }
-
-    set({
-      phase: 'exploration',
-      party,
-      currentLocationId: 'city_outskirts',
-      enemies: [],
-      combat: null,
-      activeEvent: startLocation.storyEvent || null,
-      eventOutcome: null,
-      messageLog: [...warningLog, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
-      turnCount: 0,
-      inventoryOpen: false,
-      selectedCharacterId: party[0]?.id || null,
-      searchCounts: {},
-      searchMaxes: {},
-      partySize: party.length,
-      unlockedPaths: [],
-      visitedLocations: ['city_outskirts'],
-      mapOpen: false,
-      skipNextEncounter: false,
-      completedEvents: [],
-      collectedRibbons: 0,
-      gameStartTime: Date.now(),
-      achievements: { unlockedIds: [], unlockTimestamps: {} },
-      achievementsOpen: false,
-      bestiary: [],
-      bestiaryOpen: false,
-      newAchievementNotification: null,
-      difficulty: activeDifficulty,
-      collectedDocuments: [],
-      documentsOpen: false,
-      missionsOpen: false,
-      activeNpc: null,
-      npcQuestProgress: {},
-      npcsEncountered: [],
-      npcsOpen: false,
-      activeDynamicEvent: null,
-      dynamicEventTurnsLeft: 0,
-      storyChoices: [],
-      discoveredSecretRooms: [],
-      endingType: null,
-      exploredSubAreas: {},
-      randomizerMode: state.randomizerMode,
-      randomizedLocationData: state.randomizerMode ? generateRandomizedData() : null,
-      currentSubArea: null,
-      itemBoxItems: [],
-      searchedSafeRooms: [],
-      readDocuments: [],
-      // persistentRibbons is preserved (set externally for New Game+)
-    });
+    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...'));
   },
 
   startAdventureWithCustom: (presetArchetypes: Archetype[], customCharacters: CustomCharacterConfig[]) => {
@@ -707,77 +731,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const presetParty = presetArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
     const customParty = customCharacters.map(config => createCustomCharacter(config));
     const party = [...presetParty, ...customParty];
-    const pSize = party.length;
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
-    const diffConfig = getDifficultyConfig(activeDifficulty, pSize);
-    const startLocation = LOCATIONS['city_outskirts'];
-
-    // Validate effects integrity on game start
-    const effectsWarnings = validateEffectsIntegrity();
-    const warningLog: string[] = [];
-    if (effectsWarnings) {
-      const grouped = new Map<string, string[]>();
-      for (const w of effectsWarnings) {
-        if (!grouped.has(w.source)) grouped.set(w.source, []);
-        grouped.get(w.source)!.push(w.name);
-      }
-      console.error('[Effects Integrity] Found abilities with empty effects[]:', effectsWarnings);
-      warningLog.push('⚠️ ATTENZIONE: Trovate abilità con effects[] vuoto!');
-      for (const [source, names] of grouped) {
-        warningLog.push(`  📌 ${source}: ${names.join(', ')}`);
-      }
-      warningLog.push('  Queste abilità non produrranno alcun effetto in combattimento.');
-    }
-
-    set({
-      phase: 'exploration',
-      party,
-      currentLocationId: 'city_outskirts',
-      enemies: [],
-      combat: null,
-      activeEvent: startLocation.storyEvent || null,
-      eventOutcome: null,
-      messageLog: [...warningLog, 'Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...', `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
-      turnCount: 0,
-      inventoryOpen: false,
-      selectedCharacterId: party[0]?.id || null,
-      searchCounts: {},
-      searchMaxes: {},
-      partySize: pSize,
-      unlockedPaths: [],
-      visitedLocations: ['city_outskirts'],
-      mapOpen: false,
-      skipNextEncounter: false,
-      completedEvents: [],
-      collectedRibbons: 0,
-      gameStartTime: Date.now(),
-      achievements: { unlockedIds: [], unlockTimestamps: {} },
-      achievementsOpen: false,
-      bestiary: [],
-      bestiaryOpen: false,
-      newAchievementNotification: null,
-      difficulty: activeDifficulty,
-      collectedDocuments: [],
-      documentsOpen: false,
-      missionsOpen: false,
-      activeNpc: null,
-      npcQuestProgress: {},
-      npcsEncountered: [],
-      npcsOpen: false,
-      activeDynamicEvent: null,
-      dynamicEventTurnsLeft: 0,
-      storyChoices: [],
-      discoveredSecretRooms: [],
-      endingType: null,
-      exploredSubAreas: {},
-      randomizerMode: state.randomizerMode,
-      randomizedLocationData: state.randomizerMode ? generateRandomizedData() : null,
-      currentSubArea: null,
-      itemBoxItems: [],
-      searchedSafeRooms: [],
-      readDocuments: [],
-      // persistentRibbons is preserved (set externally for New Game+)
-    });
+    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...'));
   },
 
   gameOver: () => {
@@ -959,6 +914,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             specialCooldowns: {},
             special2Cooldowns: {},
             tauntTargetId: null,
+            activeEffects: [],
           },
           notification: null,
           bestiary: currentBestiary,
@@ -1049,6 +1005,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             specialCooldowns: {},
             special2Cooldowns: {},
             tauntTargetId: null,
+            activeEffects: [],
           },
           bestiary: nemesisBestiary,
           notification: null,
@@ -1262,7 +1219,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             icon: itemDef.icon,
             usable: itemDef.usable,
             equippable: itemDef.equippable,
-            effect: itemDef.effect,
+        
             effects: itemDef.effects,
             quantity: foundEntry.quantity,
           };
@@ -1627,9 +1584,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const locSearchMax = location.searchMax;              // null=random 1-3, 0=unlimited
 
     // ── searchBonus from active dynamic event (e.g. Blackout) ──
-    const activeEvent = state.activeDynamicEvent
-      ? DYNAMIC_EVENTS[state.activeDynamicEvent.eventId]
-      : null;
+    const activeEvent = state.activeDynamicEvent || null;
     const hasSearchBonus = activeEvent?.effect?.searchBonus === true;
     const searchBoost = hasSearchBonus ? 20 : 0; // +20% boost when searchBonus active
 
@@ -1858,7 +1813,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             icon: itemDef.icon,
             usable: itemDef.usable,
             equippable: itemDef.equippable,
-            effect: itemDef.effect,
+        
             effects: itemDef.effects,
             quantity: 1,
           };
@@ -2036,6 +1991,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           specialCooldowns: {},
           special2Cooldowns: {},
           tauntTargetId: null,
+          activeEffects: [],
         },
         messageLog: [...state.messageLog, ...logMessages],
       });
@@ -2466,7 +2422,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           icon: mixedDef.icon,
           usable: mixedDef.usable,
           equippable: mixedDef.equippable,
-          effect: mixedDef.effect,
           effects: mixedDef.effects,
           quantity: 1,
         };
@@ -2632,7 +2587,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         selectedItemUid: null,
         isProcessing: false,
         log: [
-          { turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Boss Fight', message: `⭐ BOSS: ${boss.name} appare! ${boss.description}` },
+          { turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Boss Fight', message: `⭐ BOSS: ${boss.name} appare! ${ENEMIES[boss.definitionId]?.description || ''}` },
         ],
         isVictory: false,
         isDefeat: false,
@@ -2641,6 +2596,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         specialCooldowns: {},
         special2Cooldowns: {},
         tauntTargetId: null,
+        activeEffects: [],
       },
       messageLog: [...state.messageLog, `[${state.turnCount}] ⭐ BOSS: ${boss.name} blocca la via!`],
     });
@@ -2681,11 +2637,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (action === 'flee') {
       const canFlee = calculateFleeChance(state.party, state.enemies);
       if (canFlee) {
+        const hasNemesis = state.enemies.some(e => e.definitionId === 'nemesis_boss');
         set({
           phase: 'exploration',
           combat: null,
           enemies: [],
-          messageLog: [...state.messageLog, `[${state.turnCount}] 🏃 Fuga riuscita!`],
+          messageLog: [...state.messageLog, `[${state.turnCount}] 🏃 Fuga riuscita!${hasNemesis ? ' 💀 Ma NEMESIS vi rintraccerà...' : ''}`],
+          ...(hasNemesis && state.nemesisPursuitLevel < 5 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
         });
         return;
       } else {
@@ -3038,6 +2996,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // ── BOSS PHASE TRANSITION CHECK ──
+    const targetIndex: number[] = [];
     for (let i = 0; i < updatedEnemies.length; i++) {
       const enemy = updatedEnemies[i];
       if (!enemy.isBoss || enemy.currentHp <= 0) continue;
@@ -3048,22 +3007,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const hpPercent = enemy.currentHp / enemy.maxHp;
 
       if (hpPercent <= phaseDef.hpThreshold) {
-        // Transition to next phase!
+        targetIndex.push(i);
+      }
+    }
+    if (targetIndex.length > 0) {
+      updatedEnemies = updatedEnemies.map((enemy, i) => {
+        if (!targetIndex.includes(i)) return enemy;
+        const phases = BOSS_PHASES[enemy.definitionId];
+        const phaseDef = phases![enemy.currentPhase];
         const newPhase = enemy.currentPhase + 1;
-        enemy.currentPhase = newPhase;
-        enemy.isPhaseTransitioning = true;
-
-        // Apply stat multipliers from this phase
-        enemy.maxHp = Math.round(enemy.maxHp * phaseDef.hpMultiplier);
-        enemy.currentHp = Math.max(enemy.currentHp, Math.round(enemy.maxHp * phaseDef.hpThreshold * 0.5));
-        enemy.atk = Math.round(enemy.atk * phaseDef.atkMultiplier);
-        enemy.def = Math.round(enemy.def * phaseDef.defMultiplier);
-        enemy.spd = Math.round(enemy.spd * phaseDef.spdMultiplier);
-
-        // Add new abilities if phase defines them
-        if (phaseDef.newAbilities) {
-          enemy.abilities = [...enemy.abilities, ...phaseDef.newAbilities];
-        }
+        const newMaxHp = Math.round(enemy.maxHp * phaseDef.hpMultiplier);
+        const newCurrentHp = Math.max(enemy.currentHp, Math.round(newMaxHp * phaseDef.hpThreshold * 0.5));
+        const newAbilities = phaseDef.newAbilities
+          ? [...enemy.abilities, ...phaseDef.newAbilities]
+          : enemy.abilities;
 
         newLog.push({
           turn: state.combat.turn,
@@ -3079,7 +3036,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
             enemies: state.enemies.map(e => e.id === enemy.id ? { ...e, isPhaseTransitioning: false } : e),
           }));
         }, 2000);
-      }
+
+        return {
+          ...enemy,
+          currentPhase: newPhase,
+          isPhaseTransitioning: true,
+          maxHp: newMaxHp,
+          currentHp: newCurrentHp,
+          atk: Math.round(enemy.atk * phaseDef.atkMultiplier),
+          def: Math.round(enemy.def * phaseDef.defMultiplier),
+          spd: Math.round(enemy.spd * phaseDef.spdMultiplier),
+          abilities: newAbilities,
+        };
+      });
     }
 
     // Check if all enemies are dead
@@ -3125,7 +3094,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 icon: itemDef.icon,
                 usable: itemDef.usable,
                 equippable: itemDef.equippable,
-                effect: itemDef.effect,
+            
                 effects: itemDef.effects,
                 quantity: 1,
                 equipmentStats: equipStats || undefined,
@@ -3156,7 +3125,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
               icon: itemDef.icon,
               usable: itemDef.usable,
               equippable: itemDef.equippable,
-              effect: itemDef.effect,
+          
               effects: itemDef.effects,
               quantity: 1,
             };
@@ -3759,15 +3728,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
-    // Build newLog early so it's available for DOT death checks
-    const newLog = isNewTurn
-      ? [
-          ...combat.log,
-          { turn: newTurn, actorName: 'Sistema', actorType: 'player' as const, action: 'Turno', message: `--- Turno ${newTurn} ---` },
-          ...statusLogEntries,
-        ]
-      : [...combat.log];
-
     // Process status effects on ENEMIES at new turn start (DOT for poison/bleeding)
     let updatedEnemiesForStatus = [...enemies];
     if (isNewTurn) {
@@ -3860,15 +3820,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
-    // Rebuild newLog now that statusLogEntries may have DOT death entries
-    // (already declared above, we just need to refresh if isNewTurn added entries)
+    // Build final log with all status entries (including DOT death entries added above)
     let finalLog: CombatLogEntry[] = isNewTurn
       ? [
           ...combat.log,
           { turn: newTurn, actorName: 'Sistema', actorType: 'player' as const, action: 'Turno', message: `--- Turno ${newTurn} ---` },
           ...statusLogEntries,
         ]
-      : newLog;
+      : [...combat.log];
 
     // Check if ALL enemies died from DOT → declare victory
     if (aliveEnemyIds.size === 0 && updatedEnemiesForStatus.length > 0) {
@@ -4567,6 +4526,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     let updatedParty = [...state.party];
     const logMessages: string[] = [];
+    let newPursuitLevelOnSuccess: number | null = null;
 
     if (qs.result === 'success') {
       logMessages.push(`[${state.turnCount}] ✅ ${qs.postSuccessMessage}`);
@@ -4586,7 +4546,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           updatedParty = updatedParty.map(p => {
             if (!added && p.inventory.length < p.maxInventorySlots) {
               added = true;
-              return { ...p, inventory: [...p.inventory, { uid: `${itemEntry.itemId}_${Date.now()}_${Math.random()}`, itemId: itemEntry.itemId, name: itemDef.name, description: itemDef.description, type: itemDef.type, rarity: itemDef.rarity, icon: itemDef.icon, usable: itemDef.usable, equippable: itemDef.equippable, effect: itemDef.effect, effects: itemDef.effects, quantity: itemEntry.quantity }] };
+              return { ...p, inventory: [...p.inventory, { uid: `${itemEntry.itemId}_${Date.now()}_${Math.random()}`, itemId: itemEntry.itemId, name: itemDef.name, description: itemDef.description, type: itemDef.type, rarity: itemDef.rarity, icon: itemDef.icon, usable: itemDef.usable, equippable: itemDef.equippable, effects: itemDef.effects, quantity: itemEntry.quantity }] };
             }
             return p;
           });
@@ -4596,8 +4556,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       // Successful escape from Nemesis increases pursuit level
       if (qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5) {
-        const newPursuitLevel = state.nemesisPursuitLevel + 1;
-        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevel}/5`);
+        newPursuitLevelOnSuccess = state.nemesisPursuitLevel + 1;
+        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevelOnSuccess}/5`);
       }
     } else if (qs.result === 'partial') {
       logMessages.push(`[${state.turnCount}] ⚠️ ${qs.postFailureMessage} (parziale)`);
@@ -4633,6 +4593,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }));
       logMessages.push(`[${state.turnCount}] 💔-${dmg} HP a tutti!`);
 
+      // Failed escape from Nemesis also increases pursuit level
+      if (qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5) {
+        newPursuitLevelOnSuccess = state.nemesisPursuitLevel + 1;
+        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevelOnSuccess}/5`);
+      }
+
       // If nemesis QTE failed, trigger combat
       if (qs.triggerSource === 'nemesis' && qs.postFailureCombat) {
         const diff = getDifficultyConfig(state.difficulty, state.partySize);
@@ -4667,8 +4633,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
             specialCooldowns: {},
             special2Cooldowns: {},
             tauntTargetId: null,
+            activeEffects: [],
           },
           messageLog: [...state.messageLog, ...logMessages],
+          ...(qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
         });
         if (firstActor.type === 'enemy') {
           setTimeout(() => get().advanceToNextActor(), 1400);
@@ -4683,6 +4651,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       party: updatedParty,
       messageLog: [...state.messageLog, ...logMessages],
       skipNextEncounter: true,
+      ...(newPursuitLevelOnSuccess !== null ? { nemesisPursuitLevel: newPursuitLevelOnSuccess } : {}),
     });
   },
 
@@ -4734,6 +4703,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentSubArea: state.currentSubArea,
       itemBoxItems: state.itemBoxItems,
       readDocuments: state.readDocuments,
+      nemesisPursuitLevel: state.nemesisPursuitLevel,
+      nemesisLastSeenLocation: state.nemesisLastSeenLocation,
+      nemesisLastSeenTurn: state.nemesisLastSeenTurn,
+      bossPhases: state.bossPhases,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -4755,6 +4728,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     try {
       if (typeof window !== 'undefined') {
+        const json = JSON.stringify(saveData);
+        if (json.length > 4_000_000) {
+          // localStorage ~5MB limit; warn and trim randomizedLocationData
+          console.warn(`[saveGame] Save data is ${(json.length / 1024).toFixed(0)}KB, trimming randomizedLocationData`);
+          saveData.randomizedLocationData = null;
+        }
         localStorage.setItem(saveKey, JSON.stringify(saveData));
         localStorage.setItem(saveMetaKey, JSON.stringify(meta));
       }
@@ -4774,6 +4753,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       const data = JSON.parse(raw);
       if (!data || data.version !== 1) return false;
+
+      // Basic structural validation of saved data
+      if (
+        !Array.isArray(data.party) ||
+        typeof data.phase !== 'string' ||
+        typeof data.turnCount !== 'number'
+      ) {
+        console.warn('[loadGame] Save data missing required top-level fields (party, phase, turnCount). Aborting load.');
+        return false;
+      }
+      for (const member of data.party) {
+        if (
+          !member.id ||
+          !member.name ||
+          typeof member.currentHp !== 'number' ||
+          typeof member.maxHp !== 'number' ||
+          !Array.isArray(member.inventory)
+        ) {
+          console.warn(`[loadGame] Party member missing required fields: ${member?.id ?? '(no id)'}. Aborting load.`);
+          return false;
+        }
+      }
 
       // Check if this is a New Game+ save (saved after victory)
       const isNGP = data.isNewGamePlus || false;
@@ -4825,6 +4826,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         currentSubArea: data.currentSubArea || null,
         itemBoxItems: data.itemBoxItems || [],
         readDocuments: data.readDocuments || [],
+        nemesisPursuitLevel: data.nemesisPursuitLevel || 0,
+        nemesisLastSeenLocation: data.nemesisLastSeenLocation || null,
+        nemesisLastSeenTurn: data.nemesisLastSeenTurn || 0,
+        bossPhases: data.bossPhases || {},
       });
       return true;
     } catch {
@@ -5482,7 +5487,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           usable: itemDef.usable,
           equippable: itemDef.equippable,
           quantity: def.quantity || 1,
-          effect: (itemDef as any).effect ? { ...(itemDef as any).effect } : undefined,
           effects: itemDef.effects,
         });
         existingIds.add(def.itemId);
@@ -5594,7 +5598,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         usable: itemDef.usable,
         equippable: itemDef.equippable,
         quantity: qty,
-        effect: (itemDef as any).effect ? { ...(itemDef as any).effect } : undefined,
         effects: itemDef.effects,
         isEquipped: false,
       };
@@ -5800,7 +5803,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       icon: resultDef.icon,
       usable: resultDef.usable,
       equippable: resultDef.equippable,
-      effect: resultDef.effect,
       effects: resultDef.effects,
       quantity: recipe.result.quantity,
     };
@@ -5853,7 +5855,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           icon: def.icon,
           usable: def.usable,
           equippable: def.equippable,
-          effect: def.effect,
           effects: def.effects,
           quantity: 5,
         };
@@ -5893,7 +5894,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           icon: def.icon,
           usable: def.usable,
           equippable: def.equippable,
-          effect: def.effect,
           effects: def.effects,
           quantity: 1,
         };
@@ -6027,6 +6027,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         specialCooldowns: {},
         special2Cooldowns: {},
         tauntTargetId: null,
+        activeEffects: [],
       },
       messageLog: [...state.messageLog, `[DEBUG] 👾 Combattimento iniziato contro ${def.name}!`],
     });
@@ -6168,6 +6169,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   bumpDataVersion: () => {
     _gameSettingsCache = null; // invalidate settings cache so it reloads
     fetchGameSettings(); // reload in background
+    refreshGameData(); // reload all game data from DB
     set(state => ({ dataVersion: state.dataVersion + 1, searchMaxes: {} }));
   },
 }));

@@ -120,6 +120,7 @@ export { ENEMIES_DATA as ENEMIES };
 export let DATA_VERSION = 0;
 
 let initialized = false;
+let loadingPromise: Promise<void> | null = null;
 
 // ── DB row types (mirror Prisma output) ──
 
@@ -504,6 +505,7 @@ function mapDbNpc(row: DbNPC): GameNPC {
     greeting: row.greeting,
     dialogues,
     farewell: row.farewell,
+    quest: Object.values(QUESTS).find(q => q.npcId === row.id) || undefined,
     tradeInventory: tradeInventory.length > 0 ? tradeInventory : undefined,
     questCompletedDialogue: questCompletedDialogue.length > 0 ? questCompletedDialogue : undefined,
     ...(row.badgeLabel ? { badgeLabel: row.badgeLabel } : {}),
@@ -1009,36 +1011,45 @@ async function loadEnemies(api: Awaited<ReturnType<typeof loadFromApi>>): Promis
 
 export async function initGameData(): Promise<void> {
   if (initialized) return;
-  const api = await loadFromApi();
-  // Items MUST load first — mapDbCharacter references ITEMS to build starting items
-  await loadItems(api);
-  await Promise.all([
-    loadEvents(api),
-    loadDocuments(api),
-    loadQuests(api),
-    loadLocations(api),
-    loadNpcs(api),
-    loadCharacters(api),
-    loadSpecials(api),
-    loadEnemyAbilities(api),
-    loadEnemies(api),
-    loadSecretRooms(api),
-    loadRecipes(api),
-    loadAchievements(api),
-    loadEndings(api),
-    loadAvatars(api),
-    loadGameSettings(),
-  ]);
-  // Boss phases must load AFTER enemy abilities (resolves ability IDs)
-  loadBossPhases(api);
-  // Rebuild equipment/mod lookups from loaded ITEMS
-  rebuildWeaponModsFromItems();
-  rebuildEquipmentFromItems();
-  initialized = true;
+  if (loadingPromise) return loadingPromise;
+  loadingPromise = (async () => {
+    try {
+      const api = await loadFromApi();
+      // Items MUST load first — mapDbCharacter references ITEMS to build starting items
+      await loadItems(api);
+      await Promise.all([
+        loadEvents(api),
+        loadDocuments(api),
+        loadQuests(api),
+        loadLocations(api),
+        loadNpcs(api),
+        loadCharacters(api),
+        loadSpecials(api),
+        loadEnemyAbilities(api),
+        loadEnemies(api),
+        loadSecretRooms(api),
+        loadRecipes(api),
+        loadAchievements(api),
+        loadEndings(api),
+        loadAvatars(api),
+        loadGameSettings(),
+      ]);
+      // Boss phases must load AFTER enemy abilities (resolves ability IDs)
+      loadBossPhases(api);
+      // Rebuild equipment/mod lookups from loaded ITEMS
+      rebuildWeaponModsFromItems();
+      rebuildEquipmentFromItems();
+      initialized = true;
+    } finally {
+      loadingPromise = null;
+    }
+  })();
+  return loadingPromise;
 }
 
 /** Force reload all data from DB (used after admin CRUD operations) */
 export async function refreshGameData(): Promise<void> {
+  initialized = false;
   const api = await loadFromApi();
   // Items MUST load first — mapDbCharacter references ITEMS to build starting items
   await loadItems(api);

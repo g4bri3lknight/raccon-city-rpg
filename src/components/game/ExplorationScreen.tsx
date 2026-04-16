@@ -21,18 +21,47 @@ import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 
 export default function ExplorationScreen() {
   const dataVersion = useGameStore(s => s.dataVersion);
-  const state = useGameStore();
-  const {
-    party, currentLocationId, messageLog, turnCount, searchCounts, searchMaxes, partySize,
-    activeEvent, inventoryOpen, selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
-    difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc, collectedDocuments,
-    npcQuestProgress, readDocuments, randomizerMode, randomizedLocationData, currentSubArea,
-    explore, travelTo, searchArea, handleEventChoice, closeEvent,
-    toggleInventory, selectCharacter, startBossFight, toggleMap,
-    toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
-    handleDynamicEventChoice,
-    startQTE, enterSafeRoom, encounterNpc, npcsEncountered,
-  } = state;
+  const party = useGameStore(s => s.party);
+  const currentLocationId = useGameStore(s => s.currentLocationId);
+  const messageLog = useGameStore(s => s.messageLog);
+  const turnCount = useGameStore(s => s.turnCount);
+  const searchCounts = useGameStore(s => s.searchCounts);
+  const searchMaxes = useGameStore(s => s.searchMaxes);
+  const partySize = useGameStore(s => s.partySize);
+  const activeEvent = useGameStore(s => s.activeEvent);
+  const inventoryOpen = useGameStore(s => s.inventoryOpen);
+  const selectedCharacterId = useGameStore(s => s.selectedCharacterId);
+  const collectedRibbons = useGameStore(s => s.collectedRibbons);
+  const persistentRibbons = useGameStore(s => s.persistentRibbons);
+  const isNewGamePlus = useGameStore(s => s.isNewGamePlus);
+  const difficulty = useGameStore(s => s.difficulty);
+  const activeDynamicEvent = useGameStore(s => s.activeDynamicEvent);
+  const dynamicEventTurnsLeft = useGameStore(s => s.dynamicEventTurnsLeft);
+  const activeNpc = useGameStore(s => s.activeNpc);
+  const collectedDocuments = useGameStore(s => s.collectedDocuments);
+  const npcQuestProgress = useGameStore(s => s.npcQuestProgress);
+  const readDocuments = useGameStore(s => s.readDocuments);
+  const randomizerMode = useGameStore(s => s.randomizerMode);
+  const randomizedLocationData = useGameStore(s => s.randomizedLocationData);
+  const currentSubArea = useGameStore(s => s.currentSubArea);
+  const npcsEncountered = useGameStore(s => s.npcsEncountered);
+  const explore = useGameStore(s => s.explore);
+  const travelTo = useGameStore(s => s.travelTo);
+  const searchArea = useGameStore(s => s.searchArea);
+  const handleEventChoice = useGameStore(s => s.handleEventChoice);
+  const closeEvent = useGameStore(s => s.closeEvent);
+  const toggleInventory = useGameStore(s => s.toggleInventory);
+  const selectCharacter = useGameStore(s => s.selectCharacter);
+  const startBossFight = useGameStore(s => s.startBossFight);
+  const toggleMap = useGameStore(s => s.toggleMap);
+  const toggleAchievements = useGameStore(s => s.toggleAchievements);
+  const toggleBestiary = useGameStore(s => s.toggleBestiary);
+  const toggleDocuments = useGameStore(s => s.toggleDocuments);
+  const toggleMissions = useGameStore(s => s.toggleMissions);
+  const handleDynamicEventChoice = useGameStore(s => s.handleDynamicEventChoice);
+  const startQTE = useGameStore(s => s.startQTE);
+  const enterSafeRoom = useGameStore(s => s.enterSafeRoom);
+  const encounterNpc = useGameStore(s => s.encounterNpc);
 
   const location = LOCATIONS[currentLocationId];
   // searchMax: DB config (null=random 1-3, 0=unlimited) → searchMaxes: runtime state

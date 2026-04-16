@@ -21,10 +21,16 @@ import {
 
 export default function CombatScreen() {
   const dataVersion = useGameStore(s => s.dataVersion);
-  const state = useGameStore();
-  const { party, combat, enemies, autoCombat,
-    selectCombatAction, selectCombatTarget, selectCombatItem, executeCombatTurn,
-    toggleAutoCombat, executeAutoCombatTurn } = state;
+  const party = useGameStore(s => s.party);
+  const combat = useGameStore(s => s.combat);
+  const enemies = useGameStore(s => s.enemies);
+  const autoCombat = useGameStore(s => s.autoCombat);
+  const selectCombatAction = useGameStore(s => s.selectCombatAction);
+  const selectCombatTarget = useGameStore(s => s.selectCombatTarget);
+  const selectCombatItem = useGameStore(s => s.selectCombatItem);
+  const executeCombatTurn = useGameStore(s => s.executeCombatTurn);
+  const toggleAutoCombat = useGameStore(s => s.toggleAutoCombat);
+  const executeAutoCombatTurn = useGameStore(s => s.executeAutoCombatTurn);
 
   // ── UI state (menu always visible during combat) ──
   const [targetingMode, setTargetingMode] = useState<'enemy' | 'ally' | null>(null);
@@ -62,7 +68,7 @@ export default function CombatScreen() {
     showItemSelectRef.current = showItemSelect;
     aliveEnemiesRef.current = enemies;
     alivePartyRef.current = party;
-  });
+  }, [targetingMode, showItemSelect, enemies, party]);
 
   // ── Enemy death detection: play death sound + trigger screen shake & kill flash + #41 death anim ──
   const prevEnemyHpRef = useRef<Record<string, number>>({});
@@ -561,7 +567,7 @@ export default function CombatScreen() {
             const isDead = enemy.currentHp <= 0;
             const isActive = enemy.id === combat.currentActorId && !isPlayerTurn;
             const isTargetable = targetingMode === 'enemy' && !isDead;
-            const pct = enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0;
+            const pct = Math.min(100, enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0);
             const animClass = isMissAnim ? 'animate-dodge' : isHurt ? (isCrit ? 'animate-critical-impact' : 'entity-shake') : !isDead ? 'entity-enemy-idle' : 'entity-dead';
             // ── #41 animation classes ──
             const hitAnimClass = hitTargetId === enemy.id ? (hitIsCritical ? 'animate-flash-red' : 'animate-shake') : '';
@@ -605,7 +611,11 @@ export default function CombatScreen() {
                       t.style.display = 'none';
                       const fb = document.createElement('div');
                       fb.className = 'w-full h-full flex items-center justify-center bg-gray-900/80';
-                      fb.innerHTML = `<span style="font-size:2.5rem">${enemy.icon || '🧟'}</span>`;
+                      fb.textContent = '';
+                      const iconSpan = document.createElement('span');
+                      iconSpan.style.fontSize = '2.5rem';
+                      iconSpan.textContent = enemy.icon || '🧟';
+                      fb.appendChild(iconSpan);
                       t.parentElement?.appendChild(fb);
                     }
                   }} />
@@ -666,7 +676,7 @@ export default function CombatScreen() {
             const isHealing = anim?.type === 'heal';
             const isDead = char.currentHp <= 0;
             const isTargetable = targetingMode === 'ally' && !isDead;
-            const pct = char.maxHp > 0 ? (char.currentHp / char.maxHp) * 100 : 0;
+            const pct = Math.min(100, char.maxHp > 0 ? (char.currentHp / char.maxHp) * 100 : 0);
             const isPoisoned = char.statusEffects?.includes('poison') || false;
             const isBleeding = char.statusEffects?.includes('bleeding') || false;
             const animClass = isMissAnim ? 'animate-dodge' : isHurt ? (isCrit ? 'animate-critical-impact' : 'entity-shake') : !isDead ? 'entity-player-idle' : 'entity-dead';

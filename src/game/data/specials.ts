@@ -9,7 +9,7 @@ export function getSpecialByIdStatic(id: string): SpecialAbilityDefinition | und
   return undefined;
 }
 
-// Stat point budget for custom archetype characters (Category C — pure config)
+/** @deprecated Use loader.ts equivalent — this hardcoded value shadows the DB-loaded version */
 export const CUSTOM_STAT_BUDGET = {
   totalPoints: 50,
   minPerStat: 5,
@@ -17,7 +17,7 @@ export const CUSTOM_STAT_BUDGET = {
   defaults: { hp: 10, atk: 12, def: 10, spd: 8 },
 };
 
-// Default starting items for custom characters (Category C)
+/** @deprecated Use loader.ts equivalent — this hardcoded value shadows the DB-loaded version */
 export const CUSTOM_STARTING_ITEMS: { itemId: string; name: string; description: string; type: string; rarity: string; icon: string; usable: boolean; equippable: boolean; quantity: number; effect?: any; weaponStats?: any }[] = [
   {
     itemId: 'pipe',
@@ -57,7 +57,7 @@ export const CUSTOM_STARTING_ITEMS: { itemId: string; name: string; description:
   },
 ];
 
-// Predefined avatar options (Category B — no DB table yet)
+/** @deprecated Use loader.ts equivalent (AVATARS_DATA / re-exported PREDEFINED_AVATARS) */
 export const PREDEFINED_AVATARS = [
   { id: 'avatar_soldier', name: 'Avatar 1', path: '/api/media/image?id=avatar_soldier', emoji: '🪖' },
   { id: 'avatar_medic', name: 'Avatar 2', path: '/api/media/image?id=avatar_medic', emoji: '🩺' },

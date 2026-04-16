@@ -31,13 +31,26 @@ function isHtmlContent(content: string): boolean {
   return /<[a-z][\s\S]*?>/i.test(content);
 }
 
+/** Sanitize HTML content — strip script tags and event handlers, keep safe formatting */
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]*/gi, '')   // catches unquoted event handler attributes
+    .replace(/<(style|link|base|meta)\b[^>]*>/gi, '')  // strips dangerous tags
+}
+
 /** Render document content — supports both plain text and rich HTML */
 function DocumentContent({ content, className }: { content: string; className?: string }) {
   if (isHtmlContent(content)) {
     return (
       <div
         className={className}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
       />
     );
   }
@@ -380,7 +393,12 @@ function DocumentReader({ doc }: { doc: GameDocument }) {
 }
 
 export default function DocumentsPanel() {
-  const { documentsOpen, toggleDocuments, collectedDocuments, currentLocationId, readDocuments, markDocumentRead } = useGameStore();
+  const documentsOpen = useGameStore(s => s.documentsOpen);
+  const toggleDocuments = useGameStore(s => s.toggleDocuments);
+  const collectedDocuments = useGameStore(s => s.collectedDocuments);
+  const currentLocationId = useGameStore(s => s.currentLocationId);
+  const readDocuments = useGameStore(s => s.readDocuments);
+  const markDocumentRead = useGameStore(s => s.markDocumentRead);
   const [selectedDoc, setSelectedDoc] = useState<GameDocument | null>(null);
   const [filterType, setFilterType] = useState<DocumentType | 'all'>('all');
 
