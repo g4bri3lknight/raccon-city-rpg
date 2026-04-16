@@ -179,16 +179,19 @@ export default function MissionsPanel() {
 
                           // Find NPC id for portrait
                           const npcId = Object.keys(NPCS).find(id => NPCS[id].quest?.id === questId) || '';
+                          // Use DB quest npcId as fallback
+                          const dbNpcId = QUESTS[questId]?.npcId || npcId;
 
                           return (
                             <motion.div
                               key={questId}
                               initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: 1, y: 0 }}
+                              onClick={() => { if (dbNpcId && NPCS[dbNpcId]) { toggleMissions(); encounterNpc(dbNpcId, questId); } }}
                               className={`rounded-lg border p-3 transition-all ${
                                 isReady
-                                  ? 'border-green-600/40 bg-green-950/15 shadow-[0_0_12px_rgba(34,197,94,0.08)]'
-                                  : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
+                                  ? 'border-green-600/40 bg-green-950/15 shadow-[0_0_12px_rgba(34,197,94,0.08)] cursor-pointer hover:border-green-500/60'
+                                  : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer'
                               }`}
                             >
                               <div className="flex items-start gap-2.5">
@@ -300,6 +303,7 @@ export default function MissionsPanel() {
                               {completedQuests.map(([questId]) => {
                                 const details = getQuestDetails(questId);
                                 if (!details) return null;
+                                const { quest } = details;
                                 const npcId = Object.keys(NPCS).find(id => NPCS[id].quest?.id === questId) || '';
 
                                 // Find NPC id from DB quest if not from static
@@ -310,17 +314,29 @@ export default function MissionsPanel() {
                                     key={questId}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    onClick={() => { toggleMissions(); encounterNpc(dbNpcId); }}
+                                    onClick={() => { toggleMissions(); encounterNpc(dbNpcId, questId); }}
                                     className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-white/[0.04] bg-white/[0.01] opacity-60 cursor-pointer hover:opacity-90 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all"
                                   >
                                     <CheckCircle2 className="w-3 h-3 text-green-500/60 shrink-0" />
                                     <NpcPortrait npcId={npcId} portrait={details.npcPortrait} />
                                     <span className="text-xs text-white/50 truncate">
-                                      {details.quest.name}
+                                      {quest.name}
                                     </span>
-                                    <span className="text-[10px] text-white/20 ml-auto shrink-0">
-                                      {details.npcName}
-                                    </span>
+                                    {/* Reward items + exp */}
+                                    <div className="flex items-center gap-1 ml-auto shrink-0 flex-wrap justify-end">
+                                      {quest.rewardItems && quest.rewardItems.map((r, i) => {
+                                        const itemDef = ITEMS[r.itemId];
+                                        return (
+                                          <span key={i} className="flex items-center gap-0.5 text-[9px] text-amber-300/50">
+                                            <ItemIcon itemId={r.itemId} rarity="common" size={10} />
+                                            {r.quantity > 1 ? `x${r.quantity}` : '1'}
+                                          </span>
+                                        );
+                                      })}
+                                      {quest.rewardExp > 0 && (
+                                        <span className="text-[9px] text-white/25">+{quest.rewardExp}XP</span>
+                                      )}
+                                    </div>
                                   </motion.div>
                                 );
                               })}

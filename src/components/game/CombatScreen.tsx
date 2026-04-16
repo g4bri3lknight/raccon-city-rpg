@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { CombatAction } from '@/game/types';
+import { CombatAction, ItemInstance } from '@/game/types';
 import LogText from '@/components/game/LogText';
 import { ENEMY_IMAGES, CHARACTER_IMAGES, getSpecialById, mediaUrl } from '@/game/data/loader';
 import ItemIcon from './ItemIcon';
@@ -11,6 +11,7 @@ import { getWeaponAmmoType, resolveSpecialId } from '@/game/engine/combat';
 import { audio } from '@/game/engine/sounds';
 import { playEnemyAttack, playEnemyDeath, playZombieMoan } from '@/game/engine/sounds';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
+import { getItemEffectDescriptions } from '@/game/utils/item-effects';
 
 import { Badge } from '@/components/ui/badge';
 import {
@@ -29,6 +30,7 @@ export default function CombatScreen() {
   const [targetingMode, setTargetingMode] = useState<'enemy' | 'ally' | null>(null);
   const [pendingAction, setPendingAction] = useState<CombatAction | null>(null);
   const [showItemSelect, setShowItemSelect] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<ItemInstance | null>(null);
 
   const [screenShake, setScreenShake] = useState<string | null>(null);
   const [killFlash, setKillFlash] = useState(false);
@@ -51,7 +53,7 @@ export default function CombatScreen() {
   const aliveEnemiesRef = useRef<typeof enemies>([]);
   const alivePartyRef = useRef<typeof party>([]);
 
-  const isPlayerTurn = combat?.currentActorType === 'player' && !combat.isVictory && !combat.isDefeat;
+  const isPlayerTurn = combat?.currentActorType === 'player' && !combat.isVictory && !combat.isDefeat && !combat.isProcessing;
   const isCombatEnd = combat?.isVictory || combat?.isDefeat;
 
   // Sync refs via effect (not during render)
@@ -306,12 +308,12 @@ export default function CombatScreen() {
       }, 900);
       return () => clearTimeout(timer);
     }
-  }, [autoCombat, isPlayerTurn, combat?.currentActorId]);
+  }, [autoCombat, isPlayerTurn, combat?.currentActorId, combat?.turn]);
 
   const currentCharacter = party.find(p => p.id === combat.currentActorId);
   const aliveEnemies = enemies.filter(e => e.currentHp > 0);
   const aliveParty = party.filter(p => p.currentHp > 0);
-  const usableItems = currentCharacter?.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod' && i.type !== 'weapon') || [];
+  const usableItems = currentCharacter?.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod' && i.type !== 'weapon' && i.type !== 'bag' && i.type !== 'collectible' && i.type !== 'key' && i.effects && i.effects.length > 0) || [];
   const specialCd = combat.specialCooldowns?.[currentCharacter?.id || ''] ?? 0;
   const special2Cd = combat.special2Cooldowns?.[currentCharacter?.id || ''] ?? 0;
   const arch = currentCharacter?.archetype;
@@ -352,7 +354,7 @@ export default function CombatScreen() {
       if (s1?.category === 'offensive' && sCd === 0) return 'special' as CombatAction;
     }
     // Predict item usage: cure status, heal_full for critical, or regular heal
-    const myUsable = currentCharacter.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod');
+    const myUsable = currentCharacter.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod' && i.type !== 'bag' && i.type !== 'collectible' && i.type !== 'key' && i.effects && i.effects.length > 0);
     const hasStatusCure = aliveParty.some(p => p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding'));
     if (hasStatusCure && myUsable.some(i => i.effects?.some(e => e.type === 'remove_status'))) return 'use_item' as CombatAction;
     const worstAlly = aliveParty.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
@@ -911,43 +913,89 @@ export default function CombatScreen() {
         )}
       </AnimatePresence>
 
-      {/* ── ITEM SELECT — floating in arena (DESKTOP only) ── */}
+      {/* ── ITEM SELECT — floating beside combat menu (DESKTOP only) ── */}
       <AnimatePresence>
         {showItemSelect && isPlayerTurn && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 8 }}
-            transition={{ duration: 0.15 }}
-            className="hidden lg:block absolute z-40 left-2 sm:left-4 right-2 sm:right-4 bottom-2 sm:bottom-3 glass-dark rounded-lg"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.12 }}
+            className="hidden lg:flex flex-col absolute z-40 right-44 sm:right-52 bottom-2 sm:bottom-3 glass-dark rounded-lg overflow-hidden"
+            style={{ width: '370px', height: '240px' }}
           >
-            <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-              <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">Oggetti</span>
+            {/* Header — spans full width */}
+            <div className="flex items-center justify-between px-3 py-2 shrink-0 border-b border-white/[0.06]">
+              <span className="text-[11px] text-white/40 font-semibold uppercase tracking-wider">🎒 Oggetti</span>
               <button onClick={cancelAll} className="text-white/40 hover:text-white transition-colors">
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
-            {usableItems.length === 0 ? (
-              <p className="text-gray-500 text-xs px-3 py-3">Nessun oggetto utilizzabile.</p>
-            ) : (
-              <div className="p-1.5 max-h-32 overflow-y-auto inventory-scrollbar space-y-0.5">
-                {usableItems.map(item => (
-                  <button
-                    key={item.uid}
-                    onClick={() => handleItemSelect(item.uid)}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-gray-200 hover:bg-amber-950/30 hover:text-amber-200 border border-transparent hover:border-amber-700/30 transition-all text-left"
-                  >
-                    <span className="text-base flex items-center">
-                      <ItemIcon itemId={item.itemId} rarity={item.rarity} size={20} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-medium">{item.name}</div>
-                      <div className="text-[10px] text-gray-500 truncate">{item.description}</div>
-                    </div>
-                  </button>
-                ))}
+            {/* Body: grid + details */}
+            <div className="flex flex-1 min-h-0">
+              {/* Col 1: item grid */}
+              <div className="shrink-0 border-r border-white/[0.06] flex flex-col" style={{ width: '196px' }}>
+                {usableItems.length === 0 ? (
+                  <p className="text-gray-500 text-[10px] px-2.5 py-3">Nessun oggetto.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 px-2.5 py-2 flex-1 overflow-y-auto inventory-scrollbar content-start">
+                    {usableItems.map(item => {
+                      const isHov = hoveredItem?.uid === item.uid;
+                      return (
+                        <button
+                          key={item.uid}
+                          onClick={() => handleItemSelect(item.uid)}
+                          onMouseEnter={() => setHoveredItem(item)}
+                          onMouseLeave={() => setHoveredItem(null)}
+                          style={{ width: '52px', height: '52px' }}
+                          className={`rounded-md border-2 flex items-center justify-center p-1 transition-colors duration-100 relative shrink-0 ${
+                            isHov
+                              ? 'border-amber-700 bg-amber-950/30'
+                              : 'border-white/[0.08] bg-white/[0.04] hover:border-amber-700/60 hover:bg-white/[0.06]'
+                          }`}
+                        >
+                          <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
+                          {item.quantity > 1 && (
+                            <span className="absolute -top-1.5 -right-1.5 text-[10px] bg-black/80 text-white/90 rounded-full w-6 h-6 flex items-center justify-center font-bold border border-white/[0.15]">
+                              {item.quantity}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
+              {/* Col 2: detail panel — fixed width, always rendered */}
+              <div className="flex-1 min-w-0 max-w-[174px] bg-white/[0.02] p-2.5 overflow-hidden">
+                {hoveredItem ? (
+                  <div className="flex flex-col h-full">
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <span className="font-bold text-white text-sm truncate leading-tight">{hoveredItem.name}</span>
+                      {hoveredItem.quantity > 1 && (
+                        <span className="text-[11px] bg-white/10 text-white/60 rounded px-1.5 py-0.5 leading-none shrink-0">x{hoveredItem.quantity}</span>
+                      )}
+                    </div>
+                    <p className="text-[13px] text-white/50 leading-relaxed mb-1.5" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{hoveredItem.description}</p>
+                    {(() => {
+                      const descs = getItemEffectDescriptions(hoveredItem);
+                      if (descs.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-1 text-xs">
+                          {descs.map((d, i) => (
+                            <span key={i} className={d.color}>{d.emoji}{d.text}</span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <span className="text-xs text-white/20 italic text-center leading-snug">Passa sopra un<br/>oggetto</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1304,44 +1352,84 @@ export default function CombatScreen() {
         )}
       </AnimatePresence>
 
-      {/* ── MOBILE ITEM SELECT — below arena, never overlaps characters ── */}
+      {/* ── MOBILE ITEM SELECT — 3-column, fixed size ── */}
       <AnimatePresence>
         {showItemSelect && isPlayerTurn && (
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
             className="lg:hidden shrink-0 px-2 pb-1.5"
           >
-            <div className="glass-dark rounded-xl">
-              <div className="flex items-center justify-between px-3 pt-2 pb-1">
+            <div className="glass-dark rounded-xl flex flex-col overflow-hidden mx-auto" style={{ maxWidth: '400px', height: '170px' }}>
+              {/* Header — spans full width */}
+              <div className="flex items-center justify-between px-2.5 py-1.5 shrink-0 border-b border-white/[0.06]">
                 <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">🎒 Oggetti</span>
                 <button onClick={cancelAll} className="text-white/40 hover:text-white transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              {usableItems.length === 0 ? (
-                <p className="text-gray-500 text-xs px-3 py-3">Nessun oggetto utilizzabile.</p>
-              ) : (
-                <div className="p-1.5 max-h-40 overflow-y-auto inventory-scrollbar space-y-0.5">
-                  {usableItems.map(item => (
-                    <button
-                      key={item.uid}
-                      onClick={() => handleItemSelect(item.uid)}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs text-gray-200 active:bg-amber-950/30 active:text-amber-200 border border-transparent transition-all text-left"
-                    >
-                      <span className="text-base flex items-center">
-                        <ItemIcon itemId={item.itemId} rarity={item.rarity} size={20} />
-                      </span>
-                      <span className="flex-1 truncate">{item.name}</span>
-                      {item.quantity && item.quantity > 1 && (
-                        <span className="text-[9px] text-gray-500">x{item.quantity}</span>
-                      )}
-                    </button>
-                  ))}
+              {/* Body: grid + details */}
+              <div className="flex flex-1 min-h-0">
+                {/* Col 1: item grid */}
+                <div className="shrink-0 border-r border-white/[0.06] flex flex-col" style={{ width: '170px' }}>
+                  {usableItems.length === 0 ? (
+                    <p className="text-gray-500 text-[9px] px-2 py-2">Nessun oggetto.</p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-1.5 px-2 py-1.5 flex-1 overflow-y-auto inventory-scrollbar content-start">
+                      {usableItems.map(item => {
+                        const isHov = hoveredItem?.uid === item.uid;
+                        return (
+                          <button
+                            key={item.uid}
+                            onClick={() => handleItemSelect(item.uid)}
+                            onMouseEnter={() => setHoveredItem(item)}
+                            onMouseLeave={() => setHoveredItem(null)}
+                            style={{ width: '48px', height: '48px' }}
+                            className={`rounded border-2 flex items-center justify-center p-1 transition-colors duration-100 relative shrink-0 ${
+                              isHov
+                                ? 'border-amber-700 bg-amber-950/30'
+                                : 'border-white/[0.08] bg-white/[0.04] active:bg-white/[0.06] hover:border-amber-700/60'
+                            }`}
+                          >
+                            <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
+                            {item.quantity > 1 && (
+                            <span className="absolute -top-1 -right-1 text-[9px] bg-black/80 text-white/90 rounded-full w-5 h-5 flex items-center justify-center font-bold border border-white/[0.15]">
+                                {item.quantity}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+                {/* Col 2: detail panel — fixed width */}
+                <div className="flex-1 min-w-0 max-w-[220px] bg-white/[0.02] p-2 overflow-hidden">
+                  {hoveredItem ? (
+                    <div className="flex flex-col h-full">
+                      <span className="font-bold text-white text-[13px] truncate leading-tight mb-1">{hoveredItem.name}</span>
+                      <p className="text-xs text-white/45 leading-relaxed mb-1" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{hoveredItem.description}</p>
+                      {(() => {
+                        const descs = getItemEffectDescriptions(hoveredItem);
+                        if (descs.length === 0) return null;
+                        return (
+                          <div className="flex flex-wrap gap-1 text-[10px]">
+                            {descs.map((d, i) => (
+                              <span key={i} className={d.color}>{d.emoji}{d.text}</span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <span className="text-[8px] text-white/20 italic text-center">Tocca un oggetto</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </motion.div>
         )}

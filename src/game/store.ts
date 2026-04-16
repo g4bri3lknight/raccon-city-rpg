@@ -232,6 +232,31 @@ function addItemToParty(
   return { party: updatedParty, added, characterName: charName, characterId: charId };
 }
 
+// Dry-run check: can an item be added to any party member's inventory?
+function canAddItemToParty(
+  party: Character[],
+  itemId: string,
+  quantity: number,
+): boolean {
+  const itemDef = ITEMS[itemId];
+  if (!itemDef) return false;
+  if (itemDef.unico) {
+    const alreadyOwned = party.some(c =>
+      c.inventory.some(i => i.itemId === itemId) || c.weapon?.itemId === itemId
+    );
+    if (alreadyOwned) return false;
+  }
+  const isStackable = itemDef.type === 'ammo' || itemDef.type === 'healing' || itemDef.type === 'antidote';
+  for (const char of party) {
+    if (char.currentHp <= 0) continue;
+    if (isStackable) {
+      if (char.inventory.some(i => i.itemId === itemId)) return true;
+    }
+    if (char.inventory.length < char.maxInventorySlots) return true;
+  }
+  return false;
+}
+
 let notifId = 0;
 let charUid = 0;
 function newCharId() { return `char_${++charUid}`; }
@@ -267,6 +292,8 @@ function createCharacter(archetypeId: Archetype): Character {
       ...item,
       uid: `${item.uid}_${Date.now()}`,
       isEquipped: !!item.weaponStats,
+      // Enrich effects from ITEMS dict (DB starting items may have old singular "effect" only)
+      effects: item.effects && item.effects.length > 0 ? item.effects : ITEMS[item.itemId]?.effects,
     })),
     maxInventorySlots: getStartingInventorySlots(),
     weapon: archetype.startingItems.find(i => i.weaponStats)?.weaponStats || null,
@@ -312,6 +339,8 @@ function createCustomCharacter(config: CustomCharacterConfig): Character {
       ...item,
       uid: `${item.uid}_${Date.now()}`,
       isEquipped: !!item.weaponStats,
+      // Enrich effects from ITEMS dict
+      effects: item.effects && item.effects.length > 0 ? item.effects : ITEMS[item.itemId]?.effects,
     })),
     maxInventorySlots: getStartingInventorySlots(),
     weapon: startingItems.find(i => i.weaponStats)?.weaponStats || null,
@@ -461,10 +490,10 @@ interface GameStore extends GameState {
   markDocumentRead: (docId: string) => void;
 
   // #18 NPCs
-  encounterNpc: (npcId: string) => void;
+  encounterNpc: (npcId: string, specificQuestId?: string) => void;
   talkToNpc: () => void;
   acceptNpcQuest: () => void;
-  tradeWithNpc: (tradeIndex: number) => boolean;
+  tradeWithNpc: (tradeIndex: number) => { success: boolean; reason?: string };
   closeNpcDialog: () => void;
   toggleMissions: () => void;
 
@@ -2579,10 +2608,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const firstActor = allActors[0];
 
+    // Update bestiary - mark boss as encountered
+    const currentBestiary = [...state.bestiary];
+    const existingBossEntry = currentBestiary.find(b => b.enemyId === boss.definitionId);
+    if (!existingBossEntry) {
+      currentBestiary.push({ enemyId: boss.definitionId, encountered: true, defeated: false, timesDefeated: 0 });
+    }
+
     set({
       phase: 'combat',
       enemies: [boss],
       autoCombat: false,
+      bestiary: currentBestiary,
       combat: {
         turn: 1,
         playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
@@ -3325,7 +3362,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   executeAutoCombatTurn: () => {
     const state = get();
-    if (!state.combat || state.combat.currentActorType !== 'player' || state.combat.isVictory || state.combat.isDefeat) return;
+    if (!state.combat || state.combat.currentActorType !== 'player' || state.combat.isVictory || state.combat.isDefeat || state.combat.isProcessing) return;
 
     const character = state.party.find(p => p.id === state.combat!.currentActorId);
     if (!character || character.currentHp <= 0) {
@@ -3336,7 +3373,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const aliveEnemies = state.enemies.filter(e => e.currentHp > 0);
     const aliveParty = state.party.filter(p => p.currentHp > 0);
-    if (aliveEnemies.length === 0 || aliveParty.length === 0) return;
+    // Safety: if no enemies alive but victory not declared, force advance
+    if (aliveEnemies.length === 0) {
+      setTimeout(() => get().advanceToNextActor(), getCombatDelay(300));
+      return;
+    }
+    if (aliveParty.length === 0) {
+      // All party dead but defeat not declared — force game over
+      try { playDefeat(); } catch {}
+      set({ phase: 'game-over', combat: null, enemies: [], messageLog: [...state.messageLog, `[${state.turnCount}] 💀 Game Over`] });
+      return;
+    }
 
     const specialCd = state.combat.specialCooldowns?.[character.id] ?? 0;
     const special2Cd = state.combat.special2Cooldowns?.[character.id] ?? 0;
@@ -3359,12 +3406,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
         setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
-      // Otherwise attack weakest enemy
-      const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
-      get().selectCombatAction('attack');
-      get().selectCombatTarget(weakest.id);
-      setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
-      return;
+      // If healer is wounded or has status effects, fall through to item usage (step 5)
+      // instead of always attacking — this allows the healer to use healing items
+      const selfNeedsHelp = character.currentHp < character.maxHp * 0.5
+        || character.statusEffects.includes('poison')
+        || character.statusEffects.includes('bleeding');
+      if (!selfNeedsHelp) {
+        // Otherwise attack weakest enemy
+        const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
+        get().selectCombatAction('attack');
+        get().selectCombatTarget(weakest.id);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+        return;
+      }
+      // Falls through to step 5 (item usage) when self needs help
     }
 
     // 2. Tank: use Immolation (special2) if multiple enemies and available
@@ -3429,7 +3484,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Only use items from the CURRENT character's inventory (consistent with manual play)
     // Guarded by combat.autoUseItems setting
     const autoUseItems = COMBAT_BOOL_CONFIG.autoUseItems !== false;
-    const myUsableItems = character.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod');
+    const myUsableItems = character.inventory.filter(i => i.usable && i.type !== 'ammo' && i.type !== 'weapon_mod' && i.type !== 'bag' && i.type !== 'collectible' && i.type !== 'key' && i.effects && i.effects.length > 0);
 
     if (autoUseItems && myUsableItems.length > 0) {
       // 5a. Cure status effects (poison/bleeding) — high priority
@@ -3704,6 +3759,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
+    // Build newLog early so it's available for DOT death checks
+    const newLog = isNewTurn
+      ? [
+          ...combat.log,
+          { turn: newTurn, actorName: 'Sistema', actorType: 'player' as const, action: 'Turno', message: `--- Turno ${newTurn} ---` },
+          ...statusLogEntries,
+        ]
+      : [...combat.log];
+
     // Process status effects on ENEMIES at new turn start (DOT for poison/bleeding)
     let updatedEnemiesForStatus = [...enemies];
     if (isNewTurn) {
@@ -3785,22 +3849,102 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
 
-      // Check if any enemy died from DOT — log victory
+      // Check if any enemy died from DOT — update tracking
       if (updatedEnemiesForStatus.some(e => e.currentHp <= 0)) {
-        // Update aliveEnemyIds for the turn order check below
         for (const e of updatedEnemiesForStatus) {
-          if (e.currentHp <= 0) aliveEnemyIds.delete(e.id);
+          if (e.currentHp <= 0) {
+            aliveEnemyIds.delete(e.id);
+            statusLogEntries.push({ turn: newTurn, actorName: 'Sistema', actorType: 'player' as const, action: 'DOT', message: `☠️ ${e.name} è stato sconfitto dai danni nel tempo!` });
+          }
         }
       }
     }
 
-    const newLog = isNewTurn
+    // Rebuild newLog now that statusLogEntries may have DOT death entries
+    // (already declared above, we just need to refresh if isNewTurn added entries)
+    let finalLog: CombatLogEntry[] = isNewTurn
       ? [
           ...combat.log,
           { turn: newTurn, actorName: 'Sistema', actorType: 'player' as const, action: 'Turno', message: `--- Turno ${newTurn} ---` },
           ...statusLogEntries,
         ]
-      : combat.log;
+      : newLog;
+
+    // Check if ALL enemies died from DOT → declare victory
+    if (aliveEnemyIds.size === 0 && updatedEnemiesForStatus.length > 0) {
+      const updatedPartyAfterDot = updatedParty.map(p => {
+        if (p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding')) {
+          return { ...p, statusEffects: p.statusEffects.filter(s => s !== 'poison' && s !== 'bleeding') };
+        }
+        return p;
+      });
+      // Grant EXP for DOT-killed enemies and update bestiary
+      let totalExp = 0;
+      const victoryBestiary = [...get().bestiary];
+      for (const e of updatedEnemiesForStatus) {
+        totalExp += ENEMIES[e.definitionId]?.expReward ?? 0;
+        const existing = victoryBestiary.find(b => b.enemyId === e.definitionId);
+        if (existing) {
+          existing.defeated = true;
+          existing.timesDefeated += 1;
+        } else {
+          victoryBestiary.push({ enemyId: e.definitionId, encountered: true, defeated: true, timesDefeated: 1 });
+        }
+      }
+      let finalParty = updatedPartyAfterDot;
+      const levelUpMessages: string[] = [];
+      for (const char of finalParty) {
+        if (char.currentHp <= 0) continue;
+        const result = addExp(char, totalExp);
+        if (result.leveledUp) {
+          finalParty = finalParty.map(p => p.id === char.id ? result.updated : p);
+          levelUpMessages.push(`⬆️ ${char.name} è salito al livello ${result.updated.level}!`);
+        }
+      }
+      const isBoss = updatedEnemiesForStatus.some(e => e.isBoss);
+      try { playVictory(); } catch {}
+      set({
+        notification: {
+          id: `notif_${++notifId}`,
+          type: 'victory',
+          message: isBoss ? 'EVASIONE COMPLETATA' : 'SOPRAVVVISSUTO',
+          icon: isBoss ? '🚪' : '⚔️',
+          subMessage: isBoss ? `Boss eliminato. +${totalExp} EXP` : `Nemici sconfitti. +${totalExp} EXP`,
+          levelUps: levelUpMessages,
+        },
+        combat: { ...combat, log: finalLog, isVictory: true, isProcessing: true, turn: newTurn },
+        party: finalParty,
+        enemies: updatedEnemiesForStatus,
+        messageLog: [
+          ...get().messageLog,
+          `[${get().turnCount}] ⚔️ ${isBoss ? 'Boss eliminato' : 'Nemici sconfitti'}. +${totalExp} EXP`,
+          ...levelUpMessages,
+        ],
+        bestiary: victoryBestiary,
+      });
+      setTimeout(() => {
+        if (isBoss) {
+          get().victory();
+        } else {
+          set({ phase: 'exploration', combat: null, enemies: [], notification: null });
+          setTimeout(() => get().checkAchievements(), 100);
+        }
+      }, 3500);
+      return;
+    }
+
+    // Check if ALL party members died from DOT → declare defeat
+    if (alivePartyIds.size === 0 && updatedParty.length > 0) {
+      finalLog.push({ turn: newTurn, actorName: 'Sistema', actorType: 'player' as const, action: 'Sconfitta', message: '💀 Tutti i membri del gruppo sono caduti...' });
+      set({
+        phase: 'game-over',
+        combat: { ...combat, log: finalLog, isDefeat: true, isProcessing: true },
+        party: updatedParty,
+        enemies: updatedEnemiesForStatus,
+        messageLog: [...get().messageLog, `[${get().turnCount}] 💀 Game Over — Tutti i membri del gruppo sono caduti.`],
+      });
+      return;
+    }
 
     // Skip nextActor if they died from DOT processing
     if (nextActor.type === 'player' && updatedParty.find(p => p.id === nextActor.id)?.currentHp <= 0) {
@@ -3907,7 +4051,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
             selectedAction: null,
             selectedTarget: null,
             selectedItemUid: null,
-            log: [...newLog, stunLog],
+            isProcessing: false,
+            log: [...finalLog, stunLog],
             statusDurations: updatedStatusDurations,
             specialCooldowns: updatedCooldowns,
             special2Cooldowns: updatedCooldowns2,
@@ -3992,7 +4137,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           selectedAction: null,
           selectedTarget: null,
           selectedItemUid: null,
-          log: [...newLog, log],
+          isProcessing: false,
+          log: [...finalLog, log],
           statusDurations: updatedStatusDurations,
           specialCooldowns: updatedCooldowns,
           special2Cooldowns: updatedCooldowns2,
@@ -4019,7 +4165,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         selectedAction: null,
         selectedTarget: null,
         selectedItemUid: null,
-        log: newLog,
+        isProcessing: false,
+        log: finalLog,
         statusDurations: updatedStatusDurations,
         specialCooldowns: updatedCooldowns,
         special2Cooldowns: updatedCooldowns2,
@@ -4838,7 +4985,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // NPC METHODS
   // ==========================================
 
-  encounterNpc: (npcId: string) => {
+  encounterNpc: (npcId: string, specificQuestId?: string) => {
     const npc = NPCS[npcId];
     if (!npc) return;
 
@@ -4850,10 +4997,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       try { playNPCEncounter(); } catch {}
     }
 
-    // Check for DB-backed quests first, fallback to static NPC quest
-    const completedQuestIds = Object.keys(state.npcQuestProgress).filter(id => state.npcQuestProgress[id]?.completed);
-    const dbQuest = getFirstAvailableQuest(npcId, completedQuestIds);
-    const npcWithQuest = dbQuest ? { ...npc, quest: dbQuest } : npc;
+    // If a specific quest ID is provided (e.g. from MissionsPanel completed quest click),
+    // show that exact quest even if completed
+    let npcWithQuest = npc;
+    if (specificQuestId && QUESTS[specificQuestId]) {
+      npcWithQuest = { ...npc, quest: QUESTS[specificQuestId] };
+    } else {
+      // Normal flow: check for next available quest
+      const completedQuestIds = Object.keys(state.npcQuestProgress).filter(id => state.npcQuestProgress[id]?.completed);
+      const inProgressQuestIds = Object.keys(state.npcQuestProgress).filter(id => !state.npcQuestProgress[id]?.completed);
+      const dbQuest = getFirstAvailableQuest(npcId, [...completedQuestIds, ...inProgressQuestIds]);
+      npcWithQuest = dbQuest ? { ...npc, quest: dbQuest } : npc;
+    }
 
     set({
       activeNpc: npcWithQuest,
@@ -5032,9 +5187,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   tradeWithNpc: (tradeIndex: number) => {
     const state = get();
-    if (!state.activeNpc?.tradeInventory) return false;
+    if (!state.activeNpc?.tradeInventory) return { success: false, reason: 'Nessuno scambio disponibile' };
     const trade = state.activeNpc.tradeInventory[tradeIndex];
-    if (!trade) return false;
+    if (!trade) return { success: false, reason: 'Scambio non trovato' };
     const hasPriceItem = state.party.some(p =>
       p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity)
     );
@@ -5042,7 +5197,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set(state => ({
         messageLog: [...state.messageLog, `[${state.turnCount}] ❌ Non avete gli oggetti necessari per lo scambio.`],
       }));
-      return false;
+      return { success: false, reason: 'Oggetti insufficienti' };
+    }
+    const tradeQty = trade.quantity || 1;
+    // Pre-check: can the item fit in any party member's inventory?
+    if (!canAddItemToParty(state.party, trade.itemId, tradeQty)) {
+      return { success: false, reason: 'inventario_pieno' };
     }
     let updatedParty = [...state.party];
     let priceRemoved = false;
@@ -5069,14 +5229,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
     const tradedDef = ITEMS[trade.itemId];
-    if (!tradedDef) return false;
-    const result = addItemToParty(updatedParty, trade.itemId, 1);
+    if (!tradedDef) return { success: false, reason: 'Oggetto non trovato' };
+    const result = addItemToParty(updatedParty, trade.itemId, tradeQty);
     updatedParty = result.party;
     set(state => ({
       party: updatedParty,
-      messageLog: [...state.messageLog, `[${state.turnCount}] 🤝 Scambio completato! Ricevuto: ${tradedDef.name}${result.added ? ` → ${result.characterName}` : ' (inventario pieno!)'}`],
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🤝 Scambio completato! Ricevuto: ${tradedDef.name}${tradeQty > 1 ? ` x${tradeQty}` : ''}${result.added ? ` → ${result.characterName}` : ' (inventario pieno!)'}`],
     }));
-    return true;
+    return { success: true };
   },
 
   closeNpcDialog: () => {
@@ -6008,6 +6168,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   bumpDataVersion: () => {
     _gameSettingsCache = null; // invalidate settings cache so it reloads
     fetchGameSettings(); // reload in background
-    set(state => ({ dataVersion: state.dataVersion + 1 }));
+    set(state => ({ dataVersion: state.dataVersion + 1, searchMaxes: {} }));
   },
 }));

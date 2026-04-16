@@ -516,8 +516,14 @@ function mapDbCharacter(row: DbCharacter): CharacterArchetype {
   const rawItems = JSON.parse(row.startingItems || '[]');
   // Support both full ItemInstance[] and simplified {itemId, quantity, isEquipped}[]
   const startingItems: ItemInstance[] = rawItems.map((r: Record<string, unknown>) => {
-    // If it has a uid and itemId, treat as full ItemInstance
-    if (r.uid && r.itemId && r.name) return r as ItemInstance;
+    // If it has a uid and itemId, treat as full ItemInstance — but enrich from ITEMS dict
+    if (r.uid && r.itemId && r.name) {
+      const itemDef = ITEMS[String(r.itemId)];
+      return {
+        ...r,
+        effects: itemDef?.effects ?? (r as ItemInstance).effects,
+      } as ItemInstance;
+    }
     // Simplified format: expand using ITEMS lookup
     const itemId = String(r.itemId ?? r.id ?? '');
     const itemDef = ITEMS[itemId];
@@ -534,6 +540,7 @@ function mapDbCharacter(row: DbCharacter): CharacterArchetype {
       icon: itemDef.icon,
       usable: itemDef.usable,
       equippable: itemDef.equippable,
+      effects: itemDef.effects,
       quantity: qty,
       isEquipped,
     } as ItemInstance;
@@ -1003,8 +1010,9 @@ async function loadEnemies(api: Awaited<ReturnType<typeof loadFromApi>>): Promis
 export async function initGameData(): Promise<void> {
   if (initialized) return;
   const api = await loadFromApi();
+  // Items MUST load first — mapDbCharacter references ITEMS to build starting items
+  await loadItems(api);
   await Promise.all([
-    loadItems(api),
     loadEvents(api),
     loadDocuments(api),
     loadQuests(api),
@@ -1032,8 +1040,9 @@ export async function initGameData(): Promise<void> {
 /** Force reload all data from DB (used after admin CRUD operations) */
 export async function refreshGameData(): Promise<void> {
   const api = await loadFromApi();
+  // Items MUST load first — mapDbCharacter references ITEMS to build starting items
+  await loadItems(api);
   await Promise.all([
-    loadItems(api),
     loadEvents(api),
     loadDocuments(api),
     loadQuests(api),

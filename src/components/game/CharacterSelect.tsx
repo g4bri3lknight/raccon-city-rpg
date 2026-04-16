@@ -686,38 +686,10 @@ export default function CharacterSelect() {
               text-red-100 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed
               transition-all duration-300 hover:shadow-[0_0_20px_rgba(220,38,38,0.3)]"
           >
-            <span className="hidden sm:inline">Inizia l&apos;Avventura</span>
-            <span className="sm:hidden">Inizia</span>
+            Inizia
             <ChevronRight className="w-4 h-4 ml-1 sm:ml-2" />
           </Button>
         </div>
-        {/* Selected characters pills (compact, below grid) */}
-        {totalSelected > 0 && (
-          <div className="max-w-5xl mx-auto mt-2 flex gap-1.5 sm:gap-2 flex-wrap">
-            {Array.from(selected).map(itemId => {
-              const item = allItems.find(it => it.id === itemId);
-              if (!item) return null;
-              const Icon = item.kind === 'preset' ? getArchetypeIcon(item.archetypeId) : User;
-              return (
-                <button
-                  key={itemId}
-                  onClick={() => {
-                    const idx = allItems.findIndex(it => it.id === itemId);
-                    if (idx >= 0) goTo(idx);
-                  }}
-                  className={`flex items-center gap-1 text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-lg border transition-all ${
-                    item.kind === 'custom'
-                      ? 'bg-purple-900/30 border-purple-700/40 text-purple-200 hover:border-purple-500'
-                      : 'bg-white/5 border-white/10 text-gray-200 hover:border-red-600/50 hover:text-white'
-                  }`}
-                >
-                  <Icon className="w-3 h-3 sm:w-4 sm:h-4" />
-                  {item.displayName}
-                </button>
-              );
-            })}
-          </div>
-        )}
         {/* Randomizer warning */}
         {randomizerMode && (
           <p className="max-w-5xl mx-auto mt-1.5 text-[10px] sm:text-xs text-purple-300/60 leading-relaxed">

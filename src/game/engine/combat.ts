@@ -589,9 +589,12 @@ function handleHeal(
   });
 
   const healTarget = healTargets[0];
+  const isSelf = healTarget.id === character.id;
   const message = healTargets.length > 1
     ? `${character.name} cura il gruppo di ${totalHeal} HP totali!`
-    : `${character.name} cura ${healTarget.name} di ${totalHeal} HP!`;
+    : isSelf
+      ? `${character.name} si è curato di ${totalHeal} HP!`
+      : `${character.name} cura ${healTarget.name} di ${totalHeal} HP!`;
 
   return {
     log: {

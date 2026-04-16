@@ -31,6 +31,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     tradeInventory: [
       {
         itemId: 'ammo_pistol',
+        quantity: 6,
         priceItemId: 'bandage',
         priceQuantity: 3,
       },
@@ -100,6 +101,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     tradeInventory: [
       {
         itemId: 'ammo_machinegun',
+        quantity: 5,
         priceItemId: 'herb_green',
         priceQuantity: 2,
       },
@@ -136,6 +138,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     tradeInventory: [
       {
         itemId: 'spray',
+        quantity: 1,
         priceItemId: 'flashlight',
         priceQuantity: 1,
       },
@@ -163,6 +166,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     tradeInventory: [
       {
         itemId: 'rocket_launcher',
+        quantity: 1,
         priceItemId: 'ammo_magnum',
         priceQuantity: 2,
       },

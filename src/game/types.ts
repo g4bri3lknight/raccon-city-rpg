@@ -834,6 +834,7 @@ export interface NPCQuest {
 
 export interface NPCTradeItem {
   itemId: string;
+  quantity?: number; // how many items the player receives (default 1)
   priceItemId: string;
   priceQuantity: number;
 }

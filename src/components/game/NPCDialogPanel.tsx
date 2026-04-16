@@ -18,11 +18,18 @@ interface ChatMessage {
 }
 
 export default function NPCDialogPanel() {
-  const { activeNpc, npcQuestProgress, party, visitedLocations } = useGameStore();
-  const { talkToNpc, acceptNpcQuest, tradeWithNpc, closeNpcDialog } = useGameStore();
+  const activeNpc = useGameStore(s => s.activeNpc);
+  const npcQuestProgress = useGameStore(s => s.npcQuestProgress);
+  const party = useGameStore(s => s.party);
+  const visitedLocations = useGameStore(s => s.visitedLocations);
+  const talkToNpc = useGameStore(s => s.talkToNpc);
+  const acceptNpcQuest = useGameStore(s => s.acceptNpcQuest);
+  const tradeWithNpc = useGameStore(s => s.tradeWithNpc);
+  const closeNpcDialog = useGameStore(s => s.closeNpcDialog);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [lastNpcId, setLastNpcId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tradeErrors, setTradeErrors] = useState<Record<number, string>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const npc = activeNpc;
@@ -48,6 +55,7 @@ export default function NPCDialogPanel() {
       id: `greeting-${npc.id}`,
     }]);
     setError(null);
+    setTradeErrors({});
   }
 
   const handleTalk = useCallback(() => {
@@ -97,6 +105,23 @@ export default function NPCDialogPanel() {
     const trade = npc.tradeInventory[tradeIndex];
     if (!trade) return false;
     return party.some(p => p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity));
+  };
+
+  const handleTrade = (tradeIndex: number) => {
+    const result = tradeWithNpc(tradeIndex);
+    if (!result.success) {
+      if (result.reason === 'inventario_pieno') {
+        setTradeErrors(prev => ({ ...prev, [tradeIndex]: 'Inventario pieno! Fai spazio prima di scambiare.' }));
+      } else {
+        setTradeErrors(prev => ({ ...prev, [tradeIndex]: result.reason || 'Impossibile completare lo scambio.' }));
+      }
+    } else {
+      setTradeErrors(prev => {
+        const next = { ...prev };
+        delete next[tradeIndex];
+        return next;
+      });
+    }
   };
 
   if (!npc) return null;
@@ -276,13 +301,17 @@ export default function NPCDialogPanel() {
                   const canDo = canTrade(idx);
                   const itemDef = ITEMS[trade.itemId];
                   const priceDef = ITEMS[trade.priceItemId];
+                  const tradeQty = trade.quantity || 1;
+                  const tradeError = tradeErrors[idx];
                   return (
                     <div
                       key={idx}
                       className={`p-3 rounded-lg border transition-all ${
-                        canDo
-                          ? 'border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06]'
-                          : 'border-white/[0.04] bg-white/[0.01] opacity-50'
+                        tradeError
+                          ? 'border-red-800/40 bg-red-950/10'
+                          : canDo
+                            ? 'border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06]'
+                            : 'border-white/[0.04] bg-white/[0.01] opacity-50'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -291,7 +320,12 @@ export default function NPCDialogPanel() {
                           <ItemIcon itemId={trade.itemId} rarity="common" size={36} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white">{itemDef?.name || trade.itemId}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold text-white">{itemDef?.name || trade.itemId}</p>
+                            {tradeQty > 1 && (
+                              <span className="text-[10px] text-amber-300/70 bg-amber-950/30 border border-amber-700/20 rounded px-1 py-0.5">x{tradeQty}</span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1 mt-1">
                             <span className="text-[10px] text-white/40">Prezzo:</span>
                             <span className="flex items-center gap-1 text-[10px] text-amber-300/70">
@@ -303,12 +337,19 @@ export default function NPCDialogPanel() {
                         <Button
                           size="sm"
                           disabled={!canDo}
-                          onClick={() => tradeWithNpc(idx)}
+                          onClick={() => handleTrade(idx)}
                           className="h-9 px-3 text-xs font-semibold border-amber-700/40 text-amber-300 hover:bg-amber-950/30 disabled:opacity-30 disabled:cursor-not-allowed bg-transparent"
                         >
                           Scambia
                         </Button>
                       </div>
+                      {/* Trade error alert */}
+                      {tradeError && (
+                        <div className="flex items-center gap-1.5 mt-2 p-2 rounded-md border border-red-900/30 bg-red-950/20">
+                          <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
+                          <span className="text-[10px] text-red-400/80">{tradeError}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

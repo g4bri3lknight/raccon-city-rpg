@@ -3,7 +3,7 @@
 
 /** Generate the portrait image URL for an NPC by ID */
 export function getNpcPortraitUrl(npcId: string): string {
-  return `/api/media/image?id=${npcId}`;
+  return `/api/media/image?id=portrait_${npcId}`;
 }
 
 // NPC badges are now loaded from DB (GameNPC.badgeLabel/badgeIcon/badgeColor)

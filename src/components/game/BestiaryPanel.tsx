@@ -28,8 +28,6 @@ import {
   MapPin,
 } from 'lucide-react';
 
-const ALL_ENEMY_IDS = Object.keys(ENEMIES);
-
 const VARIANT_GROUP_LABELS: Record<string, { label: string; icon: string }> = {
   zombie: { label: 'Zombie', icon: '🧟' },
   cerberus: { label: 'Cerberi', icon: '🐕' },
@@ -612,6 +610,9 @@ function UndiscoveredCard() {
 export default function BestiaryPanel() {
   const { bestiary, bestiaryOpen, toggleBestiary, dataVersion } = useGameStore();
 
+  // Compute dynamically inside component so it reads current ENEMIES after DB load
+  const ALL_ENEMY_IDS = Object.keys(ENEMIES);
+
   const discoveredCount = bestiary.filter((e) => e.encountered).length;
   const defeatedCount = bestiary.filter((e) => e.defeated).length;
   const totalCount = ALL_ENEMY_IDS.length;
@@ -651,7 +652,7 @@ export default function BestiaryPanel() {
       });
     }
     return groups;
-  }, [bestiaryMap]);
+  }, [bestiaryMap, ALL_ENEMY_IDS]);
 
   return (
     <AnimatePresence>
