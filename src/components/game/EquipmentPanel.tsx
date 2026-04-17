@@ -15,7 +15,12 @@ export default function EquipmentPanel() {
   const party = useGameStore(s => s.party);
   const selectedCharacterId = useGameStore(s => s.selectedCharacterId);
   const selectCharacter = useGameStore(s => s.selectCharacter);
-  const { equipArmor, unequipArmor, equipAccessory, unequipAccessory, installMod, removeMod } = useGameStore();
+  const equipArmor = useGameStore(s => s.equipArmor);
+  const unequipArmor = useGameStore(s => s.unequipArmor);
+  const equipAccessory = useGameStore(s => s.equipAccessory);
+  const unequipAccessory = useGameStore(s => s.unequipAccessory);
+  const installMod = useGameStore(s => s.installMod);
+  const removeMod = useGameStore(s => s.removeMod);
   const [activeTab, setActiveTab] = useState<'weapon' | 'armor' | 'accessory'>('weapon');
 
   const selectedChar = party.find(p => p.id === selectedCharacterId) || party[0];

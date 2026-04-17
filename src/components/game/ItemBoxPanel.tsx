@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore, getMaxItemBoxSlots } from '@/game/store';
 import { ItemInstance } from '@/game/types';
@@ -48,6 +48,8 @@ const TYPE_LABELS: Record<string, string> = {
   bag: 'Borsa',
 };
 
+type ToastInfo = { message: string; type: 'deposit' | 'withdraw' };
+
 export default function ItemBoxPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
   const party = useGameStore(s => s.party);
@@ -59,6 +61,20 @@ export default function ItemBoxPanel() {
   const unequipItem = useGameStore(s => s.unequipItem);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [transferQty, setTransferQty] = useState(1);
+  const [toast, setToast] = useState<ToastInfo | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, type: 'deposit' | 'withdraw') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, type });
+    toastTimer.current = setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   const selectedChar = party.find(p => p.id === selectedCharacterId) || party[0];
   if (!selectedChar) return null;
@@ -70,13 +86,23 @@ export default function ItemBoxPanel() {
   const inventoryFull = selectedChar.inventory.length >= selectedChar.maxInventorySlots;
 
   const handleDeposit = (itemUid: string) => {
-    depositToItemBox(selectedChar.id, itemUid, transferQty);
+    const item = selectedChar.inventory.find(i => i.uid === itemUid);
+    const qty = Math.min(transferQty, item?.quantity ?? 1);
+    depositToItemBox(selectedChar.id, itemUid, qty);
+    if (item) {
+      showToast(`Depositato: ${item.name} ×${qty}`, 'deposit');
+    }
     setSelected(null);
     setTransferQty(1);
   };
 
   const handleWithdraw = (boxIndex: number) => {
-    withdrawFromItemBox(selectedChar.id, boxIndex, transferQty);
+    const item = itemBoxItems[boxIndex];
+    const qty = Math.min(transferQty, item?.quantity ?? 1);
+    withdrawFromItemBox(selectedChar.id, boxIndex, qty);
+    if (item) {
+      showToast(`Prelevato: ${item.name} ×${qty}`, 'withdraw');
+    }
     setSelected(null);
     setTransferQty(1);
   };
@@ -145,7 +171,7 @@ export default function ItemBoxPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="relative h-full flex flex-col">
       {/* ── 1) Character tabs + HP — fixed top ── */}
       <div className="shrink-0 border-b border-white/[0.06]">
         <div className="flex border-b border-white/[0.06] bg-white/[0.03]">
@@ -217,6 +243,22 @@ export default function ItemBoxPanel() {
           </div>
         </div>
       </div>
+
+      {/* ── Transfer toast ── */}
+      {toast && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20 pointer-events-none">
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold shadow-lg shadow-black/40 backdrop-blur-sm animate-in fade-in slide-in-from-right-2 duration-200 ${
+            toast.type === 'deposit'
+              ? 'bg-cyan-950/80 border-cyan-500/30 text-cyan-300'
+              : 'bg-emerald-950/80 border-emerald-500/30 text-emerald-300'
+          }`}>
+            {toast.type === 'deposit'
+              ? <ArrowDownToLine className="w-3.5 h-3.5" />
+              : <ArrowUpFromLine className="w-3.5 h-3.5" />}
+            {toast.message}
+          </div>
+        </div>
+      )}
 
       {/* ── 3) Detail panel — fixed bottom, always visible ── */}
       <div className="shrink-0 border-t border-white/[0.06] bg-white/[0.03]">

@@ -10,19 +10,17 @@ import { LOCATIONS, ITEMS } from '@/game/data/loader';
  * Generates events and documents via LLM, stores them in Zustand.
  */
 export function useAIContentGenerator() {
-  const {
-    currentLocationId,
-    turnCount,
-    difficulty,
-    party,
-    collectedDocuments,
-    storyChoices,
-    aiContentGenerated,
-    aiGeneratedEvents,
-    aiGeneratedDocuments,
-    setAiGeneratedEvents,
-    setAiGeneratedDocuments,
-  } = useGameStore();
+  const currentLocationId = useGameStore(s => s.currentLocationId);
+  const turnCount = useGameStore(s => s.turnCount);
+  const difficulty = useGameStore(s => s.difficulty);
+  const party = useGameStore(s => s.party);
+  const collectedDocuments = useGameStore(s => s.collectedDocuments);
+  const storyChoices = useGameStore(s => s.storyChoices);
+  const aiContentGenerated = useGameStore(s => s.aiContentGenerated);
+  const aiGeneratedEvents = useGameStore(s => s.aiGeneratedEvents);
+  const aiGeneratedDocuments = useGameStore(s => s.aiGeneratedDocuments);
+  const setAiGeneratedEvents = useGameStore(s => s.setAiGeneratedEvents);
+  const setAiGeneratedDocuments = useGameStore(s => s.setAiGeneratedDocuments);
 
   const generatingRef = useRef<string | null>(null);
 

@@ -131,23 +131,21 @@ export default function DebugPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
   const collectedDocuments = useGameStore(s => s.collectedDocuments);
 
-  const {
-    debugHealAll,
-    debugGiveAllItems,
-    debugGiveAllKeys,
-    debugGiveAmmo,
-    debugApplyStatus,
-    debugRemoveStatus,
-    debugSpawnEnemy,
-    debugSetLevel,
-    debugTeleport,
-    debugKillAllEnemies,
-    debugToggleGodMode,
-    debugSpawnCollectible,
-    debugGiveAllRibbons,
-    debugSpawnItem,
-    debugSpawnDocument,
-  } = useGameStore();
+  const debugHealAll = useGameStore(s => s.debugHealAll);
+  const debugGiveAllItems = useGameStore(s => s.debugGiveAllItems);
+  const debugGiveAllKeys = useGameStore(s => s.debugGiveAllKeys);
+  const debugGiveAmmo = useGameStore(s => s.debugGiveAmmo);
+  const debugApplyStatus = useGameStore(s => s.debugApplyStatus);
+  const debugRemoveStatus = useGameStore(s => s.debugRemoveStatus);
+  const debugSpawnEnemy = useGameStore(s => s.debugSpawnEnemy);
+  const debugSetLevel = useGameStore(s => s.debugSetLevel);
+  const debugTeleport = useGameStore(s => s.debugTeleport);
+  const debugKillAllEnemies = useGameStore(s => s.debugKillAllEnemies);
+  const debugToggleGodMode = useGameStore(s => s.debugToggleGodMode);
+  const debugSpawnCollectible = useGameStore(s => s.debugSpawnCollectible);
+  const debugGiveAllRibbons = useGameStore(s => s.debugGiveAllRibbons);
+  const debugSpawnItem = useGameStore(s => s.debugSpawnItem);
+  const debugSpawnDocument = useGameStore(s => s.debugSpawnDocument);
 
   // Reactive data lookups — recomputed when dataVersion changes (after DB load / admin CRUD)
   const enemyOptions = useMemo(() =>

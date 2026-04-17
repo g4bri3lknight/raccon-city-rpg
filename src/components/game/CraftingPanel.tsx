@@ -36,33 +36,33 @@ export default function CraftingPanel() {
   }, [party, itemBoxItems, recipes]);
 
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center gap-2.5 mb-2.5">
-        <Hammer className="w-5 h-5 text-amber-400" />
-        <h3 className="text-base font-bold text-white/90">Crafting</h3>
+    <div className="space-y-1.5 sm:space-y-2.5">
+      <div className="flex items-center gap-2 sm:gap-2.5 mb-1.5 sm:mb-2.5">
+        <Hammer className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+        <h3 className="text-sm sm:text-base font-bold text-white/90">Crafting</h3>
         <Badge className="text-xs bg-amber-900/40 text-amber-300 border-amber-700/30 ml-auto">
           {recipes.length} ricette
         </Badge>
       </div>
 
-      <div className="space-y-2 max-h-[55vh] overflow-y-auto inventory-scrollbar pr-1.5">
+      <div className="space-y-1.5 sm:space-y-2 max-h-[48vh] sm:max-h-[55vh] overflow-y-auto inventory-scrollbar pr-1.5">
         {ingredientAvailability.map((entry, idx) => {
           const { recipe, canCraft, ingredientStatus, resultDef } = entry;
           return (
             <div
               key={recipe.id || idx}
-              className={`p-3 rounded-lg border transition-all ${
+              className={`p-2 sm:p-3 rounded-lg border transition-all ${
                 canCraft
                   ? 'border-green-500/20 bg-green-950/10 hover:border-green-500/30'
                   : 'border-white/[0.06] bg-white/[0.02]'
               }`}
             >
-              <div className="flex items-start justify-between gap-2.5 mb-2">
+              <div className="flex items-start justify-between gap-2 sm:gap-2.5 mb-1.5 sm:mb-2">
                 <div className="min-w-0">
-                  <div className="text-sm font-bold text-white/90 truncate">
+                  <div className="text-xs sm:text-sm font-bold text-white/90 truncate">
                     {recipe.icon} {recipe.name}
                   </div>
-                  <p className="text-xs text-white/40 mt-1 line-clamp-1">
+                  <p className="text-[11px] sm:text-xs text-white/40 mt-0.5 sm:mt-1 line-clamp-1">
                     {recipe.description}
                   </p>
                 </div>
@@ -78,11 +78,11 @@ export default function CraftingPanel() {
               </div>
 
               {/* Ingredients */}
-              <div className="flex flex-wrap gap-1.5 mb-2.5">
+              <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-1.5 sm:mb-2.5">
                 {ingredientStatus.map((ing, ingIdx) => (
                   <span
                     key={ingIdx}
-                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs border ${
+                    className={`inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[11px] sm:text-xs border ${
                       ing.enough
                         ? 'border-green-700/30 bg-green-950/20 text-green-300'
                         : 'border-red-700/30 bg-red-950/20 text-red-300'
@@ -98,13 +98,13 @@ export default function CraftingPanel() {
                 size="sm"
                 onClick={() => craftItem(idx)}
                 disabled={!canCraft}
-                className={`w-full h-7 text-sm font-semibold bg-transparent transition-all ${
+                className={`w-full min-h-[44px] h-auto sm:h-7 text-xs sm:text-sm font-semibold bg-transparent transition-all ${
                   canCraft
                     ? 'border-amber-600/40 text-amber-300 hover:bg-amber-950/30 hover:border-amber-500/50'
                     : 'border-white/[0.06] text-white/20 cursor-not-allowed'
                 }`}
               >
-                <Hammer className="w-3.5 h-3.5 mr-1.5" />
+                <Hammer className="w-3.5 h-3.5 sm:mr-1.5" />
                 Craft: {resultDef?.icon} {resultDef?.name} x{recipe.result.quantity}
               </Button>
             </div>

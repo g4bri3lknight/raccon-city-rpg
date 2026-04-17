@@ -694,7 +694,10 @@ function handleRemoveStatus(
 
   if (curedEntries.length === 0) return {};
 
-  const message = `Status negativi rimossi da ${curedEntries.join(', ')}!`;
+  const allSelf = curedEntries.length === 1 && statusTargets.length === 1 && statusTargets[0].id === character.id;
+  const message = allSelf
+    ? `${character.name} si è liberato degli status negativi!`
+    : `Status negativi rimossi da ${curedEntries.join(', ')}!`;
   return {
     log: {
       turn, actorName: character.name, actorType: 'player', action: 'Speciale',
@@ -726,9 +729,12 @@ function handleBuffStat(
   }));
 
   const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : 'VELOCITÀ';
+  const isSelf = buffTargets.length === 1 && buffTargets[0].id === character.id;
   const message = buffTargets.length > 1
     ? `${character.name} potenzia il gruppo: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`
-    : `${character.name} potenzia ${buffTargets[0].name}: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`;
+    : isSelf
+      ? `${character.name} potenzia se stesso: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`
+      : `${character.name} potenzia ${buffTargets[0].name}: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`;
 
   return {
     log: {
@@ -793,9 +799,12 @@ function handleShield(
     remainingTurns: effect.duration,
   }));
 
+  const isSelf = shieldTargets.length === 1 && shieldTargets[0].id === character.id;
   const message = shieldTargets.length > 1
     ? `${character.name} crea uno scudo di ${effect.amount} su tutto il gruppo per ${effect.duration} turni!`
-    : `${character.name} crea uno scudo di ${effect.amount} su ${shieldTargets[0].name} per ${effect.duration} turni!`;
+    : isSelf
+      ? `${character.name} crea uno scudo di ${effect.amount} su se stesso per ${effect.duration} turni!`
+      : `${character.name} crea uno scudo di ${effect.amount} su ${shieldTargets[0].name} per ${effect.duration} turni!`;
 
   return {
     log: {
@@ -929,9 +938,12 @@ function handleHot(
     remainingTurns: effect.duration,
   }));
 
+  const isSelf = hotTargets.length === 1 && hotTargets[0].id === character.id;
   const message = hotTargets.length > 1
     ? `${character.name} applica cura nel tempo a tutto il gruppo: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`
-    : `${character.name} applica cura nel tempo a ${hotTargets[0].name}: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`;
+    : isSelf
+      ? `${character.name} applica cura nel tempo a se stesso: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`
+      : `${character.name} applica cura nel tempo a ${hotTargets[0].name}: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`;
 
   return {
     log: {
@@ -1044,6 +1056,7 @@ function executeEffectsInternal(
         partial = handleHeal(effect, currentCharacter, target, currentParty, currentEnemies, turn);
         if (partial.updatedParty) currentParty = partial.updatedParty;
         if (partial.log?.heal) totalHeal += partial.log.heal;
+        if (partial.log?.targetId) { primaryTargetName = partial.log.targetName || ''; primaryTargetId = partial.log.targetId; }
         break;
 
       case 'apply_status':

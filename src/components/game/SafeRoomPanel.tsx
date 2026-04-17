@@ -45,17 +45,17 @@ export default function SafeRoomPanel() {
       className="h-screen game-horror flex flex-col overflow-hidden"
     >
       {/* Header */}
-      <div className="relative h-28 sm:h-36 shrink-0 overflow-hidden border-b border-white/[0.06]">
+      <div className="relative h-20 sm:h-32 shrink-0 overflow-hidden border-b border-white/[0.06]">
         <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/40 via-emerald-950/20 to-black/80" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(16,185,129,0.08)_0%,transparent_70%)]" />
 
-        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
+        <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-4">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <Home className="w-5 h-5 text-emerald-400" />
               <Badge className="border-emerald-500/30 text-emerald-400 text-sm bg-emerald-500/10 px-2.5 py-0.5">
                 SAFE ROOM
@@ -98,7 +98,7 @@ export default function SafeRoomPanel() {
               </div>
             </div>
             {safeRoomDef && (
-              <p className="text-sm text-white/50 mt-1 max-w-lg">{safeRoomDef.description}</p>
+              <p className="text-sm text-white/50 mt-1 max-w-lg hidden sm:block">{safeRoomDef.description}</p>
             )}
           </motion.div>
         </div>

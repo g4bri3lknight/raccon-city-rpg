@@ -11,7 +11,7 @@ import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack } from 'lucide-react';
+import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star } from 'lucide-react';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 
 export default function InventoryPanel() {
@@ -27,6 +27,7 @@ export default function InventoryPanel() {
   const transferItem = useGameStore(s => s.transferItem);
   const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
   const [showTransferPicker, setShowTransferPicker] = useState(false);
+  const [sortMode, setSortMode] = useState<'name' | 'type' | 'rarity'>('name');
 
   if (!inventoryOpen) return null;
 
@@ -65,9 +66,26 @@ export default function InventoryPanel() {
     weapon_mod: 'Mod Arma',
   };
 
+  // Sort items based on current sort mode
+  const rarityOrder: Record<string, number> = { common: 0, uncommon: 1, rare: 2, legendary: 3 };
+  const typeOrder: Record<string, number> = { weapon: 0, armor: 1, accessory: 2, weapon_mod: 3, healing: 4, antidote: 5, ammo: 6, utility: 7, bag: 8, collectible: 9 };
+
+  const sortedItems = [...(selectedChar?.inventory || [])].sort((a, b) => {
+    if (sortMode === 'name') return a.name.localeCompare(b.name);
+    if (sortMode === 'type') {
+      const diff = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
+    }
+    if (sortMode === 'rarity') {
+      const diff = (rarityOrder[a.rarity] ?? 0) - (rarityOrder[b.rarity] ?? 0);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
+    }
+    return 0;
+  });
+
   // Build icon grid (always show all slots)
   const totalSlots = selectedChar?.maxInventorySlots || 6;
-  const items = selectedChar?.inventory || [];
+  const items = sortedItems;
   const slots = Array.from({ length: totalSlots }, (_, i) => items[i] || null);
 
   return (
@@ -145,8 +163,32 @@ export default function InventoryPanel() {
           </div>
         )}
 
+        {/* Sort Controls */}
+        <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-4 pb-1 flex items-center gap-1">
+          <span className="text-[10px] md:text-xs text-white/30 mr-1">Ordina:</span>
+          {([
+            { key: 'name' as const, label: 'Nome', Icon: ArrowDownAZ },
+            { key: 'type' as const, label: 'Tipo', Icon: Layers },
+            { key: 'rarity' as const, label: 'Rarità', Icon: Star },
+          ]).map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              onClick={() => setSortMode(key)}
+              title={label}
+              className={`flex items-center gap-1 px-2 md:px-2.5 py-1 rounded-md text-[10px] md:text-xs transition-all border ${
+                sortMode === key
+                  ? 'bg-red-900/40 border-red-800/60 text-red-300 shadow-[0_0_8px_rgba(153,27,27,0.2)]'
+                  : 'bg-white/[0.03] border-white/[0.06] text-white/40 hover:text-white/60 hover:bg-white/[0.06] hover:border-white/10'
+              }`}
+            >
+              <Icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Icon Grid */}
-        <div className="flex-1 min-h-0 p-3 md:p-6">
+        <div className="flex-1 min-h-0 px-3 md:px-6 pb-3 md:pb-6">
           <div className="grid grid-cols-6 gap-2 md:gap-3">
             {slots.map((item, index) => {
               const isSelected = item && selectedItem?.uid === item.uid;

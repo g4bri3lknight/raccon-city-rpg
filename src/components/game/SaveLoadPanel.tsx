@@ -20,7 +20,12 @@ interface SaveLoadPanelProps {
 }
 
 export default function SaveLoadPanel({ mode = 'both', compact = false, defaultOpen, onClose, renderClosed }: SaveLoadPanelProps) {
-  const { saveGame, loadGame, getSaveInfo, deleteSave, phase, messageLog } = useGameStore();
+  const saveGame = useGameStore(s => s.saveGame);
+  const loadGame = useGameStore(s => s.loadGame);
+  const getSaveInfo = useGameStore(s => s.getSaveInfo);
+  const deleteSave = useGameStore(s => s.deleteSave);
+  const phase = useGameStore(s => s.phase);
+  const messageLog = useGameStore(s => s.messageLog);
   const [panelMode, setPanelMode] = useState<Mode>(defaultOpen || 'closed');
   const wasOpened = defaultOpen != null;
   const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>(() => [

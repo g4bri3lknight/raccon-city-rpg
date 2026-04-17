@@ -524,7 +524,11 @@ export default function CharacterSelect() {
                           target.style.display = 'none';
                           const fallback = document.createElement('div');
                           fallback.className = 'w-full h-full flex items-center justify-center bg-gray-900/80';
-                          fallback.innerHTML = `<span style="font-size:4rem;filter:saturate(0.3) brightness(0.75)">${current.kind === 'preset' ? getArchetypeIcon(current.archetypeId).toString().replace('Icon', '🎮') : '🎮'}</span>`;
+                          const span = document.createElement('span');
+                          span.style.fontSize = '4rem';
+                          span.style.filter = 'saturate(0.3) brightness(0.75)';
+                          span.textContent = '🎮';
+                          fallback.appendChild(span);
                           target.parentElement?.appendChild(fallback);
                         }
                       }}

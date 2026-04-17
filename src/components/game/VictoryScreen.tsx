@@ -10,7 +10,21 @@ import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { Star, RotateCcw, Save, Plus, Sparkles, X, Clock } from 'lucide-react';
 
 export default function VictoryScreen() {
-  const { party, turnCount, collectedRibbons, persistentRibbons, gameStartTime, endingType, storyChoices, npcsEncountered, collectedDocuments, discoveredSecretRooms, restartGame, saveGameVictory, startNewGamePlus, loadGame, getSaveInfo } = useGameStore();
+  const party = useGameStore(s => s.party);
+  const turnCount = useGameStore(s => s.turnCount);
+  const collectedRibbons = useGameStore(s => s.collectedRibbons);
+  const persistentRibbons = useGameStore(s => s.persistentRibbons);
+  const gameStartTime = useGameStore(s => s.gameStartTime);
+  const endingType = useGameStore(s => s.endingType);
+  const storyChoices = useGameStore(s => s.storyChoices);
+  const npcsEncountered = useGameStore(s => s.npcsEncountered);
+  const collectedDocuments = useGameStore(s => s.collectedDocuments);
+  const discoveredSecretRooms = useGameStore(s => s.discoveredSecretRooms);
+  const restartGame = useGameStore(s => s.restartGame);
+  const saveGameVictory = useGameStore(s => s.saveGameVictory);
+  const startNewGamePlus = useGameStore(s => s.startNewGamePlus);
+  const loadGame = useGameStore(s => s.loadGame);
+  const getSaveInfo = useGameStore(s => s.getSaveInfo);
   const [showSavePanel, setShowSavePanel] = useState(false);
   const [savedSlot, setSavedSlot] = useState<number | null>(null);
   const [showNGPPanel, setShowNGPPanel] = useState(false);

@@ -136,6 +136,18 @@ function getDefaultItemBoxItems(): { itemId: string; quantity: number }[] {
 
 export { fetchGameSettings, getMaxInventorySlots, getMaxItemBoxSlots, getStartingInventorySlots, getDefaultItemBoxItems, DEFAULT_GAME_SETTINGS };
 
+// ── Helper: read persisted auto-combat preference ──
+function getAutoCombatDefault(): boolean {
+  try {
+    const raw = localStorage.getItem('raccoon_city_settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return !!parsed.autoCombatDefault;
+    }
+  } catch {}
+  return false;
+}
+
 // ── Helper: apply add_slots effect to a character ──
 function applyAddSlotsToCharacter(char: Character, amount: number): { updatedChar: Character; expanded: boolean; oldSlots: number; newSlots: number } {
   const maxSlots = getMaxInventorySlots();
@@ -447,6 +459,10 @@ interface GameStore extends GameState {
   // Achievements & Bestiary
   toggleAchievements: () => void;
   toggleBestiary: () => void;
+
+  // Settings
+  toggleSettings: () => void;
+  setAutoCombatPreference: (val: boolean) => void;
   unlockAchievement: (id: string) => void;
   checkAchievements: () => void;
 
@@ -462,6 +478,7 @@ interface GameStore extends GameState {
   // Save / Load
   saveGame: (slot: number) => void;
   loadGame: (slot: number) => boolean;
+  autoSave: () => void;
   getSaveInfo: (slot: number) => SaveSlotInfo | null;
   deleteSave: (slot: number) => void;
   saveGameVictory: (slot: number) => number;
@@ -635,7 +652,8 @@ function buildStartState(
     nemesisLastSeenLocation: null as string | null,
     nemesisLastSeenTurn: 0,
     bossPhases: {} as Record<string, any>,
-    notification: null as any,
+    notification: null as GameNotification | null,
+    lastAutoSaveTurn: 0,
     // persistentRibbons is preserved (set externally for New Game+)
   };
 }
@@ -701,7 +719,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   nemesisLastSeenLocation: null as string | null,
   nemesisLastSeenTurn: 0,
   bossPhases: {} as Record<string, any>,
-  notification: null as any,
+  notification: null as GameNotification | null,
+  settingsOpen: false,
+  lastAutoSaveTurn: 0,
 
   // ==========================================
   // PHASE TRANSITIONS
@@ -712,7 +732,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   goToCharacterSelect: () => {
-    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: 'normale', collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], searchedSafeRooms: [], readDocuments: [], nemesisPursuitLevel: 0, nemesisLastSeenLocation: null, nemesisLastSeenTurn: 0, bossPhases: {}, notification: null, autoCombat: false, puzzleState: null, puzzleSourceLocationId: null, qteState: null, randomizerMode: false, randomizedLocationData: null });
+    set({ phase: 'character-select', party: [], messageLog: [], turnCount: 0, searchCounts: {}, searchMaxes: {}, partySize: 2, unlockedPaths: [], visitedLocations: [], mapOpen: false, completedEvents: [], collectedRibbons: 0, persistentRibbons: 0, isNewGamePlus: false, gameStartTime: 0, achievements: { unlockedIds: [], unlockTimestamps: {} }, achievementsOpen: false, bestiary: [], bestiaryOpen: false, newAchievementNotification: null, selectedDifficulty: 'normale', collectedDocuments: [], documentsOpen: false, missionsOpen: false, activeNpc: null, npcQuestProgress: {}, npcsEncountered: [], npcsOpen: false, activeDynamicEvent: null, dynamicEventTurnsLeft: 0, storyChoices: [], discoveredSecretRooms: [], endingType: null, exploredSubAreas: {}, currentSubArea: null, itemBoxItems: [], searchedSafeRooms: [], readDocuments: [], nemesisPursuitLevel: 0, nemesisLastSeenLocation: null, nemesisLastSeenTurn: 0, bossPhases: {}, notification: null, autoCombat: false, puzzleState: null, puzzleSourceLocationId: null, qteState: null, randomizerMode: false, randomizedLocationData: null, lastAutoSaveTurn: 0 });
   },
 
   goToCharacterCreator: () => {
@@ -732,7 +752,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const customParty = customCharacters.map(config => createCustomCharacter(config));
     const party = [...presetParty, ...customParty];
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
-    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strate desolate di Raccoon City...'));
+    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...'));
   },
 
   gameOver: () => {
@@ -803,6 +823,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       itemBoxItems: [],
       searchedSafeRooms: [],
       readDocuments: [],
+      lastAutoSaveTurn: 0,
     });
   },
 
@@ -812,6 +833,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   explore: () => {
     const state = get();
     const location = LOCATIONS[state.currentLocationId];
+
+    // Schedule auto-save every 5 turns (fires after current explore completes)
+    if ((state.turnCount + 1) % 5 === 0 && state.phase === 'exploration' && state.party.length > 0) {
+      setTimeout(() => { try { get().autoSave(); } catch {} }, 300);
+    }
 
     // #45 Randomizer: get effective enemy pool and encounter rate
     const effectiveLoc = getEffectiveLocation(state.currentLocationId, state.randomizedLocationData);
@@ -894,7 +920,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({
           phase: 'combat',
           enemies,
-          autoCombat: false,
+          autoCombat: getAutoCombatDefault(),
           combat: {
             turn: 1,
             playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
@@ -985,7 +1011,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({
           phase: 'combat',
           enemies: [nemesis],
-          autoCombat: false,
+          autoCombat: getAutoCombatDefault(),
           combat: {
             turn: 1,
             playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
@@ -1450,6 +1476,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (!isOpen) playMenuOpen(); else playMenuClose();
     } catch {}
     set(state => ({ bestiaryOpen: !state.bestiaryOpen }));
+  },
+
+  toggleSettings: () => {
+    try {
+      const isOpen = get().settingsOpen;
+      if (!isOpen) playMenuOpen(); else playMenuClose();
+    } catch {}
+    set(state => ({ settingsOpen: !state.settingsOpen }));
+  },
+
+  setAutoCombatPreference: (val: boolean) => {
+    set({ autoCombat: val });
+    // Persist in localStorage so combat start respects this default
+    try {
+      const key = 'raccoon_city_settings';
+      const existing = JSON.parse(localStorage.getItem(key) || '{}');
+      existing.autoCombatDefault = val;
+      localStorage.setItem(key, JSON.stringify(existing));
+    } catch {}
   },
 
   unlockAchievement: (id: string) => {
@@ -1967,7 +2012,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         phase: 'combat',
         party: updatedParty,
-        autoCombat: false,
+        autoCombat: getAutoCombatDefault(),
         enemies,
         activeEvent: null,
         eventOutcome: outcome,
@@ -2086,8 +2131,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
             weaponData = {
               itemId: item.itemId,
               name: item.name,
-              type: (itemDef as any).weaponType || 'melee',
-              ammoType: (itemDef as any).ammoType,
+              type: itemDef.weaponType || 'melee',
+              ammoType: itemDef.ammoType,
               modSlots: [],
               effects: item.effects,
             };
@@ -2573,7 +2618,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       phase: 'combat',
       enemies: [boss],
-      autoCombat: false,
+      autoCombat: getAutoCombatDefault(),
       bestiary: currentBestiary,
       combat: {
         turn: 1,
@@ -3250,6 +3295,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           nemesisPursuitLevel: newNemesisPursuitLevel,
         });
         setTimeout(() => {
+          // Auto-save after boss victory before transitioning
+          try { get().autoSave(); } catch {}
           get().victory();
         }, 3500);
         return;
@@ -3883,6 +3930,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
       setTimeout(() => {
         if (isBoss) {
+          // Auto-save after boss victory before transitioning
+          try { get().autoSave(); } catch {}
           get().victory();
         } else {
           set({ phase: 'exploration', combat: null, enemies: [], notification: null });
@@ -4742,6 +4791,94 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  autoSave: () => {
+    const state = get();
+
+    // Don't auto-save during combat, game-over, or title screen
+    if (state.phase === 'combat' || state.phase === 'game-over' || state.phase === 'title' || state.phase === 'victory') return;
+    // Don't auto-save if party is empty (not in adventure)
+    if (!state.party || state.party.length === 0) return;
+
+    const saveData = {
+      version: 1,
+      isAutoSave: true,
+      timestamp: new Date().toISOString(),
+      party: state.party,
+      currentLocationId: state.currentLocationId,
+      combat: null,
+      enemies: [],
+      activeEvent: null,
+      eventOutcome: null,
+      messageLog: state.messageLog.slice(-50),
+      turnCount: state.turnCount,
+      difficulty: state.difficulty,
+      selectedDifficulty: state.selectedDifficulty,
+      selectedCharacterId: state.selectedCharacterId,
+      searchCounts: state.searchCounts,
+      searchMaxes: state.searchMaxes,
+      partySize: state.partySize,
+      unlockedPaths: state.unlockedPaths,
+      visitedLocations: state.visitedLocations,
+      completedEvents: state.completedEvents || [],
+      collectedRibbons: state.collectedRibbons || 0,
+      persistentRibbons: state.persistentRibbons || 0,
+      isNewGamePlus: state.isNewGamePlus || false,
+      gameStartTime: state.gameStartTime || Date.now(),
+      collectedDocuments: state.collectedDocuments,
+      activeNpc: null,
+      npcQuestProgress: state.npcQuestProgress,
+      npcsEncountered: state.npcsEncountered,
+      activeDynamicEvent: null,
+      dynamicEventTurnsLeft: 0,
+      storyChoices: state.storyChoices,
+      discoveredSecretRooms: state.discoveredSecretRooms,
+      endingType: null,
+      exploredSubAreas: state.exploredSubAreas,
+      randomizerMode: state.randomizerMode,
+      randomizedLocationData: state.randomizedLocationData,
+      currentSubArea: state.currentSubArea,
+      itemBoxItems: state.itemBoxItems,
+      readDocuments: state.readDocuments,
+      nemesisPursuitLevel: state.nemesisPursuitLevel,
+      nemesisLastSeenLocation: state.nemesisLastSeenLocation,
+      nemesisLastSeenTurn: state.nemesisLastSeenTurn,
+      bossPhases: state.bossPhases,
+      lastAutoSaveTurn: state.turnCount,
+    };
+
+    const saveKey = 'raccoon_city_autosave';
+    const saveMetaKey = 'raccoon_city_autosave_meta';
+
+    const location = LOCATIONS[state.currentLocationId];
+
+    const meta: SaveSlotInfo = {
+      slot: -1,
+      timestamp: saveData.timestamp,
+      turnCount: state.turnCount,
+      locationName: location?.name || 'Sconosciuto',
+      partySummary: state.party.map(p => `${p.name} (Lv.${p.level})`).join(', '),
+      phase: state.phase,
+      isNewGamePlus: state.isNewGamePlus || false,
+      persistentRibbons: state.persistentRibbons || 0,
+      collectedRibbons: state.collectedRibbons || 0,
+    };
+
+    try {
+      if (typeof window !== 'undefined') {
+        const json = JSON.stringify(saveData);
+        if (json.length > 4_000_000) {
+          saveData.randomizedLocationData = null;
+        }
+        localStorage.setItem(saveKey, JSON.stringify(saveData));
+        localStorage.setItem(saveMetaKey, JSON.stringify(meta));
+      }
+    } catch {
+      // Storage full or not available - silently fail
+    }
+
+    set({ lastAutoSaveTurn: state.turnCount });
+  },
+
   loadGame: (slot: number) => {
     const saveKey = `raccoon_city_save_${slot}`;
 
@@ -4830,7 +4967,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         nemesisLastSeenLocation: data.nemesisLastSeenLocation || null,
         nemesisLastSeenTurn: data.nemesisLastSeenTurn || 0,
         bossPhases: data.bossPhases || {},
+        lastAutoSaveTurn: data.lastAutoSaveTurn || 0,
       });
+      // Auto-save after loading
+      setTimeout(() => { try { get().autoSave(); } catch {} }, 200);
       return true;
     } catch {
       return false;
@@ -5241,6 +5381,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       party: updatedParty,
       messageLog: [...state.messageLog, `[${state.turnCount}] 🤝 Scambio completato! Ricevuto: ${tradedDef.name}${tradeQty > 1 ? ` x${tradeQty}` : ''}${result.added ? ` → ${result.characterName}` : ' (inventario pieno!)'}`],
     }));
+    // Auto-save after successful trade
+    setTimeout(() => { try { get().autoSave(); } catch {} }, 100);
     return { success: true };
   },
 
@@ -6007,7 +6149,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       phase: 'combat',
       enemies: [enemy],
-      autoCombat: false,
+      autoCombat: getAutoCombatDefault(),
       combat: {
         turn: 1,
         playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),

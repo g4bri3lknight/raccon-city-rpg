@@ -73,16 +73,16 @@ const dangerGlows = [
 ];
 
 export default function GameMap() {
-  const {
-    mapOpen, toggleMap,
-    currentLocationId,
-    visitedLocations,
-    unlockedPaths,
-    party,
-  } = useGameStore();
+  const mapOpen = useGameStore(s => s.mapOpen);
+  const toggleMap = useGameStore(s => s.toggleMap);
+  const currentLocationId = useGameStore(s => s.currentLocationId);
+  const visitedLocations = useGameStore(s => s.visitedLocations);
+  const unlockedPaths = useGameStore(s => s.unlockedPaths);
+  const party = useGameStore(s => s.party);
+  const dataVersion = useGameStore(s => s.dataVersion);
 
-  const mapNodes = useMemo(() => buildMapNodes(), []);
-  const connections = useMemo(() => buildConnections(), []);
+  const mapNodes = useMemo(() => buildMapNodes(), [dataVersion]);
+  const connections = useMemo(() => buildConnections(), [dataVersion]);
 
   // Check if player has a specific key
   const hasKey = (keyId: string) => party.some(p => p.inventory.some(i => i.itemId === keyId));

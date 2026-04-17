@@ -133,7 +133,9 @@ function AchievementCard({
 }
 
 export default function AchievementPanel() {
-  const { achievements, achievementsOpen, toggleAchievements } = useGameStore();
+  const achievements = useGameStore(s => s.achievements);
+  const achievementsOpen = useGameStore(s => s.achievementsOpen);
+  const toggleAchievements = useGameStore(s => s.toggleAchievements);
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
 
   const unlockedCount = achievements.unlockedIds.length;

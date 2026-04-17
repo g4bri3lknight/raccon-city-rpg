@@ -734,6 +734,10 @@ export interface GameState {
   readDocuments: string[]; // document IDs that have been opened/read
   // Admin data refresh version (incremented on refreshGameData)
   dataVersion: number;
+  // Settings panel
+  settingsOpen: boolean;
+  // Auto-save
+  lastAutoSaveTurn: number;
 }
 
 // ==========================================

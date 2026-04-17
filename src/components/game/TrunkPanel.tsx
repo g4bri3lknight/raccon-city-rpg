@@ -9,12 +9,14 @@ import { X, Package, ArrowDownToLine, ArrowUpFromLine, User } from 'lucide-react
 import ItemIcon from '@/components/game/ItemIcon';
 
 export default function TrunkPanel() {
-  const {
-    trunkOpen, toggleTrunk,
-    party, selectedCharacterId, selectCharacter,
-    trunkItems,
-    depositToTrunk, withdrawFromTrunk,
-  } = useGameStore();
+  const trunkOpen = useGameStore(s => s.trunkOpen);
+  const toggleTrunk = useGameStore(s => s.toggleTrunk);
+  const party = useGameStore(s => s.party);
+  const selectedCharacterId = useGameStore(s => s.selectedCharacterId);
+  const selectCharacter = useGameStore(s => s.selectCharacter);
+  const trunkItems = useGameStore(s => s.trunkItems);
+  const depositToTrunk = useGameStore(s => s.depositToTrunk);
+  const withdrawFromTrunk = useGameStore(s => s.withdrawFromTrunk);
 
   const [tab, setTab] = useState<'deposit' | 'withdraw'>('deposit');
   const activeChar = party.find(p => p.id === selectedCharacterId) || party[0];

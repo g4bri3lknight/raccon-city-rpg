@@ -21,6 +21,7 @@ import NPCDialogPanel from '@/components/game/NPCDialogPanel';
 import PuzzlePanel from '@/components/game/PuzzlePanel';
 import QTEPanel from '@/components/game/QTEPanel';
 import AdminPanel from '@/components/game/AdminPanel';
+import SettingsPanel from '@/components/game/SettingsPanel';
 import { playBgm, stopBgm, preloadCriticalSounds } from '@/game/engine/sounds';
 import type { BgmType } from '@/game/engine/sounds';
 
@@ -147,6 +148,7 @@ export default function GamePage() {
       <BestiaryPanel />
       <DocumentsPanel />
       <NPCDialogPanel />
+      <SettingsPanel />
       <DebugPanel />
       <AdminPanel />
     </div>
