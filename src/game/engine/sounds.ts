@@ -86,7 +86,6 @@ class AudioEngine {
   private _bgmGain: GainNode | null = null;
   public bgmGain: GainNode | null = null;
   public bgmVolume = 0.15;
-  public bgmMixer: GainNode | null = null;
   public currentBgm: string | null = null;
   public bgmTimeoutId: ReturnType<typeof setTimeout> | null = null;
 

@@ -154,7 +154,6 @@ export default function DebugPanel() {
       name: ENEMIES[id].name,
       isBoss: ENEMIES[id].isBoss,
     })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dataVersion],
   );
 
@@ -163,13 +162,11 @@ export default function DebugPanel() {
       id,
       name: LOCATIONS[id].name,
     })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dataVersion],
   );
 
   const npcList = useMemo(() =>
     Object.values(NPCS),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dataVersion],
   );
 
@@ -181,7 +178,6 @@ export default function DebugPanel() {
       type: ITEMS[id].type,
       rarity: ITEMS[id].rarity,
     })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dataVersion],
   );
 
@@ -193,7 +189,6 @@ export default function DebugPanel() {
       rarity: DOCUMENTS[id].rarity,
       isSecret: DOCUMENTS[id].isSecret,
     })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dataVersion],
   );
 

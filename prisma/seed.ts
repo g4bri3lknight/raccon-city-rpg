@@ -20,37 +20,70 @@ async function main() {
   // ==========================================
   console.log('📦 Seeding items...');
 
-  const weaponStats: Record<string, { atkBonus: number; type: string; ammoType?: string }> = {
-    pipe:            { atkBonus: 5,  type: 'melee' },
-    scalpel:         { atkBonus: 4,  type: 'melee' },
-    pistol:          { atkBonus: 8,  type: 'ranged', ammoType: 'ammo_pistol' },
-    shotgun:         { atkBonus: 14, type: 'ranged', ammoType: 'ammo_shotgun' },
-    combat_knife:    { atkBonus: 7,  type: 'melee' },
-    magnum:          { atkBonus: 18, type: 'ranged', ammoType: 'ammo_magnum' },
-    machinegun:      { atkBonus: 13, type: 'ranged', ammoType: 'ammo_machinegun' },
-    grenade_launcher:{ atkBonus: 24, type: 'ranged', ammoType: 'ammo_grenade' },
+  // Weapon metadata (weaponType + ammoType only, atk goes into effects)
+  const weaponMeta: Record<string, { weaponType: string; ammoType?: string; atk: number }> = {
+    pipe:             { weaponType: 'melee', atk: 5 },
+    scalpel:          { weaponType: 'melee', atk: 4 },
+    pistol:           { weaponType: 'ranged', ammoType: 'ammo_pistol', atk: 8 },
+    shotgun:          { weaponType: 'ranged', ammoType: 'ammo_shotgun', atk: 14 },
+    combat_knife:     { weaponType: 'melee', atk: 7 },
+    magnum:           { weaponType: 'ranged', ammoType: 'ammo_magnum', atk: 18 },
+    machinegun:       { weaponType: 'ranged', ammoType: 'ammo_machinegun', atk: 13 },
+    grenade_launcher: { weaponType: 'ranged', ammoType: 'ammo_grenade', atk: 24 },
+    tazer:            { weaponType: 'melee', atk: 8 },
+    railgun:          { weaponType: 'ranged', ammoType: 'ammo_magnum', atk: 25 },
   };
 
-  const itemEffects: Record<string, { type: string; value: number; target: string; statusCured?: string[] }> = {
-    bandage:         { type: 'heal',             value: 25,    target: 'one_ally' },
-    herb_green:      { type: 'heal',             value: 30,    target: 'one_ally' },
-    herb_mixed:      { type: 'heal',             value: 70,    target: 'one_ally', statusCured: ['poison', 'bleeding'] },
-    first_aid:       { type: 'heal_full',        value: 0,     target: 'one_ally', statusCured: ['poison', 'bleeding'] },
-    spray:           { type: 'heal',             value: 80,    target: 'one_ally' },
-    antidote:        { type: 'cure',             value: 0,     target: 'one_ally', statusCured: ['poison'] },
-    bag_small:       { type: 'add_slots',        value: 1,     target: 'self' },
-    bag_medium:      { type: 'add_slots',        value: 2,     target: 'self' },
-  };
-
-  // Atomic effects for the new data-driven system
-  const itemAtomicEffects: Record<string, object[]> = {
-    rocket_launcher: [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', powerMultiplier: 999, ignoreDef: true, noMiss: true }],
-    bandage:         [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 25 }],
-    herb_green:      [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 30 }],
-    herb_mixed:      [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 70 }, { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] }],
-    first_aid:       [{ type: 'heal', trigger: 'on_use', target: 'one_ally', percent: 100 }, { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] }],
-    spray:           [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 80 }],
-    antidote:        [{ type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison'] }],
+  // Comprehensive atomic effects map for ALL items with bonuses
+  const allItemEffects: Record<string, object[]> = {
+    // Weapons — atk bonus on equip
+    pipe:             [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 5 }],
+    scalpel:          [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 4 }],
+    pistol:           [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 8 }],
+    shotgun:          [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 14 }],
+    combat_knife:     [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 7 }],
+    magnum:           [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 18 }],
+    machinegun:       [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 13 }],
+    grenade_launcher: [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 24 }],
+    tazer:            [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 8 }],
+    railgun:          [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 25 }],
+    // Healing / usable items
+    rocket_launcher:  [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', powerMultiplier: 999, ignoreDef: true, noMiss: true }],
+    bandage:          [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 25 }],
+    herb_green:       [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 30 }],
+    herb_mixed:       [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 70 }, { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] }],
+    first_aid:        [{ type: 'heal', trigger: 'on_use', target: 'one_ally', percent: 100 }, { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] }],
+    spray:            [{ type: 'heal', trigger: 'on_use', target: 'one_ally', amount: 80 }],
+    antidote:         [{ type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison'] }],
+    bag_small:        [{ type: 'add_slots', trigger: 'on_use', target: 'self', amount: 1 }],
+    bag_medium:       [{ type: 'add_slots', trigger: 'on_use', target: 'self', amount: 2 }],
+    defense_potion:   [{ type: 'defense_boost', trigger: 'on_use', target: 'self', percent: 30 }],
+    adrenaline_shot:  [{ type: 'heal', trigger: 'on_use', target: 'self', amount: 15 }],
+    medikit_advanced: [{ type: 'heal', trigger: 'on_use', target: 'one_ally', percent: 100 }, { type: 'remove_status', trigger: 'on_use', target: 'one_ally', statuses: ['poison', 'bleeding'] }],
+    smoke_grenade:    [{ type: 'escape', trigger: 'on_use', target: 'self' }],
+    // Armor items
+    vest_light:    [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 3 }],
+    vest_police:   [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 5 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 15 }],
+    vest_tactical: [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 8 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 25 }],
+    vest_umbrella: [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 12 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 40 }, { type: 'status_resist', trigger: 'on_equip', target: 'self', status: 'poison', value: 50 }],
+    lab_coat:      [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 2 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 10 }],
+    swat_armor:    [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 10 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 30 }, { type: 'status_resist', trigger: 'on_equip', target: 'self', status: 'bleeding', value: 40 }],
+    // Accessory items
+    watch:          [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'spd', value: 2 }],
+    amulet:         [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 20 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 2 }],
+    compass:        [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'spd', value: 3 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 2 }],
+    first_aid_badge: [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 30 }, { type: 'hot', trigger: 'on_turn_start', target: 'self', amount: 3 }],
+    dog_tags:       [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 3 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'crit', value: 5 }],
+    ring_virus:     [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 5 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 15 }, { type: 'reflect', trigger: 'on_take_hit', target: 'self', amount: 5 }],
+    goggles:        [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'crit', value: 8 }],
+    gas_mask:       [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'def', value: 3 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'maxHp', value: 15 }, { type: 'status_resist', trigger: 'on_equip', target: 'self', status: 'poison', value: 80 }],
+    // Weapon mod items
+    mod_red_dot:       [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'crit', value: 8 }],
+    mod_laser_sight:   [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'dodge', value: 15 }],
+    mod_hollow_point:  [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'crit', value: 15 }],
+    mod_bio_rounds:    [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'statusChance', value: 20 }],
+    mod_titanium_blade: [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'atk', value: 5 }, { type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'crit', value: 10 }],
+    mod_shock_module:  [{ type: 'stat_bonus', trigger: 'on_equip', target: 'self', stat: 'statusChance', value: 30 }],
   };
 
   const existingItems = [
@@ -152,9 +185,12 @@ async function main() {
     { id: 'mod_shock_module', name: 'Modulo Shock', description: 'Un modulo elettrico che stordisce i bersagli. +30% status, solo corpo a corpo.', type: 'weapon_mod', rarity: 'uncommon', icon: '⚡', usable: false, equippable: false, stackable: false, maxStack: 1, statusBonus: 30, modType: 'melee' },
   ];
 
-  for (const item of existingItems) {
-    const ws = weaponStats[item.id];
-    const ef = itemEffects[item.id];
+  // Helper to create items with only valid schema fields
+  const allItems = [...existingItems, ...newItems, ...armorItems, ...accessoryItems, ...weaponModItems];
+  for (const item of allItems) {
+    const wm = weaponMeta[item.id];
+    const modType = (item as any).modType ?? null;
+    const isUnico = (item as any).unico ?? (item.type === 'armor' || item.type === 'accessory' || item.type === 'weapon_mod');
     await prisma.item.create({
       data: {
         id: item.id,
@@ -167,115 +203,11 @@ async function main() {
         equippable: item.equippable,
         stackable: item.stackable ?? (item.type === 'collectible' || item.type === 'key' ? true : item.type === 'weapon' || item.type === 'utility' || item.type === 'bag' ? false : true),
         maxStack: item.maxStack ?? 99,
-        weaponType: ws?.type ?? null,
-        atkBonus: ws?.atkBonus ?? null,
-        ammoType: ws?.ammoType ?? null,
-        effectType: ef?.type ?? null,
-        effectValue: ef?.value ?? null,
-        effectTarget: ef?.target ?? null,
-        effectStatusCured: ef?.statusCured ? JSON.stringify(ef.statusCured) : null,
-        addSlots: ef?.type === 'add_slots' ? ef.value : null,
-        effects: itemAtomicEffects[item.id] ? JSON.stringify(itemAtomicEffects[item.id]) : '[]',
-      },
-    });
-  }
-
-  for (const item of newItems) {
-    await prisma.item.create({
-      data: {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        type: item.type,
-        rarity: item.rarity,
-        icon: item.icon,
-        usable: item.usable,
-        equippable: item.equippable,
-        stackable: (item as any).stackable ?? (item.type === 'collectible' || item.type === 'key' ? true : item.type === 'weapon' ? false : true),
-        maxStack: (item as any).maxStack ?? 99,
-        weaponType: (item as any).weaponType ?? null,
-        atkBonus: (item as any).atkBonus ?? null,
-        ammoType: (item as any).ammoType ?? null,
-        effectType: (item as any).effectType ?? null,
-        effectValue: (item as any).effectValue ?? null,
-        effectTarget: (item as any).effectTarget ?? null,
-        effectStatusCured: (item as any).effectStatusCured ?? null,
-        addSlots: (item as any).addSlots ?? null,
-        effects: (item as any).effects ?? '[]',
-      },
-    });
-  }
-
-  // Seed armor items
-  for (const item of armorItems) {
-    await prisma.item.create({
-      data: {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        type: item.type,
-        rarity: item.rarity,
-        icon: item.icon,
-        usable: item.usable,
-        equippable: item.equippable,
-        stackable: item.stackable,
-        maxStack: item.maxStack,
-        defBonus: (item as any).defBonus ?? null,
-        hpBonus: (item as any).hpBonus ?? null,
-        specialEffect: (item as any).specialEffect ?? null,
-        effects: (item as any).effects ?? '[]',
-        unico: true,
-      },
-    });
-  }
-
-  // Seed accessory items
-  for (const item of accessoryItems) {
-    await prisma.item.create({
-      data: {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        type: item.type,
-        rarity: item.rarity,
-        icon: item.icon,
-        usable: item.usable,
-        equippable: item.equippable,
-        stackable: item.stackable,
-        maxStack: item.maxStack,
-        atkBonus: (item as any).atkBonus ?? null,
-        defBonus: (item as any).defBonus ?? null,
-        hpBonus: (item as any).hpBonus ?? null,
-        spdBonus: (item as any).spdBonus ?? null,
-        critBonus: (item as any).critBonus ?? null,
-        specialEffect: (item as any).specialEffect ?? null,
-        effects: (item as any).effects ?? '[]',
-        unico: true,
-      },
-    });
-  }
-
-  // Seed weapon mod items
-  for (const item of weaponModItems) {
-    await prisma.item.create({
-      data: {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        type: item.type,
-        rarity: item.rarity,
-        icon: item.icon,
-        usable: item.usable,
-        equippable: item.equippable,
-        stackable: item.stackable,
-        maxStack: item.maxStack,
-        atkBonus: (item as any).atkBonus ?? null,
-        critBonus: (item as any).critBonus ?? null,
-        dodgeBonus: (item as any).dodgeBonus ?? null,
-        statusBonus: (item as any).statusBonus ?? null,
-        modType: (item as any).modType ?? null,
-        effects: '[]',
-        unico: true,
+        weaponType: wm?.weaponType ?? ((item as any).weaponType ?? null),
+        ammoType: wm?.ammoType ?? ((item as any).ammoType ?? null),
+        modType: modType,
+        effects: allItemEffects[item.id] ? JSON.stringify(allItemEffects[item.id]) : '[]',
+        unico: isUnico,
       },
     });
   }
