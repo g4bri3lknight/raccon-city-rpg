@@ -17,12 +17,12 @@ import {
   ENEMIES,
   BOSS_PHASES,
   NPCS,
-  EQUIPMENT_STATS,
   getSpecialById as getSpecialByIdFromLoader,
   getCombatDelay,
   COMBAT_BOOL_CONFIG,
 } from '../../data/loader';
 import { WEAPON_MODS } from '../../data/weapon-mods';
+import { EQUIPMENT_STATS } from '../../data/equipment';
 import {
   executePlayerAttack,
   executePlayerSpecial,

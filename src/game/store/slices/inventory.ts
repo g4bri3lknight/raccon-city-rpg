@@ -1,10 +1,12 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { ItemInstance, WeaponInstance, Character } from '../../types';
-import { ITEMS, WEAPON_MODS } from '../../data/loader';
+import { ITEMS } from '../../data/loader';
+import { WEAPON_MODS } from '../../data/weapon-mods';
 import { createModItemInstance } from '../../data/equipment';
 import { getMaxInventorySlots } from '../settings-cache';
-import { mergeInventoryStacks, applyAddSlotsToCharacter, getAddSlotsAmount } from '../helpers';
+import { mergeInventoryStacks, applyAddSlotsToCharacter } from '../helpers';
+import { getAddSlotsAmount } from '../../utils/item-effects';
 import { playMenuOpen, playMenuClose } from '../../engine/sounds';
 
 export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
@@ -31,7 +33,10 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
         }
         if (!weaponData) return p;
 
-        let newInventory = p.inventory.map(i => ({ ...i, isEquipped: false }));
+        // Only unequip other weapons — preserve armor/accessory equipped state
+        let newInventory = p.inventory.map(i =>
+          i.weaponStats ? { ...i, isEquipped: false } : i
+        );
         newInventory = newInventory.map(i =>
           i.uid === itemUid ? { ...i, isEquipped: true, weaponStats: weaponData } : i
         );
@@ -74,14 +79,10 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
         const item = p.inventory.find(i => i.uid === itemUid);
         if (!item || item.type !== 'armor' || !item.equipmentStats) return p;
 
-        let newInventory = p.inventory.map(i => ({ ...i, isEquipped: false }));
-        if (p.armor) {
-          const oldArmorItem = p.inventory.find(i => i.itemId === p.armor!.itemId);
-          if (oldArmorItem) {
-          } else {
-            newInventory = newInventory;
-          }
-        }
+        // Only unequip other armor items — preserve weapon/accessory equipped state
+        let newInventory = p.inventory.map(i =>
+          i.type === 'armor' ? { ...i, isEquipped: false } : i
+        );
 
         newInventory = newInventory.map(i =>
           i.uid === itemUid ? { ...i, isEquipped: true } : i
@@ -120,9 +121,10 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
         const item = p.inventory.find(i => i.uid === itemUid);
         if (!item || item.type !== 'accessory' || !item.equipmentStats) return p;
 
-        let newInventory = p.inventory.map(i => ({ ...i, isEquipped: false }));
-        if (p.accessory) {
-        }
+        // Only unequip other accessory items — preserve weapon/armor equipped state
+        let newInventory = p.inventory.map(i =>
+          i.type === 'accessory' ? { ...i, isEquipped: false } : i
+        );
 
         newInventory = newInventory.map(i =>
           i.uid === itemUid ? { ...i, isEquipped: true } : i

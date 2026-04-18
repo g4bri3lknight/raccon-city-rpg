@@ -1,70 +1,23 @@
-// Raccoon City RPG — Audio Engine (WAV-based)
-// Plays pre-generated realistic WAV files instead of real-time synthesis.
-// Falls back to simple tone if WAV fails to load.
+// Raccoon City RPG — Audio Engine (DB-only)
+// Plays audio files loaded exclusively from the database.
+// If no audio is found in the DB, no sound is played (no fallback).
 
 interface SfxCache {
   [key: string]: AudioBuffer | null;
 }
 
-const SFX_FILES: Record<string, string> = {
-  // Combat - Player
-  playAttack: '/audio/attack.wav',
-  playRangedAttack: '/audio/ranged_attack.wav',
-  playSpecial: '/audio/special_attack.wav',
-  playDefend: '/audio/defend.wav',
-  // Combat - Damage
-  playEnemyHit: '/audio/enemy_hit.wav',
-  playPlayerHit: '/audio/player_hit.wav',
-  playMiss: '/audio/miss.wav',
-  playCritical: '/audio/critical.wav',
-  playHeal: '/audio/heal.wav',
-  playPoisonTick: '/audio/poison_tick.wav',
-  playBleedTick: '/audio/bleed_tick.wav',
-  playExplosion: '/audio/explosion.wav',
-  playTaunt: '/audio/taunt.wav',
-  // Zombies
-  playZombieMoan: '/audio/zombie_moan.wav',
-  playZombieAttack: '/audio/zombie_attack.wav',
-  playZombieDeath: '/audio/zombie_death.wav',
-  // Enemies
-  playCerberusAttack: '/audio/cerberus_attack.wav',
-  playCerberusDeath: '/audio/cerberus_death.wav',
-  playLickerAttack: '/audio/licker_attack.wav',
-  playLickerDeath: '/audio/licker_death.wav',
-  playHunterAttack: '/audio/hunter_attack.wav',
-  playHunterDeath: '/audio/hunter_death.wav',
-  playTyrantAttack: '/audio/tyrant_attack.wav',
-  playNemesisAttack: '/audio/nemesis_attack.wav',
-  playEnemyDeath: '/audio/enemy_death.wav',
-  // Weapons
-  playPistolShot: '/audio/pistol_shot.wav',
-  playShotgunBlast: '/audio/shotgun_blast.wav',
-  playMagnumShot: '/audio/magnum_shot.wav',
-  // UI & Events
-  playEncounter: '/audio/encounter.wav',
-  playVictory: '/audio/victory.wav',
-  playDefeat: '/audio/gameover.wav',
-  playItemPickup: '/audio/item_pickup.wav',
-  playMenuOpen: '/audio/menu_open.wav',
-  playMenuClose: '/audio/menu_close.wav',
-  playNotification: '/audio/notification.wav',
-  playLevelUp: '/audio/level_up.wav',
-  playDocumentFound: '/audio/document_found.wav',
-  playNPCEncounter: '/audio/npc_encounter.wav',
-  playPuzzleFail: '/audio/puzzle_fail.wav',
-  playPuzzleSuccess: '/audio/puzzle_success.wav',
-  playAchievement: '/audio/achievement.wav',
-  playMapOpen: '/audio/map_open.wav',
-  playTransfer: '/audio/transfer.wav',
-  playTravel: '/audio/travel.wav',
-  playSearch: '/audio/search.wav',
-  // Ambient
-  playAmbientCity: '/audio/ambient_city.wav',
-  playAmbientRPD: '/audio/ambient_rpd.wav',
-  playAmbientHospital: '/audio/ambient_hospital.wav',
-  playAmbientSewers: '/audio/ambient_sewers.wav',
-  playAmbientLaboratory: '/audio/ambient_laboratory.wav',
-  playAmbientClockTower: '/audio/ambient_clocktower.wav',
+// BGM ref-key mapping: game context → database sound reference
+const BGM_REF_KEYS: Record<string, string> = {
+  title: 'bgm_title',
+  city_outskirts: 'bgm_city',
+  rpd_station: 'bgm_rpd',
+  hospital: 'bgm_hospital',
+  sewers: 'bgm_sewers',
+  laboratory: 'bgm_lab',
+  clock_tower: 'bgm_clocktower',
+  combat: 'bgm_combat',
+  gameover: 'bgm_gameover',
+  victory: 'bgm_victory',
 };
 
 // Sounds that are preloaded on first user interaction (most critical)
@@ -139,27 +92,15 @@ class AudioEngine {
 
     this._loading.add(name);
     try {
-      // 1) Try DB BLOB first (uploaded via Admin Panel)
-      try {
-        const dbResp = await fetch(`/api/media/sound?ref=${encodeURIComponent(name)}`);
-        if (dbResp.ok) {
-          const arrayBuf = await dbResp.arrayBuffer();
-          const audioBuf = await this.ctx!.decodeAudioData(arrayBuf);
-          this._cache[name] = audioBuf;
-          return audioBuf;
-        }
-      } catch {}
-
-      // 2) Fallback to file on disk
-      const path = SFX_FILES[name];
-      if (!path) return null;
-
-      const resp = await fetch(path);
-      if (!resp.ok) return null;
-      const arrayBuf = await resp.arrayBuffer();
-      const audioBuf = await this.ctx!.decodeAudioData(arrayBuf);
-      this._cache[name] = audioBuf;
-      return audioBuf;
+      // Load from DB only — no fallback
+      const dbResp = await fetch(`/api/media/sound?ref=${encodeURIComponent(name)}`);
+      if (dbResp.ok) {
+        const arrayBuf = await dbResp.arrayBuffer();
+        const audioBuf = await this.ctx!.decodeAudioData(arrayBuf);
+        this._cache[name] = audioBuf;
+        return audioBuf;
+      }
+      return null;
     } catch {
       return null;
     } finally {
@@ -394,7 +335,7 @@ class AudioEngine {
   private _bgmSource: AudioBufferSourceNode | null = null;
   private _bgmAudioBuffer: AudioBuffer | null = null;
 
-  // BGM cache (tracks loaded via DB/file, reused across play calls)
+  // BGM cache (tracks loaded from DB, reused across play calls)
   private _bgmCache: Record<string, AudioBuffer> = {};
 
   playBgm(type: string): void {
@@ -414,37 +355,8 @@ class AudioEngine {
       this._resumeAmbient();
     }
 
-    // BGM file mapping (fallback if DB BLOB is not available)
-    const bgmFiles: Record<string, string> = {
-      title: '/audio/bgm_title.wav',
-      city_outskirts: '/audio/bgm_city.wav',
-      rpd_station: '/audio/bgm_rpd.wav',
-      hospital: '/audio/bgm_hospital.wav',
-      sewers: '/audio/bgm_sewers.wav',
-      laboratory: '/audio/bgm_lab.wav',
-      clock_tower: '/audio/bgm_clocktower.wav',
-      combat: '/audio/bgm_combat.wav',
-      gameover: '/audio/bgm_gameover.wav',
-      victory: '/audio/bgm_victory.wav',
-    };
-
-    // BGM refKey mapping (used for DB lookup)
-    const bgmRefKeys: Record<string, string> = {
-      title: 'bgm_title',
-      city_outskirts: 'bgm_city',
-      rpd_station: 'bgm_rpd',
-      hospital: 'bgm_hospital',
-      sewers: 'bgm_sewers',
-      laboratory: 'bgm_lab',
-      clock_tower: 'bgm_clocktower',
-      combat: 'bgm_combat',
-      gameover: 'bgm_gameover',
-      victory: 'bgm_victory',
-    };
-
-    const file = bgmFiles[type];
-    const refKey = bgmRefKeys[type];
-    if (!file && !refKey) return;
+    const refKey = BGM_REF_KEYS[type];
+    if (!refKey) return;
 
     this.currentBgm = type;
 
@@ -464,39 +376,25 @@ class AudioEngine {
       return;
     }
 
-    // Load BGM async (DB first, then file fallback)
-    const loadBgm = async (): Promise<AudioBuffer> => {
-      // 1) Try DB
-      if (refKey) {
-        try {
-          const dbResp = await fetch(`/api/media/sound?ref=${encodeURIComponent(refKey)}`);
-          if (dbResp.ok) {
-            const arrayBuf = await dbResp.arrayBuffer();
-            return await this.ctx!.decodeAudioData(arrayBuf);
-          }
-        } catch {}
-      }
-      // 2) Fallback to file
-      if (file) {
-        const resp = await fetch(file);
-        if (resp.ok) {
-          const arrayBuf = await resp.arrayBuffer();
+    // Load BGM from DB only — no fallback
+    const loadBgm = async (): Promise<AudioBuffer | null> => {
+      try {
+        const dbResp = await fetch(`/api/media/sound?ref=${encodeURIComponent(refKey)}`);
+        if (dbResp.ok) {
+          const arrayBuf = await dbResp.arrayBuffer();
           return await this.ctx!.decodeAudioData(arrayBuf);
         }
-      }
-      throw new Error('BGM not available');
+      } catch {}
+      return null;
     };
 
-    loadBgm()
-      .then(audioBuf => {
-        if (this.currentBgm !== type) return; // BGM changed while loading
-        this._bgmAudioBuffer = audioBuf;
-        this._bgmCache[type] = audioBuf; // cache for next time
-        this._playBgmLoop();
-      })
-      .catch(() => {
-        // BGM not available — silent fallback
-      });
+    loadBgm().then(audioBuf => {
+      if (!audioBuf) return; // Not found in DB — no sound
+      if (this.currentBgm !== type) return; // BGM changed while loading
+      this._bgmAudioBuffer = audioBuf;
+      this._bgmCache[type] = audioBuf; // cache for next time
+      this._playBgmLoop();
+    });
   }
 
   private _playBgmLoop(): void {
