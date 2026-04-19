@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // Serve a sound BLOB from the database
 // GET /api/media/sound?ref=playAttack
 // GET /api/media/sound?id=sfx_attack
@@ -31,6 +32,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Media Sound]');
   }
 }

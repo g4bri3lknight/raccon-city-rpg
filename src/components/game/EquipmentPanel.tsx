@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { WEAPON_MODS } from '@/game/data/weapon-mods';
@@ -9,7 +9,23 @@ import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp, g
 import { getEquipStatBonus, getStatusResistLabel, getHotValue, getReflectValue, getStatusChanceBoost, getEffectSpecialLabel } from '@/game/utils/effect-helpers';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Wrench, Plus, Minus, Shield, Shirt, Gem, Swords, ChevronRight } from 'lucide-react';
+import { X, Wrench, Plus, Minus, Shield, Shirt, Gem, Swords, ChevronRight, AlertTriangle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+type PendingAction = {
+  type: 'removeMod' | 'unequipArmor' | 'unequipAccessory';
+  label: string;
+  onConfirm: () => void;
+} | null;
 
 export default function EquipmentPanel() {
   const party = useGameStore(s => s.party);
@@ -22,6 +38,7 @@ export default function EquipmentPanel() {
   const installMod = useGameStore(s => s.installMod);
   const removeMod = useGameStore(s => s.removeMod);
   const [activeTab, setActiveTab] = useState<'weapon' | 'armor' | 'accessory'>('weapon');
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   const selectedChar = party.find(p => p.id === selectedCharacterId) || party[0];
   if (!selectedChar) return null;
@@ -117,7 +134,13 @@ export default function EquipmentPanel() {
               character={selectedChar}
               relevantItems={relevantItems}
               installMod={installMod}
-              removeMod={removeMod}
+              removeMod={(charId, modIdx, modName) =>
+                setPendingAction({
+                  type: 'removeMod',
+                  label: modName || 'questo mod',
+                  onConfirm: () => removeMod(charId, modIdx),
+                })
+              }
               rarityColors={rarityColors}
               rarityBg={rarityBg}
             />
@@ -128,7 +151,13 @@ export default function EquipmentPanel() {
               character={selectedChar}
               relevantItems={relevantItems}
               equipArmor={equipArmor}
-              unequipArmor={unequipArmor}
+              unequipArmor={(charId, armorName) =>
+                setPendingAction({
+                  type: 'unequipArmor',
+                  label: armorName || 'quest\'armatura',
+                  onConfirm: () => unequipArmor(charId),
+                })
+              }
               rarityColors={rarityColors}
               rarityBg={rarityBg}
             />
@@ -139,13 +168,48 @@ export default function EquipmentPanel() {
               character={selectedChar}
               relevantItems={relevantItems}
               equipAccessory={equipAccessory}
-              unequipAccessory={unequipAccessory}
+              unequipAccessory={(charId, accName) =>
+                setPendingAction({
+                  type: 'unequipAccessory',
+                  label: accName || 'quest\'accessorio',
+                  onConfirm: () => unequipAccessory(charId),
+                })
+              }
               rarityColors={rarityColors}
               rarityBg={rarityBg}
             />
           )}
         </AnimatePresence>
       </div>
+
+      {/* Confirmation AlertDialog */}
+      <AlertDialog open={!!pendingAction} onOpenChange={(open) => { if (!open) setPendingAction(null); }}>
+        <AlertDialogContent className="bg-zinc-900 border-red-900/40">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-300 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              Conferma Rimozione
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60">
+              Vuoi davvero rimuovere <strong className="text-white/90">{pendingAction?.label}</strong>? L&apos;oggetto verr&agrave; spostato nell&apos;inventario.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-white/5 border-white/10 text-white/70 hover:bg-white/10">
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                pendingAction?.onConfirm();
+                setPendingAction(null);
+              }}
+              className="bg-red-900/60 border border-red-700/40 text-red-200 hover:bg-red-800/60"
+            >
+              Rimuovi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -190,7 +254,7 @@ function WeaponModSection({
   character: any;
   relevantItems: any[];
   installMod: (charId: string, modUid: string) => void;
-  removeMod: (charId: string, modIdx: number) => void;
+  removeMod: (charId: string, modIdx: number, modName?: string) => void;
   rarityColors: Record<string, string>;
   rarityBg: Record<string, string>;
 }) {
@@ -260,7 +324,7 @@ function WeaponModSection({
                 </div>
               </div>
               <button
-                onClick={() => removeMod(character.id, idx)}
+                onClick={() => removeMod(character.id, idx, mod.name)}
                 className="p-1 rounded hover:bg-red-900/30 text-white/40 hover:text-red-400 transition-all"
                 title="Rimuovi mod"
               >
@@ -341,7 +405,7 @@ function ArmorSection({
   character: any;
   relevantItems: any[];
   equipArmor: (charId: string, itemUid: string) => void;
-  unequipArmor: (charId: string) => void;
+  unequipArmor: (charId: string, armorName?: string) => void;
   rarityColors: Record<string, string>;
   rarityBg: Record<string, string>;
 }) {
@@ -359,7 +423,7 @@ function ArmorSection({
       {currentArmor ? (
         <EquippedCard
           equip={currentArmor}
-          onUnequip={() => unequipArmor(character.id)}
+          onUnequip={() => unequipArmor(character.id, currentArmor.name)}
           rarityColors={rarityColors}
           rarityBg={rarityBg}
         />
@@ -435,7 +499,7 @@ function AccessorySection({
   character: any;
   relevantItems: any[];
   equipAccessory: (charId: string, itemUid: string) => void;
-  unequipAccessory: (charId: string) => void;
+  unequipAccessory: (charId: string, accName?: string) => void;
   rarityColors: Record<string, string>;
   rarityBg: Record<string, string>;
 }) {
@@ -453,7 +517,7 @@ function AccessorySection({
       {currentAccessory ? (
         <EquippedCard
           equip={currentAccessory}
-          onUnequip={() => unequipAccessory(character.id)}
+          onUnequip={() => unequipAccessory(character.id, currentAccessory.name)}
           rarityColors={rarityColors}
           rarityBg={rarityBg}
         />

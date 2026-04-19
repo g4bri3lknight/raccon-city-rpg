@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // GET: list all notification configs ordered by sortOrder
 export async function GET() {
   try {
@@ -9,7 +10,7 @@ export async function GET() {
     });
     return NextResponse.json(configs);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return safeErrorResponse(err, '[Admin Notifications]');
   }
 }
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (msg.includes('Unique')) {
       return NextResponse.json({ error: 'ID o type già esistente' }, { status: 409 });
     }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return safeErrorResponse(err, '[Admin Notifications]');
   }
 }
 
@@ -79,7 +80,7 @@ export async function PUT(req: NextRequest) {
     if (msg.includes('RecordNotFound') || msg.includes('not found')) {
       return NextResponse.json({ error: 'Config non trovato' }, { status: 404 });
     }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return safeErrorResponse(err, '[Admin Notifications]');
   }
 }
 
@@ -97,6 +98,6 @@ export async function DELETE(req: NextRequest) {
     if (msg.includes('RecordNotFound') || msg.includes('not found')) {
       return NextResponse.json({ error: 'Config non trovato' }, { status: 404 });
     }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return safeErrorResponse(err, '[Admin Notifications]');
   }
 }

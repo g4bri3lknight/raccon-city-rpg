@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { audio } from '@/game/engine/sounds';
@@ -103,6 +103,17 @@ export default function GameNotification() {
   const notification = useGameStore(s => s.notification);
   const [state, setState] = useState<{ visible: boolean; key: number; clearing: boolean }>({ visible: false, key: 0, clearing: false });
 
+  // Check if user prefers reduced motion
+  const prefersReducedMotion = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
+  // Dismiss the notification early
+  const dismissNotification = useCallback(() => {
+    setState(prev => ({ ...prev, visible: false }));
+  }, []);
+
   // Play sound on new notification
   const playSound = useCallback((type: string) => {
     try {
@@ -175,21 +186,23 @@ export default function GameNotification() {
             duration: isVictory || isDefeat ? 1.5 : 0.8,
             times: isVictory || isDefeat ? [0, 0.05, 0.3, 1] : [0, 0.1, 1],
           }}
-          className={`absolute inset-0 ${theme.shake ? (isDefeat ? 'defeat-shake' : 'screen-shake') : ''}`}
+          className={`absolute inset-0 ${theme.shake && !prefersReducedMotion ? (isDefeat ? 'defeat-shake' : 'screen-shake') : ''}`}
           style={{ background: theme.overlay }}
         />
 
         {/* CRT scan line sweep */}
-        <motion.div
-          initial={{ y: '-100%' }}
-          animate={{ y: '200%' }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-          className="absolute inset-x-0 h-[2px]"
-          style={{ background: theme.scanline }}
-        />
+        {!prefersReducedMotion && (
+          <motion.div
+            initial={{ y: '-100%' }}
+            animate={{ y: '200%' }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="absolute inset-x-0 h-[2px]"
+            style={{ background: theme.scanline }}
+          />
+        )}
 
         {/* Victory: subtle ember particles instead of golden shower */}
-        {isVictory && (
+        {isVictory && !prefersReducedMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {Array.from({ length: 8 }).map((_, i) => (
               <motion.div
@@ -219,7 +232,7 @@ export default function GameNotification() {
         )}
 
         {/* Defeat: blood drip streaks */}
-        {isDefeat && (
+        {isDefeat && !prefersReducedMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {Array.from({ length: 10 }).map((_, i) => (
               <motion.div
@@ -275,7 +288,7 @@ export default function GameNotification() {
         )}
 
         {/* Item found: sparkle particles */}
-        {isItem && (
+        {isItem && !prefersReducedMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {Array.from({ length: 8 }).map((_, i) => (
               <motion.div
@@ -302,21 +315,29 @@ export default function GameNotification() {
 
         {/* ═══ Main notification card ═══ */}
         <motion.div
-          initial={isVictory
+          initial={prefersReducedMotion
+            ? { opacity: 0 }
+            : isVictory
             ? { scale: 0.3, opacity: 0, rotate: -10 }
             : isDefeat
             ? { scale: 1.3, opacity: 0 }
             : { scale: 0.5, opacity: 0, y: 20 }
           }
           animate={{ scale: 1, opacity: 1, y: 0, rotate: 0 }}
-          exit={isDefeat ? { scale: 0.8, opacity: 0, y: 20 } : { scale: 0.8, opacity: 0, y: -10 }}
-          transition={isVictory
+          exit={prefersReducedMotion
+            ? { opacity: 0 }
+            : isDefeat ? { scale: 0.8, opacity: 0, y: 20 } : { scale: 0.8, opacity: 0, y: -10 }
+          }
+          transition={prefersReducedMotion
+            ? { duration: 0.2 }
+            : isVictory
             ? { type: 'spring', damping: 10, stiffness: 200, delay: 0.1 }
             : isDefeat
             ? { duration: 0.6, ease: 'easeOut' }
             : { type: 'spring', damping: 15, stiffness: 300 }
           }
-          className="relative pointer-events-auto"
+          className="relative pointer-events-auto cursor-pointer"
+          onClick={dismissNotification}
         >
           <div
             className="px-6 sm:px-10 py-4 sm:py-6 rounded-xl border backdrop-blur-md text-center"
@@ -330,9 +351,9 @@ export default function GameNotification() {
           >
             {/* Icon */}
             <motion.div
-              initial={isVictory ? { scale: 0, rotate: -360 } : isDefeat ? { scale: 0, y: -30 } : { scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0, y: 0 }}
-              transition={{ delay: 0.15, type: isVictory ? 'spring' : 'tween', damping: isVictory ? 8 : undefined, duration: isVictory ? undefined : 0.5 }}
+              initial={prefersReducedMotion ? { opacity: 0 } : isVictory ? { scale: 0, rotate: -360 } : isDefeat ? { scale: 0, y: -30 } : { scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0, y: 0, opacity: 1 }}
+              transition={prefersReducedMotion ? { duration: 0.2 } : { delay: 0.15, type: isVictory ? 'spring' : 'tween', damping: isVictory ? 8 : undefined, duration: isVictory ? undefined : 0.5 }}
               className="text-3xl sm:text-5xl mb-1"
             >
               {notification.itemId ? (

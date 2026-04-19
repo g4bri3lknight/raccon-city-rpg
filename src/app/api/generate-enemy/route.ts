@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getZaiClient } from "@/lib/ai";
 import { db } from "@/lib/db";
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // Generate enemy image via AI and store directly in DB
 // POST /api/generate-enemy
 // Body: { name: string, prompt: string }
@@ -49,8 +50,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, name: image.id, size: buffer.length });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn('[generate-enemy] Error:', msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return safeErrorResponse(err, '[Generate Enemy]');
   }
 }

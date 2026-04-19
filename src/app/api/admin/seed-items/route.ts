@@ -3,6 +3,7 @@ import { SEED_ITEMS } from '@/seed-data/items';
 import { EQUIPMENT_ITEM_DEFINITIONS, MOD_ITEM_DEFINITIONS, EQUIPMENT_STATS, WEAPON_MODS } from '@/seed-data/equipment';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // Weapon → weaponType / ammoType mapping for base weapons in SEED_ITEMS
 const WEAPON_TYPE_MAP: Record<string, { weaponType: string; ammoType?: string }> = {
   pipe:              { weaponType: 'melee' },
@@ -71,7 +72,6 @@ export async function POST() {
 
     return NextResponse.json({ success: true, total: entries.length, created, updated });
   } catch (error) {
-    console.error('[seed-items] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Items]');
   }
 }

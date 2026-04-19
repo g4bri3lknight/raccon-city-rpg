@@ -6,6 +6,7 @@ import { useGameStore, getMaxItemBoxSlots } from '@/game/store';
 import { ItemInstance } from '@/game/types';
 import { getItemEffectDescriptions } from '@/game/utils/item-effects';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
+import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
@@ -186,7 +187,7 @@ export default function ItemBoxPanel() {
               }`}
             >
               <span className="mr-1.5">
-                {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
+                {getArchetypeEmoji(char.archetype)}
               </span>
               {char.name}
             </button>

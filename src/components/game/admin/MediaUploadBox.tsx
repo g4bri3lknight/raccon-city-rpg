@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ImageIcon, Volume2, CheckCircle2, Trash, Loader2, CloudUpload, AlertCircle } from 'lucide-react';
 import type { MediaUploadDef } from './shared';
 import { SoundPreviewButton } from './SoundPreviewButton';
+import { adminFetch } from '@/lib/admin-fetch';
 
 export function MediaUploadBox({
   config,
@@ -31,7 +32,7 @@ export function MediaUploadBox({
     }
     setCheckingExisting(true);
     const endpoint = config.mediaType === 'image' ? '/api/admin/images' : '/api/admin/sounds';
-    fetch(endpoint)
+    adminFetch(endpoint)
       .then(res => res.json())
       .then(items => {
         const found = Array.isArray(items) && items.some((r: Record<string, unknown>) => r.id === mediaId && r.data);
@@ -64,7 +65,7 @@ export function MediaUploadBox({
     formData.append('category', config.category);
 
     try {
-      const res = await fetch(endpoint, { method: 'POST', body: formData });
+      const res = await adminFetch(endpoint, { method: 'POST', body: formData });
       if (!res.ok) throw new Error(await res.text());
       const result = await res.json();
       setUploadResult({ success: true, msg: `Caricato: ${(result.size / 1024).toFixed(1)} KB` });
@@ -83,7 +84,7 @@ export function MediaUploadBox({
       ? '/api/admin/upload/image'
       : '/api/admin/upload/sound';
     try {
-      await fetch(`${endpoint}?id=${encodeURIComponent(mediaId)}`, { method: 'DELETE' });
+      await adminFetch(`${endpoint}?id=${encodeURIComponent(mediaId)}`, { method: 'DELETE' });
       setHasExisting(false);
       setUploadResult({ success: true, msg: 'File rimosso' });
     } catch {

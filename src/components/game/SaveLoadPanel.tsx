@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, SaveSlotInfo } from '@/game/store';
 import { Button } from '@/components/ui/button';
+import { MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 import { Badge } from '@/components/ui/badge';
 import {
   X, Save, Upload, Trash2, MapPin, Users, Clock, Plus, FolderOpen
@@ -216,7 +217,7 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
                           </Badge>
                           {info.isNewGamePlus && (
                             <Badge className="text-[9px] bg-purple-500/20 text-purple-300 border-purple-500/30">
-                              🎀 {info.persistentRibbons}/10
+                              🎀 {info.persistentRibbons}/{MAX_RIBBONS}
                             </Badge>
                           )}
                         </div>

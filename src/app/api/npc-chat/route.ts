@@ -101,9 +101,12 @@ export async function POST(request: NextRequest) {
   ];
 
   // Add conversation history (last 10 messages to keep context manageable)
+  // SECURITY: Only allow 'user' and 'assistant' roles — filter out 'system' to prevent prompt injection
   const recentHistory = conversationHistory.slice(-10);
   for (const msg of recentHistory) {
-    messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+    if (msg.role === 'user' || msg.role === 'assistant') {
+      messages.push({ role: msg.role, content: msg.content });
+    }
   }
 
   // Add current player message
@@ -156,7 +159,7 @@ export async function POST(request: NextRequest) {
               console.warn('[NPC Chat] Stream error:', err);
               const errorData = JSON.stringify({
                 type: 'error',
-                error: err instanceof Error ? err.message : 'Errore nello streaming',
+                error: 'Errore nello streaming', // Don't expose internal error details
               });
               controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
               controller.close();

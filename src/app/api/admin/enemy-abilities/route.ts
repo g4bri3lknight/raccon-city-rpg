@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // GET /api/admin/enemy-abilities — list all
 export async function GET() {
   try {
     const rows = await db.gameEnemyAbility.findMany({ orderBy: { sortOrder: 'asc' } });
     return NextResponse.json(rows);
   } catch (error) {
-    console.error('[enemy-abilities GET]', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Enemy Abilities]');
   }
 }
 
@@ -38,8 +38,7 @@ export async function POST(req: NextRequest) {
     if (error?.code === 'P2002') {
       return NextResponse.json({ error: `ID "${error.meta?.target?.[0]}" già esistente` }, { status: 409 });
     }
-    console.error('[enemy-abilities POST]', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Enemy Abilities]');
   }
 }
 
@@ -66,8 +65,7 @@ export async function PUT(req: NextRequest) {
     });
     return NextResponse.json(row);
   } catch (error) {
-    console.error('[enemy-abilities PUT]', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Enemy Abilities]');
   }
 }
 
@@ -81,7 +79,6 @@ export async function DELETE(req: NextRequest) {
     await db.gameEnemyAbility.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[enemy-abilities DELETE]', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Enemy Abilities]');
   }
 }

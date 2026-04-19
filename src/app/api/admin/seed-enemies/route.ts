@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { SEED_ENEMIES } from '@/seed-data/enemies';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 type SeedResult = { entity: string; total: number; created: number; updated: number };
 
 async function seedEnemies(): Promise<SeedResult> {
@@ -45,7 +46,6 @@ export async function POST() {
       ...result,
     });
   } catch (error) {
-    console.error('[seed-enemies] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Enemies]');
   }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
+import { useShallow } from 'zustand/react/shallow';
 import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS } from '@/game/data/loader';
 import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
@@ -18,51 +19,68 @@ import SafeRoomPanel from './SafeRoomPanel';
 import MissionsPanel from './MissionsPanel';
 import { getEffectiveLocation } from '@/game/data/randomizer';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
+import { getArchetypeEmoji, getArchetypeLabel, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 
 export default function ExplorationScreen() {
-  const dataVersion = useGameStore(s => s.dataVersion);
-  const party = useGameStore(s => s.party);
-  const currentLocationId = useGameStore(s => s.currentLocationId);
-  const messageLog = useGameStore(s => s.messageLog);
-  const turnCount = useGameStore(s => s.turnCount);
-  const searchCounts = useGameStore(s => s.searchCounts);
-  const searchMaxes = useGameStore(s => s.searchMaxes);
-  const partySize = useGameStore(s => s.partySize);
-  const activeEvent = useGameStore(s => s.activeEvent);
-  const inventoryOpen = useGameStore(s => s.inventoryOpen);
-  const selectedCharacterId = useGameStore(s => s.selectedCharacterId);
-  const collectedRibbons = useGameStore(s => s.collectedRibbons);
-  const persistentRibbons = useGameStore(s => s.persistentRibbons);
-  const isNewGamePlus = useGameStore(s => s.isNewGamePlus);
-  const difficulty = useGameStore(s => s.difficulty);
-  const activeDynamicEvent = useGameStore(s => s.activeDynamicEvent);
-  const dynamicEventTurnsLeft = useGameStore(s => s.dynamicEventTurnsLeft);
-  const activeNpc = useGameStore(s => s.activeNpc);
-  const collectedDocuments = useGameStore(s => s.collectedDocuments);
-  const npcQuestProgress = useGameStore(s => s.npcQuestProgress);
-  const readDocuments = useGameStore(s => s.readDocuments);
-  const randomizerMode = useGameStore(s => s.randomizerMode);
-  const randomizedLocationData = useGameStore(s => s.randomizedLocationData);
-  const currentSubArea = useGameStore(s => s.currentSubArea);
-  const npcsEncountered = useGameStore(s => s.npcsEncountered);
-  const explore = useGameStore(s => s.explore);
-  const travelTo = useGameStore(s => s.travelTo);
-  const searchArea = useGameStore(s => s.searchArea);
-  const handleEventChoice = useGameStore(s => s.handleEventChoice);
-  const closeEvent = useGameStore(s => s.closeEvent);
-  const toggleInventory = useGameStore(s => s.toggleInventory);
-  const selectCharacter = useGameStore(s => s.selectCharacter);
-  const startBossFight = useGameStore(s => s.startBossFight);
-  const toggleMap = useGameStore(s => s.toggleMap);
-  const toggleAchievements = useGameStore(s => s.toggleAchievements);
-  const toggleBestiary = useGameStore(s => s.toggleBestiary);
-  const toggleDocuments = useGameStore(s => s.toggleDocuments);
-  const toggleMissions = useGameStore(s => s.toggleMissions);
-  const toggleSettings = useGameStore(s => s.toggleSettings);
-  const handleDynamicEventChoice = useGameStore(s => s.handleDynamicEventChoice);
-  const startQTE = useGameStore(s => s.startQTE);
-  const enterSafeRoom = useGameStore(s => s.enterSafeRoom);
-  const encounterNpc = useGameStore(s => s.encounterNpc);
+  const state = useGameStore(useShallow(s => ({
+    dataVersion: s.dataVersion,
+    party: s.party,
+    currentLocationId: s.currentLocationId,
+    messageLog: s.messageLog,
+    turnCount: s.turnCount,
+    searchCounts: s.searchCounts,
+    searchMaxes: s.searchMaxes,
+    partySize: s.partySize,
+    activeEvent: s.activeEvent,
+    inventoryOpen: s.inventoryOpen,
+    selectedCharacterId: s.selectedCharacterId,
+    collectedRibbons: s.collectedRibbons,
+    persistentRibbons: s.persistentRibbons,
+    isNewGamePlus: s.isNewGamePlus,
+    difficulty: s.difficulty,
+    activeDynamicEvent: s.activeDynamicEvent,
+    dynamicEventTurnsLeft: s.dynamicEventTurnsLeft,
+    activeNpc: s.activeNpc,
+    collectedDocuments: s.collectedDocuments,
+    npcQuestProgress: s.npcQuestProgress,
+    readDocuments: s.readDocuments,
+    randomizerMode: s.randomizerMode,
+    randomizedLocationData: s.randomizedLocationData,
+    currentSubArea: s.currentSubArea,
+    npcsEncountered: s.npcsEncountered,
+    explore: s.explore,
+    travelTo: s.travelTo,
+    searchArea: s.searchArea,
+    handleEventChoice: s.handleEventChoice,
+    closeEvent: s.closeEvent,
+    toggleInventory: s.toggleInventory,
+    selectCharacter: s.selectCharacter,
+    startBossFight: s.startBossFight,
+    toggleMap: s.toggleMap,
+    toggleAchievements: s.toggleAchievements,
+    toggleBestiary: s.toggleBestiary,
+    toggleDocuments: s.toggleDocuments,
+    toggleMissions: s.toggleMissions,
+    toggleSettings: s.toggleSettings,
+    handleDynamicEventChoice: s.handleDynamicEventChoice,
+    startQTE: s.startQTE,
+    enterSafeRoom: s.enterSafeRoom,
+    encounterNpc: s.encounterNpc,
+  })));
+
+  const {
+    dataVersion, party, currentLocationId, messageLog, turnCount,
+    searchCounts, searchMaxes, partySize, activeEvent, inventoryOpen,
+    selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
+    difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc,
+    collectedDocuments, npcQuestProgress, readDocuments, randomizerMode,
+    randomizedLocationData, currentSubArea, npcsEncountered,
+    explore, travelTo, searchArea, handleEventChoice, closeEvent,
+    toggleInventory, selectCharacter, startBossFight, toggleMap,
+    toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
+    toggleSettings, handleDynamicEventChoice, startQTE, enterSafeRoom,
+    encounterNpc,
+  } = state;
 
   const location = LOCATIONS[currentLocationId];
   // searchMax: DB config (null=random 1-3, 0=unlimited) → searchMaxes: runtime state
@@ -131,7 +149,7 @@ export default function ExplorationScreen() {
           )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 backdrop-blur-sm">
             <img src="/api/media/image?id=icon_ink_ribbon" alt="Ink Ribbon" className="w-5 h-5" />
-            <span className="text-xs font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/10</span></span>
+            <span className="text-xs font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/{MAX_RIBBONS}</span></span>
             {(persistentRibbons || 0) > 0 && (
               <span className="text-purple-400/40">|</span>
             )}
@@ -204,7 +222,7 @@ export default function ExplorationScreen() {
                             }} />
                           ) : null}
                           <div className={'absolute inset-0 flex items-center justify-center text-sm bg-white/[0.04] ' + (hasImg ? 'hidden' : '')}>
-                            {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
+                            {getArchetypeEmoji(char.archetype)}
                           </div>
                           {char.currentHp > 0 && char.statusEffects?.includes('bleeding') && (
                             <div className="absolute inset-0 rounded-md pointer-events-none bleeding-overlay" />
@@ -219,7 +237,7 @@ export default function ExplorationScreen() {
                     <span className="text-[10px] font-bold text-white truncate w-full text-center leading-tight">{char.name}</span>
                     {/* Role + Level */}
                     <span className="text-[9px] text-white/50 font-medium leading-tight">
-                      {char.archetype === 'tank' ? 'Tank' : char.archetype === 'healer' ? 'Healer' : char.archetype === 'custom' ? 'Custom' : 'DPS'} · {char.level}
+                      {getArchetypeLabel(char.archetype)} · {char.level}
                     </span>
                     {/* HP text */}
                     <span className="font-mono font-bold text-[10px] leading-none" style={{ color: hpColor }}>
@@ -268,7 +286,7 @@ export default function ExplorationScreen() {
                               }} />
                             ) : null}
                             <div className={'absolute inset-0 flex items-center justify-center text-lg bg-white/[0.04] ' + (hasImg ? 'hidden' : '')}>
-                              {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
+                              {getArchetypeEmoji(char.archetype)}
                             </div>
                           </>
                         );
@@ -284,7 +302,7 @@ export default function ExplorationScreen() {
                     <div className="flex-1 min-w-0">
                       <div className="text-base font-bold text-white truncate leading-tight">{char.name}</div>
                       <div className="text-xs text-white/60 font-medium">
-                        {char.archetype === 'tank' ? 'Tank' : char.archetype === 'healer' ? 'Healer' : char.archetype === 'custom' ? 'Custom' : 'DPS'} · Lv.{char.level}
+                        {getArchetypeLabel(char.archetype)} · Lv.{char.level}
                       </div>
                     </div>
                     {/* HP panel — full size on desktop */}

@@ -2,8 +2,58 @@
 // Plays audio files loaded exclusively from the database.
 // If no audio is found in the DB, no sound is played (no fallback).
 
-interface SfxCache {
-  [key: string]: AudioBuffer | null;
+/**
+ * Simple LRU (Least Recently Used) cache.
+ *
+ * Uses a Map to maintain insertion order — most recently used entries are
+ * moved to the end on every get()/set(). When the cache exceeds maxSize,
+ * the oldest (least recently used) entry is evicted automatically.
+ *
+ * This prevents unbounded memory growth during long play sessions where
+ * many different sounds are loaded from the database.
+ */
+class LruCache<V> {
+  private _map: Map<string, V>;
+  private readonly _maxSize: number;
+
+  constructor(maxSize: number) {
+    this._map = new Map();
+    this._maxSize = maxSize;
+  }
+
+  /** Retrieve a value and mark it as most recently used. */
+  get(key: string): V | undefined {
+    if (!this._map.has(key)) return undefined;
+    // Move to end (most recently used) by re-inserting
+    const value = this._map.get(key)!;
+    this._map.delete(key);
+    this._map.set(key, value);
+    return value;
+  }
+
+  /** Insert or update a value, evicting the LRU entry if over capacity. */
+  set(key: string, value: V): void {
+    if (this._map.has(key)) {
+      this._map.delete(key);
+    } else if (this._map.size >= this._maxSize) {
+      // Evict the least recently used (first entry in Map iteration order)
+      const oldestKey = this._map.keys().next().value;
+      if (oldestKey !== undefined) {
+        this._map.delete(oldestKey);
+      }
+    }
+    this._map.set(key, value);
+  }
+
+  /** Check if a key exists (does NOT update recency). */
+  has(key: string): boolean {
+    return this._map.has(key);
+  }
+
+  /** Remove a specific entry. Returns true if the entry existed. */
+  delete(key: string): boolean {
+    return this._map.delete(key);
+  }
 }
 
 // BGM ref-key mapping: game context → database sound reference
@@ -34,7 +84,9 @@ class AudioEngine {
   private _masterVolume = 0.5;
   private _muted = false;
   private _initialized = false;
-  private _cache: SfxCache = {};
+  // LRU cache for decoded SFX buffers — max 50 entries to bound memory usage.
+  // Evicted buffers can be re-loaded from DB on demand.
+  private _cache: LruCache<AudioBuffer> = new LruCache<AudioBuffer>(50);
   private _loading: Set<string> = new Set();
   private _bgmGain: GainNode | null = null;
   public bgmGain: GainNode | null = null;
@@ -87,7 +139,8 @@ class AudioEngine {
   // ======== ASYNC SFX LOADING (plays immediately after load) ========
 
   private async loadSfx(name: string): Promise<AudioBuffer | null> {
-    if (this._cache[name]) return this._cache[name];
+    const cached = this._cache.get(name);
+    if (cached) return cached;
     if (this._loading.has(name)) return null;
 
     this._loading.add(name);
@@ -97,7 +150,7 @@ class AudioEngine {
       if (dbResp.ok) {
         const arrayBuf = await dbResp.arrayBuffer();
         const audioBuf = await this.ctx!.decodeAudioData(arrayBuf);
-        this._cache[name] = audioBuf;
+        this._cache.set(name, audioBuf);
         return audioBuf;
       }
       return null;
@@ -129,7 +182,7 @@ class AudioEngine {
     if (!this.ensureContext()) return;
     this.resume();
 
-    const cached = this._cache[name];
+    const cached = this._cache.get(name);
     if (cached) {
       // Already cached — play immediately
       this.playBuffer(cached, volume);
@@ -331,12 +384,49 @@ class AudioEngine {
     this._ambientSuspended = false;
   }
 
+  /** Play safe room ambient through the engine (respects volume/mute) */
+  playSafeRoomAmbient(): void {
+    // Stop existing ambient (location ambient)
+    this._stopAmbientSource();
+
+    this._currentAmbientRef = 'playAmbientSafeRoom';
+    this._ambientSuspended = false;
+
+    if (!this.ensureContext()) return;
+    this.resume();
+
+    this.loadSfx('playAmbientSafeRoom').then(audioBuf => {
+      if (!audioBuf || !this.ctx || this._currentAmbientRef !== 'playAmbientSafeRoom') return;
+      try {
+        const source = this.ctx.createBufferSource();
+        source.buffer = audioBuf;
+        source.loop = true;
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0.25;
+        source.connect(gain);
+        gain.connect(this.masterGain!);
+        source.start(0);
+        this._ambientSource = source;
+        this._ambientGainNode = gain;
+        source.onended = () => {
+          if (this._ambientSource === source) this._ambientSource = null;
+        };
+      } catch {}
+    });
+  }
+
+  /** Stop safe room ambient */
+  stopSafeRoomAmbient(): void {
+    this._stopAmbientSource();
+  }
+
   // ======== BGM SYSTEM ========
   private _bgmSource: AudioBufferSourceNode | null = null;
   private _bgmAudioBuffer: AudioBuffer | null = null;
 
-  // BGM cache (tracks loaded from DB, reused across play calls)
-  private _bgmCache: Record<string, AudioBuffer> = {};
+  // LRU cache for decoded BGM buffers — max 10 entries (BGM files are larger).
+  // Evicted buffers can be re-loaded from DB on demand.
+  private _bgmCache: LruCache<AudioBuffer> = new LruCache<AudioBuffer>(10);
 
   playBgm(type: string): void {
     if (!this.ensureContext()) return;
@@ -370,8 +460,9 @@ class AudioEngine {
     this._bgmGain.gain.value = this.bgmVolume;
 
     // Check BGM cache first
-    if (this._bgmCache[type]) {
-      this._bgmAudioBuffer = this._bgmCache[type];
+    const cachedBgm = this._bgmCache.get(type);
+    if (cachedBgm) {
+      this._bgmAudioBuffer = cachedBgm;
       this._playBgmLoop();
       return;
     }
@@ -392,7 +483,7 @@ class AudioEngine {
       if (!audioBuf) return; // Not found in DB — no sound
       if (this.currentBgm !== type) return; // BGM changed while loading
       this._bgmAudioBuffer = audioBuf;
-      this._bgmCache[type] = audioBuf; // cache for next time
+      this._bgmCache.set(type, audioBuf); // cache for next time
       this._playBgmLoop();
     });
   }
@@ -445,6 +536,8 @@ export function playAchievement(): void { audioEngine.playAchievement(); }
 export function playItemPickup(): void { audioEngine.playItemPickup(); }
 export function playMenuOpen(): void { audioEngine.playMenuOpen(); }
 export function playMenuClose(): void { audioEngine.playMenuClose(); }
+export function playSafeRoomAmbient(): void { audioEngine.playSafeRoomAmbient(); }
+export function stopSafeRoomAmbient(): void { audioEngine.stopSafeRoomAmbient(); }
 export function playEnemyAttack(enemyName: string, action?: string): void { audioEngine.playEnemyAttack(enemyName, action); }
 export function playEnemyDeath(): void { audioEngine.playEnemyDeath(); }
 export function playZombieMoan(): void { audioEngine.playZombieMoan(); }

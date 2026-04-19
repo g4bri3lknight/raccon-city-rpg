@@ -34,6 +34,7 @@ import {
   generateLoot,
   addExp,
   processActiveEffectsTick,
+  resolveSpecialId,
 } from '../../engine/combat';
 import { getItemHealInfo, getItemHasStatusCure, getItemEffectTarget } from '../../utils/item-effects';
 import { WeaponInstance, EffectTarget } from '../../types';
@@ -141,7 +142,12 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     switch (state.combat.selectedAction) {
       case 'attack': {
         if (!state.combat.selectedTarget) return;
-        const enemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget)!;
+        const enemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget);
+        if (!enemy) {
+          // Target died before this action could execute — skip
+          get().advanceToNextActor({ ...state.combat!, log: newLog, party: updatedParty, enemies: updatedEnemies });
+          return;
+        }
         const result = executePlayerAttack(character, enemy, state.combat.turn, updatedParty, updatedEnemies);
         newLog.push(result.log);
         if (result.updatedEnemy) {
@@ -159,6 +165,21 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         // Track active effects from weapon on_hit
         if (result.activeEffects && result.activeEffects.length > 0) {
           updatedCombatActiveEffects.push(...result.activeEffects);
+        }
+        // Track status durations on enemies from weapon on_hit effects (poison, bleed, stun)
+        for (const e of updatedEnemies) {
+          const prevEnemy = state.enemies.find(pe => pe.id === e.id);
+          if (!prevEnemy) continue;
+          const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
+          for (const effect of newEffects) {
+            if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+              const existing = updatedCombatStatusDurations[e.id] || [];
+              updatedCombatStatusDurations[e.id] = [
+                ...existing,
+                { effect: effect as StatusEffect, turnsLeft: 3 },
+              ];
+            }
+          }
         }
         // Consume ammo if ranged attack was used
         if (result.consumedAmmoUid) {
@@ -183,8 +204,11 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
       case 'special': {
         if (!state.combat.selectedTarget) return;
+        // Guard: cannot use special while on cooldown
+        if ((state.combat.specialCooldowns || {})[character.id] > 0) return;
         // Determine target based on the special ability's effects/targetType
-        const specialId = character.special1Id;
+        // Use resolveSpecialId to handle both predefined archetypes and custom characters
+        const specialId = resolveSpecialId(character, 'special1Id');
         const specialDef = specialId ? getSpecialByIdFromLoader(specialId) : undefined;
         const firstTarget = specialDef?.targetType || specialDef?.effects?.[0]?.target;
         const isEnemyTarget = firstTarget === 'enemy' || firstTarget === 'all_enemies' || firstTarget === 'random_enemy';
@@ -241,14 +265,20 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         if (result.activeEffects && result.activeEffects.length > 0) {
           updatedCombatActiveEffects.push(...result.activeEffects);
         }
-        // Use special's cooldown instead of hardcoded value
-        updatedCooldowns[character.id] = specialDef?.cooldown || 2;
+        // Only set cooldown if the ability was actually resolved
+        // (if specialDef is undefined, the ability failed — no point setting a cooldown)
+        if (specialDef) {
+          updatedCooldowns[character.id] = specialDef.cooldown;
+        }
         break;
       }
       case 'special2': {
         if (!state.combat.selectedTarget) return;
+        // Guard: cannot use special2 while on cooldown
+        if ((state.combat.special2Cooldowns || {})[character.id] > 0) return;
         // Determine target based on the special ability's effects/targetType
-        const specialId2 = character.special2Id;
+        // Use resolveSpecialId to handle both predefined archetypes and custom characters
+        const specialId2 = resolveSpecialId(character, 'special2Id');
         const specialDef2 = specialId2 ? getSpecialByIdFromLoader(specialId2) : undefined;
         const firstTarget2 = specialDef2?.targetType || specialDef2?.effects?.[0]?.target;
         const isEnemyTarget2 = firstTarget2 === 'enemy' || firstTarget2 === 'all_enemies' || firstTarget2 === 'random_enemy';
@@ -305,8 +335,10 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         if (result.activeEffects && result.activeEffects.length > 0) {
           updatedCombatActiveEffects.push(...result.activeEffects);
         }
-        // Use special's cooldown instead of hardcoded value
-        updatedCooldowns2[character.id] = specialDef2?.cooldown || 3;
+        // Only set cooldown if the ability was actually resolved
+        if (specialDef2) {
+          updatedCooldowns2[character.id] = specialDef2.cooldown;
+        }
         break;
       }
       case 'use_item': {
@@ -730,6 +762,21 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }, 3500);
       return;
     }
+
+    // ── ENEMIES STILL ALIVE: persist state and advance to next actor ──
+    // This is the normal (non-victory) path — apply all computed changes
+    // and let advanceToNextActor handle turn progression, cooldowns, etc.
+    get().advanceToNextActor({
+      ...state.combat,
+      log: newLog,
+      party: updatedParty,
+      enemies: updatedEnemies,
+      specialCooldowns: updatedCooldowns,
+      special2Cooldowns: updatedCooldowns2,
+      tauntTargetId,
+      statusDurations: updatedCombatStatusDurations,
+      activeEffects: updatedCombatActiveEffects,
+    });
   },
 
   toggleAutoCombat: () => {
@@ -744,6 +791,14 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     if (!character || character.currentHp <= 0) {
       // Dead character set as current actor — recover by advancing to next alive
       setTimeout(() => get().advanceToNextActor(), getCombatDelay(300));
+      return;
+    }
+
+    // Stunned characters cannot act — skip their turn
+    if (character.statusEffects.includes('stunned')) {
+      const stunLog: CombatLogEntry = { turn: state.combat.turn, actorName: character.name, actorType: 'player', action: 'Stordito', message: `${character.name} è stordito e non può agire!` };
+      set(s => ({ combat: s.combat ? { ...s.combat, log: [...s.combat.log, stunLog] } : s.combat }));
+      setTimeout(() => get().advanceToNextActor(), getCombatDelay(600));
       return;
     }
 
@@ -839,18 +894,27 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
     }
 
-    // 4. DPS: use Raffica (special2) if multiple enemies alive + available
-    if (character.archetype === 'dps' && special2Cd === 0 && aliveEnemies.length >= 2) {
+    // 4. DPS / Custom: use Raffica (special2) if multiple enemies alive + available
+    if ((character.archetype === 'dps' || character.archetype === 'custom') && special2Cd === 0 && aliveEnemies.length >= 2) {
       const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
       get().selectCombatAction('special2');
       get().selectCombatTarget(weakest.id);
       setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
       return;
     }
-    // DPS: use Colpo Mortale if available and only 1 enemy or boss
-    if (character.archetype === 'dps' && specialCd === 0) {
+    // DPS / Custom: use Colpo Mortale if available and only 1 enemy or boss
+    if ((character.archetype === 'dps' || character.archetype === 'custom') && specialCd === 0) {
       const weakest = aliveEnemies.reduce((a, b) => a.currentHp < b.currentHp ? a : b);
       get().selectCombatAction('special');
+      get().selectCombatTarget(weakest.id);
+      setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+      return;
+    }
+
+    // 4b. Custom archetype fallback: if no specials available, just attack
+    if (character.archetype === 'custom') {
+      const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
+      get().selectCombatAction('attack');
       get().selectCombatTarget(weakest.id);
       setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
       return;
@@ -1074,6 +1138,11 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           updatedStatusDurations[p.id] = remainingDurations;
         } else {
           delete updatedStatusDurations[p.id];
+        }
+
+        // Update alivePartyIds if a party member died from DOT
+        if (hp <= 0) {
+          alivePartyIds.delete(p.id);
         }
       }
     }
@@ -1367,7 +1436,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         return;
       }
 
-      const { log, updatedParty: afterEnemyAttack, appliedStatus, updatedEnemies: enemySelfEffects, activeEffects: enemyActiveEffects } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId);
+      const { log, updatedParty: afterEnemyAttack, appliedStatus, updatedEnemies: enemySelfEffects, activeEffects: enemyActiveEffects } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, updatedEnemiesForStatus);
 
       if (enemySelfEffects) {
         updatedEnemiesForStatus = updatedEnemiesForStatus.map(e => {
@@ -1445,14 +1514,15 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       return;
     }
 
+    // Use effectiveNextActor (handles case where original nextActor died from DOT)
     set({
       party: updatedParty,
       enemies: updatedEnemiesForStatus,
       combat: {
         ...combat,
         turn: newTurn,
-        currentActorId: nextActor.id,
-        currentActorType: nextActor.type,
+        currentActorId: effectiveNextActor.id,
+        currentActorType: effectiveNextActor.type,
         selectedAction: null,
         selectedTarget: null,
         selectedItemUid: null,

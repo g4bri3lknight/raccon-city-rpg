@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { SEED_LOCATIONS } from '@/seed-data/locations';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-locations
  * Seeds the 6 hardcoded locations from locations.ts into the game_locations table.
@@ -61,7 +62,6 @@ export async function POST() {
 
     return NextResponse.json({ seeded });
   } catch (error) {
-    console.error('[seed-locations] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Locations]');
   }
 }

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * GET /api/admin/avatars — list all avatars
  */
@@ -20,8 +21,7 @@ export async function GET() {
 
     return NextResponse.json(avatars);
   } catch (error) {
-    console.error('[admin/avatars] GET failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Avatars]');
   }
 }
 
@@ -50,8 +50,7 @@ export async function POST(request: NextRequest) {
     if (error?.code === 'P2002') {
       return NextResponse.json({ error: 'Duplicate id' }, { status: 409 });
     }
-    console.error('[admin/avatars] POST failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Avatars]');
   }
 }
 
@@ -79,8 +78,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(avatar);
   } catch (error) {
-    console.error('[admin/avatars] PUT failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Avatars]');
   }
 }
 
@@ -102,7 +100,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ deleted: id });
   } catch (error) {
-    console.error('[admin/avatars] DELETE failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Avatars]');
   }
 }

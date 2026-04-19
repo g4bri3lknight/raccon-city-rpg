@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import type { Rarity } from '@/game/types';
+import { adminFetch } from '@/lib/admin-fetch';
 import type { TabId } from './tabGroups';
 import { getEnumLabel } from './enumLabels';
 
@@ -132,7 +133,7 @@ function LocationBgThumbnail({ locationId }: { locationId: string }) {
 
   useEffect(() => {
     // Check if image exists in DB
-    fetch('/api/admin/images')
+    adminFetch('/api/admin/images')
       .then(res => res.json())
       .then(items => {
         const found = Array.isArray(items) && items.some((r: Record<string, unknown>) => r.id === imageId && r.data);

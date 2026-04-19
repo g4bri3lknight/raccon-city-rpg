@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 const AUDIO_DIR = join(process.cwd(), 'public', 'audio');
 
 const MIME_MAP: Record<string, string> = {
@@ -196,7 +197,7 @@ export async function POST() {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Import Files]');
   }
 }
 
@@ -219,6 +220,6 @@ export async function GET() {
       sounds: all,
     });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Import Files]');
   }
 }

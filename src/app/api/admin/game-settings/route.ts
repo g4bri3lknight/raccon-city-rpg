@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // Default settings — seeded on first GET if table is empty
 const DEFAULTS: Record<string, { value: string; label: string; group: string; sortOrder: number }> = {
   // ── Title Screen ──
@@ -78,7 +79,7 @@ export async function GET() {
     const settings = await db.gameSetting.findMany({ orderBy: { sortOrder: 'asc' } });
     return NextResponse.json(settings);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Game Settings]');
   }
 }
 
@@ -110,6 +111,6 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Game Settings]');
   }
 }

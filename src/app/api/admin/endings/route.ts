@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * GET /api/admin/endings — list all endings
  */
@@ -25,8 +26,7 @@ export async function GET() {
 
     return NextResponse.json(endings);
   } catch (error) {
-    console.error('[admin/endings] GET failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Endings]');
   }
 }
 
@@ -60,8 +60,7 @@ export async function POST(request: NextRequest) {
     if (error?.code === 'P2002') {
       return NextResponse.json({ error: 'Duplicate id' }, { status: 409 });
     }
-    console.error('[admin/endings] POST failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Endings]');
   }
 }
 
@@ -94,8 +93,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(ending);
   } catch (error) {
-    console.error('[admin/endings] PUT failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Endings]');
   }
 }
 
@@ -117,7 +115,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ deleted: id });
   } catch (error) {
-    console.error('[admin/endings] DELETE failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Endings]');
   }
 }

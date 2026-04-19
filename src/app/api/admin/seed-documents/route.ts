@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { SEED_DOCUMENTS } from '@/seed-data/documents';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-documents
  * Seeds all documents from static data into the documents table.
@@ -37,7 +38,6 @@ export async function POST() {
 
     return NextResponse.json({ success: true, total: entries.length, created, updated });
   } catch (error) {
-    console.error('[seed-documents] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Documents]');
   }
 }

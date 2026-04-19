@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // GET /api/admin/images — list all (excluding binary data from list)
 export async function GET() {
   try {
@@ -15,7 +16,7 @@ export async function GET() {
     }));
     return NextResponse.json(safe);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Images]');
   }
 }
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     const image = await db.gameImage.create({ data: safeBody });
     return NextResponse.json(image, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Images]');
   }
 }
 
@@ -44,7 +45,7 @@ export async function PUT(request: NextRequest) {
     const image = await db.gameImage.update({ where: { id }, data: safeData });
     return NextResponse.json(image);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Images]');
   }
 }
 
@@ -57,6 +58,6 @@ export async function DELETE(request: NextRequest) {
     await db.gameImage.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Images]');
   }
 }

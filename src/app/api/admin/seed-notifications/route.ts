@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // Default notification configs matching the hardcoded THEMES in GameNotification.tsx
 const DEFAULTS = [
   {
@@ -116,6 +117,6 @@ export async function POST() {
       updated,
     });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return safeErrorResponse(err, '[Admin Notifications]');
   }
 }

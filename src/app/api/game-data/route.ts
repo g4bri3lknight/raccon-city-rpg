@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * GET /api/game-data
  * Returns all game data (items, events, documents, quests, locations, npcs, characters) as JSON.
@@ -29,7 +30,6 @@ export async function GET() {
 
     return NextResponse.json({ items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars });
   } catch (error) {
-    console.error('[game-data] Failed to load:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Game Data]');
   }
 }

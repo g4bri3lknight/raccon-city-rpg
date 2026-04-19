@@ -22,6 +22,7 @@ import PuzzlePanel from '@/components/game/PuzzlePanel';
 import QTEPanel from '@/components/game/QTEPanel';
 import AdminPanel from '@/components/game/AdminPanel';
 import SettingsPanel from '@/components/game/SettingsPanel';
+import { ErrorBoundary } from '@/components/game/ErrorBoundary';
 import { playBgm, stopBgm, preloadCriticalSounds } from '@/game/engine/sounds';
 import type { BgmType } from '@/game/engine/sounds';
 
@@ -36,8 +37,9 @@ export default function GamePage() {
     initGameData().then(() => setDataReady(true)).catch(() => setDataReady(true));
   }, []);
 
-  // F2 key toggles debug panel
+  // F2 key toggles debug panel (dev mode only)
   useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
         e.preventDefault();
@@ -131,26 +133,66 @@ export default function GamePage() {
 
   return (
     <div className="game-root">
-      {phase === 'title' && <TitleScreen />}
-      {phase === 'character-select' && <CharacterSelect />}
-      {phase === 'character-creator' && <CharacterCreator onComplete={() => useGameStore.getState().goToCharacterSelect()} onCancel={() => useGameStore.getState().goToCharacterSelect()} />}
-      {phase === 'exploration' && <ExplorationScreen />}
-      {phase === 'combat' && <CombatScreen />}
-      {phase === 'event' && <ExplorationScreen />}
-      {phase === 'game-over' && <GameOverScreen />}
-      {phase === 'victory' && <VictoryScreen />}
-      {phase === 'puzzle' && <PuzzlePanel />}
-      {phase === 'qte' && <QTEPanel />}
-      <InventoryPanel />
-      <GameNotification />
-      <GameMap />
-      <AchievementPanel />
-      <BestiaryPanel />
-      <DocumentsPanel />
-      <NPCDialogPanel />
-      <SettingsPanel />
-      <DebugPanel />
-      <AdminPanel />
+      <ErrorBoundary name="Title">
+        {phase === 'title' && <TitleScreen />}
+      </ErrorBoundary>
+      <ErrorBoundary name="CharacterSelect">
+        {phase === 'character-select' && <CharacterSelect />}
+      </ErrorBoundary>
+      <ErrorBoundary name="CharacterCreator">
+        {phase === 'character-creator' && <CharacterCreator onComplete={() => useGameStore.getState().goToCharacterSelect()} onCancel={() => useGameStore.getState().goToCharacterSelect()} />}
+      </ErrorBoundary>
+      <ErrorBoundary name="Exploration">
+        {phase === 'exploration' && <ExplorationScreen />}
+      </ErrorBoundary>
+      <ErrorBoundary name="Combat">
+        {phase === 'combat' && <CombatScreen />}
+      </ErrorBoundary>
+      <ErrorBoundary name="EventExploration">
+        {phase === 'event' && <ExplorationScreen />}
+      </ErrorBoundary>
+      <ErrorBoundary name="GameOver">
+        {phase === 'game-over' && <GameOverScreen />}
+      </ErrorBoundary>
+      <ErrorBoundary name="Victory">
+        {phase === 'victory' && <VictoryScreen />}
+      </ErrorBoundary>
+      <ErrorBoundary name="Puzzle">
+        {phase === 'puzzle' && <PuzzlePanel />}
+      </ErrorBoundary>
+      <ErrorBoundary name="QTE">
+        {phase === 'qte' && <QTEPanel />}
+      </ErrorBoundary>
+      <ErrorBoundary name="Inventory">
+        <InventoryPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Notification">
+        <GameNotification />
+      </ErrorBoundary>
+      <ErrorBoundary name="GameMap">
+        <GameMap />
+      </ErrorBoundary>
+      <ErrorBoundary name="Achievements">
+        <AchievementPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Bestiary">
+        <BestiaryPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Documents">
+        <DocumentsPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="NPCDialog">
+        <NPCDialogPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Settings">
+        <SettingsPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Debug">
+        <DebugPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Admin">
+        <AdminPanel />
+      </ErrorBoundary>
     </div>
   );
 }

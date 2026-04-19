@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { SEED_RECIPES } from '@/seed-data/recipes';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-recipes
  * Seeds all recipe data from static definitions.
@@ -38,7 +39,6 @@ export async function POST() {
       message: `Seed ricette completato: ${SEED_RECIPES.length} ricette (${created} nuove, ${updated} agg.)`,
     });
   } catch (error) {
-    console.error('[seed-recipes] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Recipes]');
   }
 }

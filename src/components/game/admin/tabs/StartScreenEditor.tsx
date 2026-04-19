@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SettingDef, START_SCREEN_FIELDS } from '../config';
+import { adminFetch } from '@/lib/admin-fetch';
 
 export function StartScreenEditor() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -18,7 +19,7 @@ export function StartScreenEditor() {
 
   // Load settings
   useEffect(() => {
-    fetch('/api/admin/game-settings')
+    adminFetch('/api/admin/game-settings')
       .then(r => r.json())
       .then(rows => {
         const map: Record<string, string> = {};
@@ -31,7 +32,7 @@ export function StartScreenEditor() {
 
   // Check if bg_title image exists
   useEffect(() => {
-    fetch('/api/admin/images')
+    adminFetch('/api/admin/images')
       .then(r => r.json())
       .then(rows => {
         const found = Array.isArray(rows) && rows.some((r: { id: string; data: unknown }) => r.id === 'bg_title' && r.data);
@@ -48,7 +49,7 @@ export function StartScreenEditor() {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const res = await fetch('/api/admin/game-settings', {
+      const res = await adminFetch('/api/admin/game-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings }),
@@ -71,7 +72,7 @@ export function StartScreenEditor() {
     formData.append('name', 'Sfondo Schermata Iniziale');
     formData.append('category', 'background');
     try {
-      const res = await fetch('/api/admin/upload/image', { method: 'POST', body: formData });
+      const res = await adminFetch('/api/admin/upload/image', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(await res.text());
       setBgHasFile(true);
       setSaveMsg({ ok: true, text: '✅ Sfondo caricato! Fai Refresh Data per vederlo.' });
@@ -86,7 +87,7 @@ export function StartScreenEditor() {
 
   const handleBgRemove = async () => {
     try {
-      await fetch('/api/admin/upload/image?id=bg_title', { method: 'DELETE' });
+      await adminFetch('/api/admin/upload/image?id=bg_title', { method: 'DELETE' });
       setBgHasFile(false);
       setSaveMsg({ ok: true, text: '✅ Sfondo rimosso.' });
       setTimeout(() => setSaveMsg(null), 3000);

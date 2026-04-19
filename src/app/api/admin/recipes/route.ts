@@ -1,13 +1,14 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // GET /api/admin/recipes — list all
 export async function GET() {
   try {
     const recipes = await db.gameRecipe.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
     return NextResponse.json(recipes);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Recipes]');
   }
 }
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     const recipe = await db.gameRecipe.create({ data: body });
     return NextResponse.json(recipe, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Recipes]');
   }
 }
 
@@ -31,7 +32,7 @@ export async function PUT(request: NextRequest) {
     const recipe = await db.gameRecipe.update({ where: { id }, data });
     return NextResponse.json(recipe);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Recipes]');
   }
 }
 
@@ -44,6 +45,6 @@ export async function DELETE(request: NextRequest) {
     await db.gameRecipe.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Recipes]');
   }
 }

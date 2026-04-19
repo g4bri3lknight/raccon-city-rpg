@@ -109,14 +109,10 @@ export async function POST() {
 
     const jsonStr = JSON.stringify(gameData, null, 2);
 
-    // Create ZIP file in public/
-    const publicDir = path.join(process.cwd(), 'public');
-    const zipPath = path.join(publicDir, 'raccoon-city-rpg-data.zip');
-
-    // Remove old zip if exists
-    if (fs.existsSync(zipPath)) {
-      fs.unlinkSync(zipPath);
-    }
+    // Create ZIP file in temp directory (NOT public/)
+    const tempDir = path.join(process.cwd(), 'tmp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    const zipPath = path.join(tempDir, 'raccoon-city-rpg-data.zip');
 
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(zipPath);
@@ -130,15 +126,23 @@ export async function POST() {
       archive.finalize();
     });
 
-    const stats = fs.statSync(zipPath);
+    // Read the ZIP and return as downloadable file
+    const zipBuffer = fs.readFileSync(zipPath);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Pacchetto generato con successo',
-      file: 'public/raccoon-city-rpg-data.zip',
-      sizeBytes: stats.size,
-      sizeKB: Math.round((stats.size / 1024) * 100) / 100,
-      entities: gameData._meta.totalEntities,
+    // Clean up temp file
+    try {
+      fs.unlinkSync(zipPath);
+    } catch {
+      // ignore cleanup errors
+    }
+
+    return new NextResponse(zipBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': 'attachment; filename="raccoon-city-rpg-data.zip"',
+        'Content-Length': String(zipBuffer.length),
+      },
     });
   } catch (error) {
     console.error('Export error:', error);

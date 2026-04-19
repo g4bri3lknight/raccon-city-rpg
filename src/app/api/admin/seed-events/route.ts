@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { SEED_EVENTS } from '@/seed-data/events';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-events
  * Seeds all dynamic events from static data into the dynamic_events table.
@@ -44,7 +45,6 @@ export async function POST() {
 
     return NextResponse.json({ success: true, total: entries.length, created, updated });
   } catch (error) {
-    console.error('[seed-events] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Events]');
   }
 }

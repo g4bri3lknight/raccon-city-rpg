@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { ENDINGS } from '@/game/data/endings';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { Star, RotateCcw, Save, Plus, Sparkles, X, Clock } from 'lucide-react';
+import { getArchetypeEmoji, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 
 export default function VictoryScreen() {
   const party = useGameStore(s => s.party);
@@ -30,7 +31,7 @@ export default function VictoryScreen() {
   const [showNGPPanel, setShowNGPPanel] = useState(false);
   const [loadedNGP, setLoadedNGP] = useState(false);
 
-  const totalPersistent = Math.min((persistentRibbons || 0) + (collectedRibbons || 0), 10);
+  const totalPersistent = Math.min((persistentRibbons || 0) + (collectedRibbons || 0), MAX_RIBBONS);
   const ending = endingType ? ENDINGS[endingType] : ENDINGS['ending_escape'];
 
   // Calculate play time
@@ -199,14 +200,14 @@ export default function VictoryScreen() {
               <img src="/api/media/image?id=icon_ink_ribbon" alt="Ink Ribbon" className="w-6 h-6" />
               <div className="text-left">
                 <p className="text-xs text-white/50">Collezionabili — Questa Run</p>
-                <p className="text-sm font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/10</span> Nastri d&apos;Inchiostro</p>
+                <p className="text-sm font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/{MAX_RIBBONS}</span> Nastri d&apos;Inchiostro</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xl">✨</span>
               <div className="text-right">
                 <p className="text-xs text-white/50">Totale Persistente</p>
-                <p className="text-sm font-bold text-amber-300">{totalPersistent}<span className="text-amber-400/60">/10</span></p>
+                <p className="text-sm font-bold text-amber-300">{totalPersistent}<span className="text-amber-400/60">/{MAX_RIBBONS}</span></p>
               </div>
             </div>
           </div>
@@ -215,7 +216,7 @@ export default function VictoryScreen() {
               Non hai trovato nastri in questa run. Esplora e cerca meglio nel prossimo tentativo!
             </p>
           )}
-          {totalPersistent >= 10 && (
+          {totalPersistent >= MAX_RIBBONS && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -258,7 +259,7 @@ export default function VictoryScreen() {
                 className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/40"
               >
                 <span className="text-2xl">
-                  {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : char.archetype === 'control' ? '🎯' : '⚔️'}
+                  {getArchetypeEmoji(char.archetype)}
                 </span>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -375,7 +376,7 @@ export default function VictoryScreen() {
               </div>
               <div className="px-4 py-2 bg-white/[0.02] border-b border-white/[0.06]">
                 <p className="text-xs text-white/40">
-                  💾 Salva il progresso per iniziare una nuova avventura con i nastri collezionati ({totalPersistent}/10). Le statistiche dei personaggi verranno preservate nel salvataggio.
+                  💾 Salva il progresso per iniziare una nuova avventura con i nastri collezionati ({totalPersistent}/{MAX_RIBBONS}). Le statistiche dei personaggi verranno preservate nel salvataggio.
                 </p>
               </div>
               <div className="p-4 space-y-2.5">
@@ -394,7 +395,7 @@ export default function VictoryScreen() {
                           animate={{ opacity: 1 }}
                           className="absolute inset-0 bg-purple-950/30 rounded-lg flex items-center justify-center z-10"
                         >
-                          <span className="text-purple-400 font-bold text-sm">💾 Salvato! 🎀 {totalPersistent}/10</span>
+                          <span className="text-purple-400 font-bold text-sm">💾 Salvato! 🎀 {totalPersistent}/{MAX_RIBBONS}</span>
                         </motion.div>
                       )}
                       <div className="flex items-center gap-3">
@@ -412,7 +413,7 @@ export default function VictoryScreen() {
                                 <span className="text-sm font-semibold text-white">Slot {slotNum}</span>
                                 {info.isNewGamePlus && (
                                   <Badge className="text-[9px] bg-purple-500/20 text-purple-300 border-purple-500/30">
-                                    🎀 {info.persistentRibbons}/10
+                                    🎀 {info.persistentRibbons}/{MAX_RIBBONS}
                                   </Badge>
                                 )}
                               </div>
@@ -481,7 +482,7 @@ export default function VictoryScreen() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-white">Slot {info.slot}</span>
                           <Badge className="text-[9px] bg-purple-500/20 text-purple-300 border-purple-500/30">
-                            🎀 {info.persistentRibbons}/10
+                            🎀 {info.persistentRibbons}/{MAX_RIBBONS}
                           </Badge>
                         </div>
                         <p className="text-xs text-white/30 truncate">{info.partySummary}</p>

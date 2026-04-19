@@ -10,6 +10,7 @@ import { SEED_SPECIALS } from '@/seed-data/specials';
 import { SEED_ENEMIES } from '@/seed-data/enemies';
 import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, WEAPON_MODS } from '@/seed-data/equipment';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; danger: string }> = {
   city_outskirts: { row: 2, col: 1, icon: '🏚️', danger: 'bassa' },
   rpd_station: { row: 1, col: 2, icon: '🏛️', danger: 'media' },
@@ -297,7 +298,6 @@ export async function POST() {
       summary,
     });
   } catch (error) {
-    console.error('[seed-all] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed All]');
   }
 }

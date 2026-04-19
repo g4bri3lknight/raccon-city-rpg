@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // GET /api/admin/sounds — list all (excluding binary data from list)
 export async function GET() {
   try {
@@ -17,7 +18,7 @@ export async function GET() {
     }));
     return NextResponse.json(safe);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Sounds]');
   }
 }
 
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     const sound = await db.gameSound.create({ data: safeBody });
     return NextResponse.json(sound, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Sounds]');
   }
 }
 
@@ -42,7 +43,7 @@ export async function PUT(request: NextRequest) {
     const sound = await db.gameSound.update({ where: { id }, data: safeData });
     return NextResponse.json(sound);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Sounds]');
   }
 }
 
@@ -55,6 +56,6 @@ export async function DELETE(request: NextRequest) {
     await db.gameSound.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Sounds]');
   }
 }

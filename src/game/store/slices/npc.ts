@@ -71,20 +71,29 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
           // Remove required items from party inventory
           let updatedParty = [...state.party];
           let toRemove = npc.quest.targetCount;
-          for (const p of updatedParty) {
-            if (toRemove <= 0) break;
-            for (let i = p.inventory.length - 1; i >= 0; i--) {
-              if (p.inventory[i].itemId === npc.quest.targetId && toRemove > 0) {
-                const avail = p.inventory[i].quantity;
+
+          for (let pi = 0; pi < updatedParty.length && toRemove > 0; pi++) {
+            const member = updatedParty[pi];
+            for (let i = member.inventory.length - 1; i >= 0 && toRemove > 0; i--) {
+              if (member.inventory[i].itemId === npc.quest.targetId && toRemove > 0) {
+                const avail = member.inventory[i].quantity;
                 if (avail <= toRemove) {
                   toRemove -= avail;
-                  updatedParty = updatedParty.map(pp =>
-                    pp.id === p.id ? { ...pp, inventory: pp.inventory.filter((_, idx) => idx !== i) } : pp
+                  // Remove item entirely — create new member with filtered inventory
+                  updatedParty = updatedParty.map((pp, idx) =>
+                    idx === pi ? { ...pp, inventory: pp.inventory.filter((_, iiIdx) => iiIdx !== i) } : pp
                   );
                 } else {
-                  p.inventory[i].quantity -= toRemove;
+                  // Reduce quantity — create new member with updated inventory item
+                  updatedParty = updatedParty.map((pp, idx) =>
+                    idx === pi ? {
+                      ...pp,
+                      inventory: pp.inventory.map((ii, iiIdx) =>
+                        iiIdx === i ? { ...ii, quantity: ii.quantity - toRemove } : ii
+                      ),
+                    } : pp
+                  );
                   toRemove = 0;
-                  updatedParty = [...updatedParty];
                 }
               }
             }
@@ -186,6 +195,7 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
     }
 
     // ── Default: random dialogue ──
+    if (!npc.dialogues || npc.dialogues.length === 0) return;
     const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
     set(state => ({
       messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${dialogue}"`],

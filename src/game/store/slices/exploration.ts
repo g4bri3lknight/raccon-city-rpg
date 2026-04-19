@@ -57,7 +57,9 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     try { playLocationAmbient(state.currentLocationId); } catch {}
 
     // Random ambient text
-    const ambient = location.ambientText[Math.floor(Math.random() * location.ambientText.length)];
+    const ambient = location.ambientText?.length > 0
+      ? location.ambientText[Math.floor(Math.random() * location.ambientText.length)]
+      : `${location.name} è silenziosa...`;
     const newLog = [...state.messageLog, `[${state.turnCount}] ${ambient}`];
 
     // Check for combat encounter (skip if just resolved an event)
@@ -75,6 +77,10 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       // Spawn enemies scaled by party size
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
       const enemies: EnemyInstance[] = [];
+      if (enemyPool.length === 0) {
+        set({ messageLog: newLog, turnCount: state.turnCount + 1 });
+        return;
+      }
       for (let i = 0; i < numEnemies; i++) {
         const enemyId = enemyPool[Math.floor(Math.random() * enemyPool.length)];
         enemies.push(createEnemyInstance(enemyId, diff.statMult));
@@ -111,7 +117,11 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         const allActors = [
           ...currentState.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
           ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
-        ].sort((a, b) => b.spd - a.spd + (Math.random() - 0.5) * 4);
+        ].sort((a, b) => {
+          const jitterA = Math.random() * 4;
+          const jitterB = Math.random() * 4;
+          return (b.spd + jitterB) - (a.spd + jitterA);
+        });
         const firstActor = allActors[0];
 
         // Update bestiary - mark enemies as encountered
@@ -203,7 +213,11 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         const allActors = [
           ...currentState.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
           ...[nemesis].map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
-        ].sort((a, b) => b.spd - a.spd + (Math.random() - 0.5) * 4);
+        ].sort((a, b) => {
+          const jitterA = Math.random() * 4;
+          const jitterB = Math.random() * 4;
+          return (b.spd + jitterB) - (a.spd + jitterA);
+        });
         const firstActor = allActors[0];
 
         const nemesisBestiary = [...currentState.bestiary];

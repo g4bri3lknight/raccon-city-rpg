@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { SEED_NPCS } from '@/seed-data/npcs';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 const NPC_BADGES: Record<string, { label: string; icon: string; color: string }> = {
   npc_marco: { label: 'Meccanico', icon: '🔧', color: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/30' },
   npc_dr_chen: { label: 'Medico', icon: '🥼', color: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/30' },
@@ -63,7 +64,6 @@ export async function POST() {
 
     return NextResponse.json({ seeded });
   } catch (error) {
-    console.error('[seed-npcs] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed NPCs]');
   }
 }

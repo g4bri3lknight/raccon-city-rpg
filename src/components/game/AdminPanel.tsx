@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
 import { useGameStore } from '@/game/store';
+import { adminFetch, setAdminKey, testAdminKey, getAdminKey } from '@/lib/admin-fetch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -52,6 +53,10 @@ export default function AdminPanel() {
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginKey, setLoginKey] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const tabConfig = TABS.find(t => t.id === activeTab)!;
   const fields = FIELD_MAP[activeTab];
@@ -81,7 +86,7 @@ export default function AdminPanel() {
   const fetchCounts = useCallback(async () => {
     try {
       const responses = await Promise.allSettled(
-        TABS.map(tab => fetch(tab.endpoint))
+        TABS.map(tab => adminFetch(tab.endpoint))
       );
       const newCounts: Record<string, number> = {};
       TABS.forEach((tab, idx) => {
@@ -103,7 +108,7 @@ export default function AdminPanel() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(tabConfig.endpoint);
+      const res = await adminFetch(tabConfig.endpoint);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const arr = Array.isArray(json) ? json : [];
@@ -129,17 +134,58 @@ export default function AdminPanel() {
     }
   }, [open, activeTab, fetchData, fetchCounts]);
 
-  // F3 key
+  // Try default key first — if it works, skip login entirely
+  const tryOpenAdmin = useCallback(async () => {
+    // Test if the current key (default or previously set) works
+    const currentKey = getAdminKey();
+    setLoginLoading(true);
+    const works = await testAdminKey(currentKey);
+    setLoginLoading(false);
+    if (works) {
+      setOpen(true);
+      return;
+    }
+    // Default key failed — show login dialog
+    setShowLogin(true);
+  }, []);
+
+  const handleLogin = useCallback(async () => {
+    setLoginLoading(true);
+    setLoginError('');
+    const keyToTest = loginKey.trim();
+    if (!keyToTest) {
+      setLoginError('Inserisci una chiave');
+      setLoginLoading(false);
+      return;
+    }
+    const works = await testAdminKey(keyToTest);
+    setLoginLoading(false);
+    if (works) {
+      setAdminKey(keyToTest);
+      setShowLogin(false);
+      setLoginKey('');
+      setLoginError('');
+      setOpen(true);
+    } else {
+      setLoginError('Chiave non valida. Riprova.');
+    }
+  }, [loginKey]);
+
+  // F3 key — opens admin panel
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'F3') {
         e.preventDefault();
-        setOpen(prev => !prev);
+        if (!open && !showLogin) {
+          tryOpenAdmin();
+        } else if (open) {
+          setOpen(false);
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [open, showLogin, tryOpenAdmin]);
 
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
@@ -169,7 +215,7 @@ export default function AdminPanel() {
           delete processed[f.key];
         }
       }
-      const res = await fetch(tabConfig.endpoint, {
+      const res = await adminFetch(tabConfig.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(processed),
@@ -216,7 +262,7 @@ export default function AdminPanel() {
           delete processed[f.key];
         }
       }
-      const res = await fetch(tabConfig.endpoint, {
+      const res = await adminFetch(tabConfig.endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(processed),
@@ -234,7 +280,7 @@ export default function AdminPanel() {
   const handleDelete = async (id: string) => {
     if (!confirm(`Eliminare "${id}"?`)) return;
     try {
-      const res = await fetch(`${tabConfig.endpoint}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const res = await adminFetch(`${tabConfig.endpoint}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await res.text());
       showStatus('Eliminato con successo!', 'success');
       fetchData();
@@ -275,6 +321,84 @@ export default function AdminPanel() {
   const editingData = editingId
     ? (data.find(r => String(r.id) === editingId) as Record<string, unknown> || {})
     : {};
+
+  // ── Login Dialog ──
+  if (showLogin && !open) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          key="login-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[109] bg-black/70"
+          onClick={() => { setShowLogin(false); setLoginError(''); setLoginKey(''); }}
+        />
+        <motion.div
+          key="login-dialog"
+          initial={{ opacity: 0, scale: 0.9, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 30 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[110] flex items-center justify-center"
+        >
+          <div
+            className="w-full max-w-md mx-4 rounded-xl p-6"
+            style={{
+              background: 'rgba(12, 12, 20, 0.98)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.8)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-center mb-5">
+              <div className="text-3xl mb-2">🔐</div>
+              <h2 className="text-base font-bold text-white/90">Accesso Amministrativo</h2>
+              <p className="text-[13px] text-white/40 mt-1">Inserisci la chiave per accedere al pannello admin</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <input
+                  type="password"
+                  value={loginKey}
+                  onChange={e => { setLoginKey(e.target.value); setLoginError(''); }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
+                  placeholder="Chiave amministrativa"
+                  autoFocus
+                  className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-4 py-2.5 text-white/80 placeholder-white/25 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                />
+              </div>
+
+              {loginError && (
+                <p className="text-[12px] text-red-400 text-center">❌ {loginError}</p>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => { setShowLogin(false); setLoginError(''); setLoginKey(''); }}
+                  className="flex-1 text-xs bg-white/[0.06] border border-white/[0.1] text-white/50 hover:bg-white/[0.1] hover:text-white/70"
+                >
+                  Annulla
+                </Button>
+                <Button
+                  onClick={handleLogin}
+                  disabled={loginLoading || !loginKey.trim()}
+                  className="flex-1 text-xs bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200 disabled:opacity-40"
+                >
+                  {loginLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Accedi'}
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-white/15 text-center mt-4">
+              Premi F3 per aprire il pannello · La chiave è configurata nel server
+            </p>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   if (!open) return null;
 
@@ -465,7 +589,7 @@ export default function AdminPanel() {
                     variant="ghost"
                     onClick={async () => {
                       try {
-                        const res = await fetch(banner.seedEndpoint, { method: 'POST' });
+                        const res = await adminFetch(banner.seedEndpoint, { method: 'POST' });
                         if (!res.ok) throw new Error(await res.text());
                         const result = await res.json();
                         showStatus(result.message, 'success');

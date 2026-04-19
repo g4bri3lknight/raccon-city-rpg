@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { SEED_ENDINGS } from '@/seed-data/endings';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 type SeedResult = { entity: string; total: number; created: number; updated: number };
 
 /**
@@ -42,7 +43,6 @@ export async function POST() {
       result,
     });
   } catch (error) {
-    console.error('[seed-endings] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Endings]');
   }
 }

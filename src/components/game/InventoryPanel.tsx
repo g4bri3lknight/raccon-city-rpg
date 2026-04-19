@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star } from 'lucide-react';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
+import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
+import { RARITY_LABEL, TYPE_LABELS } from '@/game/utils/rarity-helpers';
 
 export default function InventoryPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
@@ -47,24 +49,7 @@ export default function InventoryPanel() {
     legendary: 'bg-white/10 text-amber-300/80 border-0',
   };
 
-  const rarityLabel: Record<string, string> = {
-    common: 'Comune',
-    uncommon: 'Non Comune',
-    rare: 'Raro',
-    legendary: 'Leggendario',
-  };
-
-  const typeLabels: Record<string, string> = {
-    weapon: 'Arma',
-    healing: 'Cura',
-    ammo: 'Munizioni',
-    utility: 'Utilità',
-    antidote: 'Antidoto',
-    bag: 'Borsa',
-    armor: 'Armatura',
-    accessory: 'Accessorio',
-    weapon_mod: 'Mod Arma',
-  };
+  // rarityLabel and typeLabels now imported from shared rarity-helpers
 
   // Sort items based on current sort mode
   const rarityOrder: Record<string, number> = { common: 0, uncommon: 1, rare: 2, legendary: 3 };
@@ -128,7 +113,7 @@ export default function InventoryPanel() {
               }`}
             >
               <span className="mr-1.5">
-                {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
+                {getArchetypeEmoji(char.archetype)}
               </span>
               {char.name}
             </button>
@@ -251,10 +236,10 @@ export default function InventoryPanel() {
                   </div>
                   <div className="flex gap-1.5 md:gap-2">
                     <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>
-                      {typeLabels[selectedItem.type] || selectedItem.type}
+                      {TYPE_LABELS[selectedItem.type] || selectedItem.type}
                     </Badge>
                     <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>
-                      {rarityLabel[selectedItem.rarity] || selectedItem.rarity}
+                      {RARITY_LABEL[selectedItem.rarity] || selectedItem.rarity}
                     </Badge>
                     {selectedItem.isEquipped && (
                       <Badge className="bg-amber-900/50 text-amber-300 border-0 text-[10px] md:text-xs">Equipaggiato</Badge>
@@ -438,7 +423,7 @@ export default function InventoryPanel() {
                         }`}
                       >
                         <span className="text-xl">
-                          {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : '⚔️'}
+                          {getArchetypeEmoji(char.archetype)}
                         </span>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-semibold text-white">{char.name}</span>

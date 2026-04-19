@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { SEED_ENEMIES } from '@/seed-data/enemies';
 import { BOSS_PHASE_ABILITIES } from '@/seed-data/boss-phase-abilities';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 type SeedResult = { entity: string; total: number; created: number; updated: number };
 
 // Slugify: lowercase, replace accents, spaces→underscores, remove special chars
@@ -112,7 +113,6 @@ export async function POST() {
       enemiesUpdated,
     });
   } catch (error) {
-    console.error('[seed-enemy-abilities] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Enemy Abilities]');
   }
 }

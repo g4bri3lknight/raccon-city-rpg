@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, SaveSlotInfo } from '@/game/store';
 import { Button } from '@/components/ui/button';
 import { Skull, Upload, MapPin, Clock, Users, ChevronLeft } from 'lucide-react';
+import { getArchetypeEmoji, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 
 function readSlotMeta(slot: number): SaveSlotInfo | null {
   try {
@@ -123,7 +124,7 @@ export default function GameOverScreen() {
                 {party.map(char => (
                   <div key={char.id} className="col-span-2 flex items-center gap-2 text-gray-500 text-xs">
                     <span>
-                      {char.archetype === 'tank' ? '🛡️' : char.archetype === 'healer' ? '💊' : char.archetype === 'control' ? '🎯' : '⚔️'}
+                      {getArchetypeEmoji(char.archetype)}
                     </span>
                     {char.name} — Lv.{char.level}
                     <span className="text-red-800">✕</span>
@@ -235,7 +236,7 @@ export default function GameOverScreen() {
                                 </span>
                                 {info.isNewGamePlus && (
                                   <span className="text-[9px] text-purple-300 bg-purple-500/20 rounded px-1.5 py-0.5">
-                                    🎀 {info.persistentRibbons}/10
+                                    🎀 {info.persistentRibbons}/{MAX_RIBBONS}
                                   </span>
                                 )}
                               </div>

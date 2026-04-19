@@ -9,6 +9,7 @@ import {
   Shield, Zap, ChevronDown, ChevronUp, X, Flame, Users, Settings,
   FileText, Search
 } from 'lucide-react';
+import { MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 
 // Static level options (no DB dependency)
 const LEVEL_OPTIONS = [1, 5, 10, 15, 20, 30, 50];
@@ -194,6 +195,8 @@ export default function DebugPanel() {
 
   const close = () => useGameStore.setState({ debugOpen: false });
 
+  // Gate behind dev mode — never render in production
+  if (process.env.NODE_ENV === 'production') return null;
   if (!debugOpen) return null;
 
   return (
@@ -292,8 +295,8 @@ export default function DebugPanel() {
           {/* ── Collectibles ── */}
           <Section title="Collezionabili" icon={<span className="text-sm">🎀</span>}>
             <div className="flex items-center justify-between px-1 mb-1">
-              <span className="text-[10px] text-white/40">Run: {useGameStore.getState().collectedRibbons}/10</span>
-              <span className="text-[10px] text-white/40">Totale: {useGameStore.getState().persistentRibbons}/10</span>
+              <span className="text-[10px] text-white/40">Run: {useGameStore.getState().collectedRibbons}/{MAX_RIBBONS}</span>
+              <span className="text-[10px] text-white/40">Totale: {useGameStore.getState().persistentRibbons}/{MAX_RIBBONS}</span>
             </div>
             <DebugButton label="Spawn Nastro (+1)" icon={<span className="text-sm">🎀</span>} onClick={debugSpawnCollectible} />
             <DebugButton label="Sblocca Tutti i Nastri (10)" icon={<span className="text-sm">✨</span>} onClick={debugGiveAllRibbons} variant="success" />
@@ -410,8 +413,8 @@ export default function DebugPanel() {
               <div className="flex justify-between"><span>Party:</span><span className="text-white/70 font-mono">{party.length}</span></div>
               <div className="flex justify-between"><span>Turn:</span><span className="text-white/70 font-mono">{useGameStore.getState().turnCount}</span></div>
               <div className="flex justify-between"><span>Location:</span><span className="text-white/70 font-mono">{useGameStore.getState().currentLocationId}</span></div>
-              <div className="flex justify-between"><span>Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().collectedRibbons}/10</span></div>
-              <div className="flex justify-between"><span>Persist Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().persistentRibbons}/10</span></div>
+              <div className="flex justify-between"><span>Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().collectedRibbons}/{MAX_RIBBONS}</span></div>
+              <div className="flex justify-between"><span>Persist Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().persistentRibbons}/{MAX_RIBBONS}</span></div>
               <div className="flex justify-between"><span>Documents:</span><span className="text-white/70 font-mono">{collectedDocuments.length}/{docList.length}</span></div>
               <div className="flex justify-between"><span>New Game+:</span><span className="text-white/70 font-mono">{useGameStore.getState().isNewGamePlus ? 'YES' : 'NO'}</span></div>
             </div>

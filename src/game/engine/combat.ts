@@ -359,12 +359,15 @@ export function executePlayerAttack(
 export function resolveSpecialId(character: Character, slot: 'special1Id' | 'special2Id'): string | undefined {
   // Custom characters store their special IDs directly
   if (character.archetype === 'custom') {
-    return slot === 'special1Id' ? character.special1Id : character.special2Id;
+    const id = slot === 'special1Id' ? character.special1Id : character.special2Id;
+    return id || undefined;
   }
   // Predefined archetypes use the mapping
   const map = ARCHETYPE_SPECIAL_MAP[character.archetype];
   if (!map) return undefined;
-  return slot === 'special1Id' ? map.special1 : map.special2;
+  const id = slot === 'special1Id' ? map.special1 : map.special2;
+  // Return undefined for empty strings (map not built yet or missing ability)
+  return id || undefined;
 }
 
 export function executePlayerSpecial(

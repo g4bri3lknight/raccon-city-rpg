@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * GET /api/admin/achievements — list all achievements
  */
@@ -25,8 +26,7 @@ export async function GET() {
 
     return NextResponse.json(achievements);
   } catch (error) {
-    console.error('[admin/achievements] GET failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Achievements]');
   }
 }
 
@@ -60,8 +60,7 @@ export async function POST(request: NextRequest) {
     if (error?.code === 'P2002') {
       return NextResponse.json({ error: 'Duplicate id' }, { status: 409 });
     }
-    console.error('[admin/achievements] POST failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Achievements]');
   }
 }
 
@@ -94,8 +93,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(ach);
   } catch (error) {
-    console.error('[admin/achievements] PUT failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Achievements]');
   }
 }
 
@@ -117,7 +115,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ deleted: id });
   } catch (error) {
-    console.error('[admin/achievements] DELETE failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Achievements]');
   }
 }

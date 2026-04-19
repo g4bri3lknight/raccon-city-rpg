@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { SEED_SPECIALS } from '@/seed-data/specials';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-specials — seed specials from static data into DB
  * Only inserts if not already present (upsert by id).
@@ -51,7 +52,6 @@ export async function POST() {
       updated,
     });
   } catch (error) {
-    console.error('[seed-specials] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Specials]');
   }
 }

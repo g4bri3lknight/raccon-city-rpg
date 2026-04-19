@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { SEED_AVATARS } from '@/seed-data/avatars';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-avatars
  * Seeds all avatar data from static definitions.
@@ -32,7 +33,6 @@ export async function POST() {
       message: `Seed avatar completato: ${SEED_AVATARS.length} avatar (${created} nuove, ${updated} agg.)`,
     });
   } catch (error) {
-    console.error('[seed-avatars] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Avatars]');
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 const SOUND_SEEDS = [
   // Combat SFX
   { id: 'sfx_attack', name: 'Attacco corpo a corpo', refKey: 'playAttack', filePath: '/audio/attack.wav', category: 'combat', volume: 0.7, loopable: false },
@@ -82,6 +83,6 @@ export async function POST() {
     }
     return NextResponse.json({ success: true, created, total: SOUND_SEEDS.length });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed]');
   }
 }

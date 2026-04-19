@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { SEED_ACHIEVEMENTS } from '@/seed-data/achievements';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 type SeedResult = { entity: string; total: number; created: number; updated: number };
 
 /**
@@ -42,7 +43,6 @@ export async function POST() {
       result,
     });
   } catch (error) {
-    console.error('[seed-achievements] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Achievements]');
   }
 }

@@ -4,7 +4,7 @@ import { ItemInstance } from '../../types';
 import { ITEMS, LOCATIONS, RECIPES_DATA } from '../../data/loader';
 import { getMaxItemBoxSlots, getDefaultItemBoxItems } from '../settings-cache';
 import { nextNotifId } from '../helpers';
-import { playSearch } from '../../engine/sounds';
+import { playSearch, playSafeRoomAmbient, stopSafeRoomAmbient } from '../../engine/sounds';
 
 export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   enterSafeRoom: () => {
@@ -51,29 +51,15 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
       itemBoxItems: updatedItemBox,
       messageLog: [...state.messageLog, `[${state.turnCount}] 🏠 Entrate nella Safe Room. È un luogo sicuro — nessun nemico può attaccarvi qui.`],
     });
-    // Play safe room ambient sound
-    try {
-      const audio = new Audio('/api/media/sound?id=safe_room_ambient');
-      audio.loop = true;
-      audio.volume = 0.3;
-      audio.play().catch(() => {});
-      // Store reference for later cleanup
-      (window as Record<string, unknown>).__safeRoomAudio = audio;
-    } catch {}
+    // Play safe room ambient sound (through AudioEngine — respects volume/mute)
+    try { playSafeRoomAmbient(); } catch {}
   },
 
   exitSafeRoom: () => {
     const state = get();
     if (state.currentSubArea !== 'safe_room') return;
     // Stop safe room ambient
-    try {
-      const audio = (window as Record<string, unknown>).__safeRoomAudio as HTMLAudioElement | undefined;
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-        (window as Record<string, unknown>).__safeRoomAudio = undefined;
-      }
-    } catch {}
+    try { stopSafeRoomAmbient(); } catch {}
     set({
       currentSubArea: null,
       messageLog: [...state.messageLog, `[${state.turnCount}] 🚪 Usciti dalla Safe Room. Fate attenzione...`],

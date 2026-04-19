@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, WEAPON_MODS } from '@/seed-data/equipment';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 export async function POST() {
   try {
     let created = 0;
@@ -69,6 +70,6 @@ export async function POST() {
       message: `Seeded ${created} new + ${updated} updated equipment items (6 armors, 8 accessori, 8 weapon mods)`,
     });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Equipment]');
   }
 }

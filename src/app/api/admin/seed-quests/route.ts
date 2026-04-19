@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { SEED_NPCS } from '@/seed-data/npcs';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-quests
  * Extracts quests from NPC static data and seeds them into the side_quests table.
@@ -43,7 +44,6 @@ export async function POST() {
 
     return NextResponse.json({ success: true, created, updated });
   } catch (error) {
-    console.error('[seed-quests] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Quests]');
   }
 }

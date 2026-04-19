@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DifficultyConfigEditor } from './DifficultyConfigEditor';
+import { adminFetch } from '@/lib/admin-fetch';
 import { ItemBoxDefaultsEditor } from '../EntityForm';
 import type { GameplaySettingDef } from '../config';
 import { GAMEPLAY_SETTINGS_FIELDS } from '../config';
@@ -18,7 +19,7 @@ export function GameSettingsEditor() {
 
   // Load settings
   useEffect(() => {
-    fetch('/api/admin/game-settings')
+    adminFetch('/api/admin/game-settings')
       .then(r => r.json())
       .then(rows => {
         const map: Record<string, string> = {};
@@ -64,7 +65,7 @@ export function GameSettingsEditor() {
     }
 
     try {
-      const res = await fetch('/api/admin/game-settings', {
+      const res = await adminFetch('/api/admin/game-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings }),

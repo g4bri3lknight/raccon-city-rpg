@@ -9,7 +9,7 @@ export function getItemHealInfo(item: ItemInstance): { amount: number; percent: 
   const healEffect = item.effects?.find(e => e.type === 'heal' && (!e.trigger || e.trigger === 'on_use'));
   if (healEffect && healEffect.type === 'heal') {
     const pctField = (healEffect as any).percent;
-    const amtField = (healEffect as any).amount || 0;
+    const amtField = (healEffect as any).amount ?? 0;
     // percent can be: boolean true (amount is the %), a number (direct %), or absent (flat heal)
     const isPercent = pctField !== undefined && pctField !== false;
     const amount = typeof pctField === 'number' ? pctField : amtField;
@@ -34,7 +34,7 @@ export function getAddSlotsAmount(effects: SpecialEffect[] | undefined): number 
   if (!effects || effects.length === 0) return null;
   const slotEffect = effects.find(e => e.type === 'add_slots' && (!e.trigger || e.trigger === 'on_use'));
   if (!slotEffect || slotEffect.type !== 'add_slots') return null;
-  return slotEffect.amount || 0;
+  return slotEffect.amount ?? 0;
 }
 
 /** Get a human-readable list of effect descriptions for UI display */
@@ -47,7 +47,7 @@ export function getItemEffectDescriptions(item: ItemInstance): { emoji: string; 
       switch (e.type) {
         case 'heal': {
           const pctField = (e as any).percent;
-          const amtField = (e as any).amount || 0;
+          const amtField = (e as any).amount ?? 0;
           const isPercent = pctField !== undefined && pctField !== false;
           const displayAmount = typeof pctField === 'number' ? pctField : amtField;
           if (isPercent && displayAmount >= 100) {
@@ -69,16 +69,16 @@ export function getItemEffectDescriptions(item: ItemInstance): { emoji: string; 
           break;
         }
         case 'add_slots': {
-          descriptions.push({ emoji: '🧳', text: `+${(e as any).amount || 0} slot inventario`, color: 'text-amber-400/80' });
+          descriptions.push({ emoji: '🧳', text: `+${(e as any).amount ?? 0} slot inventario`, color: 'text-amber-400/80' });
           break;
         }
         case 'buff_stat': {
           const statName = (e as any).stat === 'atk' ? 'ATK' : (e as any).stat === 'def' ? 'DEF' : (e as any).stat === 'spd' ? 'SPD' : (e as any).stat || '';
-          descriptions.push({ emoji: '⬆️', text: `+${(e as any).amount || 0} ${statName}`, color: 'text-blue-400/80' });
+          descriptions.push({ emoji: '⬆️', text: `+${(e as any).amount ?? 0} ${statName}`, color: 'text-blue-400/80' });
           break;
         }
         case 'shield': {
-          descriptions.push({ emoji: '🛡️', text: `Scudo ${(e as any).amount || 0} HP`, color: 'text-cyan-400/80' });
+          descriptions.push({ emoji: '🛡️', text: `Scudo ${(e as any).amount ?? 0} HP`, color: 'text-cyan-400/80' });
           break;
         }
       }

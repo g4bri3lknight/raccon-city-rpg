@@ -1,13 +1,14 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // GET /api/admin/documents — list all
 export async function GET() {
   try {
     const documents = await db.document.findMany({ orderBy: { createdAt: 'asc' } });
     return NextResponse.json(documents);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Documents]');
   }
 }
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     const document = await db.document.create({ data: body });
     return NextResponse.json(document, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Documents]');
   }
 }
 
@@ -31,7 +32,7 @@ export async function PUT(request: NextRequest) {
     const document = await db.document.update({ where: { id }, data });
     return NextResponse.json(document);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Documents]');
   }
 }
 
@@ -44,6 +45,6 @@ export async function DELETE(request: NextRequest) {
     await db.document.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Documents]');
   }
 }

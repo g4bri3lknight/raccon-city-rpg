@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /** Serialize a value to JSON string — skip if already a string */
 function jsonStr(val: unknown, fallback: string): string {
   if (val === null || val === undefined) return fallback;
@@ -34,8 +35,7 @@ export async function GET() {
 
     return NextResponse.json(phases);
   } catch (error) {
-    console.error('[admin/boss-phases] GET failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Boss Phases]');
   }
 }
 
@@ -71,8 +71,7 @@ export async function POST(request: NextRequest) {
     if (error?.code === 'P2002') {
       return NextResponse.json({ error: 'Duplicate id' }, { status: 409 });
     }
-    console.error('[admin/boss-phases] POST failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Boss Phases]');
   }
 }
 
@@ -107,8 +106,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(phase);
   } catch (error) {
-    console.error('[admin/boss-phases] PUT failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Boss Phases]');
   }
 }
 
@@ -130,7 +128,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ deleted: id });
   } catch (error) {
-    console.error('[admin/boss-phases] DELETE failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Boss Phases]');
   }
 }

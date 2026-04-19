@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Plus, Users, Pencil, Upload, Trash2, Save, Loader2,
 } from 'lucide-react';
+import { adminFetch } from '@/lib/admin-fetch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
@@ -29,7 +30,7 @@ export function AvatarManager() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/avatars');
+        const res = await adminFetch('/api/admin/avatars');
         if (res.ok) {
           const data = await res.json();
           setAvatars(data);
@@ -37,7 +38,7 @@ export function AvatarManager() {
       } catch { /* silent */ }
       // Load image status
       try {
-        const res = await fetch('/api/admin/images');
+        const res = await adminFetch('/api/admin/images');
         if (res.ok) {
           const items: Record<string, unknown>[] = await res.json();
           const status: Record<string, boolean> = {};
@@ -53,14 +54,14 @@ export function AvatarManager() {
 
   const reloadAvatars = async () => {
     try {
-      const res = await fetch('/api/admin/avatars');
+      const res = await adminFetch('/api/admin/avatars');
       if (res.ok) setAvatars(await res.json());
     } catch { /* silent */ }
   };
 
   const reloadImageStatus = async () => {
     try {
-      const res = await fetch('/api/admin/images');
+      const res = await adminFetch('/api/admin/images');
       if (res.ok) {
         const items: Record<string, unknown>[] = await res.json();
         const status: Record<string, boolean> = {};
@@ -80,7 +81,7 @@ export function AvatarManager() {
     formData.append('name', `Avatar: ${avatarId}`);
     formData.append('category', 'avatar');
     try {
-      const res = await fetch('/api/admin/upload/image', { method: 'POST', body: formData });
+      const res = await adminFetch('/api/admin/upload/image', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(await res.text());
       await reloadImageStatus();
     } catch (err) {
@@ -91,15 +92,15 @@ export function AvatarManager() {
   };
 
   const handleDeleteImage = async (avatarId: string) => {
-    try { await fetch(`/api/admin/upload/image?id=${encodeURIComponent(avatarId)}`, { method: 'DELETE' }); } catch {}
+    try { await adminFetch(`/api/admin/upload/image?id=${encodeURIComponent(avatarId)}`, { method: 'DELETE' }); } catch {}
     await reloadImageStatus();
   };
 
   const handleDeleteAvatar = async (avatarId: string) => {
     if (!confirm(`Eliminare l'avatar "${avatarId}"? L'immagine associata verrà rimossa.`)) return;
     try {
-      await fetch(`/api/admin/upload/image?id=${encodeURIComponent(avatarId)}`, { method: 'DELETE' });
-      const res = await fetch(`/api/admin/avatars?id=${encodeURIComponent(avatarId)}`, { method: 'DELETE' });
+      await adminFetch(`/api/admin/upload/image?id=${encodeURIComponent(avatarId)}`, { method: 'DELETE' });
+      const res = await adminFetch(`/api/admin/avatars?id=${encodeURIComponent(avatarId)}`, { method: 'DELETE' });
       if (res.ok) {
         await reloadAvatars();
         await reloadImageStatus();
@@ -138,14 +139,14 @@ export function AvatarManager() {
     setSaving(true);
     try {
       if (isCreating) {
-        const res = await fetch('/api/admin/avatars', {
+        const res = await adminFetch('/api/admin/avatars', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: formId.trim(), name: formName.trim(), emoji: formEmoji }),
         });
         if (!res.ok) throw new Error(await res.text());
       } else {
-        const res = await fetch('/api/admin/avatars', {
+        const res = await adminFetch('/api/admin/avatars', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: formId.trim(), name: formName.trim(), emoji: formEmoji }),

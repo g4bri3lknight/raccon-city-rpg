@@ -1,13 +1,14 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // GET /api/admin/quests — list all
 export async function GET() {
   try {
     const quests = await db.sideQuest.findMany({ orderBy: { createdAt: 'asc' } });
     return NextResponse.json(quests);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Quests]');
   }
 }
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     const quest = await db.sideQuest.create({ data: body });
     return NextResponse.json(quest, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Quests]');
   }
 }
 
@@ -31,7 +32,7 @@ export async function PUT(request: NextRequest) {
     const quest = await db.sideQuest.update({ where: { id }, data });
     return NextResponse.json(quest);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Quests]');
   }
 }
 
@@ -44,6 +45,6 @@ export async function DELETE(request: NextRequest) {
     await db.sideQuest.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Quests]');
   }
 }

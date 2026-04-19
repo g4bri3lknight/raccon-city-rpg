@@ -30,6 +30,7 @@ export default function NPCDialogPanel() {
   const [lastNpcId, setLastNpcId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tradeErrors, setTradeErrors] = useState<Record<number, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const npc = activeNpc;
@@ -47,6 +48,8 @@ export default function NPCDialogPanel() {
   } : undefined;
 
   // Initialize greeting when NPC changes
+  // Using React's "adjusting state during render" pattern per
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   if (npc && lastNpcId !== npc.id) {
     setLastNpcId(npc.id);
     setChatMessages([{
@@ -60,15 +63,20 @@ export default function NPCDialogPanel() {
 
   const handleTalk = useCallback(() => {
     if (!npc) return;
-    const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
-    setChatMessages(prev => [...prev, {
-      role: 'npc',
-      content: dialogue,
-      id: `npc-talk-${Date.now()}`,
-      isFallback: true,
-    }]);
-    setError(null);
-    talkToNpc();
+    setIsLoading(true);
+    // Simulate a small delay for the dialog response
+    setTimeout(() => {
+      const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
+      setChatMessages(prev => [...prev, {
+        role: 'npc',
+        content: dialogue,
+        id: `npc-talk-${Date.now()}`,
+        isFallback: true,
+      }]);
+      setError(null);
+      setIsLoading(false);
+      talkToNpc();
+    }, 400);
   }, [npc, talkToNpc]);
 
   useEffect(() => {
@@ -195,7 +203,7 @@ export default function NPCDialogPanel() {
             <div className="text-[10px] uppercase tracking-wider text-white/30 flex items-center gap-1">
               <MessageSquare className="w-3 h-3" /> Conversazione
             </div>
-            <div className="glass-dark-inner rounded-lg p-3 space-y-3 min-h-[60px]">
+            <div className="glass-dark-inner rounded-lg p-3 space-y-3 min-h-[60px] relative">
               <AnimatePresence initial={false}>
                 {chatMessages.map((msg) => (
                   <motion.div
@@ -213,6 +221,16 @@ export default function NPCDialogPanel() {
                   </motion.div>
                 ))}
               </AnimatePresence>
+              {isLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center gap-2 text-white/40"
+                >
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                  <span className="text-xs italic">{npc?.name} sta parlando...</span>
+                </motion.div>
+              )}
             </div>
 
             {error && (
@@ -373,6 +391,7 @@ export default function NPCDialogPanel() {
             <Button
               onClick={handleTalk}
               variant="ghost"
+              disabled={isLoading}
               className={`flex-1 bg-transparent hover:bg-white/[0.08] border text-sm ${
                 talkLabel.includes('Consegna') || talkLabel.includes('Rapporto')
                   ? 'border-green-700/30 text-green-300 hover:text-green-200'
@@ -380,7 +399,7 @@ export default function NPCDialogPanel() {
               }`}
             >
               <MessageSquare className="w-4 h-4 mr-1.5" />
-              {talkLabel}
+              {isLoading ? '...' : talkLabel}
             </Button>
             <Button
               onClick={closeNpcDialog}

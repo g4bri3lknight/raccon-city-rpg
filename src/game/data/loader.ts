@@ -876,16 +876,16 @@ function rebuildSpecialMap(): void {
   const catMap: typeof ARCHETYPE_CATEGORY_MAP = {};
 
   // Build from loaded characters + specials data
+  // IMPORTANT: This must be called AFTER both loadCharacters and loadSpecials have completed.
   for (const char of CHARACTERS_DATA) {
     // Find special by name to get its ID
     const spec1 = SPECIALS_DATA.find(s => s.name === char.specialName);
     const spec2 = SPECIALS_DATA.find(s => s.name === char.special2Name);
-    if (spec1 || spec2) {
-      spMap[char.id] = {
-        special1: spec1?.id ?? '',
-        special2: spec2?.id ?? '',
-      };
-    }
+    // Always create entry for the archetype (even if one special is missing)
+    spMap[char.id] = {
+      special1: spec1?.id ?? '',
+      special2: spec2?.id ?? '',
+    };
     // Determine category from first special
     if (spec1) {
       catMap[char.id] = spec1.category;
@@ -986,9 +986,11 @@ async function loadCharacters(api: Awaited<ReturnType<typeof loadFromApi>>): Pro
       CHARACTERS_DATA.push(mapDbCharacter(row));
     }
   }
-  // Rebuild computed config from loaded data
+  // Rebuild stat points (does NOT depend on specials)
   rebuildStatPoints();
-  rebuildSpecialMap();
+  // NOTE: rebuildSpecialMap() is NOT called here because SPECIALS_DATA
+  // may not be loaded yet (runs in parallel via Promise.all).
+  // It is called after Promise.all resolves in initGameData/refreshGameData.
 }
 
 async function loadSpecials(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
@@ -1036,6 +1038,9 @@ export async function initGameData(): Promise<void> {
       ]);
       // Boss phases must load AFTER enemy abilities (resolves ability IDs)
       loadBossPhases(api);
+      // Rebuild archetype→special map AFTER both characters AND specials are loaded
+      // (previously was called inside loadCharacters before specials were available — race condition!)
+      rebuildSpecialMap();
       // Rebuild equipment/mod lookups from loaded ITEMS
       rebuildWeaponModsFromItems();
       rebuildEquipmentFromItems();
@@ -1072,6 +1077,8 @@ export async function refreshGameData(): Promise<void> {
   ]);
   // Boss phases must load AFTER enemy abilities (resolves ability IDs)
   loadBossPhases(api);
+  // Rebuild archetype→special map AFTER both characters AND specials are loaded
+  rebuildSpecialMap();
   // Rebuild equipment/mod lookups from loaded ITEMS
   rebuildWeaponModsFromItems();
   rebuildEquipmentFromItems();

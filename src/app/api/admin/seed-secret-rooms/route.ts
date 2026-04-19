@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 const SEED_SECRET_ROOMS = [
   {
     id: 'secret_rpd_evidence_room',
@@ -81,7 +82,6 @@ export async function POST() {
       count: SEED_SECRET_ROOMS.length,
     });
   } catch (error) {
-    console.error('[seed-secret-rooms] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Secret Rooms]');
   }
 }

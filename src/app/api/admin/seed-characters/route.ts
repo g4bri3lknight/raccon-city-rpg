@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { SEED_CHARACTERS } from '@/seed-data/characters';
 import { NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * POST /api/admin/seed-characters
  * Seeds the hardcoded character archetypes from characters.ts into the game_characters table.
@@ -65,7 +66,6 @@ export async function POST() {
 
     return NextResponse.json({ seeded });
   } catch (error) {
-    console.error('[seed-characters] Failed:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Seed Characters]');
   }
 }

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { safeErrorResponse } from '@/lib/api-utils';
 // Serve an image BLOB from the database
 // GET /api/media/image?ref=img_city_bg
 // GET /api/media/image?id=img_city_bg
@@ -37,6 +38,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Media Image]');
   }
 }
