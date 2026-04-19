@@ -428,6 +428,14 @@ function resolveTargets(
     if ('currentHp' in target && 'definitionId' in target) {
       return { enemies: [target as EnemyInstance], allies: [] };
     }
+    // Fallback: if target isn't an EnemyInstance (wrong type passed), find the enemy from the enemies array
+    // This can happen if the combat slice incorrectly passes a Character as target
+    const aliveEnemies = enemies.filter(e => e.currentHp > 0);
+    if (aliveEnemies.length > 0) {
+      // Try to find by target id, or fall back to first alive enemy
+      const matched = aliveEnemies.find(e => e.id === (target as { id?: string }).id) || aliveEnemies[0];
+      return { enemies: [matched], allies: [] };
+    }
     return { enemies: [], allies: [] };
   }
   if (t === 'all_enemies') {

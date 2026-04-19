@@ -16,7 +16,7 @@ export const SEED_SPECIALS: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 2,
     category: 'offensive',
-    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 1.6 }],
+    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 1.6, guaranteedCrit: true }],
   },
   {
     id: 'raffica',

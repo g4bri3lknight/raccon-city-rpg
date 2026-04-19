@@ -1011,10 +1011,11 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     let updatedCooldowns2: Record<string, number> = { ...(combat.special2Cooldowns || {}) };
     // Clear taunt at new turn (immolation lasts 1 turn)
     let tauntTargetId = combat.tauntTargetId;
-    if (isNewTurn) {
-      tauntTargetId = null;
-    }
-    if (isNewTurn) {
+
+    // Helper: decrement cooldowns and generate log notifications.
+    // Called whenever a turn boundary is crossed — not just when isNewTurn is true
+    // at the top of advanceToNextActor, but also when enemy turns wrap around.
+    const decrementCooldowns = (turnForLog: number) => {
       const decrementedCooldowns: Record<string, number> = {};
       for (const [charId, turnsLeft] of Object.entries(updatedCooldowns)) {
         const newCooldown = turnsLeft - 1;
@@ -1023,7 +1024,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         } else {
           // Cooldown expired — notify
           const charName = party.find(p => p.id === charId)?.name || charId;
-          statusLogEntries.push({ turn: newTurn, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale pronta!` });
+          statusLogEntries.push({ turn: turnForLog, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale pronta!` });
         }
       }
       updatedCooldowns = decrementedCooldowns;
@@ -1036,10 +1037,15 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           decrementedCooldowns2[charId] = newCooldown;
         } else {
           const charName = party.find(p => p.id === charId)?.name || charId;
-          statusLogEntries.push({ turn: newTurn, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale 2 pronta!` });
+          statusLogEntries.push({ turn: turnForLog, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale 2 pronta!` });
         }
       }
       updatedCooldowns2 = decrementedCooldowns2;
+    };
+
+    if (isNewTurn) {
+      tauntTargetId = null;
+      decrementCooldowns(newTurn);
     }
 
     const nextActor = allActors[nextIdx];
@@ -1342,6 +1348,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           searchIdx = 0;
           wrapped = true;
           newTurn = newTurn + 1;
+          // Turn boundary crossed — decrement cooldowns and clear taunt
+          tauntTargetId = null;
+          decrementCooldowns(newTurn);
         }
         const candidate = allActors[searchIdx];
         if (
@@ -1408,7 +1417,12 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
         const stunNextActor = allActors[stunNextIdx];
         let stunNextTurn = newTurn;
-        if (stunNextIdx === 0) stunNextTurn = newTurn + 1;
+        if (stunNextIdx === 0) {
+          stunNextTurn = newTurn + 1;
+          // Turn boundary crossed — decrement cooldowns and clear taunt
+          tauntTargetId = null;
+          decrementCooldowns(stunNextTurn);
+        }
 
         set({
           enemies: stunUpdatedEnemies,
@@ -1485,7 +1499,12 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
       const nextNextActor = allActors[nextNextIdx];
       let nextNextTurn = newTurn;
-      if (nextNextIdx === 0) nextNextTurn = newTurn + 1;
+      if (nextNextIdx === 0) {
+        nextNextTurn = newTurn + 1;
+        // Turn boundary crossed — decrement cooldowns and clear taunt
+        tauntTargetId = null;
+        decrementCooldowns(nextNextTurn);
+      }
 
       set({
         party: afterEnemyAttack,
