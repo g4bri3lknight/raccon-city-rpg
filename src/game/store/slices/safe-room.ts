@@ -3,7 +3,7 @@ import { GameStore } from '../types';
 import { ItemInstance } from '../../types';
 import { ITEMS, LOCATIONS, RECIPES_DATA } from '../../data/loader';
 import { getMaxItemBoxSlots, getDefaultItemBoxItems } from '../settings-cache';
-import { nextNotifId } from '../helpers';
+import { nextNotifId, getKeyItemIds } from '../helpers';
 import { playSearch, playSafeRoomAmbient, stopSafeRoomAmbient } from '../../engine/sounds';
 
 export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({

@@ -126,6 +126,7 @@ export interface GameStore extends GameState {
   toggleAutoCombat: () => void;
   executeAutoCombatTurn: () => void;
   startBossFight: () => void;
+  advanceToNextActor: (combatState?: GameStore['combat'] & { party?: Character[]; enemies?: EnemyInstance[] }) => void;
 
   // Save / Load
   saveGame: (slot: number) => void;
@@ -185,6 +186,7 @@ export interface GameStore extends GameState {
   // Safe Room & Item Box
   enterSafeRoom: () => void;
   exitSafeRoom: () => void;
+  searchSafeRoom: () => void;
   depositToItemBox: (charId: string, itemUid: string, quantity: number) => boolean;
   withdrawFromItemBox: (charId: string, itemBoxIndex: number, quantity: number) => boolean;
   craftItem: (recipeIndex: number) => boolean;

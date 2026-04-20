@@ -1,0 +1,346 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../db/custom.db"
+}
+
+model Item {
+  id               String   @id
+  name             String
+  description      String
+  type             String   // weapon | healing | ammo | utility | antidote | bag | collectible | key | armor | accessory | weapon_mod
+  rarity           String   // common | uncommon | rare | legendary
+  icon             String
+  usable           Boolean  @default(false)
+  equippable       Boolean  @default(false)
+  stackable        Boolean  @default(true)
+  maxStack         Int      @default(99)
+  // Weapon fields (nullable, only for weapons)
+  weaponType       String?  // melee | ranged
+  ammoType         String?  // itemId of ammo it uses
+  // Equipment fields (nullable, for weapon_mod)
+  modType          String?  // melee | ranged | any (weapon_mod compatibility)
+  effects          String   @default("[]") // JSON array of atomic effects: [{type,trigger,target,...params}]
+  unico            Boolean  @default(false) // true = can only be dropped/obtained once per game
+  createdAt        DateTime @default(now())
+  @@map("items")
+}
+
+model SideQuest {
+  id              String   @id
+  npcId           String
+  name            String
+  description     String
+  type            String   // fetch | kill | explore
+  targetId        String
+  targetCount     Int      @default(1)
+  rewardItems     String   // JSON: [{"itemId":"ammo_pistol","quantity":6}]
+  rewardExp       Int      @default(0)
+  rewardDialogue  String   // JSON: ["line1","line2"]
+  sortOrder       Int      @default(0)
+  prerequisiteQuestId String? // quest id that must be completed first
+  createdAt       DateTime @default(now())
+  @@map("side_quests")
+}
+
+model DynamicEvent {
+  id               String   @id
+  title            String
+  description      String
+  icon             String
+  type             String
+  duration         Int
+  encounterRateMod Int      @default(0)
+  enemyStatMult    Float    @default(1.0)
+  searchBonus      Boolean  @default(false)
+  damagePerTurn    Int      @default(0)
+  triggerChance    Int
+  minTurn          Int      @default(0)
+  locationIds      String   @default("[]")
+  onTriggerMessage String
+  onEndMessage     String
+  choices          String   // JSON: [{text, outcome:{description,endEvent,receiveItems,hpChange}}]
+  createdAt        DateTime @default(now())
+  @@map("dynamic_events")
+}
+
+model Document {
+  id              String   @id
+  title           String
+  content         String
+  type            String   // diary | umbrella_file | note | photo | report | email
+  locationId      String
+  icon            String   @default("")
+  rarity          String   @default("common")
+  isSecret        Boolean  @default(false)
+  hintRequired    String?
+  createdAt       DateTime @default(now())
+  @@map("documents")
+}
+
+model GameSound {
+  id           String   @id
+  name         String
+  refKey       String?  @unique // Internal reference key: 'playAttack', 'bgm_title', etc.
+  filePath     String   @default("")
+  category     String   @default("ui") // combat | enemy | weapon | ui | ambient | bgm
+  volume       Float    @default(1.0)
+  loopable     Boolean  @default(false)
+  data         Bytes?   // Binary audio data (BLOB)
+  mimeType     String?  // audio/wav, audio/mpeg, audio/ogg, etc.
+  associatedId String?  // e.g. itemId, eventId, locationId
+  createdAt    DateTime @default(now())
+  @@map("game_sounds")
+}
+
+model GameImage {
+  id          String   @id
+  name        String
+  refKey      String?  @unique // Internal reference key
+  filePath    String   @default("")
+  category    String   @default("ui") // background | icon | portrait | sprite | ui
+  altText     String   @default("")
+  associatedId String? // e.g. locationId, itemId, npcId, enemyId
+  sortOrder   Int      @default(0)
+  data        Bytes?   // Binary image data (BLOB)
+  mimeType    String?  // image/jpeg, image/png, image/webp, image/svg+xml, etc.
+  createdAt   DateTime @default(now())
+  @@map("game_images")
+}
+
+model GameLocation {
+  id              String   @id
+  name            String
+  description     String
+  encounterRate   Int      @default(0)
+  enemyPool       String   @default("[]")   // JSON: ["zombie","zombie_dog"]
+  itemPool        String   @default("[]")   // JSON: [{itemId,chance,quantity}]
+  storyEvent      String   @default("")     // JSON: full StoryEvent object
+  nextLocations   String   @default("[]")   // JSON: ["rpd_station","hospital_district"]
+  isBossArea      Boolean  @default(false)
+  bossId          String?
+  ambientText     String   @default("[]")   // JSON: ["text1","text2"]
+  lockedLocations String   @default("[]")   // JSON: [{locationId,requiredItemId,lockedMessage}]
+  subAreas        String   @default("[]")   // JSON: [{id,name,description}]
+  sortOrder       Int      @default(0)
+  // Search configuration (optional, defaults to hardcoded values if null)
+  searchChance    Int?     // 0-100 base success chance (default 60 if null)
+  docChance       Int?     // 0-100 document find chance (default 35 if null), only rolled when search succeeds
+  searchMax       Int?     // max searches per location (null=random 1-3, 0=unlimited)
+  // Map layout fields (optional, for GameMap visual positioning)
+  mapRow          Int?
+  mapCol          Int?
+  mapIcon         String?
+  mapDanger       String?
+  shortName       String?
+  createdAt       DateTime @default(now())
+  @@map("game_locations")
+}
+
+model GameNPC {
+  id                     String   @id
+  name                   String
+  portrait               String   @default("")     // emoji or custom
+  locationId             String
+  greeting               String
+  dialogues              String   @default("[]")   // JSON: ["line1","line2"]
+  farewell               String   @default("")
+  questId                String?                   // references SideQuest.id
+  tradeInventory         String   @default("[]")   // JSON: [{itemId,priceItemId,priceQuantity}]
+  questCompletedDialogue String   @default("[]")   // JSON: ["line1"]
+  badgeLabel             String   @default("")     // e.g. "Meccanico", "Medico"
+  badgeIcon              String   @default("")     // e.g. "🔧", "🥼"
+  badgeColor             String   @default("")     // Tailwind classes, e.g. "bg-emerald-900/40 text-emerald-300 border-emerald-700/30"
+  sortOrder              Int      @default(0)
+  createdAt              DateTime @default(now())
+  @@map("game_npcs")
+}
+
+model GameCharacter {
+  id                    String   @id
+  archetype             String   @default("custom")  // tank | healer | dps | control | custom
+  name                  String                      // role name (e.g. "Tank")
+  displayName           String                      // character name (e.g. "Viktor Stahl")
+  description           String   @default("")
+  maxHp                 Int      @default(100)
+  atk                   Int      @default(10)
+  def                   Int      @default(10)
+  spd                   Int      @default(10)
+  specialName           String   @default("")
+  specialDescription    String   @default("")
+  specialCost           Int      @default(15)
+  special2Name          String   @default("")
+  special2Description   String   @default("")
+  special2Cost          Int      @default(15)
+  passiveDescription    String   @default("")
+  portraitEmoji         String   @default("🎮")
+  startingItems         String   @default("[]")   // JSON: [{uid,itemId,name,...}]
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+  @@map("game_characters")
+}
+
+model GameSpecial {
+  id               String   @id
+  name             String
+  description      String
+  icon             String   @default("")
+  targetType       String   @default("enemy")   // self | enemy | ally | all_allies
+  cooldown         Int      @default(2)
+  category         String   @default("offensive") // offensive | defensive | support | control
+  effects          String   @default("[]") // JSON array of atomic effects: [{type, target, ...params}]
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  @@map("game_specials")
+}
+
+model NotificationConfig {
+  id            String   @id
+  type          String   @unique   // encounter, victory, defeat, item_found, bag_expand, collectible_found
+  label         String   @default("")
+  icon          String   @default("")
+  imageRef      String?
+  soundRef      String?
+  cardBg        String   @default("#1a1a2e")
+  borderColor   String   @default("#333333")
+  titleColor    String   @default("#ffffff")
+  titleGlow     String   @default("none")
+  overlayBg     String   @default("rgba(0,0,0,0.8)")
+  scanlineColor String   @default("rgba(255,255,255,0.3)")
+  shake         Boolean  @default(false)
+  duration      Int      @default(2500)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  @@map("notification_configs")
+}
+
+model GameSetting {
+  key       String   @id    // e.g. "titleScreen.title"
+  value     String   @default("")
+  label     String   @default("")
+  group     String   @default("titleScreen")
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+  @@map("game_settings")
+}
+
+model GameEnemy {
+  id            String   @id
+  name          String
+  description   String   @default("")
+  maxHp         Int      @default(60)
+  atk           Int      @default(10)
+  def           Int      @default(5)
+  spd           Int      @default(5)
+  icon          String   @default("🧟")
+  expReward     Int      @default(15)
+  lootTable     String   @default("[]")     // JSON: [{itemId:"herb_green",chance:30,quantity:1}]
+  abilities     String   @default("[]")     // JSON array of ability IDs: ["morso","artigliata"]
+  isBoss        Boolean  @default(false)
+  variantGroup  String   @default("")       // for grouping variants: "zombie", "licker", etc.
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  @@map("game_enemies")
+}
+
+model GameEnemyAbility {
+  id            String   @id
+  name          String
+  description   String   @default("")
+  power         Float    @default(1.0)
+  chance        Int      @default(50)       // 0-100, probability to use
+  effects       String   @default("[]")     // JSON array of atomic effects: [{type,trigger,target,...params}]
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  @@map("game_enemy_abilities")
+}
+
+model SecretRoom {
+  id                  String   @id
+  locationId          String
+  name                String
+  description         String
+  discoveryMethod     String   @default("search")   // search | document | npc_hint
+  requiredDocumentId  String?                         // document ID required for discovery
+  requiredNpcQuestId  String?                         // quest ID required for discovery (not NPC ID)
+  searchChance        Int      @default(15)           // 0-100, discovery probability
+  hint                String   @default("")
+  lootTable           String   @default("[]")         // JSON: [{itemId,chance,quantity}]
+  uniqueItemId        String?                         // guaranteed unique item
+  uniqueItemQuantity  Int?
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  @@map("secret_rooms")
+}
+
+model GameRecipe {
+  id            String   @id
+  name          String
+  description   String   @default("")
+  icon          String   @default("🔧")
+  category      String   @default("ammo")    // ammo | healing | booster
+  ingredients   String   @default("[]")      // JSON: [{itemId, quantity}]
+  resultItemId  String
+  resultQty     Int      @default(1)
+  difficulty    String   @default("easy")    // easy | medium | hard
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@map("game_recipes")
+}
+
+model GameBossPhase {
+  id             String   @id
+  enemyId        String                      // references GameEnemy.id
+  name           String                      // phase name, e.g. "Terminus", "Cortus"
+  hpThreshold    Float                       // 0.0-1.0, HP % trigger
+  hpMultiplier   Float    @default(1.0)
+  atkMultiplier  Float    @default(1.0)
+  defMultiplier  Float    @default(1.0)
+  spdMultiplier  Float    @default(1.0)
+  newAbilities   String   @default("[]")      // JSON: ability IDs from game_enemy_abilities
+  message        String   @default("")        // phase transition message
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  @@map("game_boss_phases")
+}
+
+model GameAchievement {
+  id          String   @id
+  name        String
+  description String
+  icon        String   @default("🏆")
+  category    String   @default("combat") // combat | exploration | collection | story | special
+  condition   String
+  hidden      Boolean  @default(false)
+  reward      String   @default("")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  @@map("game_achievements")
+}
+
+model GameEnding {
+  id           String   @id
+  title        String
+  subtitle     String   @default("")
+  description  String
+  icon         String   @default("🏆")
+  color        String   @default("#22c55e")
+  requirements String   @default("[]") // JSON: [{type,value}]
+  priority     Int      @default(0)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  @@map("game_endings")
+}
+
+model GameAvatar {
+  id        String   @id
+  name      String                      // display name
+  emoji     String   @default("👤")     // fallback emoji when no image
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  @@map("game_avatars")
+}

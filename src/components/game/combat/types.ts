@@ -55,6 +55,7 @@ export interface ActionMenuProps {
   isPlayerTurn: boolean;
   isCombatEnd: boolean;
   isProcessing: boolean;
+  isStunned: boolean;
   specialCd: number;
   special2Cd: number;
   usableItemsCount: number;

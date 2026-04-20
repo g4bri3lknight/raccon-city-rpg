@@ -16,7 +16,7 @@ export const SEED_SPECIALS: SpecialAbilityDefinition[] = [
     targetType: 'enemy',
     cooldown: 2,
     category: 'offensive',
-    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 1.6, guaranteedCrit: true }],
+    effects: [{ type: 'deal_damage', target: 'enemy', powerMultiplier: 1.6, guaranteedCrit: true, noMiss: true }],
   },
   {
     id: 'raffica',
@@ -199,7 +199,7 @@ export const SEED_SPECIALS: SpecialAbilityDefinition[] = [
     name: 'Gas Venefico',
     description: 'Lancia una granata di gas che avvelena tutti i nemici e infligge danni moderati.',
     icon: '💨',
-    targetType: 'enemy',
+    targetType: 'all_enemies',
     cooldown: 3,
     category: 'control',
     effects: [
@@ -238,7 +238,7 @@ export const SEED_SPECIALS: SpecialAbilityDefinition[] = [
     name: 'Granata Stordente',
     description: 'Lancia una granata concussiva che infligge danni moderati a tutti i nemici con alta probabilità di stordirli.',
     icon: '💣',
-    targetType: 'enemy',
+    targetType: 'all_enemies',
     cooldown: 3,
     category: 'control',
     effects: [

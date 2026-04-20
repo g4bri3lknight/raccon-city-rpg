@@ -10,6 +10,7 @@ import {
   ITEMS,
   CHARACTER_ARCHETYPES,
   ARCHETYPE_STAT_POINTS,
+  ARCHETYPE_SPECIAL_MAP,
   getCustomStartingItems,
   ENEMIES,
   BOSS_PHASES,
@@ -167,6 +168,8 @@ export function createCharacter(archetypeId: Archetype): Character {
   const points = ARCHETYPE_STAT_POINTS[archetype.id] || ARCHETYPE_STAT_POINTS.custom;
   const growth = computeGrowthRates(points);
   const maxHp = points.hp * 10;
+  // Resolve special ability IDs from the archetype mapping
+  const specialMap = ARCHETYPE_SPECIAL_MAP[archetype.id];
   return {
     id: newCharId(),
     archetype: archetype.id,
@@ -192,6 +195,8 @@ export function createCharacter(archetypeId: Archetype): Character {
     weapon: archetype.startingItems.find(i => i.weaponStats)?.weaponStats || null,
     armor: null,
     accessory: null,
+    special1Id: specialMap?.special1 || undefined,
+    special2Id: specialMap?.special2 || undefined,
     statGrowth: growth,
   };
 }

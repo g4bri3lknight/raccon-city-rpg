@@ -12,6 +12,7 @@ export default function ActionMenu({
   isPlayerTurn,
   isCombatEnd,
   isProcessing,
+  isStunned,
   specialCd,
   special2Cd,
   usableItemsCount,
@@ -75,7 +76,7 @@ export default function ActionMenu({
             <div className="p-1.5 space-y-0.5">
               <button
                 onClick={() => !autoCombat && isPlayerTurn && onMenuAction('attack')}
-                disabled={autoCombat || !isPlayerTurn}
+                disabled={isStunned || autoCombat || !isPlayerTurn}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
                   aiPredictedAction === 'attack'
                     ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.3)] animate-pulse'

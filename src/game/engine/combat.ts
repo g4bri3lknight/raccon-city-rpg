@@ -123,6 +123,77 @@ export function getCharacterStatusBonus(char: Character): number {
 }
 
 // ==========================================
+// ACTIVE EFFECTS-AWARE STAT HELPERS
+// Compute effective stats considering both equipment and active combat effects
+// ==========================================
+
+/** Get effective ATK for a character including equipment + active buff/debuff effects */
+export function getEffectiveAtk(char: Character, activeEffects?: ActiveCombatEffect[]): number {
+  let atk = getCharacterAtk(char);
+  if (activeEffects) {
+    for (const ae of activeEffects) {
+      if (ae.type === 'buff_stat' && ae.stat === 'atk' && ae.targetId === char.id && ae.remainingTurns > 0) {
+        atk += Math.floor(char.baseAtk * ae.amount / 100);
+      }
+      if (ae.type === 'debuff_stat' && ae.stat === 'atk' && ae.targetId === char.id && ae.remainingTurns > 0) {
+        // ae.amount is already negative for debuffs
+        atk += Math.floor(char.baseAtk * ae.amount / 100);
+      }
+    }
+  }
+  return Math.max(1, atk);
+}
+
+/** Get effective DEF for a character including equipment + active buff/debuff effects */
+export function getEffectiveDef(char: Character, activeEffects?: ActiveCombatEffect[]): number {
+  let def = getCharacterDef(char);
+  if (activeEffects) {
+    for (const ae of activeEffects) {
+      if (ae.type === 'buff_stat' && ae.stat === 'def' && ae.targetId === char.id && ae.remainingTurns > 0) {
+        def += Math.floor(char.baseDef * ae.amount / 100);
+      }
+      if (ae.type === 'debuff_stat' && ae.stat === 'def' && ae.targetId === char.id && ae.remainingTurns > 0) {
+        def += Math.floor(char.baseDef * ae.amount / 100);
+      }
+    }
+  }
+  return Math.max(0, def);
+}
+
+/** Get effective DEF for an enemy including active debuff effects */
+export function getEffectiveEnemyDef(enemy: EnemyInstance, activeEffects?: ActiveCombatEffect[]): number {
+  let def = enemy.def;
+  if (activeEffects) {
+    for (const ae of activeEffects) {
+      if (ae.type === 'debuff_stat' && ae.stat === 'def' && ae.targetId === enemy.id && ae.remainingTurns > 0) {
+        // ae.amount is negative for debuffs
+        def += Math.floor(enemy.def * ae.amount / 100);
+      }
+      if (ae.type === 'buff_stat' && ae.stat === 'def' && ae.targetId === enemy.id && ae.remainingTurns > 0) {
+        def += Math.floor(enemy.def * ae.amount / 100);
+      }
+    }
+  }
+  return Math.max(0, def);
+}
+
+/** Get effective SPD for a character including equipment + active buff/debuff effects */
+export function getEffectiveSpd(char: Character, activeEffects?: ActiveCombatEffect[]): number {
+  let spd = getCharacterSpd(char);
+  if (activeEffects) {
+    for (const ae of activeEffects) {
+      if (ae.type === 'buff_stat' && ae.stat === 'spd' && ae.targetId === char.id && ae.remainingTurns > 0) {
+        spd += Math.floor(char.baseSpd * ae.amount / 100);
+      }
+      if (ae.type === 'debuff_stat' && ae.stat === 'spd' && ae.targetId === char.id && ae.remainingTurns > 0) {
+        spd += Math.floor(char.baseSpd * ae.amount / 100);
+      }
+    }
+  }
+  return Math.max(1, spd);
+}
+
+// ==========================================
 // UTILITY
 // ==========================================
 
@@ -257,6 +328,7 @@ export function executePlayerAttack(
   turn: number,
   party: Character[],
   enemies: EnemyInstance[],
+  activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
   const weapon = character.weapon;
   const isRanged = weapon?.type === 'ranged';
@@ -283,12 +355,13 @@ export function executePlayerAttack(
     }
   }
 
-  const totalAtk = getCharacterAtk(character);
+  const totalAtk = getEffectiveAtk(character, activeEffects);
   const critBonus = getCharacterCritBonus(character);
   const hasAdrenaline = character.statusEffects.includes('adrenaline');
+  const effectiveEnemyDef = getEffectiveEnemyDef(enemy, activeEffects);
   const { damage, isCritical, isMiss } = calculateDamage(
     totalAtk,
-    enemy.def,
+    effectiveEnemyDef,
     enemy.isDefending,
     character.archetype,
     hasAdrenaline,
@@ -313,7 +386,7 @@ export function executePlayerAttack(
     const weaponDef = ITEMS[character.weapon.itemId];
     if (weaponDef?.effects && weaponDef.effects.length > 0) {
       const weaponResult = executeEffectsForTrigger(
-        weaponDef.effects, 'on_hit', character, updatedEnemy, turn, party, enemies, 'weapon', character.weapon.name,
+        weaponDef.effects, 'on_hit', character, updatedEnemy, turn, party, enemies, 'weapon', character.weapon.name, activeEffects,
       );
       if (weaponResult.activeEffects && weaponResult.activeEffects.length > 0) {
         weaponActiveEffects = weaponResult.activeEffects;
@@ -376,6 +449,7 @@ export function executePlayerSpecial(
   turn: number,
   party: Character[],
   enemies?: EnemyInstance[],
+  activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
   const specialId = resolveSpecialId(character, 'special1Id');
   const special = specialId ? getSpecialById(specialId) : undefined;
@@ -386,7 +460,7 @@ export function executePlayerSpecial(
     };
   }
 
-  return executeSpecialAbility(character, target, turn, party, enemies || [], special);
+  return executeSpecialAbility(character, target, turn, party, enemies || [], special, activeEffects);
 }
 
 export function executePlayerSpecial2(
@@ -395,6 +469,7 @@ export function executePlayerSpecial2(
   turn: number,
   party: Character[],
   enemies: EnemyInstance[],
+  activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
   const specialId = resolveSpecialId(character, 'special2Id');
   const special = specialId ? getSpecialById(specialId) : undefined;
@@ -405,7 +480,7 @@ export function executePlayerSpecial2(
     };
   }
 
-  return executeSpecialAbility(character, target, turn, party, enemies, special);
+  return executeSpecialAbility(character, target, turn, party, enemies, special, activeEffects);
 }
 
 // ==========================================
@@ -448,7 +523,9 @@ function resolveTargets(
     return { enemies: [], allies: [character] };
   }
   if (t === 'all_allies') {
-    return { enemies: [], allies: party.filter(p => p.currentHp > 0) };
+    // Include ALL party members (even dead) to support revive effects
+    // Alive-only filtering is handled by individual effect handlers where needed
+    return { enemies: [], allies: [...party] };
   }
   if (t === 'lowest_hp_ally') {
     const alive = party.filter(p => p.currentHp > 0 && p.currentHp < p.maxHp);
@@ -475,52 +552,133 @@ function handleDealDamage(
   party: Character[],
   enemies: EnemyInstance[],
   turn: number,
+  activeEffects?: ActiveCombatEffect[],
 ): Partial<ActionResult> {
   const { target: effTarget, powerMultiplier, excludePrimaryTarget, noMiss, guaranteedCrit, ignoreDef } = effect;
   const { enemies: enemyTargets } = resolveTargets(effect, character, target, party, enemies);
   if (enemyTargets.length === 0) return {};
+
+  // Robust primary enemy detection: prefer the explicit target if it's an EnemyInstance,
+  // otherwise try to find the matching enemy in the enemies array by ID,
+  // and as a last resort use the first resolved target.
+  // This prevents the "0 danni + collateral" bug when target type is unexpected.
+  let primaryEnemy: EnemyInstance | null = null;
+  if ('definitionId' in target) {
+    primaryEnemy = target as EnemyInstance;
+  } else {
+    // Target might be a Character — try matching by ID against the enemies array
+    const matchedById = enemies.find(e => e.id === target.id);
+    if (matchedById) {
+      primaryEnemy = matchedById;
+    } else {
+      // Fall back to the first resolved enemy target
+      primaryEnemy = enemyTargets[0] || null;
+    }
+  }
+
+  // FIX: When excludePrimaryTarget is true, check if there are any non-primary targets.
+  // If all resolved targets are the primary target (e.g., only one enemy alive),
+  // there's nothing to damage — return empty to avoid misleading "0 danni" messages.
+  if (excludePrimaryTarget) {
+    const nonPrimaryTargets = enemyTargets.filter(et => !primaryEnemy || et.id !== primaryEnemy.id);
+    if (nonPrimaryTargets.length === 0) return {};
+  }
 
   let updatedEnemies: EnemyInstance[] | undefined;
   let totalDmg = 0;
   let primaryDmg = 0;
   let isCritical = false;
   let isMiss = false;
+  let totalReflectDmg = 0;
   const splashLog: string[] = [];
-  const primaryEnemy = 'definitionId' in target ? target as EnemyInstance : null;
+  // Track primary target ID for reporting even when primaryEnemy is null
+  const primaryTargetId = primaryEnemy?.id || enemyTargets[0]?.id;
 
   updatedEnemies = enemies.map(e => {
     const isPrimary = primaryEnemy && e.id === primaryEnemy.id;
+    // FIX: Also treat the first resolved target as primary for damage tracking
+    // when primaryEnemy is null (e.g., target was passed as Character instead of EnemyInstance)
+    const isPrimaryForTracking = isPrimary || (!primaryEnemy && e.id === primaryTargetId);
     if (excludePrimaryTarget && isPrimary) return e;
 
     const isTarget = enemyTargets.some(et => et.id === e.id);
     if (!isTarget) return e;
 
-    const totalAtk = getCharacterAtk(character) * powerMultiplier;
+    const totalAtk = getEffectiveAtk(character, activeEffects) * powerMultiplier;
     const critBonus = getCharacterCritBonus(character);
     const hasAdrenaline = character.statusEffects.includes('adrenaline');
-    const effectiveDef = ignoreDef ? 0 : e.def;
+    const effectiveDef = ignoreDef ? 0 : getEffectiveEnemyDef(e, activeEffects);
     const calcResult = noMiss
       ? calculateDamageNoMiss(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus)
       : calculateDamage(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus);
 
     if (calcResult.isMiss) {
-      if (isPrimary) isMiss = true;
+      if (isPrimary || isPrimaryForTracking) isMiss = true;
       return { ...e, isDefending: false };
     }
 
     let finalDamage = calcResult.damage;
+    // basedOnTargetHp: override ATK-based damage with HP-based damage
+    // Must be calculated BEFORE guaranteedCrit so crit multiplier applies on top
     if (typeof effect.basedOnTargetHp === 'number' && effect.basedOnTargetHp > 0) {
       finalDamage = Math.floor(e.maxHp * effect.basedOnTargetHp / 100);
+      // If natural crit was rolled, the multiplier was already applied to calcResult.damage
+      // but we replaced it with HP-based damage, so re-apply the crit multiplier
+      if (calcResult.isCritical) {
+        finalDamage = Math.floor(finalDamage * COMBAT_CONFIG.critMultiplier);
+      }
+    }
+    // guaranteedCrit: force critical damage multiplier if the random roll didn't crit
+    if (guaranteedCrit && !calcResult.isCritical) {
+      finalDamage = Math.floor(finalDamage * COMBAT_CONFIG.critMultiplier);
+    }
+
+    // FIX: Ensure minimum 1 damage when attack hits (before shield absorption)
+    finalDamage = Math.max(1, finalDamage);
+
+    // Shield absorption: check active shield effects on this enemy
+    if (activeEffects) {
+      const shieldEffects = activeEffects.filter(ae => ae.type === 'shield' && ae.targetId === e.id && ae.shieldHp && ae.shieldHp > 0);
+      for (const shield of shieldEffects) {
+        if (finalDamage <= 0) break;
+        const absorbed = Math.min(shield.shieldHp!, finalDamage);
+        shield.shieldHp! -= absorbed;
+        finalDamage -= absorbed;
+        if (isPrimary || isPrimaryForTracking) {
+          splashLog.push(`🛡️ Scudo di ${e.name} assorbe ${absorbed} danni!`);
+        }
+        if (shield.shieldHp! <= 0) {
+          splashLog.push(`Lo scudo di ${e.name} si rompe!`);
+        }
+      }
+      // FIX: Ensure finalDamage doesn't go below 0 after shield absorption
+      // (shields can absorb more than the damage dealt in edge cases)
+      finalDamage = Math.max(0, finalDamage);
+    }
+
+    // Reflect: check active reflect effects on this enemy
+    if (activeEffects) {
+      const reflectEffects = activeEffects.filter(ae => ae.type === 'reflect' && ae.targetId === e.id && ae.remainingTurns > 0);
+      for (const ref of reflectEffects) {
+        const reflectDmg = Math.floor(calcResult.damage * (ref.amount || 0) / 100);
+        if (reflectDmg > 0) {
+          totalReflectDmg += reflectDmg;
+          splashLog.push(`🔄 ${e.name} riflette ${reflectDmg} danni!`);
+        }
+      }
     }
 
     totalDmg += finalDamage;
-    if (isPrimary) {
+    if (isPrimary || isPrimaryForTracking) {
       primaryDmg = finalDamage;
       isCritical = guaranteedCrit || calcResult.isCritical;
     }
 
-    if (!isPrimary) {
-      splashLog.push(`${e.name}: -${finalDamage}${calcResult.isCritical ? ' 💥' : ''}`);
+    if (!isPrimary && !isPrimaryForTracking) {
+      const isCritForSplash = guaranteedCrit || calcResult.isCritical;
+      if (finalDamage > 0) {
+        splashLog.push(`${e.name}: -${finalDamage}${isCritForSplash ? ' 💥' : ''}`);
+      }
     }
 
     const newHp = Math.max(0, e.currentHp - finalDamage);
@@ -531,16 +689,19 @@ function handleDealDamage(
   const primaryTarget = primaryEnemy || enemyTargets[0];
   if (primaryTarget && !excludePrimaryTarget) {
     if (isMiss) {
-      message = `${character.name} attacca ${primaryTarget.name} ma manca il bersaglio!`;
+      message = `${character.name} manca ${primaryTarget.name}!`;
     } else if (isCritical || guaranteedCrit) {
       message = `${character.name} infligge un COLPO CRITICO a ${primaryTarget.name} per ${primaryDmg} danni!`;
     } else {
-      message = `${character.name} attacca ${primaryTarget.name} e infligge ${primaryDmg} danni.`;
+      message = `${character.name} infligge ${primaryDmg} danni a ${primaryTarget.name}.`;
     }
+  } else if (excludePrimaryTarget && totalDmg > 0) {
+    // Splash-only damage (primary target excluded) — e.g., Raffica's secondary effect
+    message = `Danni collaterali: ${splashLog.join(', ')}.`;
   } else {
     message = `${character.name} infligge ${totalDmg} danni totali!`;
   }
-  if (splashLog.length > 0) {
+  if (splashLog.length > 0 && !excludePrimaryTarget) {
     message += ` Danni collaterali: ${splashLog.join(', ')}.`;
   }
 
@@ -552,6 +713,10 @@ function handleDealDamage(
       message,
     },
     updatedEnemies,
+    // Apply reflect damage to the attacking character
+    updatedCharacter: totalReflectDmg > 0
+      ? { ...character, currentHp: Math.max(0, character.currentHp - totalReflectDmg) }
+      : undefined,
   };
 }
 
@@ -583,7 +748,9 @@ function handleHeal(
     }
     const actualHeal = calculateHeal(healAmount, character.archetype);
     totalHeal += actualHeal;
-    const newHp = Math.min(p.maxHp, p.currentHp + actualHeal);
+    // Use effective maxHp (includes equipment bonuses) instead of base maxHp
+    const effectiveMaxHp = getCharacterMaxHp(p);
+    const newHp = Math.min(effectiveMaxHp, p.currentHp + actualHeal);
     return { ...p, currentHp: newHp };
   });
 
@@ -654,7 +821,20 @@ function handleApplyStatus(
     });
   }
 
-  if (appliedNames.length === 0) return {};
+  if (appliedNames.length === 0) {
+    // Provide feedback that the status was attempted but failed
+    const failedTargets = statusTargets.map(t => t.name);
+    const statusLabel = statusType === 'poison' ? 'avvelenato' : statusType === 'stunned' ? 'stordito' : statusType === 'bleeding' ? 'sanguinante' : statusType === 'adrenaline' ? 'adrenalina' : statusType;
+    const failedMessage = failedTargets.length > 1
+      ? `${failedTargets.join(', ')} resistono a ${statusLabel}!`
+      : `${failedTargets[0]} resiste a ${statusLabel}!`;
+    return {
+      log: {
+        turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+        message: failedMessage,
+      },
+    };
+  }
 
   const statusLabel = statusType === 'poison' ? 'avvelenato' : statusType === 'stunned' ? 'stordito' : statusType === 'bleeding' ? 'sanguinante' : statusType === 'adrenaline' ? 'adrenalina' : statusType;
   const message = appliedNames.length > 1
@@ -703,7 +883,19 @@ function handleRemoveStatus(
     return { ...p, statusEffects: cleaned };
   });
 
-  if (curedEntries.length === 0) return {};
+  if (curedEntries.length === 0) {
+    // No statuses were removed — provide feedback
+    const selfTarget = statusTargets.length === 1 && statusTargets[0].id === character.id;
+    const message = selfTarget
+      ? `${character.name} non ha status negativi da rimuovere.`
+      : `Nessun status negativo da rimuovere da ${statusTargets.map(t => t.name).join(', ')}.`;
+    return {
+      log: {
+        turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+        message,
+      },
+    };
+  }
 
   const allSelf = curedEntries.length === 1 && statusTargets.length === 1 && statusTargets[0].id === character.id;
   const message = allSelf
@@ -726,7 +918,12 @@ function handleBuffStat(
   enemies: EnemyInstance[],
   turn: number,
 ): Partial<ActionResult> {
-  const { allies: buffTargets } = resolveTargets(effect, character, target, party, enemies);
+  let { allies: buffTargets } = resolveTargets(effect, character, target, party, enemies);
+  // Filter out dead party members — buffs on dead characters are wasteful
+  // (revive effects are handled separately and need all_allies to include dead)
+  if (effect.target === 'all_allies') {
+    buffTargets = buffTargets.filter(bt => bt.currentHp > 0);
+  }
   if (buffTargets.length === 0) return {};
 
   const newEffects: ActiveCombatEffect[] = buffTargets.map(bt => ({
@@ -851,6 +1048,7 @@ function handleLifesteal(
   party: Character[],
   enemies: EnemyInstance[],
   turn: number,
+  activeEffects?: ActiveCombatEffect[],
 ): Partial<ActionResult> {
   const { enemies: lifestealTargets } = resolveTargets(effect, character, target, party, enemies);
   if (lifestealTargets.length === 0) return {};
@@ -864,10 +1062,11 @@ function handleLifesteal(
     const isTarget = lifestealTargets.some(et => et.id === e.id);
     if (!isTarget) return e;
 
-    const totalAtk = getCharacterAtk(character) * effect.power;
+    const totalAtk = getEffectiveAtk(character, activeEffects) * effect.power;
     const critBonus = getCharacterCritBonus(character);
     const hasAdrenaline = character.statusEffects.includes('adrenaline');
-    const calcResult = calculateDamage(totalAtk, e.def, e.isDefending, character.archetype, hasAdrenaline, critBonus);
+    const effectiveDef = getEffectiveEnemyDef(e, activeEffects);
+    const calcResult = calculateDamage(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus);
 
     if (calcResult.isMiss) return { ...e, isDefending: false };
 
@@ -879,7 +1078,9 @@ function handleLifesteal(
 
   const healAmount = Math.floor(totalDmg * effect.percent / 100);
   if (healAmount > 0) {
-    updatedCharacter = { ...character, currentHp: Math.min(character.maxHp, character.currentHp + healAmount) };
+    // Use effective maxHp (includes equipment bonuses) instead of base maxHp
+    const effectiveMaxHp = getCharacterMaxHp(character);
+    updatedCharacter = { ...character, currentHp: Math.min(effectiveMaxHp, character.currentHp + healAmount) };
   }
 
   const lsTarget = lifestealTargets[0];
@@ -995,6 +1196,30 @@ function handleReflect(
   };
 }
 
+function handleAddSlots(
+  effect: SpecialEffect & { type: 'add_slots' },
+  character: Character,
+  target: EnemyInstance | Character,
+  party: Character[],
+  enemies: EnemyInstance[],
+  turn: number,
+): Partial<ActionResult> {
+  const { allies: slotTargets } = resolveTargets(effect, character, target, party, enemies);
+  if (slotTargets.length === 0) return {};
+
+  const isSelf = slotTargets.length === 1 && slotTargets[0].id === character.id;
+  const message = isSelf
+    ? `${character.name} espande l'inventario di +${effect.amount} slot!`
+    : `${character.name} espande l'inventario di ${slotTargets[0].name} di +${effect.amount} slot!`;
+
+  return {
+    log: {
+      turn, actorName: character.name, actorType: 'player', action: 'Speciale',
+      message,
+    },
+  };
+}
+
 // ==========================================
 // UNIFIED EFFECT TRIGGER SYSTEM
 // Reusable executor for item/equipment/passive/special effects
@@ -1021,10 +1246,11 @@ function executeEffectsInternal(
   actionLabel: string,
   sourceType?: 'special' | 'weapon' | 'armor' | 'accessory' | 'item',
   checkActivationChance: boolean = false,
+  activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
   if (effects.length === 0) {
     return {
-      log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: '' },
+      log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: `${character.name} usa ${actionLabel} ma non ha effetti!` },
     };
   }
 
@@ -1053,10 +1279,13 @@ function executeEffectsInternal(
 
     switch (effect.type) {
       case 'deal_damage':
-        partial = handleDealDamage(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        partial = handleDealDamage(effect, currentCharacter, target, currentParty, currentEnemies, turn, activeEffects);
         if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
+        // Propagate reflect damage to the attacking character
+        if (partial.updatedCharacter) currentCharacter = partial.updatedCharacter;
         if (partial.log) {
-          if (partial.log.damage) totalDamage += partial.log.damage;
+          // FIX: Use != null instead of truthy check to handle damage=0 correctly
+          if (partial.log.damage != null) totalDamage += partial.log.damage;
           if (partial.log.isCritical) anyCritical = true;
           if (partial.log.isMiss) anyMiss = true;
           if (partial.log.targetName) { primaryTargetName = partial.log.targetName; primaryTargetId = partial.log.targetId || ''; }
@@ -1112,10 +1341,11 @@ function executeEffectsInternal(
         break;
 
       case 'lifesteal':
-        partial = handleLifesteal(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        partial = handleLifesteal(effect, currentCharacter, target, currentParty, currentEnemies, turn, activeEffects);
         if (partial.updatedEnemies) currentEnemies = partial.updatedEnemies;
         if (partial.updatedCharacter) currentCharacter = partial.updatedCharacter;
-        if (partial.log?.damage) totalDamage += partial.log.damage;
+        // FIX: Use != null instead of truthy check to handle damage=0 correctly
+        if (partial.log?.damage != null) totalDamage += partial.log.damage;
         if (partial.log?.heal) totalHeal += partial.log.heal;
         break;
 
@@ -1139,6 +1369,30 @@ function executeEffectsInternal(
           allActiveEffects.push(...partial.activeEffects);
         }
         break;
+
+      case 'add_slots':
+        partial = handleAddSlots(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        break;
+
+      case 'status_resist':
+        // Passive effect — no combat action needed, handled in status application
+        partial = {
+          log: {
+            turn, actorName: character.name, actorType: 'player' as const, action: actionLabel,
+            message: `${character.name} aumenta la resistenza agli status negativi!`,
+          },
+        };
+        break;
+
+      case 'status_chance_boost':
+        // Passive effect — no combat action needed, handled in status application
+        partial = {
+          log: {
+            turn, actorName: character.name, actorType: 'player' as const, action: actionLabel,
+            message: `${character.name} aumenta la probabilità di infliggre status!`,
+          },
+        };
+        break;
     }
 
     if (partial.log && partial.log.message) {
@@ -1146,17 +1400,21 @@ function executeEffectsInternal(
     }
   }
 
-  // If no effect produced output (all skipped by chance), return empty
+  // If no effect produced output (all skipped by chance), provide fallback feedback
   if (allLogParts.length === 0) {
     return {
-      log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: '' },
+      log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: `${character.name} usa ${actionLabel} ma gli effetti non si attivano!` },
     };
   }
 
-  // Build combined log message
-  let finalMessage = allLogParts.length === 1
-    ? allLogParts[0]
-    : allLogParts.join(' ');
+  // Build combined log message — prefix with ability name for multi-effect abilities
+  let finalMessage: string;
+  if (allLogParts.length === 1) {
+    finalMessage = allLogParts[0];
+  } else {
+    // For multi-effect abilities, prepend the ability name and join effects
+    finalMessage = `${character.name} usa ${actionLabel}! ${allLogParts.join(' ')}`;
+  }
 
   // Detect which results changed
   const characterChanged = !party.some(p => p.id === currentCharacter.id && p.currentHp === currentCharacter.currentHp && JSON.stringify(p.statusEffects) === JSON.stringify(currentCharacter.statusEffects));
@@ -1209,11 +1467,12 @@ export function executeEffectsForTrigger(
   enemies: EnemyInstance[],
   sourceType: 'special' | 'weapon' | 'armor' | 'accessory' | 'item',
   sourceName?: string,
+  activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
   // Filter by trigger (effects without a trigger default to matching for backwards compat)
   const filtered = effects.filter(e => !e.trigger || e.trigger === trigger);
   const actionLabel = sourceName || 'Effetto';
-  return executeEffectsInternal(filtered, character, target, turn, party, enemies, actionLabel, sourceType, true);
+  return executeEffectsInternal(filtered, character, target, turn, party, enemies, actionLabel, sourceType, true, activeEffects);
 }
 
 // ==========================================
@@ -1228,6 +1487,7 @@ function executeSpecialAbility(
   party: Character[],
   enemies: EnemyInstance[],
   special: SpecialAbilityDefinition,
+  activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
   if (!special) {
     return {
@@ -1236,7 +1496,7 @@ function executeSpecialAbility(
   }
 
   // Data-driven atomic effects system
-  return executeEffectsDriven(character, target, turn, party, enemies, special);
+  return executeEffectsDriven(character, target, turn, party, enemies, special, activeEffects);
 }
 
 /**
@@ -1250,8 +1510,9 @@ function executeEffectsDriven(
   party: Character[],
   enemies: EnemyInstance[],
   special: SpecialAbilityDefinition,
+  activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
-  return executeEffectsInternal(special.effects, character, target, turn, party, enemies, special.name);
+  return executeEffectsInternal(special.effects, character, target, turn, party, enemies, special.name, undefined, false, activeEffects);
 }
 
 // ==========================================
@@ -1275,6 +1536,7 @@ export function executeUseItem(
   party: Character[],
   enemies: EnemyInstance[],
   turn: number,
+  activeEffects?: ActiveCombatEffect[],
 ): { log: CombatLogEntry; updatedCharacter?: Character; updatedParty?: Character[]; updatedEnemies?: EnemyInstance[]; consumeItem: boolean; curedStatuses?: StatusEffect[]; activeEffects?: ActiveCombatEffect[]; appliedBuff?: { targetId: string; effect: StatusEffect; duration: number }; tauntTargetId?: string } {
   // --- Unified atomic effects system ONLY ---
   if (item.effects && item.effects.length > 0) {
@@ -1284,7 +1546,7 @@ export function executeUseItem(
       .flatMap(e => (e as { statuses?: StatusEffect[] }).statuses || []) as StatusEffect[];
 
     const result = executeEffectsForTrigger(
-      item.effects, 'on_use', character, target, turn, party, enemies, 'item', item.name,
+      item.effects, 'on_use', character, target, turn, party, enemies, 'item', item.name, activeEffects,
     );
     return {
       log: result.log,
@@ -1312,6 +1574,7 @@ export function executeEnemyAttack(
   turn: number,
   forcedTargetId?: string | null,
   enemies?: EnemyInstance[],
+  activeEffects?: ActiveCombatEffect[],
 ): { log: CombatLogEntry; updatedParty: Character[]; updatedEnemies?: EnemyInstance[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number }; activeEffects?: ActiveCombatEffect[] } {
   // Pick random ability
   const ability = enemy.abilities.length > 0
@@ -1342,7 +1605,7 @@ export function executeEnemyAttack(
   }
 
   // ── Atomic effects path ──
-  return executeEnemyAbilityEffects(enemy, ability.effects || [], ability.name, target, turn, party, enemies || []);
+  return executeEnemyAbilityEffects(enemy, ability.effects || [], ability.name, target, turn, party, enemies || [], activeEffects);
 }
 
 /**
@@ -1363,6 +1626,7 @@ function executeEnemyAbilityEffects(
   turn: number,
   party: Character[],
   enemies: EnemyInstance[],
+  activeEffects?: ActiveCombatEffect[],
 ): { log: CombatLogEntry; updatedParty: Character[]; updatedEnemies?: EnemyInstance[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number }; activeEffects?: ActiveCombatEffect[] } {
   // Filter by trigger
   const filtered = effects.filter(e => !e.trigger || e.trigger === 'on_use');
@@ -1465,15 +1729,45 @@ function executeEnemyAbilityEffects(
           currentParty = currentParty.map(p => {
             if (!partyTargets.some(pt => pt.id === p.id)) return p;
             const baseDmg = enemy.atk * dmgEffect.powerMultiplier;
-            const defenderDef = getCharacterDef(p) + (p.isDefending ? 5 : 0);
+            // BUG FIX: removed + (p.isDefending ? 5 : 0) — calculateDamage already handles defending via its multiplier
+            const defenderDef = getEffectiveDef(p, activeEffects);
             const noMiss = dmgEffect.noMiss;
             const calcResult = noMiss
               ? calculateDamageNoMiss(baseDmg, defenderDef, p.isDefending)
               : calculateDamage(baseDmg, defenderDef, p.isDefending);
             if (calcResult.isMiss) { miss = true; return { ...p, isDefending: false }; }
-            dmg += calcResult.damage;
+            let finalDmg = calcResult.damage;
+            // guaranteedCrit: force critical damage multiplier if the random roll didn't crit
+            if (dmgEffect.guaranteedCrit && !calcResult.isCritical) {
+              finalDmg = Math.floor(finalDmg * COMBAT_CONFIG.critMultiplier);
+            }
+            // FIX: Ensure minimum 1 damage when attack hits (before shield absorption)
+            finalDmg = Math.max(1, finalDmg);
+            // Shield absorption: check active shield effects on this character
+            const shieldEffects = allActiveEffects.filter(ae => ae.type === 'shield' && ae.targetId === p.id && ae.shieldHp && ae.shieldHp > 0);
+            for (const shield of shieldEffects) {
+              if (finalDmg <= 0) break;
+              const absorbed = Math.min(shield.shieldHp!, finalDmg);
+              shield.shieldHp! -= absorbed;
+              finalDmg -= absorbed;
+              allLogParts.push(`🛡️ Scudo di ${p.name} assorbe ${absorbed} danni!`);
+              if (shield.shieldHp! <= 0) {
+                allLogParts.push(`Lo scudo di ${p.name} si rompe!`);
+              }
+            }
+            // Reflect: check active reflect effects on this character
+            const reflectEffects = allActiveEffects.filter(ae => ae.type === 'reflect' && ae.targetId === p.id && ae.remainingTurns > 0);
+            for (const ref of reflectEffects) {
+              const reflectDmg = Math.floor(calcResult.damage * (ref.amount || 0) / 100);
+              if (reflectDmg > 0) {
+                currentEnemy = { ...currentEnemy, currentHp: Math.max(0, currentEnemy.currentHp - reflectDmg) };
+                currentEnemies = currentEnemies.map(e => e.id === currentEnemy.id ? currentEnemy : e);
+                allLogParts.push(`🔄 ${p.name} riflette ${reflectDmg} danni su ${enemy.name}!`);
+              }
+            }
+            dmg += finalDmg;
             if (calcResult.isCritical || dmgEffect.guaranteedCrit) crit = true;
-            return { ...p, currentHp: Math.max(0, p.currentHp - calcResult.damage), isDefending: false };
+            return { ...p, currentHp: Math.max(0, p.currentHp - finalDmg), isDefending: false };
           });
         }
 
@@ -1483,8 +1777,22 @@ function executeEnemyAbilityEffects(
         primaryTargetName = primaryTarget.name;
         primaryTargetId = primaryTarget.id;
 
+        // Build damage log — for AoE, list all affected targets
+        const isAoe = !isSelf && partyTargets.length > 1;
         if (miss) {
           allLogParts.push(`${enemy.name} usa ${abilityName} ma ${primaryTarget.name} schiva l'attacco!`);
+        } else if (isAoe) {
+          // AoE: list individual damage per target
+          const targetDmgParts: string[] = [];
+          for (const pt of partyTargets) {
+            const updatedP = currentParty.find(p => p.id === pt.id);
+            if (updatedP) {
+              const dmgTaken = pt.currentHp - updatedP.currentHp;
+              if (dmgTaken > 0) targetDmgParts.push(`${pt.name}: -${dmgTaken}`);
+            }
+          }
+          const critLabel = crit ? ' COLPO CRITICO!' : '';
+          allLogParts.push(`${enemy.name} usa ${abilityName}!${critLabel} ${targetDmgParts.join(', ')}`);
         } else if (crit) {
           allLogParts.push(`${enemy.name} usa ${abilityName} su ${primaryTarget.name} per ${dmg} danni! COLPO CRITICO!`);
         } else {
@@ -1500,14 +1808,18 @@ function executeEnemyAbilityEffects(
 
         const statusType = statusEffect.statusType as StatusEffect;
         const applyChance = statusEffect.chance;
+        const appliedNames: string[] = [];
+        const resistedNames: string[] = [];
 
         if (isSelf) {
           // Apply status to enemy
           currentEnemies = currentEnemies.map(e => {
             if (!enemyTargets.some(et => et.id === e.id)) return e;
             if (chance(applyChance) && !e.statusEffects.includes(statusType)) {
+              appliedNames.push(e.name);
               return { ...e, statusEffects: [...e.statusEffects, statusType] };
             }
+            resistedNames.push(e.name);
             return e;
           });
         } else {
@@ -1517,8 +1829,10 @@ function executeEnemyAbilityEffects(
             if (chance(applyChance) && !p.statusEffects.includes(statusType)) {
               const duration = statusEffect.duration || 3;
               appliedStatus = { targetId: p.id, effect: statusType, duration };
+              appliedNames.push(p.name);
               return { ...p, statusEffects: [...p.statusEffects, statusType] };
             }
+            resistedNames.push(p.name);
             return p;
           });
         }
@@ -1526,7 +1840,11 @@ function executeEnemyAbilityEffects(
         primaryStatusEffect = statusType;
         const statusNames: Record<string, string> = { poison: 'Avvelenato', bleeding: 'Sanguinamento', stunned: 'Stordito', adrenaline: 'Adrenalina' };
         const statusLabel = statusNames[statusType] || statusType;
-        allLogParts.push(`${primaryTarget.name} è ${statusLabel}!`);
+        if (appliedNames.length > 0) {
+          allLogParts.push(`${appliedNames.join(', ')} è ${statusLabel}!`);
+        } else if (resistedNames.length > 0) {
+          allLogParts.push(`${resistedNames.join(', ')} resiste a ${statusLabel}!`);
+        }
         break;
       }
 
@@ -1643,7 +1961,8 @@ function executeEnemyAbilityEffects(
         currentParty = currentParty.map(p => {
           if (!partyTargets.some(pt => pt.id === p.id)) return p;
           const baseDmg = enemy.atk * (lsEffect.power || 1.0);
-          const defenderDef = getCharacterDef(p) + (p.isDefending ? 5 : 0);
+          // BUG FIX: removed + (p.isDefending ? 5 : 0) — calculateDamage already handles defending via its multiplier
+          const defenderDef = getEffectiveDef(p, activeEffects);
           const calcResult = calculateDamage(baseDmg, defenderDef, p.isDefending);
           if (calcResult.isMiss) { anyMiss = true; return { ...p, isDefending: false }; }
           lsDmg += calcResult.damage;
@@ -1725,7 +2044,7 @@ function executeEnemyAbilityEffects(
 
   if (allLogParts.length === 0) {
     return {
-      log: { turn, actorName: enemy.name, actorType: 'enemy', action: abilityName, message: '' },
+      log: { turn, actorName: enemy.name, actorType: 'enemy', action: abilityName, message: `${enemy.name} usa ${abilityName} ma gli effetti non si attivano!` },
       updatedParty: party,
     };
   }
@@ -1863,19 +2182,24 @@ export function processActiveEffectsTick(
   const log: CombatLogEntry[] = [];
   const expiredEffects: string[] = [];
   let updatedParty = [...party];
+  let updatedEnemies = [...enemies];
+  // Clone effects to avoid mutating the input array
+  const effectsToProcess = activeEffects.map(e => ({ ...e }));
 
-  for (const effect of activeEffects) {
+  for (const effect of effectsToProcess) {
     if (effect.remainingTurns <= 0) {
       expiredEffects.push(effect.id);
       continue;
     }
 
-    // Process HoT: heal the target
+    // Process HoT: heal the target (both party members and enemies)
     if (effect.type === 'hot') {
+      // Party member HoT
       updatedParty = updatedParty.map(p => {
         if (p.id === effect.targetId && p.currentHp > 0) {
           const amount = effect.amount || 0;
-          const newHp = Math.min(p.maxHp, p.currentHp + amount);
+          const effectiveMaxHp = getCharacterMaxHp(p);
+          const newHp = Math.min(effectiveMaxHp, p.currentHp + amount);
           log.push({
             turn,
             actorName: p.name,
@@ -1890,9 +2214,28 @@ export function processActiveEffectsTick(
         }
         return p;
       });
+      // Enemy HoT
+      updatedEnemies = updatedEnemies.map(e => {
+        if (e.id === effect.targetId && e.currentHp > 0) {
+          const amount = effect.amount || 0;
+          const newHp = Math.min(e.maxHp, e.currentHp + amount);
+          log.push({
+            turn,
+            actorName: e.name,
+            actorType: 'enemy',
+            action: 'Cura nel Tempo',
+            targetName: e.name,
+            targetId: e.id,
+            heal: amount,
+            message: `${e.name} recupera ${amount} HP dalla cura nel tempo!`,
+          });
+          return { ...e, currentHp: newHp };
+        }
+        return e;
+      });
     }
 
-    // Decrement remaining turns for all effects
+    // Decrement remaining turns for all effects (on the cloned copy)
     effect.remainingTurns--;
 
     // Log when effects expire
@@ -1938,7 +2281,7 @@ export function processActiveEffectsTick(
     }
   }
 
-  return { log, updatedParty, updatedEnemies: enemies, expiredEffects };
+  return { log, updatedParty, updatedEnemies, expiredEffects };
 }
 
 // ==========================================

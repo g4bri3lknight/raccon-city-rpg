@@ -34,6 +34,10 @@ import {
   generateLoot,
   addExp,
   processActiveEffectsTick,
+  getEffectiveAtk,
+  getEffectiveDef,
+  getEffectiveEnemyDef,
+  getEffectiveSpd,
   resolveSpecialId,
 } from '../../engine/combat';
 import { getItemHealInfo, getItemHasStatusCure, getItemEffectTarget } from '../../utils/item-effects';
@@ -129,6 +133,22 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     if (!state.combat || state.combat.currentActorType !== 'player' || !state.combat.selectedAction) return;
 
     const character = state.party.find(p => p.id === state.combat!.currentActorId)!;
+
+    // FIX: Stunned players cannot act — auto-skip their turn (same as auto-combat)
+    if (character.statusEffects.includes('stunned')) {
+      const stunLog: CombatLogEntry = {
+        turn: state.combat.turn,
+        actorName: character.name,
+        actorType: 'player',
+        action: 'Stordito',
+        message: `${character.name} è stordito e non può agire!`,
+      };
+      get().advanceToNextActor({
+        ...state.combat,
+        log: [...state.combat.log, stunLog],
+      });
+      return;
+    }
     let updatedParty = [...state.party];
     let updatedEnemies = [...state.enemies];
     let newLog = [...state.combat.log];
@@ -148,7 +168,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           get().advanceToNextActor({ ...state.combat!, log: newLog, party: updatedParty, enemies: updatedEnemies });
           return;
         }
-        const result = executePlayerAttack(character, enemy, state.combat.turn, updatedParty, updatedEnemies);
+        const result = executePlayerAttack(character, enemy, state.combat.turn, updatedParty, updatedEnemies, updatedCombatActiveEffects);
         newLog.push(result.log);
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
@@ -205,7 +225,8 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       case 'special': {
         if (!state.combat.selectedTarget) return;
         // Guard: cannot use special while on cooldown
-        if ((state.combat.specialCooldowns || {})[character.id] > 0) return;
+        // FIX: Turn-based cooldown — value is the turn when the special becomes available again
+        if ((state.combat.specialCooldowns || {})[character.id] > state.combat.turn) return;
         // Determine target based on the special ability's effects/targetType
         // Use resolveSpecialId to handle both predefined archetypes and custom characters
         const specialId = resolveSpecialId(character, 'special1Id');
@@ -216,9 +237,16 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         if (isEnemyTarget) {
           target = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
         } else {
-          target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
+          // Even for non-enemy targets, check if selectedTarget is actually an enemy
+          // (handles cases where specialDef lookup fails and targetType defaults incorrectly)
+          const enemyMatch = updatedEnemies.find(e => e.id === state.combat!.selectedTarget);
+          if (enemyMatch) {
+            target = enemyMatch;
+          } else {
+            target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
+          }
         }
-        const result = executePlayerSpecial(character, target, state.combat.turn, updatedParty, updatedEnemies);
+        const result = executePlayerSpecial(character, target, state.combat.turn, updatedParty, updatedEnemies, updatedCombatActiveEffects);
         newLog.push(result.log);
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
@@ -245,6 +273,23 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
         }
         if (result.updatedParty) {
+          // FIX: Clean up statusDurations for any statuses that were removed by this special
+          // (e.g., Pronto Soccorso cures poison/bleeding — must also remove from statusDurations
+          // otherwise the DOT will re-apply on next turn and overwrite the cure)
+          for (const updatedP of result.updatedParty) {
+            const prevP = state.party.find(sp => sp.id === updatedP.id);
+            if (!prevP) continue;
+            const removedStatuses = prevP.statusEffects.filter(s => !updatedP.statusEffects.includes(s) && s !== 'none');
+            if (removedStatuses.length > 0 && updatedCombatStatusDurations[updatedP.id]) {
+              const removedSet = new Set(removedStatuses);
+              const filtered = updatedCombatStatusDurations[updatedP.id].filter(d => !removedSet.has(d.effect));
+              if (filtered.length > 0) {
+                updatedCombatStatusDurations[updatedP.id] = filtered;
+              } else {
+                delete updatedCombatStatusDurations[updatedP.id];
+              }
+            }
+          }
           updatedParty = result.updatedParty;
         }
         // Handle applied buff (e.g., Adrenalina)
@@ -267,15 +312,20 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
         // Only set cooldown if the ability was actually resolved
         // (if specialDef is undefined, the ability failed — no point setting a cooldown)
+        // FIX: Turn-based cooldown — store the turn when the special becomes available again.
+        // This eliminates the off-by-one bug from counter-based cooldowns where
+        // decrementing in the same advanceToNextActor call could shorten the cooldown.
+        // The special is unavailable for `cooldown` full turns after the current turn.
         if (specialDef) {
-          updatedCooldowns[character.id] = specialDef.cooldown;
+          updatedCooldowns[character.id] = state.combat.turn + specialDef.cooldown;
         }
         break;
       }
       case 'special2': {
         if (!state.combat.selectedTarget) return;
         // Guard: cannot use special2 while on cooldown
-        if ((state.combat.special2Cooldowns || {})[character.id] > 0) return;
+        // FIX: Turn-based cooldown — value is the turn when the special becomes available again
+        if ((state.combat.special2Cooldowns || {})[character.id] > state.combat.turn) return;
         // Determine target based on the special ability's effects/targetType
         // Use resolveSpecialId to handle both predefined archetypes and custom characters
         const specialId2 = resolveSpecialId(character, 'special2Id');
@@ -286,9 +336,15 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         if (isEnemyTarget2) {
           target = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
         } else {
-          target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
+          // Even for non-enemy targets, check if selectedTarget is actually an enemy
+          const enemyMatch = updatedEnemies.find(e => e.id === state.combat!.selectedTarget);
+          if (enemyMatch) {
+            target = enemyMatch;
+          } else {
+            target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
+          }
         }
-        const result = executePlayerSpecial2(character, target, state.combat.turn, updatedParty, updatedEnemies);
+        const result = executePlayerSpecial2(character, target, state.combat.turn, updatedParty, updatedEnemies, updatedCombatActiveEffects);
         newLog.push(result.log);
         if (result.updatedEnemy) {
           updatedEnemies = updatedEnemies.map(e => e.id === result.updatedEnemy!.id ? result.updatedEnemy! : e);
@@ -315,6 +371,21 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           updatedParty = updatedParty.map(p => p.id === result.updatedCharacter!.id ? result.updatedCharacter! : p);
         }
         if (result.updatedParty) {
+          // FIX: Clean up statusDurations for any statuses that were removed by this special2
+          for (const updatedP of result.updatedParty) {
+            const prevP = state.party.find(sp => sp.id === updatedP.id);
+            if (!prevP) continue;
+            const removedStatuses = prevP.statusEffects.filter(s => !updatedP.statusEffects.includes(s) && s !== 'none');
+            if (removedStatuses.length > 0 && updatedCombatStatusDurations[updatedP.id]) {
+              const removedSet = new Set(removedStatuses);
+              const filtered = updatedCombatStatusDurations[updatedP.id].filter(d => !removedSet.has(d.effect));
+              if (filtered.length > 0) {
+                updatedCombatStatusDurations[updatedP.id] = filtered;
+              } else {
+                delete updatedCombatStatusDurations[updatedP.id];
+              }
+            }
+          }
           updatedParty = result.updatedParty;
         }
         // Set taunt if tank used Immolation
@@ -336,8 +407,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           updatedCombatActiveEffects.push(...result.activeEffects);
         }
         // Only set cooldown if the ability was actually resolved
+        // FIX: Turn-based cooldown — store the turn when the special becomes available again
         if (specialDef2) {
-          updatedCooldowns2[character.id] = specialDef2.cooldown;
+          updatedCooldowns2[character.id] = state.combat.turn + specialDef2.cooldown;
         }
         break;
       }
@@ -375,7 +447,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           }
         }
         
-        const result = executeUseItem(character, effectiveItem, itemTarget, updatedParty, updatedEnemies, state.combat.turn);
+        const result = executeUseItem(character, effectiveItem, itemTarget, updatedParty, updatedEnemies, state.combat.turn, updatedCombatActiveEffects);
         newLog.push(result.log);
         
         // Handle enemy updates (e.g., deal_damage to all_enemies for rocket launcher)
@@ -816,14 +888,18 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       return;
     }
 
+    // FIX: Turn-based cooldown — check if current turn < expiry turn
+    const currentTurn = state.combat.turn;
     const specialCd = state.combat.specialCooldowns?.[character.id] ?? 0;
     const special2Cd = state.combat.special2Cooldowns?.[character.id] ?? 0;
+    const specialOnCd = specialCd > currentTurn;
+    const special2OnCd = special2Cd > currentTurn;
 
     // ── AI Decision Logic ──
     // 1. Healer: group heal if multiple wounded + special2 available
     if (character.archetype === 'healer') {
       const woundedCount = aliveParty.filter(p => p.currentHp < p.maxHp * 0.6).length;
-      if (woundedCount >= 2 && special2Cd === 0) {
+      if (woundedCount >= 2 && !special2OnCd) {
         get().selectCombatAction('special2');
         get().selectCombatTarget(character.id);
         setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
@@ -831,7 +907,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
       // Heal single wounded ally if special available
       const wounded = aliveParty.find(p => p.currentHp < p.maxHp * 0.5);
-      if (wounded && specialCd === 0) {
+      if (wounded && !specialOnCd) {
         get().selectCombatAction('special');
         get().selectCombatTarget(wounded.id);
         setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
@@ -855,14 +931,14 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
 
     // 2. Tank: use Immolation (special2) if multiple enemies and available
     if (character.archetype === 'tank') {
-      if (special2Cd === 0 && aliveEnemies.length >= 2) {
+      if (!special2OnCd && aliveEnemies.length >= 2) {
         get().selectCombatAction('special2');
         get().selectCombatTarget(character.id);
         setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
       // Barricata if available and HP < 70%
-      if (specialCd === 0 && character.currentHp < character.maxHp * 0.7) {
+      if (!specialOnCd && character.currentHp < character.maxHp * 0.7) {
         get().selectCombatAction('special');
         get().selectCombatTarget(character.id);
         setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
@@ -876,16 +952,26 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
     }
 
-    // 3. Control: use Gas Venefico (special2) if multiple enemies alive, Cristalli Sonici (special) if available
+    // 3. Control: use Gas Venefico (special) if multiple enemies alive (AoE), Cristalli Sonici (special2) if single
     if (character.archetype === 'control') {
-      if (special2Cd === 0 && aliveEnemies.length >= 2) {
+      if (!specialOnCd && aliveEnemies.length >= 2) {
+        // FIX: Use special1 (Gas Venefico - AoE) when multiple enemies
+        const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
+        get().selectCombatAction('special');
+        get().selectCombatTarget(weakest.id);
+        setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+        return;
+      }
+      if (!special2OnCd) {
+        // Use special2 (Cristalli Sonici - single target stun) 
         const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
         get().selectCombatAction('special2');
         get().selectCombatTarget(weakest.id);
         setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
         return;
       }
-      if (specialCd === 0) {
+      // Fallback to special1 if special2 on cooldown (even against single enemy)
+      if (!specialOnCd) {
         const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
         get().selectCombatAction('special');
         get().selectCombatTarget(weakest.id);
@@ -895,7 +981,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     }
 
     // 4. DPS / Custom: use Raffica (special2) if multiple enemies alive + available
-    if ((character.archetype === 'dps' || character.archetype === 'custom') && special2Cd === 0 && aliveEnemies.length >= 2) {
+    if ((character.archetype === 'dps' || character.archetype === 'custom') && !special2OnCd && aliveEnemies.length >= 2) {
       const weakest = aliveEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
       get().selectCombatAction('special2');
       get().selectCombatTarget(weakest.id);
@@ -903,7 +989,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       return;
     }
     // DPS / Custom: use Colpo Mortale if available and only 1 enemy or boss
-    if ((character.archetype === 'dps' || character.archetype === 'custom') && specialCd === 0) {
+    if ((character.archetype === 'dps' || character.archetype === 'custom') && !specialOnCd) {
       const weakest = aliveEnemies.reduce((a, b) => a.currentHp < b.currentHp ? a : b);
       get().selectCombatAction('special');
       get().selectCombatTarget(weakest.id);
@@ -1005,47 +1091,41 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
 
     let newTurn = isNewTurn ? combat.turn + 1 : combat.turn;
 
-    // Decrement special cooldowns at new turn
+    // FIX: Turn-based cooldown system — no more decrementing!
+    // Cooldown values now store the TURN NUMBER when the special becomes available again.
+    // We just clean up expired cooldowns and generate notifications at turn boundaries.
     const statusLogEntries: CombatLogEntry[] = [];
     let updatedCooldowns: Record<string, number> = { ...(combat.specialCooldowns || {}) };
     let updatedCooldowns2: Record<string, number> = { ...(combat.special2Cooldowns || {}) };
     // Clear taunt at new turn (immolation lasts 1 turn)
     let tauntTargetId = combat.tauntTargetId;
 
-    // Helper: decrement cooldowns and generate log notifications.
-    // Called whenever a turn boundary is crossed — not just when isNewTurn is true
-    // at the top of advanceToNextActor, but also when enemy turns wrap around.
-    const decrementCooldowns = (turnForLog: number) => {
-      const decrementedCooldowns: Record<string, number> = {};
-      for (const [charId, turnsLeft] of Object.entries(updatedCooldowns)) {
-        const newCooldown = turnsLeft - 1;
-        if (newCooldown > 0) {
-          decrementedCooldowns[charId] = newCooldown;
-        } else {
-          // Cooldown expired — notify
+    // Helper: check for cooldown expiries and generate log notifications.
+    // Called whenever a turn boundary is crossed.
+    const checkCooldownExpiries = (currentTurn: number) => {
+      // Check special1 cooldowns
+      for (const [charId, expiryTurn] of Object.entries(updatedCooldowns)) {
+        if (expiryTurn <= currentTurn) {
+          // Cooldown has expired — notify and remove
           const charName = party.find(p => p.id === charId)?.name || charId;
-          statusLogEntries.push({ turn: turnForLog, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale pronta!` });
+          statusLogEntries.push({ turn: currentTurn, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale pronta!` });
+          delete updatedCooldowns[charId];
         }
       }
-      updatedCooldowns = decrementedCooldowns;
 
-      // Decrement special2 cooldowns
-      const decrementedCooldowns2: Record<string, number> = {};
-      for (const [charId, turnsLeft] of Object.entries(updatedCooldowns2)) {
-        const newCooldown = turnsLeft - 1;
-        if (newCooldown > 0) {
-          decrementedCooldowns2[charId] = newCooldown;
-        } else {
+      // Check special2 cooldowns
+      for (const [charId, expiryTurn] of Object.entries(updatedCooldowns2)) {
+        if (expiryTurn <= currentTurn) {
           const charName = party.find(p => p.id === charId)?.name || charId;
-          statusLogEntries.push({ turn: turnForLog, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale 2 pronta!` });
+          statusLogEntries.push({ turn: currentTurn, actorName: 'Sistema', actorType: 'player', action: 'Cooldown', message: `✅ ${charName}: Speciale 2 pronta!` });
+          delete updatedCooldowns2[charId];
         }
       }
-      updatedCooldowns2 = decrementedCooldowns2;
     };
 
     if (isNewTurn) {
       tauntTargetId = null;
-      decrementCooldowns(newTurn);
+      checkCooldownExpiries(newTurn);
     }
 
     const nextActor = allActors[nextIdx];
@@ -1348,9 +1428,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           searchIdx = 0;
           wrapped = true;
           newTurn = newTurn + 1;
-          // Turn boundary crossed — decrement cooldowns and clear taunt
+          // Turn boundary crossed — check cooldown expiries and clear taunt
           tauntTargetId = null;
-          decrementCooldowns(newTurn);
+          checkCooldownExpiries(newTurn);
         }
         const candidate = allActors[searchIdx];
         if (
@@ -1419,9 +1499,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         let stunNextTurn = newTurn;
         if (stunNextIdx === 0) {
           stunNextTurn = newTurn + 1;
-          // Turn boundary crossed — decrement cooldowns and clear taunt
+          // Turn boundary crossed — check cooldown expiries and clear taunt
           tauntTargetId = null;
-          decrementCooldowns(stunNextTurn);
+          checkCooldownExpiries(stunNextTurn);
         }
 
         set({
@@ -1450,7 +1530,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         return;
       }
 
-      const { log, updatedParty: afterEnemyAttack, appliedStatus, updatedEnemies: enemySelfEffects, activeEffects: enemyActiveEffects } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, updatedEnemiesForStatus);
+      const { log, updatedParty: afterEnemyAttack, appliedStatus, updatedEnemies: enemySelfEffects, activeEffects: enemyActiveEffects } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, updatedEnemiesForStatus, currentActiveEffects);
 
       if (enemySelfEffects) {
         updatedEnemiesForStatus = updatedEnemiesForStatus.map(e => {
@@ -1501,9 +1581,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       let nextNextTurn = newTurn;
       if (nextNextIdx === 0) {
         nextNextTurn = newTurn + 1;
-        // Turn boundary crossed — decrement cooldowns and clear taunt
+        // Turn boundary crossed — check cooldown expiries and clear taunt
         tauntTargetId = null;
-        decrementCooldowns(nextNextTurn);
+        checkCooldownExpiries(nextNextTurn);
       }
 
       set({

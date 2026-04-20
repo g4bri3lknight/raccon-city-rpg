@@ -38,7 +38,7 @@ export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 export type SpecialCategory = 'offensive' | 'defensive' | 'support' | 'control';
 
 // Target for a single effect within an ability
-export type EffectTarget = 'self' | 'enemy' | 'all_enemies' | 'ally' | 'all_allies' | 'lowest_hp_ally' | 'random_enemy';
+export type EffectTarget = 'self' | 'enemy' | 'all_enemies' | 'ally' | 'one_ally' | 'all_allies' | 'lowest_hp_ally' | 'random_enemy';
 
 // When an effect triggers
 export type EffectTrigger = 'on_use' | 'on_hit' | 'on_take_hit' | 'on_turn_start' | 'on_critical' | 'on_equip';

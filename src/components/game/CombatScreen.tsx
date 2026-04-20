@@ -29,11 +29,16 @@ export default function CombatScreen() {
   const isPlayerTurn = combat?.currentActorType === 'player' && !combat?.isVictory && !combat?.isDefeat && !combat?.isProcessing;
   const isCombatEnd = combat?.isVictory || combat?.isDefeat;
   const currentCharacter = party.find(p => p.id === combat?.currentActorId);
+  const isStunned = currentCharacter?.statusEffects.includes('stunned') ?? false;
   const aliveEnemies = enemies.filter(e => e.currentHp > 0);
   const aliveParty = party.filter(p => p.currentHp > 0);
   const usableItems = getUsableItems(currentCharacter);
-  const specialCd = combat?.specialCooldowns?.[currentCharacter?.id || ''] ?? 0;
-  const special2Cd = combat?.special2Cooldowns?.[currentCharacter?.id || ''] ?? 0;
+  // FIX: Turn-based cooldown — compute turns remaining from expiry turn
+  const specialCdExpiry = combat?.specialCooldowns?.[currentCharacter?.id || ''] ?? 0;
+  const special2CdExpiry = combat?.special2Cooldowns?.[currentCharacter?.id || ''] ?? 0;
+  const currentCombatTurn = combat?.turn ?? 0;
+  const specialCd = specialCdExpiry > currentCombatTurn ? specialCdExpiry - currentCombatTurn : 0;
+  const special2Cd = special2CdExpiry > currentCombatTurn ? special2CdExpiry - currentCombatTurn : 0;
   const arch = currentCharacter?.archetype;
   const currentWeaponAmmoCount = getWeaponAmmoCount(currentCharacter);
   const currentEnemyName = enemies.find(e => e.id === combat?.currentActorId)?.name;
@@ -117,6 +122,7 @@ export default function CombatScreen() {
         isPlayerTurn={isPlayerTurn}
         isCombatEnd={isCombatEnd}
         isProcessing={!!combat?.isProcessing}
+        isStunned={isStunned}
         specialCd={specialCd}
         special2Cd={special2Cd}
         usableItemsCount={usableItems.length}

@@ -310,7 +310,7 @@ export const createDebugSlice: StateCreator<GameStore, [], [], GameStore> = (set
   },
 
   bumpDataVersion: () => {
-    _gameSettingsCache = null; // invalidate settings cache so it reloads
+    invalidateSettingsCache(); // invalidate settings cache so it reloads
     fetchGameSettings(); // reload in background
     refreshGameData(); // reload all game data from DB
     set(state => ({ dataVersion: state.dataVersion + 1, searchMaxes: {} }));
