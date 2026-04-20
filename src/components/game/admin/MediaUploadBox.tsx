@@ -63,6 +63,9 @@ export function MediaUploadBox({
     formData.append('id', mediaId);
     formData.append('name', mediaName);
     formData.append('category', config.category);
+    if (entityId) {
+      formData.append('associatedId', entityId);
+    }
 
     try {
       const res = await adminFetch(endpoint, { method: 'POST', body: formData });

@@ -78,6 +78,8 @@ const PRELOAD_KEYS = [
   'playItemPickup', 'playMenuOpen', 'playMenuClose',
 ];
 
+// No fallback mappings — if a sound is not found in the DB, nothing is played.
+
 class AudioEngine {
   public ctx: AudioContext | null = null;
   public masterGain: GainNode | null = null;
@@ -245,24 +247,69 @@ class AudioEngine {
   playNemesisAttack(action?: string): void { this.playSfx('playNemesisAttack', 0.8); }
   playEnemyDeath(): void { this.playSfx('playEnemyDeath', 0.6); }
 
-  playEnemyAttack(enemyName: string, action?: string): void {
-    const map: Record<string, string> = {
-      'zombie': 'playZombieAttack',
-      'zombie_soldier': 'playZombieAttack',
-      'cerberus': 'playCerberusAttack',
-      'licker': 'playLickerAttack',
-      'hunter': 'playHunterAttack',
-      'tyrant_boss': 'playTyrantAttack',
-      'proto_tyrant': 'playTyrantAttack',
-      'nemesis_boss': 'playNemesisAttack',
-    };
-    const key = Object.entries(map).find(([k]) => enemyName.includes(k));
-    if (key) {
-      const fn = this[key[1] as keyof AudioEngine];
-      if (typeof fn === 'function') (fn as () => void)();
-    } else {
-      this.playAttack();
+  playEnemyAttack(enemyName: string, _action?: string): void {
+    // Try entity-specific sound: attack_{enemyId}
+    // No fallback — if not found in DB, play nothing
+    const enemyId = enemyName.toLowerCase().replace(/\s+/g, '_');
+    if (!enemyId) return;
+    const entityRefKey = `attack_${enemyId}`;
+
+    if (this._cache.has(entityRefKey)) {
+      this.playSfx(entityRefKey, 0.6);
+      return;
     }
+
+    this.loadSfx(entityRefKey).then(audioBuf => {
+      if (audioBuf) this.playBuffer(audioBuf, 0.6);
+    });
+  }
+
+  /** Play entity-specific enemy death sound — no fallback */
+  playEntityEnemyDeath(enemyId: string): void {
+    const entityRefKey = `death_${enemyId}`;
+    if (this._cache.has(entityRefKey)) {
+      this.playSfx(entityRefKey, 0.6);
+      return;
+    }
+    this.loadSfx(entityRefKey).then(audioBuf => {
+      if (audioBuf) this.playBuffer(audioBuf, 0.6);
+    });
+  }
+
+  /** Play entity-specific special ability sound — no fallback */
+  playEntitySpecial(specialId: string, _category: string): void {
+    const entityRefKey = `sfx_special_${specialId}`;
+    if (this._cache.has(entityRefKey)) {
+      this.playSfx(entityRefKey, 0.8);
+      return;
+    }
+    this.loadSfx(entityRefKey).then(audioBuf => {
+      if (audioBuf) this.playBuffer(audioBuf, 0.8);
+    });
+  }
+
+  /** Play entity-specific enemy ability sound — no fallback */
+  playEntityEnemyAbility(abilityId: string): void {
+    const entityRefKey = `sfx_eability_${abilityId}`;
+    if (this._cache.has(entityRefKey)) {
+      this.playSfx(entityRefKey, 0.7);
+      return;
+    }
+    this.loadSfx(entityRefKey).then(audioBuf => {
+      if (audioBuf) this.playBuffer(audioBuf, 0.7);
+    });
+  }
+
+  /** Play entity-specific boss phase transition sound — no fallback */
+  playEntityBossPhase(phaseId: string): void {
+    const entityRefKey = `sfx_boss_phase_${phaseId}`;
+    if (this._cache.has(entityRefKey)) {
+      this.playSfx(entityRefKey, 0.9);
+      return;
+    }
+    this.loadSfx(entityRefKey).then(audioBuf => {
+      if (audioBuf) this.playBuffer(audioBuf, 0.9);
+    });
   }
 
   playEncounter(): void { this.playSfx('playEncounter', 0.7); }
@@ -288,19 +335,12 @@ class AudioEngine {
   // They are automatically suspended during combat and resumed after.
 
   playLocationAmbient(locationId: string): void {
-    const map: Record<string, string> = {
-      'city_outskirts': 'playAmbientCity',
-      'rpd_station': 'playAmbientRPD',
-      'hospital_district': 'playAmbientHospital',
-      'sewers': 'playAmbientSewers',
-      'laboratory_entrance': 'playAmbientLaboratory',
-      'clock_tower': 'playAmbientClockTower',
-    };
-    const key = map[locationId];
-    if (!key) return;
+    // Entity-specific sound refKey: ambient_{locationId}
+    // No fallback — if not found in DB, play nothing
+    const entityRefKey = `ambient_${locationId}`;
 
     // Don't restart if same ambient is playing (or suspended)
-    if (this._currentAmbientRef === key && this._ambientSource) {
+    if (this._currentAmbientRef === entityRefKey && this._ambientSource) {
       // If ambient was suspended (combat ended), resume it
       if (this._ambientSuspended && this._ambientGainNode) {
         this._ambientSuspended = false;
@@ -312,15 +352,15 @@ class AudioEngine {
     // Stop any previous ambient
     this._stopAmbientSource();
 
-    this._currentAmbientRef = key;
+    this._currentAmbientRef = entityRefKey;
     this._ambientSuspended = false;
 
     if (!this.ensureContext()) return;
     this.resume();
 
     // Load ambient asynchronously then play with looping
-    this.loadSfx(key).then(audioBuf => {
-      if (!audioBuf || !this.ctx || this._currentAmbientRef !== key) return;
+    this.loadSfx(entityRefKey).then(audioBuf => {
+      if (!audioBuf || !this.ctx || this._currentAmbientRef !== entityRefKey) return;
 
       try {
         const source = this.ctx.createBufferSource();
@@ -540,6 +580,10 @@ export function playSafeRoomAmbient(): void { audioEngine.playSafeRoomAmbient();
 export function stopSafeRoomAmbient(): void { audioEngine.stopSafeRoomAmbient(); }
 export function playEnemyAttack(enemyName: string, action?: string): void { audioEngine.playEnemyAttack(enemyName, action); }
 export function playEnemyDeath(): void { audioEngine.playEnemyDeath(); }
+export function playEntityEnemyDeath(enemyId: string): void { audioEngine.playEntityEnemyDeath(enemyId); }
+export function playEntitySpecial(specialId: string, category: string): void { audioEngine.playEntitySpecial(specialId, category); }
+export function playEntityEnemyAbility(abilityId: string): void { audioEngine.playEntityEnemyAbility(abilityId); }
+export function playEntityBossPhase(phaseId: string): void { audioEngine.playEntityBossPhase(phaseId); }
 export function playZombieMoan(): void { audioEngine.playZombieMoan(); }
 export type BgmType = 'title' | 'city_outskirts' | 'rpd_station' | 'hospital' | 'sewers' | 'laboratory' | 'clock_tower' | 'combat' | 'gameover' | 'victory';
 

@@ -431,6 +431,7 @@ export interface LootEntry {
 }
 
 export interface EnemyAbility {
+  id: string;            // DB ID for entity-specific sound lookup
   name: string;
   description: string;
   power: number;
@@ -440,6 +441,7 @@ export interface EnemyAbility {
 }
 
 export interface BossPhase {
+  id: string;            // DB ID for entity-specific sound lookup
   name: string;
   hpThreshold: number; // % of maxHp (e.g. 0.5 for 50%)
   hpMultiplier: number;
@@ -577,8 +579,10 @@ export interface CombatLogEntry {
   action: string;
   targetName?: string;
   targetId?: string;
+  targetIds?: string[];  // All target IDs for multi-target effects (all_allies, all_enemies)
   damage?: number;
   heal?: number;
+  healPerTarget?: Record<string, number>;  // Per-target heal values for multi-target heals (keyed by char ID)
   isCritical?: boolean;
   isMiss?: boolean;
   statusEffect?: string;

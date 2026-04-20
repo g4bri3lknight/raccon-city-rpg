@@ -23,6 +23,11 @@ export default function InventoryPanel() {
   const selectedCharacterId = useGameStore(s => s.selectedCharacterId);
   const toggleInventory = useGameStore(s => s.toggleInventory);
   const equipItem = useGameStore(s => s.equipItem);
+  const unequipItem = useGameStore(s => s.unequipItem);
+  const equipArmor = useGameStore(s => s.equipArmor);
+  const unequipArmor = useGameStore(s => s.unequipArmor);
+  const equipAccessory = useGameStore(s => s.equipAccessory);
+  const unequipAccessory = useGameStore(s => s.unequipAccessory);
   const consumeItemOutsideCombat = useGameStore(s => s.consumeItemOutsideCombat);
   const combineHerbs = useGameStore(s => s.combineHerbs);
   const selectCharacter = useGameStore(s => s.selectCharacter);
@@ -301,7 +306,27 @@ export default function InventoryPanel() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => equipItem(selectedChar.id, selectedItem.uid)}
+                    onClick={() => {
+                      if (selectedItem.isEquipped) {
+                        // Unequip based on item type
+                        if (selectedItem.type === 'armor') {
+                          unequipArmor(selectedChar.id);
+                        } else if (selectedItem.type === 'accessory') {
+                          unequipAccessory(selectedChar.id);
+                        } else {
+                          unequipItem(selectedChar.id, selectedItem.uid);
+                        }
+                      } else {
+                        // Equip based on item type
+                        if (selectedItem.type === 'armor') {
+                          equipArmor(selectedChar.id, selectedItem.uid);
+                        } else if (selectedItem.type === 'accessory') {
+                          equipAccessory(selectedChar.id, selectedItem.uid);
+                        } else {
+                          equipItem(selectedChar.id, selectedItem.uid);
+                        }
+                      }
+                    }}
                     className={`bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all ${
                       selectedItem.isEquipped
                         ? 'border-amber-500/20 text-amber-400/60 hover:bg-amber-900/20 hover:text-amber-300 hover:border-amber-500/30'
@@ -309,7 +334,7 @@ export default function InventoryPanel() {
                     }`}
                   >
                     <Shield className="w-3.5 h-3.5 mr-1.5" />
-                    {selectedItem.isEquipped ? 'Equipaggiato' : 'Equipaggia'}
+                    {selectedItem.isEquipped ? 'Disequipaggia' : 'Equipaggia'}
                   </Button>
                 )}
                 {selectedItem.usable && !selectedItem.equippable && (

@@ -5,7 +5,7 @@
 
 import type { CombatLogEntry, Character, ItemInstance } from '@/game/types';
 import { audio, playEnemyAttack } from '@/game/engine/sounds';
-import { ALL_SPECIAL_ABILITIES, ITEMS } from '@/game/data/loader';
+import { ALL_SPECIAL_ABILITIES, ITEMS, ENEMY_ABILITIES_DATA } from '@/game/data/loader';
 import { getWeaponAmmoType } from '@/game/engine/combat';
 import type { AnimResult } from './types';
 
@@ -27,19 +27,15 @@ export function getCombatSpeed(): 1 | 2 | 3 {
 
 // ── Sound lookup ──
 
-/** Maps special ability category → sound category for data-driven lookup */
-const SPECIAL_CATEGORY_SOUND: Record<string, 'heal' | 'defend' | 'special'> = {
-  support: 'heal',
-  defensive: 'defend',
-  offensive: 'special',
-  control: 'special',
-};
-
 /**
  * Data-driven sound lookup for combat log entries.
  * Uses item/special metadata (weaponType, type, category) instead of
  * hardcoded Italian name strings to determine the appropriate sound effect.
  * New weapons/specials automatically get sounds based on their category.
+ *
+ * Entity-specific sounds: if a custom sound has been uploaded via the admin
+ * panel for a special ability (sfx_special_{id}) or enemy ability, it will
+ * be used instead of the generic category-based sound.
  */
 export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
   // 1. Entry-level flags (highest priority)
@@ -56,17 +52,11 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
     return entry.actorType === 'player' ? audio.playAttack : null;
   }
 
-  // 3. Look up special ability by name → category-based sound
+  // 3. Look up special ability by name → entity-specific sound (DB only)
   const special = ALL_SPECIAL_ABILITIES.find(s => s.name === action);
   if (special) {
-    const soundCat = SPECIAL_CATEGORY_SOUND[special.category];
-    if (soundCat === 'heal') return audio.playHeal;
-    if (soundCat === 'defend') {
-      // Defensive specials with taunt effect get taunt sound (e.g. Immolazione)
-      if (special.effects?.some(e => e.type === 'taunt')) return audio.playTaunt;
-      return audio.playDefend;
-    }
-    if (soundCat === 'special') return audio.playSpecial;
+    // Use entity-specific sound: sfx_special_{id} from DB — no fallback
+    return () => audio.playEntitySpecial(special.id, special.category);
   }
 
   // 4. Look up item by name → weaponType/type-based sound
@@ -77,7 +67,13 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
     if (itemDef.type === 'healing' || itemDef.type === 'antidote') return audio.playHeal;
   }
 
-  // 5. Fallback: any damage from enemy
+  // 5. Look up enemy ability by name → entity-specific sound (DB only)
+  const enemyAbility = Object.values(ENEMY_ABILITIES_DATA).find(a => a.name === action);
+  if (enemyAbility) {
+    return () => audio.playEntityEnemyAbility(enemyAbility.id);
+  }
+
+  // 6. Any remaining enemy damage action → try entity-specific attack sound from DB
   if (entry.damage && entry.damage > 0 && entry.actorType === 'enemy') {
     return () => playEnemyAttack(entry.actorName, entry.action);
   }
@@ -90,11 +86,16 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
 /** Derive animation info for a specific entity from the last few log entries */
 export function getAnimForTarget(lastEntries: CombatLogEntry[], id: string, name: string): AnimResult | null {
   for (const entry of lastEntries) {
-    // Use targetId for precise matching; fall back to name for defend/legacy
-    if (entry.targetId && entry.targetId === id) {
+    // Check if this entity is a target: match single targetId OR multi-target targetIds array
+    const isTarget = (entry.targetId && entry.targetId === id) || (entry.targetIds && entry.targetIds.includes(id));
+    if (isTarget) {
       if (entry.isMiss) return { type: 'miss' as const, isMiss: true, isCritical: false };
       if (entry.damage && entry.damage > 0) return { type: 'damage' as const, value: entry.damage, isCritical: !!entry.isCritical, isMiss: false };
-      if (entry.heal) return { type: 'heal' as const, value: entry.heal, isCritical: false, isMiss: false };
+      if (entry.heal) {
+        // For multi-target heals, show per-target heal value if available
+        const perTargetHeal = entry.healPerTarget?.[id];
+        return { type: 'heal' as const, value: perTargetHeal ?? entry.heal, isCritical: false, isMiss: false };
+      }
     }
     if (entry.action === 'Difesa' && entry.actorName === name) return { type: 'defend' as const, isCritical: false, isMiss: false };
   }

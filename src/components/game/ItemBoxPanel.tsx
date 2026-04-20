@@ -60,6 +60,8 @@ export default function ItemBoxPanel() {
   const withdrawFromItemBox = useGameStore(s => s.withdrawFromItemBox);
   const selectCharacter = useGameStore(s => s.selectCharacter);
   const unequipItem = useGameStore(s => s.unequipItem);
+  const unequipArmor = useGameStore(s => s.unequipArmor);
+  const unequipAccessory = useGameStore(s => s.unequipAccessory);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [transferQty, setTransferQty] = useState(1);
   const [toast, setToast] = useState<ToastInfo | null>(null);
@@ -108,8 +110,14 @@ export default function ItemBoxPanel() {
     setTransferQty(1);
   };
 
-  const handleUnequip = (itemUid: string) => {
-    unequipItem(selectedChar.id, itemUid);
+  const handleUnequip = (item: ItemInstance) => {
+    if (item.type === 'armor') {
+      unequipArmor(selectedChar.id);
+    } else if (item.type === 'accessory') {
+      unequipAccessory(selectedChar.id);
+    } else {
+      unequipItem(selectedChar.id, item.uid);
+    }
     setSelected(null);
   };
 
@@ -348,7 +356,7 @@ export default function ItemBoxPanel() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleUnequip(selected.item.uid)}
+                      onClick={() => handleUnequip(selected.item)}
                       className="bg-transparent text-xs px-3 py-1.5 rounded-lg text-amber-400/60 hover:text-amber-300 hover:bg-amber-900/20 border border-amber-500/20 transition-all"
                     >
                       <ShieldOff className="w-3.5 h-3.5 mr-1.5" />

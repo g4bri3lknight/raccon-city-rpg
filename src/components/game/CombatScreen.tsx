@@ -86,6 +86,7 @@ export default function CombatScreen() {
           isPlayerTurn={isPlayerTurn}
           targetingMode={actions.targetingMode}
           hitTargetId={animState.hitTargetId}
+          hitTargetIds={animState.hitTargetIds}
           hitIsCritical={animState.hitIsCritical}
           deathTargetId={animState.deathTargetId}
           bossPhaseId={animState.bossPhaseId}

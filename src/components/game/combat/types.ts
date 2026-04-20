@@ -22,6 +22,7 @@ export interface EnemyDisplayProps {
   isPlayerTurn: boolean;
   targetingMode: 'enemy' | 'ally' | null;
   hitTargetId: string | null;
+  hitTargetIds: string[];
   hitIsCritical: boolean;
   deathTargetId: string | null;
   bossPhaseId: string | null;

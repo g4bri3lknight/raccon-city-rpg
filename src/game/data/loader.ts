@@ -633,6 +633,7 @@ function loadEnemyAbilities(api: Awaited<ReturnType<typeof loadFromApi>>): void 
     for (const row of api.enemyAbilities) {
       const ab = row as DbEnemyAbility;
       const ability: EnemyAbility = {
+        id: ab.id,
         name: ab.name,
         description: ab.description,
         power: ab.power,
@@ -716,6 +717,7 @@ function loadBossPhases(api: Awaited<ReturnType<typeof loadFromApi>>): void {
       } catch { /* ignore parse errors */ }
 
       const bossPhase: BossPhase = {
+        id: phase.id,
         name: phase.name,
         hpThreshold: phase.hpThreshold,
         hpMultiplier: phase.hpMultiplier,

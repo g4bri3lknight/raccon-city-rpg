@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { playEnemyDeath } from '@/game/engine/sounds';
+import { playEnemyDeath, audio } from '@/game/engine/sounds';
 import type { CombatState, EnemyInstance } from '@/game/types';
 
 export interface UseCombatAnimationsReturn {
   screenShake: string | null;
   killFlash: boolean;
   hitTargetId: string | null;
+  hitTargetIds: string[];  // All targets for multi-target hits
   hitIsCritical: boolean;
   deathTargetId: string | null;
   bossPhaseId: string | null;
@@ -29,6 +30,7 @@ export function useCombatAnimations(
   const [screenShake, setScreenShake] = useState<string | null>(null);
   const [killFlash, setKillFlash] = useState(false);
   const [hitTargetId, setHitTargetId] = useState<string | null>(null);
+  const [hitTargetIds, setHitTargetIds] = useState<string[]>([]);
   const [hitIsCritical, setHitIsCritical] = useState(false);
   const [deathTargetId, setDeathTargetId] = useState<string | null>(null);
   const [bossPhaseId, setBossPhaseId] = useState<string | null>(null);
@@ -52,7 +54,12 @@ export function useCombatAnimations(
     prevEnemyHpRef.current = hpMap;
     // Play death sound + screen shake + kill flash for each newly dead enemy
     if (newDeaths.length > 0 && !combat.isVictory) {
-      try { playEnemyDeath(); } catch {}
+      // Play entity-specific death sound for each dead enemy
+      for (const enemy of enemies) {
+        if (newDeaths.includes(enemy.name) && enemy.currentHp <= 0) {
+          try { audio.playEntityEnemyDeath(enemy.definitionId); } catch {}
+        }
+      }
       // Heavy screen shake on enemy death
       queueMicrotask(() => {
         setScreenShake('heavy');
@@ -88,18 +95,30 @@ export function useCombatAnimations(
         setTimeout(() => setScreenShake(null), 500);
       });
     }
-    // Trigger hit animation on target
-    if (lastEntry.targetId && lastEntry.damage && lastEntry.damage > 0) {
-      setHitTargetId(lastEntry.targetId);
-      setHitIsCritical(!!lastEntry.isCritical);
-      setTimeout(() => { setHitTargetId(null); setHitIsCritical(false); }, 400);
+    // Trigger hit animation on target(s)
+    // Combine targetId (primary) and targetIds (multi/splash) for full coverage
+    const hitIds = [
+      ...(lastEntry.targetId ? [lastEntry.targetId] : []),
+      ...(lastEntry.targetIds && lastEntry.targetIds.length > 0 ? lastEntry.targetIds : []),
+    ];
+    // Deduplicate
+    const uniqueHitIds = [...new Set(hitIds)];
+    if (uniqueHitIds.length > 0 && lastEntry.damage && lastEntry.damage > 0) {
+      queueMicrotask(() => {
+        setHitTargetId(uniqueHitIds[0]);
+        setHitTargetIds(uniqueHitIds);
+        setHitIsCritical(!!lastEntry.isCritical);
+        setTimeout(() => { setHitTargetId(null); setHitTargetIds([]); setHitIsCritical(false); }, 400);
+      });
     }
     // Trigger boss phase animation
-    if (lastEntry.action === 'Cambio Fase') {
+    if (lastEntry.action.startsWith('Fase ') && lastEntry.actorType === 'enemy') {
       const bossEnemy = enemies.find(e => e.isBoss && e.currentHp > 0);
       if (bossEnemy) {
-        setBossPhaseId(bossEnemy.id);
-        setTimeout(() => setBossPhaseId(null), 2000);
+        queueMicrotask(() => {
+          setBossPhaseId(bossEnemy.id);
+          setTimeout(() => setBossPhaseId(null), 2000);
+        });
       }
     }
   }, [combat?.log?.length, enemies]);
@@ -114,6 +133,7 @@ export function useCombatAnimations(
     screenShake,
     killFlash,
     hitTargetId,
+    hitTargetIds,
     hitIsCritical,
     deathTargetId,
     bossPhaseId,

@@ -10,6 +10,7 @@ export default function EnemyDisplay({
   isPlayerTurn,
   targetingMode,
   hitTargetId,
+  hitTargetIds,
   hitIsCritical,
   deathTargetId,
   bossPhaseId,
@@ -30,7 +31,8 @@ export default function EnemyDisplay({
         const pct = Math.min(100, enemy.maxHp > 0 ? (enemy.currentHp / enemy.maxHp) * 100 : 0);
         const animClass = isMissAnim ? 'animate-dodge' : isHurt ? (isCrit ? 'animate-critical-impact' : 'entity-shake') : !isDead ? 'entity-enemy-idle' : 'entity-dead';
         // ── #41 animation classes ──
-        const hitAnimClass = hitTargetId === enemy.id ? (hitIsCritical ? 'animate-flash-red' : 'animate-shake') : '';
+        const isHitTarget = hitTargetId === enemy.id || hitTargetIds.includes(enemy.id);
+        const hitAnimClass = isHitTarget ? (hitIsCritical ? 'animate-flash-red' : 'animate-shake') : '';
         const deathAnimClass = deathTargetId === enemy.id ? 'animate-enemy-death' : '';
         const bossPhaseClass = bossPhaseId === enemy.id ? 'animate-boss-phase' : '';
         const bossGlowClass = enemy.isBoss && !isDead ? 'animate-pulse-glow' : '';
@@ -97,13 +99,13 @@ export default function EnemyDisplay({
             </span>
             {enemy.isBoss && !isDead && <span className="absolute -top-1.5 -right-0.5 text-[6px] bg-red-700 text-white px-1 rounded font-bold">BOSS</span>}
             {/* ── #41 Critical slash overlay ── */}
-            {hitIsCritical && hitTargetId === enemy.id && (
+            {hitIsCritical && isHitTarget && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
                 <div className="animate-critical-slash text-orange-400 text-3xl font-black" style={{ textShadow: '0 0 10px rgba(251,146,60,0.8)' }}>✕</div>
               </div>
             )}
             {/* ── #41 Flash overlay on critical (orange glow) ── */}
-            {hitIsCritical && hitTargetId === enemy.id && (
+            {hitIsCritical && isHitTarget && (
               <div className="absolute inset-0 rounded-lg animate-flash-white pointer-events-none z-30" style={{ backgroundColor: 'rgba(251,146,60,0.15)' }} />
             )}
             {isHurt && anim.value && (

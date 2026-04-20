@@ -373,8 +373,14 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
       let updatedToChar = { ...toChar };
       let updatedParty = state.party;
 
-      if (item.isEquipped && item.weaponStats) {
-        updatedFromChar = { ...updatedFromChar, weapon: null };
+      if (item.isEquipped) {
+        if (item.weaponStats) {
+          updatedFromChar = { ...updatedFromChar, weapon: null };
+        } else if (item.type === 'armor') {
+          updatedFromChar = { ...updatedFromChar, armor: null };
+        } else if (item.type === 'accessory') {
+          updatedFromChar = { ...updatedFromChar, accessory: null };
+        }
       }
 
       updatedFromChar = {

@@ -501,15 +501,19 @@ function resolveTargets(
   }
   if (t === 'enemy') {
     if ('currentHp' in target && 'definitionId' in target) {
+      // Target is an EnemyInstance — use it directly (this is the correct path when
+      // the combat slice properly resolves the selected target)
       return { enemies: [target as EnemyInstance], allies: [] };
     }
-    // Fallback: if target isn't an EnemyInstance (wrong type passed), find the enemy from the enemies array
-    // This can happen if the combat slice incorrectly passes a Character as target
-    const aliveEnemies = enemies.filter(e => e.currentHp > 0);
-    if (aliveEnemies.length > 0) {
-      // Try to find by target id, or fall back to first alive enemy
-      const matched = aliveEnemies.find(e => e.id === (target as { id?: string }).id) || aliveEnemies[0];
-      return { enemies: [matched], allies: [] };
+    // Fallback: if target isn't an EnemyInstance (wrong type passed), try to find
+    // the matching enemy in the enemies array by ID. Do NOT fall back to a random
+    // enemy — return empty if no match found to avoid hitting the wrong target.
+    const targetId = (target as { id?: string }).id;
+    if (targetId) {
+      const matched = enemies.find(e => e.id === targetId && e.currentHp > 0);
+      if (matched) {
+        return { enemies: [matched], allies: [] };
+      }
     }
     return { enemies: [], allies: [] };
   }
@@ -705,10 +709,23 @@ function handleDealDamage(
     message += ` Danni collaterali: ${splashLog.join(', ')}.`;
   }
 
+  // When excludePrimaryTarget is true, do NOT set targetName/targetId in the log
+  // to avoid overwriting the primary target from a previous effect in executeEffectsInternal.
+  // Only set targetIds with the actual damaged targets (excluding primary).
+  const splashTargetIds = (() => {
+    let ids = enemyTargets.map(t => t.id);
+    if (excludePrimaryTarget && primaryEnemy) {
+      ids = ids.filter(id => id !== primaryEnemy.id);
+    }
+    return ids.length > 0 ? ids : undefined;
+  })();
+
   return {
     log: {
       turn, actorName: character.name, actorType: 'player', action: 'Speciale',
-      targetName: primaryTarget?.name, targetId: primaryTarget?.id,
+      targetName: excludePrimaryTarget ? undefined : primaryTarget?.name,
+      targetId: excludePrimaryTarget ? undefined : primaryTarget?.id,
+      targetIds: splashTargetIds,
       damage: totalDmg, isCritical: isCritical || guaranteedCrit, isMiss,
       message,
     },
@@ -728,11 +745,17 @@ function handleHeal(
   enemies: EnemyInstance[],
   turn: number,
 ): Partial<ActionResult> {
-  const { allies: healTargets } = resolveTargets(effect, character, target, party, enemies);
+  let { allies: healTargets } = resolveTargets(effect, character, target, party, enemies);
   if (healTargets.length === 0) return {};
+  // FIX: Filter out dead characters for all_allies heals — only handleRevive should revive
+  if (effect.target === 'all_allies') {
+    healTargets = healTargets.filter(ht => ht.currentHp > 0);
+    if (healTargets.length === 0) return {};
+  }
 
   let updatedParty: Character[] | undefined;
   let totalHeal = 0;
+  const healPerTarget: Record<string, number> = {};
 
   updatedParty = party.map(p => {
     const isTarget = healTargets.some(ht => ht.id === p.id);
@@ -748,6 +771,7 @@ function handleHeal(
     }
     const actualHeal = calculateHeal(healAmount, character.archetype);
     totalHeal += actualHeal;
+    healPerTarget[p.id] = actualHeal;
     // Use effective maxHp (includes equipment bonuses) instead of base maxHp
     const effectiveMaxHp = getCharacterMaxHp(p);
     const newHp = Math.min(effectiveMaxHp, p.currentHp + actualHeal);
@@ -757,7 +781,7 @@ function handleHeal(
   const healTarget = healTargets[0];
   const isSelf = healTarget.id === character.id;
   const message = healTargets.length > 1
-    ? `${character.name} cura il gruppo di ${totalHeal} HP totali!`
+    ? `${character.name} cura tutti gli alleati! (${healTargets.map(t => `${t.name}: +${healPerTarget[t.id]} HP`).join(', ')})`
     : isSelf
       ? `${character.name} si è curato di ${totalHeal} HP!`
       : `${character.name} cura ${healTarget.name} di ${totalHeal} HP!`;
@@ -766,7 +790,12 @@ function handleHeal(
     log: {
       turn, actorName: character.name, actorType: 'player', action: 'Speciale',
       targetName: healTarget.name, targetId: healTarget.id,
-      heal: totalHeal, message,
+      // Always include targetIds for multi-target heals so animations show on all targets
+      targetIds: healTargets.length > 1 ? healTargets.map(t => t.id) : undefined,
+      heal: totalHeal,
+      // Always provide healPerTarget so the animation shows per-target values, not the total
+      healPerTarget: healPerTarget,
+      message,
     },
     updatedParty,
   };
@@ -996,8 +1025,13 @@ function handleShield(
 ): Partial<ActionResult> {
   const { allies: shieldTargets } = resolveTargets(effect, character, target, party, enemies);
   if (shieldTargets.length === 0) return {};
+  // FIX: Filter out dead characters for all_allies shields
+  const aliveShieldTargets = effect.target === 'all_allies'
+    ? shieldTargets.filter(st => st.currentHp > 0)
+    : shieldTargets;
+  if (aliveShieldTargets.length === 0) return {};
 
-  const newEffects: ActiveCombatEffect[] = shieldTargets.map(st => ({
+  const newEffects: ActiveCombatEffect[] = aliveShieldTargets.map(st => ({
     id: `shield_${character.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     type: 'shield' as const,
     targetId: st.id,
@@ -1007,12 +1041,12 @@ function handleShield(
     remainingTurns: effect.duration,
   }));
 
-  const isSelf = shieldTargets.length === 1 && shieldTargets[0].id === character.id;
-  const message = shieldTargets.length > 1
+  const isSelf = aliveShieldTargets.length === 1 && aliveShieldTargets[0].id === character.id;
+  const message = aliveShieldTargets.length > 1
     ? `${character.name} crea uno scudo di ${effect.amount} su tutto il gruppo per ${effect.duration} turni!`
     : isSelf
       ? `${character.name} crea uno scudo di ${effect.amount} su se stesso per ${effect.duration} turni!`
-      : `${character.name} crea uno scudo di ${effect.amount} su ${shieldTargets[0].name} per ${effect.duration} turni!`;
+      : `${character.name} crea uno scudo di ${effect.amount} su ${aliveShieldTargets[0].name} per ${effect.duration} turni!`;
 
   return {
     log: {
@@ -1062,7 +1096,7 @@ function handleLifesteal(
     const isTarget = lifestealTargets.some(et => et.id === e.id);
     if (!isTarget) return e;
 
-    const totalAtk = getEffectiveAtk(character, activeEffects) * effect.power;
+    const totalAtk = getEffectiveAtk(character, activeEffects) * (effect.power || 1.0);
     const critBonus = getCharacterCritBonus(character);
     const hasAdrenaline = character.statusEffects.includes('adrenaline');
     const effectiveDef = getEffectiveEnemyDef(e, activeEffects);
@@ -1116,7 +1150,7 @@ function handleRevive(
     const isTarget = deadAllies.some(da => da.id === p.id);
     if (!isTarget) return p;
     revivedNames.push(p.name);
-    const reviveHp = Math.max(1, Math.floor(p.maxHp * effect.hpPercent / 100));
+    const reviveHp = Math.max(1, Math.floor(getCharacterMaxHp(p) * effect.hpPercent / 100));
     return { ...p, currentHp: reviveHp, statusEffects: [] };
   });
 
@@ -1140,8 +1174,13 @@ function handleHot(
 ): Partial<ActionResult> {
   const { allies: hotTargets } = resolveTargets(effect, character, target, party, enemies);
   if (hotTargets.length === 0) return {};
+  // FIX: Filter out dead characters for all_allies HoT
+  const aliveHotTargets = effect.target === 'all_allies'
+    ? hotTargets.filter(ht => ht.currentHp > 0)
+    : hotTargets;
+  if (aliveHotTargets.length === 0) return {};
 
-  const newEffects: ActiveCombatEffect[] = hotTargets.map(ht => ({
+  const newEffects: ActiveCombatEffect[] = aliveHotTargets.map(ht => ({
     id: `hot_${character.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     type: 'hot' as const,
     targetId: ht.id,
@@ -1150,12 +1189,12 @@ function handleHot(
     remainingTurns: effect.duration,
   }));
 
-  const isSelf = hotTargets.length === 1 && hotTargets[0].id === character.id;
-  const message = hotTargets.length > 1
+  const isSelf = aliveHotTargets.length === 1 && aliveHotTargets[0].id === character.id;
+  const message = aliveHotTargets.length > 1
     ? `${character.name} applica cura nel tempo a tutto il gruppo: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`
     : isSelf
       ? `${character.name} applica cura nel tempo a se stesso: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`
-      : `${character.name} applica cura nel tempo a ${hotTargets[0].name}: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`;
+      : `${character.name} applica cura nel tempo a ${aliveHotTargets[0].name}: +${effect.amountPerTurn} HP/turno per ${effect.duration} turni!`;
 
   return {
     log: {
@@ -1176,8 +1215,13 @@ function handleReflect(
 ): Partial<ActionResult> {
   const { allies: reflectTargets } = resolveTargets(effect, character, target, party, enemies);
   if (reflectTargets.length === 0) return {};
+  // FIX: Filter out dead characters for all_allies reflect
+  const aliveReflectTargets = effect.target === 'all_allies'
+    ? reflectTargets.filter(rt => rt.currentHp > 0)
+    : reflectTargets;
+  if (aliveReflectTargets.length === 0) return {};
 
-  const newEffects: ActiveCombatEffect[] = reflectTargets.map(rt => ({
+  const newEffects: ActiveCombatEffect[] = aliveReflectTargets.map(rt => ({
     id: `reflect_${character.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     type: 'reflect' as const,
     targetId: rt.id,
@@ -1263,11 +1307,13 @@ function executeEffectsInternal(
   const allLogParts: string[] = [];
   let totalDamage = 0;
   let totalHeal = 0;
+  const mergedHealPerTarget: Record<string, number> = {};
   let anyCritical = false;
   let anyMiss = false;
   let primaryTargetName = '';
   let primaryTargetId = '';
   let primaryStatusEffect: string | undefined;
+  const allTargetIds: string[] = [];  // Collect all target IDs for multi-target animations
 
   for (const effect of effects) {
     // Check activation chance (if enabled and specified)
@@ -1289,14 +1335,22 @@ function executeEffectsInternal(
           if (partial.log.isCritical) anyCritical = true;
           if (partial.log.isMiss) anyMiss = true;
           if (partial.log.targetName) { primaryTargetName = partial.log.targetName; primaryTargetId = partial.log.targetId || ''; }
+          if (partial.log.targetIds) allTargetIds.push(...partial.log.targetIds);
         }
         break;
 
       case 'heal':
         partial = handleHeal(effect, currentCharacter, target, currentParty, currentEnemies, turn);
-        if (partial.updatedParty) currentParty = partial.updatedParty;
+        if (partial.updatedParty) {
+          currentParty = partial.updatedParty;
+          // FIX: Sync currentCharacter after party update (e.g., self-heal changes HP)
+          const updatedSelf = currentParty.find(p => p.id === currentCharacter.id);
+          if (updatedSelf) currentCharacter = updatedSelf;
+        }
         if (partial.log?.heal) totalHeal += partial.log.heal;
+        if (partial.log?.healPerTarget) Object.assign(mergedHealPerTarget, partial.log.healPerTarget);
         if (partial.log?.targetId) { primaryTargetName = partial.log.targetName || ''; primaryTargetId = partial.log.targetId; }
+        if (partial.log?.targetIds) allTargetIds.push(...partial.log.targetIds);
         break;
 
       case 'apply_status':
@@ -1308,7 +1362,12 @@ function executeEffectsInternal(
 
       case 'remove_status':
         partial = handleRemoveStatus(effect, currentCharacter, target, currentParty, currentEnemies, turn);
-        if (partial.updatedParty) currentParty = partial.updatedParty;
+        if (partial.updatedParty) {
+          currentParty = partial.updatedParty;
+          // FIX: Sync currentCharacter after party update (status may have been removed from self)
+          const updatedSelf = currentParty.find(p => p.id === currentCharacter.id);
+          if (updatedSelf) currentCharacter = updatedSelf;
+        }
         break;
 
       case 'buff_stat':
@@ -1347,6 +1406,7 @@ function executeEffectsInternal(
         // FIX: Use != null instead of truthy check to handle damage=0 correctly
         if (partial.log?.damage != null) totalDamage += partial.log.damage;
         if (partial.log?.heal) totalHeal += partial.log.heal;
+        if (partial.log?.healPerTarget) Object.assign(mergedHealPerTarget, partial.log.healPerTarget);
         break;
 
       case 'revive':
@@ -1435,8 +1495,10 @@ function executeEffectsInternal(
       action: actionLabel,
       targetName: primaryTargetName || undefined,
       targetId: primaryTargetId || undefined,
+      targetIds: allTargetIds.length > 0 ? allTargetIds : undefined,
       damage: totalDamage || undefined,
       heal: totalHeal || undefined,
+      healPerTarget: Object.keys(mergedHealPerTarget).length > 0 ? mergedHealPerTarget : undefined,
       isCritical: anyCritical || undefined,
       isMiss: anyMiss || undefined,
       statusEffect: primaryStatusEffect,
@@ -1650,6 +1712,7 @@ function executeEnemyAbilityEffects(
   let primaryTargetId = '';
   let primaryStatusEffect: string | undefined;
   let appliedStatus: { targetId: string; effect: StatusEffect; duration: number } | undefined;
+  const allTargetIds: string[] = [];  // Collect all target IDs for multi-target animations
 
   /**
    * Resolve effect targets for enemy abilities.
@@ -1776,6 +1839,10 @@ function executeEnemyAbilityEffects(
         anyMiss = anyMiss || miss;
         primaryTargetName = primaryTarget.name;
         primaryTargetId = primaryTarget.id;
+        // Track all party targets for multi-target animation
+        for (const pt of partyTargets) {
+          if (!allTargetIds.includes(pt.id)) allTargetIds.push(pt.id);
+        }
 
         // Build damage log — for AoE, list all affected targets
         const isAoe = !isSelf && partyTargets.length > 1;
@@ -2022,12 +2089,14 @@ function executeEnemyAbilityEffects(
       }
 
       case 'revive': {
-        // Revive other enemies (unusual but supported)
-        const reviveTargets = currentEnemies.filter(e => e.currentHp <= 0);
-        if (reviveTargets.length === 0) break;
+        // FIX: Use resolveEnemyTargets to respect effect.target instead of reviving ALL dead enemies
+        const { enemyTargets: revTargets } = resolveEnemyTargets(effect);
+        const deadTargets = revTargets.filter(e => e.currentHp <= 0);
+        if (deadTargets.length === 0) break;
+        const deadIds = new Set(deadTargets.map(dt => dt.id));
 
         currentEnemies = currentEnemies.map(e => {
-          if (e.currentHp > 0) return e;
+          if (!deadIds.has(e.id)) return e;
           const reviveHp = Math.max(1, Math.floor(e.maxHp * ((effect as SpecialEffect & { type: 'revive' }).hpPercent) / 100));
           return { ...e, currentHp: reviveHp, statusEffects: [] };
         });
@@ -2057,6 +2126,7 @@ function executeEnemyAbilityEffects(
       action: abilityName,
       targetName: primaryTargetName || primaryTarget.name,
       targetId: primaryTargetId || primaryTarget.id,
+      targetIds: allTargetIds.length > 0 ? allTargetIds : undefined,
       damage: totalDamage || undefined,
       heal: totalHeal || undefined,
       isCritical: anyCritical || undefined,

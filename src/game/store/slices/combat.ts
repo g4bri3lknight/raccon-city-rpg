@@ -53,6 +53,7 @@ import {
   playLevelUp,
   playVictory,
   playDefeat,
+  audio,
 } from '../../engine/sounds';
 
 export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
@@ -162,7 +163,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     switch (state.combat.selectedAction) {
       case 'attack': {
         if (!state.combat.selectedTarget) return;
-        const enemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget);
+        const enemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget && e.currentHp > 0);
         if (!enemy) {
           // Target died before this action could execute — skip
           get().advanceToNextActor({ ...state.combat!, log: newLog, party: updatedParty, enemies: updatedEnemies });
@@ -235,15 +236,22 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         const isEnemyTarget = firstTarget === 'enemy' || firstTarget === 'all_enemies' || firstTarget === 'random_enemy';
         let target;
         if (isEnemyTarget) {
-          target = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
+          // FIX: Only target alive enemies — never fall back to a different enemy
+          const selectedEnemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget && e.currentHp > 0);
+          if (!selectedEnemy) {
+            // Selected enemy is dead or not found — skip this action
+            get().advanceToNextActor({ ...state.combat!, log: newLog, party: updatedParty, enemies: updatedEnemies });
+            return;
+          }
+          target = selectedEnemy;
         } else {
-          // Even for non-enemy targets, check if selectedTarget is actually an enemy
-          // (handles cases where specialDef lookup fails and targetType defaults incorrectly)
+          // For non-enemy targets, resolve based on selectedTarget
           const enemyMatch = updatedEnemies.find(e => e.id === state.combat!.selectedTarget);
           if (enemyMatch) {
             target = enemyMatch;
           } else {
-            target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
+            const allyMatch = updatedParty.find(p => p.id === state.combat!.selectedTarget);
+            target = allyMatch || character;
           }
         }
         const result = executePlayerSpecial(character, target, state.combat.turn, updatedParty, updatedEnemies, updatedCombatActiveEffects);
@@ -334,14 +342,22 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         const isEnemyTarget2 = firstTarget2 === 'enemy' || firstTarget2 === 'all_enemies' || firstTarget2 === 'random_enemy';
         let target;
         if (isEnemyTarget2) {
-          target = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
+          // FIX: Only target alive enemies — never fall back to a different enemy
+          const selectedEnemy = updatedEnemies.find(e => e.id === state.combat!.selectedTarget && e.currentHp > 0);
+          if (!selectedEnemy) {
+            // Selected enemy is dead or not found — skip this action
+            get().advanceToNextActor({ ...state.combat!, log: newLog, party: updatedParty, enemies: updatedEnemies });
+            return;
+          }
+          target = selectedEnemy;
         } else {
-          // Even for non-enemy targets, check if selectedTarget is actually an enemy
+          // For non-enemy targets, resolve based on selectedTarget
           const enemyMatch = updatedEnemies.find(e => e.id === state.combat!.selectedTarget);
           if (enemyMatch) {
             target = enemyMatch;
           } else {
-            target = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
+            const allyMatch = updatedParty.find(p => p.id === state.combat!.selectedTarget);
+            target = allyMatch || character;
           }
         }
         const result = executePlayerSpecial2(character, target, state.combat.turn, updatedParty, updatedEnemies, updatedCombatActiveEffects);
@@ -574,6 +590,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           action: `Fase ${newPhase}: ${phaseDef.name}`,
           message: phaseDef.message,
         });
+
+        // Play entity-specific boss phase sound
+        try { audio.playEntityBossPhase(phaseDef.id); } catch {}
 
         // Reset phase transitioning flag after visual delay (handled in UI)
         setTimeout(() => {
