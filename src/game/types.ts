@@ -221,6 +221,10 @@ export interface ActiveCombatEffect {
   targetId: string;
   sourceId: string;
   sourceType?: 'special' | 'weapon' | 'armor' | 'accessory' | 'item'; // What created this effect
+  /** Icon of the source ability/item that created this effect (emoji fallback) */
+  sourceIcon?: string;
+  /** ID of the source ability/item (for image lookup, e.g. 'colpo_mortale' → URL uses 'special_colpo_mortale') */
+  sourceAbilityId?: string;
   stat?: 'atk' | 'def' | 'spd';
   amount?: number;
   remainingTurns: number;

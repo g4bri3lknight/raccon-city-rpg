@@ -1,4 +1,4 @@
-import type { Character, CombatAction, CombatLogEntry, CombatState, EnemyInstance, ItemInstance } from '@/game/types';
+import type { ActiveCombatEffect, Character, CombatAction, CombatLogEntry, CombatState, EnemyInstance, ItemInstance, StatusDuration } from '@/game/types';
 
 /** Animation info derived from combat log for an entity */
 export type AnimResult =
@@ -29,6 +29,8 @@ export interface EnemyDisplayProps {
   dataVersion: number;
   onEnemyClick: (enemyId: string) => void;
   getAnimForTarget: (id: string, name: string) => AnimResult | null;
+  activeEffects: ActiveCombatEffect[];
+  statusDurations: Record<string, StatusDuration[]>;
 }
 
 /* ── PartyDisplay ── */
@@ -40,6 +42,8 @@ export interface PartyDisplayProps {
   dataVersion: number;
   onAllyClick: (charId: string) => void;
   getAnimForTarget: (id: string, name: string) => AnimResult | null;
+  activeEffects: ActiveCombatEffect[];
+  statusDurations: Record<string, StatusDuration[]>;
 }
 
 /* ── CombatLogPanel ── */

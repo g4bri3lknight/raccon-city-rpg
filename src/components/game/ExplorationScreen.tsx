@@ -104,9 +104,13 @@ export default function ExplorationScreen() {
 
   // Auto-scroll exploration log to bottom
   useEffect(() => {
-    if (explorationLogRef.current) {
-      explorationLogRef.current.scrollTo({ top: explorationLogRef.current.scrollHeight, behavior: 'smooth' });
-    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (explorationLogRef.current) {
+          explorationLogRef.current.scrollTop = explorationLogRef.current.scrollHeight;
+        }
+      });
+    });
   }, [messageLog.length, activeEvent]);
 
   if (!location) return null;

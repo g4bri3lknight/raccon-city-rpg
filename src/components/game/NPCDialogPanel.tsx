@@ -80,7 +80,13 @@ export default function NPCDialogPanel() {
   }, [npc, talkToNpc]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (chatEndRef.current) {
+          chatEndRef.current.scrollTop = chatEndRef.current.scrollHeight;
+        }
+      });
+    });
   }, [chatMessages.length]);
 
   const getTalkLabel = () => {

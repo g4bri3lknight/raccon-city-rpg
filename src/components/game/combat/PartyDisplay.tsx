@@ -3,6 +3,7 @@
 import { Heart } from 'lucide-react';
 import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 import { getWeaponAmmoType } from '@/game/engine/combat';
+import EffectIndicators from './EffectIndicators';
 import type { Character } from '@/game/types';
 import type { PartyDisplayProps } from './types';
 
@@ -14,6 +15,8 @@ export default function PartyDisplay({
   dataVersion,
   onAllyClick,
   getAnimForTarget,
+  activeEffects,
+  statusDurations,
 }: PartyDisplayProps) {
   return (
     <div className="flex-1 flex items-center justify-center gap-4 sm:gap-8 lg:gap-14 px-3 py-1 min-h-0">
@@ -29,6 +32,7 @@ export default function PartyDisplay({
         const pct = Math.min(100, char.maxHp > 0 ? (char.currentHp / char.maxHp) * 100 : 0);
         const isPoisoned = char.statusEffects?.includes('poison') || false;
         const isBleeding = char.statusEffects?.includes('bleeding') || false;
+        const isStunned = char.statusEffects?.includes('stunned') || false;
         const animClass = isMissAnim ? 'animate-dodge' : isHurt ? (isCrit ? 'animate-critical-impact' : 'entity-shake') : !isDead ? 'entity-player-idle' : 'entity-dead';
         const borderColor = isTargetable
           ? 'border-green-400 shadow-[0_0_18px_rgba(74,222,128,0.5)] ring-1 ring-green-400/40'
@@ -115,6 +119,17 @@ export default function PartyDisplay({
                   <div className="absolute inset-0 rounded-lg pointer-events-none poison-edge-glow" />
                 </>
               )}
+              {/* ── STUN VISUAL: golden tint overlay ── */}
+              {isStunned && !isDead && (
+                <div className="absolute inset-0 rounded-lg pointer-events-none bg-yellow-500/10 border-2 border-yellow-400/30" />
+              )}
+              {/* ── Active effect indicators (buffs, debuffs, shields, etc.) ── */}
+              <EffectIndicators
+                entityId={char.id}
+                activeEffects={activeEffects}
+                statusDurations={statusDurations[char.id] || []}
+                isDead={isDead}
+              />
             </div>
             <span className={`text-[10px] sm:text-xs font-bold ${isDead ? 'text-gray-700' : isActive ? 'text-yellow-200' : 'text-gray-300'}`}>
               {char.name}
@@ -131,9 +146,9 @@ export default function PartyDisplay({
             <span className={`text-[9px] sm:text-[10px] font-mono font-bold leading-none tabular-nums ${isDead ? 'text-gray-700' : pct > 60 ? 'text-green-400' : pct > 30 ? 'text-yellow-400' : 'text-red-400'}`}>
               {char.currentHp}/{char.maxHp}
             </span>
-            {(isPoisoned || isBleeding) && !isDead && (
+            {(isPoisoned || isBleeding || isStunned) && !isDead && (
               <span className="text-[7px] animate-pulse leading-none">
-                {isPoisoned && '☠️'}{isBleeding && '🩸'}
+                {isPoisoned && '☠️'}{isBleeding && '🩸'}{isStunned && '💫'}
               </span>
             )}
             {/* Ammo indicator for ranged weapons */}
@@ -149,7 +164,7 @@ export default function PartyDisplay({
             })()}
             {isHurt && anim.value && (
               <div className="absolute -top-2 right-0 z-30">
-                <div className="damage-number"><span className={`text-xs font-black ${isCrit ? 'text-orange-400' : 'text-red-400'}`}>-{anim.value}</span></div>
+                <div className="damage-number"><span className={`text-xs font-black ${isCrit ? 'text-orange-400' : 'text-red-400'}`}>⚔️{anim.value}</span></div>
               </div>
             )}
             {isHealing && anim.value && (

@@ -398,9 +398,11 @@ export function executePlayerAttack(
   let weaponActiveEffects: ActiveCombatEffect[] | undefined;
   if (!isMiss && character.weapon) {
     const weaponDef = ITEMS[character.weapon.itemId];
-    if (weaponDef?.effects && weaponDef.effects.length > 0) {
+    // Only process if weapon has on_hit effects — skip if all effects are passive (on_equip, etc.)
+    const onHitEffects = weaponDef?.effects?.filter(e => !e.trigger || e.trigger === 'on_hit');
+    if (onHitEffects && onHitEffects.length > 0) {
       const weaponResult = executeEffectsForTrigger(
-        weaponDef.effects, 'on_hit', character, updatedEnemy, turn, party, enemies, 'weapon', character.weapon.name, activeEffects,
+        weaponDef!.effects!, 'on_hit', character, updatedEnemy, turn, party, enemies, 'weapon', character.weapon.name, activeEffects, weaponDef!.icon,
       );
       if (weaponResult.activeEffects && weaponResult.activeEffects.length > 0) {
         weaponActiveEffects = weaponResult.activeEffects;
@@ -514,21 +516,42 @@ function resolveTargets(
     return { enemies: [], allies: [character] };
   }
   if (t === 'enemy') {
-    if ('currentHp' in target && 'definitionId' in target) {
-      // Target is an EnemyInstance — use it directly (this is the correct path when
-      // the combat slice properly resolves the selected target)
-      return { enemies: [target as EnemyInstance], allies: [] };
-    }
-    // Fallback: if target isn't an EnemyInstance (wrong type passed), try to find
-    // the matching enemy in the enemies array by ID. Do NOT fall back to a random
-    // enemy — return empty if no match found to avoid hitting the wrong target.
+    // Path 1: Target has an 'id' property — find the matching enemy in the enemies array.
+    // Always try ID-based lookup first, regardless of whether definitionId is present,
+    // to ensure we use the fresh enemy instance from the enemies array rather than a
+    // potentially stale target reference.
     const targetId = (target as { id?: string }).id;
     if (targetId) {
+      // Try alive first
       const matched = enemies.find(e => e.id === targetId && e.currentHp > 0);
       if (matched) {
         return { enemies: [matched], allies: [] };
       }
+      // Also try dead enemies (for overkill / effects on dead targets)
+      const matchedDead = enemies.find(e => e.id === targetId);
+      if (matchedDead) {
+        return { enemies: [matchedDead], allies: [] };
+      }
     }
+    // Path 2: Target is a proper EnemyInstance with definitionId but ID lookup failed —
+    // use the target directly as a last resort (e.g., newly spawned enemy not yet in array)
+    if ('currentHp' in target && 'definitionId' in target) {
+      return { enemies: [target as EnemyInstance], allies: [] };
+    }
+    // Path 3: Match by name if target has a name property (stale copy scenario)
+    if ('currentHp' in target && 'id' in target) {
+      const targetName = (target as { name?: string }).name;
+      if (targetName) {
+        const matchedByName = enemies.find(e => e.name === targetName && e.currentHp > 0);
+        if (matchedByName) {
+          return { enemies: [matchedByName], allies: [] };
+        }
+      }
+    }
+    // Path 4: REMOVED — no more fallback to first alive enemy.
+    // The fallback was causing specials like Colpo Mortale to attack the wrong enemy
+    // when the target resolution failed due to stale/incorrect target objects.
+    // If no target was matched, return empty and let the caller handle it.
     return { enemies: [], allies: [] };
   }
   if (t === 'all_enemies') {
@@ -573,30 +596,44 @@ function handleDealDamage(
   activeEffects?: ActiveCombatEffect[],
 ): Partial<ActionResult> {
   const { target: effTarget, powerMultiplier, excludePrimaryTarget, noMiss, guaranteedCrit, ignoreDef } = effect;
-  const { enemies: enemyTargets } = resolveTargets(effect, character, target, party, enemies);
-  if (enemyTargets.length === 0) return {};
 
-  // Robust primary enemy detection: prefer the explicit target if it's an EnemyInstance,
-  // otherwise try to find the matching enemy in the enemies array by ID,
-  // and as a last resort use the first resolved target.
-  // This prevents the "0 danni + collateral" bug when target type is unexpected.
+  // ── PRIMARY TARGET RESOLUTION ──
+  // Always determine the "primary enemy" from the `target` parameter.
+  // This is the enemy the player selected — exactly like basic attack does it.
+  // The store already resolved the correct target; we just need to find it in the enemies array.
   let primaryEnemy: EnemyInstance | null = null;
-  if ('definitionId' in target) {
-    primaryEnemy = target as EnemyInstance;
-  } else {
-    // Target might be a Character — try matching by ID against the enemies array
-    const matchedById = enemies.find(e => e.id === target.id);
-    if (matchedById) {
-      primaryEnemy = matchedById;
-    } else {
-      // Fall back to the first resolved enemy target
-      primaryEnemy = enemyTargets[0] || null;
-    }
+  if ('currentHp' in target && 'definitionId' in target) {
+    // Target is a proper EnemyInstance — find the matching fresh instance in enemies array
+    const targetId = (target as EnemyInstance).id;
+    const freshInstance = enemies.find(e => e.id === targetId && e.currentHp > 0);
+    primaryEnemy = freshInstance || (target as EnemyInstance);
+  } else if ('id' in target) {
+    // Target might be a Character — find the enemy by selectedTarget ID
+    const targetId = (target as { id: string }).id;
+    primaryEnemy = enemies.find(e => e.id === targetId && e.currentHp > 0) || null;
   }
 
-  // FIX: When excludePrimaryTarget is true, check if there are any non-primary targets.
-  // If all resolved targets are the primary target (e.g., only one enemy alive),
-  // there's nothing to damage — return empty to avoid misleading "0 danni" messages.
+  // ── DETERMINE WHICH ENEMIES TO DAMAGE ──
+  let enemyTargets: EnemyInstance[];
+
+  if (effTarget === 'enemy') {
+    // Single-target: use the primary enemy directly (like basic attack)
+    enemyTargets = primaryEnemy ? [primaryEnemy] : [];
+  } else if (effTarget === 'all_enemies') {
+    // AoE: all alive enemies
+    enemyTargets = enemies.filter(e => e.currentHp > 0);
+  } else if (effTarget === 'random_enemy') {
+    const alive = enemies.filter(e => e.currentHp > 0);
+    enemyTargets = alive.length > 0 ? [alive[Math.floor(Math.random() * alive.length)]] : [];
+  } else {
+    // Other target types — use resolveTargets as fallback
+    const resolved = resolveTargets(effect, character, target, party, enemies);
+    enemyTargets = resolved.enemies;
+  }
+
+  if (enemyTargets.length === 0) return {};
+
+  // When excludePrimaryTarget is true, check if there are any non-primary targets.
   if (excludePrimaryTarget) {
     const nonPrimaryTargets = enemyTargets.filter(et => !primaryEnemy || et.id !== primaryEnemy.id);
     if (nonPrimaryTargets.length === 0) return {};
@@ -696,7 +733,7 @@ function handleDealDamage(
     if (!isPrimary && !isPrimaryForTracking) {
       const isCritForSplash = guaranteedCrit || calcResult.isCritical;
       if (finalDamage > 0) {
-        splashLog.push(`${e.name}: -${finalDamage}${isCritForSplash ? ' 💥' : ''}`);
+        splashLog.push(`${e.name}: ${finalDamage} danni${isCritForSplash ? ' 💥' : ''}`);
       }
     }
 
@@ -973,6 +1010,10 @@ function handleBuffStat(
   }
   if (buffTargets.length === 0) return {};
 
+  // FIX: Ensure duration has a valid value — if undefined (e.g., on_equip effect used
+  // accidentally in combat), default to 3 turns to avoid permanent buffs
+  const buffDuration = effect.duration && effect.duration > 0 ? effect.duration : 3;
+
   const newEffects: ActiveCombatEffect[] = buffTargets.map(bt => ({
     id: `buff_${character.id}_${effect.stat}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     type: 'buff_stat' as const,
@@ -980,16 +1021,16 @@ function handleBuffStat(
     sourceId: character.id,
     stat: effect.stat,
     amount: effect.amount,
-    remainingTurns: effect.duration,
+    remainingTurns: buffDuration,
   }));
 
-  const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : 'VELOCITÀ';
+  const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : effect.stat === 'spd' ? 'VELOCITÀ' : effect.stat === 'crit' ? 'CRITICO' : effect.stat.toUpperCase();
   const isSelf = buffTargets.length === 1 && buffTargets[0].id === character.id;
   const message = buffTargets.length > 1
-    ? `${character.name} potenzia il gruppo: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`
+    ? `${character.name} potenzia il gruppo: +${effect.amount}% ${statLabel} per ${buffDuration} turni!`
     : isSelf
-      ? `${character.name} potenzia se stesso: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`
-      : `${character.name} potenzia ${buffTargets[0].name}: +${effect.amount}% ${statLabel} per ${effect.duration} turni!`;
+      ? `${character.name} potenzia se stesso: +${effect.amount}% ${statLabel} per ${buffDuration} turni!`
+      : `${character.name} potenzia ${buffTargets[0].name}: +${effect.amount}% ${statLabel} per ${buffDuration} turni!`;
 
   return {
     log: {
@@ -1011,6 +1052,9 @@ function handleDebuffStat(
   const { enemies: debuffTargets } = resolveTargets(effect, character, target, party, enemies);
   if (debuffTargets.length === 0) return {};
 
+  // FIX: Ensure duration has a valid value — default to 3 turns if undefined
+  const debuffDuration = effect.duration && effect.duration > 0 ? effect.duration : 3;
+
   const newEffects: ActiveCombatEffect[] = debuffTargets.map(dt => ({
     id: `debuff_${character.id}_${effect.stat}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     type: 'debuff_stat' as const,
@@ -1018,11 +1062,11 @@ function handleDebuffStat(
     sourceId: character.id,
     stat: effect.stat,
     amount: -effect.amount,
-    remainingTurns: effect.duration,
+    remainingTurns: debuffDuration,
   }));
 
-  const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : 'VELOCITÀ';
-  const message = `${character.name} riduce il ${statLabel} dei nemici di ${effect.amount}% per ${effect.duration} turni!`;
+  const statLabel = effect.stat === 'atk' ? 'ATTACCO' : effect.stat === 'def' ? 'DIFESA' : effect.stat === 'spd' ? 'VELOCITÀ' : effect.stat.toUpperCase();
+  const message = `${character.name} riduce il ${statLabel} dei nemici di ${effect.amount}% per ${debuffDuration} turni!`;
 
   return {
     log: {
@@ -1338,6 +1382,8 @@ function executeEffectsInternal(
   sourceType?: 'special' | 'weapon' | 'armor' | 'accessory' | 'item',
   checkActivationChance: boolean = false,
   activeEffects?: ActiveCombatEffect[],
+  sourceIcon?: string,
+  sourceAbilityId?: string,
 ): ActionResult {
   if (effects.length === 0) {
     return {
@@ -1420,7 +1466,11 @@ function executeEffectsInternal(
       case 'buff_stat':
         partial = handleBuffStat(effect, currentCharacter, target, currentParty, currentEnemies, turn);
         if (partial.activeEffects) {
-          if (sourceType) for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          for (const ae of partial.activeEffects) {
+            if (sourceType) ae.sourceType = sourceType;
+            if (sourceIcon) ae.sourceIcon = sourceIcon;
+            if (sourceAbilityId) ae.sourceAbilityId = sourceAbilityId;
+          }
           allActiveEffects.push(...partial.activeEffects);
         }
         break;
@@ -1428,7 +1478,11 @@ function executeEffectsInternal(
       case 'debuff_stat':
         partial = handleDebuffStat(effect, currentCharacter, target, currentParty, currentEnemies, turn);
         if (partial.activeEffects) {
-          if (sourceType) for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          for (const ae of partial.activeEffects) {
+            if (sourceType) ae.sourceType = sourceType;
+            if (sourceIcon) ae.sourceIcon = sourceIcon;
+            if (sourceAbilityId) ae.sourceAbilityId = sourceAbilityId;
+          }
           allActiveEffects.push(...partial.activeEffects);
         }
         break;
@@ -1436,13 +1490,25 @@ function executeEffectsInternal(
       case 'shield':
         partial = handleShield(effect, currentCharacter, target, currentParty, currentEnemies, turn);
         if (partial.activeEffects) {
-          if (sourceType) for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          for (const ae of partial.activeEffects) {
+            if (sourceType) ae.sourceType = sourceType;
+            if (sourceIcon) ae.sourceIcon = sourceIcon;
+            if (sourceAbilityId) ae.sourceAbilityId = sourceAbilityId;
+          }
           allActiveEffects.push(...partial.activeEffects);
         }
         break;
 
       case 'taunt':
         partial = handleTaunt(effect, currentCharacter, target, currentParty, currentEnemies, turn);
+        if (partial.activeEffects) {
+          for (const ae of partial.activeEffects) {
+            if (sourceType) ae.sourceType = sourceType;
+            if (sourceIcon) ae.sourceIcon = sourceIcon;
+            if (sourceAbilityId) ae.sourceAbilityId = sourceAbilityId;
+          }
+          allActiveEffects.push(...partial.activeEffects);
+        }
         if (partial.tauntTargetId) tauntTargetId = partial.tauntTargetId;
         break;
 
@@ -1464,7 +1530,11 @@ function executeEffectsInternal(
       case 'hot':
         partial = handleHot(effect, currentCharacter, target, currentParty, currentEnemies, turn);
         if (partial.activeEffects) {
-          if (sourceType) for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          for (const ae of partial.activeEffects) {
+            if (sourceType) ae.sourceType = sourceType;
+            if (sourceIcon) ae.sourceIcon = sourceIcon;
+            if (sourceAbilityId) ae.sourceAbilityId = sourceAbilityId;
+          }
           allActiveEffects.push(...partial.activeEffects);
         }
         break;
@@ -1472,7 +1542,11 @@ function executeEffectsInternal(
       case 'reflect':
         partial = handleReflect(effect, currentCharacter, target, currentParty, currentEnemies, turn);
         if (partial.activeEffects) {
-          if (sourceType) for (const ae of partial.activeEffects) { ae.sourceType = sourceType; }
+          for (const ae of partial.activeEffects) {
+            if (sourceType) ae.sourceType = sourceType;
+            if (sourceIcon) ae.sourceIcon = sourceIcon;
+            if (sourceAbilityId) ae.sourceAbilityId = sourceAbilityId;
+          }
           allActiveEffects.push(...partial.activeEffects);
         }
         break;
@@ -1507,8 +1581,65 @@ function executeEffectsInternal(
     }
   }
 
-  // If no effect produced output (all skipped by chance), provide fallback feedback
+  // If no effect produced output (all skipped by chance or target resolution failed),
+  // provide fallback feedback with diagnostic info
   if (allLogParts.length === 0) {
+    // DIAGNOSTIC: Log why effects didn't activate
+    const effectSummary = effects.map(e => `${e.type}:${e.target}`).join(', ');
+    const enemyCount = enemies.filter(e => e.currentHp > 0).length;
+    console.warn(`[Combat] Effects did not activate for ${actionLabel}: effects=[${effectSummary}] aliveEnemies=${enemyCount} targetId=${'id' in target ? (target as {id?:string}).id : 'N/A'}`);
+
+    // FALLBACK: For deal_damage effects targeting 'enemy' with no results,
+    // attempt a direct damage application to the first alive enemy.
+    // This handles edge cases where resolveTargets fails due to stale target objects.
+    const hasDamageEffect = effects.some(e => e.type === 'deal_damage');
+    if (hasDamageEffect && enemyCount > 0) {
+      // Try the selected target first by ID, only fall back to first alive as last resort
+      let fallbackEnemy: EnemyInstance | null = null;
+      if ('id' in target) {
+        fallbackEnemy = enemies.find(e => e.id === (target as { id: string }).id && e.currentHp > 0) || null;
+      }
+      if (!fallbackEnemy) {
+        // Only as last resort, use first alive enemy
+        fallbackEnemy = enemies.find(e => e.currentHp > 0) || null;
+      }
+      if (!fallbackEnemy) {
+        return { log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: `${character.name} usa ${actionLabel} ma non ci sono bersagli validi!` } };
+      }
+      const damageEffect = effects.find(e => e.type === 'deal_damage') as SpecialEffect & { type: 'deal_damage' };
+      const pm = damageEffect.powerMultiplier || 1;
+      const totalAtk = getEffectiveAtk(character, activeEffects) * pm;
+      const critBonus = getCharacterCritBonus(character);
+      const hasAdrenaline = character.statusEffects.includes('adrenaline');
+      const effectiveDef = damageEffect.ignoreDef ? 0 : getEffectiveEnemyDef(fallbackEnemy, activeEffects);
+      const calcResult = damageEffect.noMiss
+        ? calculateDamageNoMiss(totalAtk, effectiveDef, fallbackEnemy.isDefending, character.archetype, hasAdrenaline, critBonus)
+        : calculateDamage(totalAtk, effectiveDef, fallbackEnemy.isDefending, character.archetype, hasAdrenaline, critBonus);
+
+      let finalDamage = calcResult.damage;
+      if (damageEffect.guaranteedCrit && !calcResult.isCritical) {
+        finalDamage = Math.floor(finalDamage * COMBAT_CONFIG.critMultiplier);
+      }
+      finalDamage = Math.max(1, finalDamage);
+      const isCrit = damageEffect.guaranteedCrit || calcResult.isCritical;
+
+      const updatedEnemies = enemies.map(e => {
+        if (e.id === fallbackEnemy.id) {
+          return { ...e, currentHp: Math.max(0, e.currentHp - finalDamage), isDefending: false };
+        }
+        return e;
+      });
+
+      const message = isCrit
+        ? `${character.name} infligge un COLPO CRITICO a ${fallbackEnemy.name} per ${finalDamage} danni!`
+        : `${character.name} infligge ${finalDamage} danni a ${fallbackEnemy.name}.`;
+
+      return {
+        log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, targetName: fallbackEnemy.name, targetId: fallbackEnemy.id, damage: finalDamage, isCritical: isCrit, message },
+        updatedEnemies,
+      };
+    }
+
     return {
       log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: `${character.name} usa ${actionLabel} ma gli effetti non si attivano!` },
     };
@@ -1543,8 +1674,8 @@ function executeEffectsInternal(
       targetName: primaryTargetName || undefined,
       targetId: primaryTargetId || undefined,
       targetIds: allTargetIds.length > 0 ? allTargetIds : undefined,
-      damage: totalDamage || undefined,
-      heal: totalHeal || undefined,
+      damage: totalDamage > 0 ? totalDamage : undefined,
+      heal: totalHeal > 0 ? totalHeal : undefined,
       healPerTarget: Object.keys(mergedHealPerTarget).length > 0 ? mergedHealPerTarget : undefined,
       isCritical: anyCritical || undefined,
       isMiss: anyMiss || undefined,
@@ -1577,11 +1708,13 @@ export function executeEffectsForTrigger(
   sourceType: 'special' | 'weapon' | 'armor' | 'accessory' | 'item',
   sourceName?: string,
   activeEffects?: ActiveCombatEffect[],
+  sourceIcon?: string,
+  sourceAbilityId?: string,
 ): ActionResult {
   // Filter by trigger (effects without a trigger default to matching for backwards compat)
   const filtered = effects.filter(e => !e.trigger || e.trigger === trigger);
   const actionLabel = sourceName || 'Effetto';
-  return executeEffectsInternal(filtered, character, target, turn, party, enemies, actionLabel, sourceType, true, activeEffects);
+  return executeEffectsInternal(filtered, character, target, turn, party, enemies, actionLabel, sourceType, true, activeEffects, sourceIcon, sourceAbilityId);
 }
 
 // ==========================================
@@ -1621,7 +1754,7 @@ function executeEffectsDriven(
   special: SpecialAbilityDefinition,
   activeEffects?: ActiveCombatEffect[],
 ): ActionResult {
-  return executeEffectsInternal(special.effects, character, target, turn, party, enemies, special.name, undefined, false, activeEffects);
+  return executeEffectsInternal(special.effects, character, target, turn, party, enemies, special.name, undefined, false, activeEffects, special.icon, special.id);
 }
 
 // ==========================================
@@ -1655,7 +1788,7 @@ export function executeUseItem(
       .flatMap(e => (e as { statuses?: StatusEffect[] }).statuses || []) as StatusEffect[];
 
     const result = executeEffectsForTrigger(
-      item.effects, 'on_use', character, target, turn, party, enemies, 'item', item.name, activeEffects,
+      item.effects, 'on_use', character, target, turn, party, enemies, 'item', item.name, activeEffects, item.icon,
     );
     return {
       log: result.log,
@@ -2197,8 +2330,8 @@ function executeEnemyAbilityEffects(
       targetName: primaryTargetName || primaryTarget.name,
       targetId: primaryTargetId || primaryTarget.id,
       targetIds: allTargetIds.length > 0 ? allTargetIds : undefined,
-      damage: totalDamage || undefined,
-      heal: totalHeal || undefined,
+      damage: totalDamage > 0 ? totalDamage : undefined,
+      heal: totalHeal > 0 ? totalHeal : undefined,
       isCritical: anyCritical || undefined,
       isMiss: anyMiss || undefined,
       statusEffect: primaryStatusEffect,
@@ -2375,6 +2508,20 @@ export function processActiveEffectsTick(
       });
     }
 
+    // FIX: Clean up shields that have been broken (shieldHp <= 0) — they should
+    // be expired immediately rather than lingering with 0 HP until duration expires
+    if (effect.type === 'shield' && (effect.shieldHp ?? 0) <= 0) {
+      expiredEffects.push(effect.id);
+      const targetName = party.find(p => p.id === effect.targetId)?.name
+        || enemies.find(e => e.id === effect.targetId)?.name
+        || 'sconosciuto';
+      log.push({
+        turn, actorName: targetName, actorType: 'player', action: 'Scudo',
+        message: `Lo scudo di ${targetName} si è rotto!`,
+      });
+      continue;
+    }
+
     // Decrement remaining turns for all effects (on the cloned copy)
     effect.remainingTurns--;
 
@@ -2449,12 +2596,29 @@ export function onTakeHit(
   if (armorDef?.effects && armorDef.effects.length > 0) {
     const result = executeEffectsForTrigger(
       armorDef.effects, 'on_take_hit', character, attacker as EnemyInstance, turn, party, enemies, 'armor', character.armor!.name,
+      undefined, character.armor!.icon,
     );
     if (result.activeEffects && result.activeEffects.length > 0) {
       newActiveEffects.push(...result.activeEffects);
     }
     if (result.log?.message) {
       // Armor proc message logged via activeEffects (shield created, etc.)
+    }
+  }
+
+  // FIX: Also check accessory on_take_hit effects (e.g., ring_virus reflect)
+  // Previously, accessories with on_take_hit (like reflect) were never triggered
+  const accessoryDef = character.accessory ? ITEMS[character.accessory.itemId] : null;
+  if (accessoryDef?.effects && accessoryDef.effects.length > 0) {
+    const result = executeEffectsForTrigger(
+      accessoryDef.effects, 'on_take_hit', character, attacker as EnemyInstance, turn, party, enemies, 'accessory', character.accessory!.name,
+      undefined, character.accessory!.icon,
+    );
+    if (result.activeEffects && result.activeEffects.length > 0) {
+      newActiveEffects.push(...result.activeEffects);
+    }
+    if (result.log?.message) {
+      // Accessory proc message logged via activeEffects
     }
   }
 
@@ -2488,6 +2652,7 @@ export function onTurnStart(
   if (armorDef?.effects && armorDef.effects.length > 0) {
     const result = executeEffectsForTrigger(
       armorDef.effects, 'on_turn_start', character, character, turn, party, enemies, 'armor', character.armor!.name,
+      undefined, character.armor!.icon,
     );
     if (result.log?.message) logs.push(result.log);
     if (result.activeEffects) newActiveEffects.push(...result.activeEffects);
@@ -2499,6 +2664,7 @@ export function onTurnStart(
   if (accessoryDef?.effects && accessoryDef.effects.length > 0) {
     const result = executeEffectsForTrigger(
       accessoryDef.effects, 'on_turn_start', character, character, turn, party, enemies, 'accessory', character.accessory!.name,
+      undefined, character.accessory!.icon,
     );
     if (result.log?.message) logs.push(result.log);
     if (result.activeEffects) newActiveEffects.push(...result.activeEffects);

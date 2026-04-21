@@ -48,12 +48,12 @@ export default function CombatScreen() {
 
   // ── Resizable split layout ──
   const { percent: desktopPercent, containerRef: desktopContainerRef, handleMouseDown: desktopMouseDown, handleTouchStart: desktopTouchStart } = useResizableSplit({ initialPercent: 80, minPercent: 55, maxPercent: 88, direction: 'horizontal' });
-  const { percent: mobilePercent, containerRef: mobileContainerRef, handleMouseDown: mobileMouseDown, handleTouchStart: mobileTouchStart } = useResizableSplit({ initialPercent: 65, minPercent: 40, maxPercent: 80, direction: 'vertical' });
+  const { percent: mobilePercent, containerRef: mobileContainerRef, handleMouseDown: mobileMouseDown, handleTouchStart: mobileTouchStart } = useResizableSplit({ initialPercent: 50, minPercent: 30, maxPercent: 70, direction: 'vertical' });
 
   // ── Custom hooks: animations, audio, scrolling ──
   const animState = useCombatAnimations(combat, enemies);
   useCombatAudio(combat, enemies);
-  const logRef = useCombatScroll(combat, isPlayerTurn);
+  const { desktopLogRef, mobileLogRef } = useCombatScroll(combat, isPlayerTurn);
 
   // ── Custom hook: action state + callbacks ──
   const actions = useCombatActions({
@@ -69,7 +69,45 @@ export default function CombatScreen() {
 
   if (!combat) return null;
 
-  // ── Arena: composes EnemyDisplay + PartyDisplay + floating menus ──
+  // ── Common props for ActionMenu ──
+  const actionMenuProps = {
+    autoCombat,
+    isPlayerTurn,
+    isCombatEnd,
+    isProcessing: !!combat?.isProcessing,
+    isStunned,
+    specialCd,
+    special2Cd,
+    usableItemsCount: usableItems.length,
+    currentCharacter,
+    currentWeaponAmmoCount,
+    arch,
+    aiPredictedAction,
+    combat,
+    enemies,
+    onMenuAction: actions.handleMenuAction,
+    onToggleAutoCombat: actions.handleToggleAutoCombat,
+  };
+
+  const itemSelectorProps = {
+    show: actions.showItemSelect,
+    isPlayerTurn,
+    usableItems,
+    hoveredItem: actions.hoveredItem,
+    onItemSelect: actions.handleItemSelect,
+    onHoverItem: actions.onHoverItem,
+    onCancel: actions.cancelAll,
+  };
+
+  const targetSelectorProps = {
+    targetingMode: actions.targetingMode,
+    isPlayerTurn,
+    aliveEnemiesCount: aliveEnemies.length,
+    alivePartyCount: aliveParty.length,
+    onCancel: actions.cancelAll,
+  };
+
+  // ── Arena: only entities (enemies + party), NO floating menus ──
   const renderArenaEntities = () => (
     <div className={`relative z-10 flex-1 min-h-0 overflow-hidden px-2 sm:px-4 pb-1.5 ${animState.arenaShakeClass}`}>
       <div className="relative mx-2 sm:mx-auto max-w-2xl lg:max-w-none h-full flex flex-col overflow-hidden"
@@ -93,6 +131,8 @@ export default function CombatScreen() {
           dataVersion={dataVersion}
           onEnemyClick={actions.handleArenaEnemyClick}
           getAnimForTarget={boundGetAnimForTarget}
+          activeEffects={combat.activeEffects || []}
+          statusDurations={combat.statusDurations || {}}
         />
 
         {/* ── VS divider — horizontal center ── */}
@@ -114,44 +154,10 @@ export default function CombatScreen() {
           dataVersion={dataVersion}
           onAllyClick={actions.handleArenaAllyClick}
           getAnimForTarget={boundGetAnimForTarget}
+          activeEffects={combat.activeEffects || []}
+          statusDurations={combat.statusDurations || {}}
         />
       </div>
-
-      {/* ── Floating sub-components rendered inside arena ── */}
-      <ActionMenu
-        autoCombat={autoCombat}
-        isPlayerTurn={isPlayerTurn}
-        isCombatEnd={isCombatEnd}
-        isProcessing={!!combat?.isProcessing}
-        isStunned={isStunned}
-        specialCd={specialCd}
-        special2Cd={special2Cd}
-        usableItemsCount={usableItems.length}
-        currentCharacter={currentCharacter}
-        currentWeaponAmmoCount={currentWeaponAmmoCount}
-        arch={arch}
-        aiPredictedAction={aiPredictedAction}
-        combat={combat}
-        enemies={enemies}
-        onMenuAction={actions.handleMenuAction}
-        onToggleAutoCombat={actions.handleToggleAutoCombat}
-      />
-      <ItemSelector
-        show={actions.showItemSelect}
-        isPlayerTurn={isPlayerTurn}
-        usableItems={usableItems}
-        hoveredItem={actions.hoveredItem}
-        onItemSelect={actions.handleItemSelect}
-        onHoverItem={actions.onHoverItem}
-        onCancel={actions.cancelAll}
-      />
-      <TargetSelector
-        targetingMode={actions.targetingMode}
-        isPlayerTurn={isPlayerTurn}
-        aliveEnemiesCount={aliveEnemies.length}
-        alivePartyCount={aliveParty.length}
-        onCancel={actions.cancelAll}
-      />
     </div>
   );
 
@@ -177,7 +183,7 @@ export default function CombatScreen() {
            DESKTOP: 2-column layout with horizontal splitter
            ═══════════════════════════════════════════════════════ */}
       <div ref={desktopContainerRef} className="hidden lg:flex flex-1 min-h-0">
-        {/* LEFT COLUMN: Arena + floating menus */}
+        {/* LEFT COLUMN: Arena + floating menus (desktop: absolutely positioned, inside arena) */}
         <div className="relative overflow-hidden flex flex-col"
           style={{
             width: `${desktopPercent}%`,
@@ -191,8 +197,12 @@ export default function CombatScreen() {
               background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%)',
             }}
           />
-          {/* Arena entities + floating menus */}
+          {/* Arena entities */}
           {renderArenaEntities()}
+          {/* Desktop floating menus — absolutely positioned inside arena */}
+          <ActionMenu {...actionMenuProps} />
+          <ItemSelector {...itemSelectorProps} />
+          <TargetSelector {...targetSelectorProps} />
         </div>
 
         {/* SPLITTER */}
@@ -215,7 +225,7 @@ export default function CombatScreen() {
           />
           {/* Combat log fills remaining space */}
           <div className="flex-1 min-h-0 px-3 py-1.5 flex flex-col">
-            <CombatLogPanel log={combat.log} party={party} dataVersion={dataVersion} logRef={logRef} />
+            <CombatLogPanel log={combat.log} party={party} dataVersion={dataVersion} logRef={desktopLogRef} />
           </div>
           {/* Bottom hint bars */}
           <BottomBars
@@ -227,7 +237,7 @@ export default function CombatScreen() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════
-           MOBILE: Vertical layout with vertical splitter
+           MOBILE: Vertical layout — Arena | Log | Actions
            ═══════════════════════════════════════════════════════ */}
       <div ref={mobileContainerRef} className="flex lg:hidden flex-1 min-h-0 flex-col">
         {/* ARENA SECTION */}
@@ -251,7 +261,7 @@ export default function CombatScreen() {
             currentCharacterName={currentCharacter?.name}
             currentEnemyName={currentEnemyName}
           />
-          {/* Arena entities + floating menus */}
+          {/* Arena entities only (no floating menus) */}
           {renderArenaEntities()}
         </div>
 
@@ -262,13 +272,16 @@ export default function CombatScreen() {
           onTouchStart={mobileTouchStart}
         />
 
-        {/* LOG SECTION */}
-        <div className="flex flex-col min-h-0 overflow-hidden"
-          style={{ height: `${100 - mobilePercent}%` }}
-        >
+        {/* LOG + ACTIONS SECTION */}
+        <div className="flex flex-col min-h-0 overflow-hidden flex-1">
+          {/* Combat log */}
           <div className="flex-1 min-h-0 px-3 sm:px-4 py-1.5 flex flex-col">
-            <CombatLogPanel log={combat.log} party={party} dataVersion={dataVersion} logRef={logRef} />
+            <CombatLogPanel log={combat.log} party={party} dataVersion={dataVersion} logRef={mobileLogRef} />
           </div>
+          {/* Mobile action menus — outside the overflow-hidden arena, always visible */}
+          <ActionMenu {...actionMenuProps} />
+          <ItemSelector {...itemSelectorProps} />
+          <TargetSelector {...targetSelectorProps} />
         </div>
       </div>
 

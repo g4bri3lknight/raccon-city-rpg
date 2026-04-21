@@ -517,7 +517,13 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         const isEnemyTarget = firstTarget === 'enemy' || firstTarget === 'all_enemies' || firstTarget === 'random_enemy';
         let itemTarget: EnemyInstance | Character;
         if (isEnemyTarget) {
-          itemTarget = updatedEnemies.find(e => e.id === state.combat!.selectedTarget) || updatedEnemies[0];
+          const found = updatedEnemies.find(e => e.id === state.combat!.selectedTarget && e.currentHp > 0);
+          if (!found) {
+            // Selected enemy is dead or not found — skip this action
+            get().advanceToNextActor({ ...state.combat!, log: newLog, party: updatedParty, enemies: updatedEnemies });
+            return;
+          }
+          itemTarget = found;
         } else {
           itemTarget = updatedParty.find(p => p.id === state.combat!.selectedTarget) || character;
         }

@@ -9,14 +9,13 @@ import { Hammer, Check, AlertCircle } from 'lucide-react';
 
 export default function CraftingPanel() {
   const party = useGameStore(s => s.party);
-  const itemBoxItems = useGameStore(s => s.itemBoxItems);
   const craftItem = useGameStore(s => s.craftItem);
 
   const recipes = RECIPES_DATA;
 
   const ingredientAvailability = useMemo(() => {
     const counts: Record<string, number> = {};
-    const allSources = [...itemBoxItems, ...party.flatMap(p => p.inventory)];
+    const allSources = party.flatMap(p => p.inventory);
     for (const item of allSources) {
       counts[item.itemId] = (counts[item.itemId] || 0) + item.quantity;
     }
@@ -33,7 +32,7 @@ export default function CraftingPanel() {
       const resultDef = ITEMS[recipe.result.itemId];
       return { recipe, canCraft, ingredientStatus, resultDef };
     });
-  }, [party, itemBoxItems, recipes]);
+  }, [party, recipes]);
 
   return (
     <div className="space-y-1.5 sm:space-y-2.5">

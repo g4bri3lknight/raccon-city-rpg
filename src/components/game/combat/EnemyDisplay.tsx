@@ -2,6 +2,7 @@
 
 import { Swords, Crosshair } from 'lucide-react';
 import { ENEMY_IMAGES, mediaUrl } from '@/game/data/loader';
+import EffectIndicators from './EffectIndicators';
 import type { EnemyDisplayProps } from './types';
 
 export default function EnemyDisplay({
@@ -17,6 +18,8 @@ export default function EnemyDisplay({
   dataVersion,
   onEnemyClick,
   getAnimForTarget,
+  activeEffects,
+  statusDurations,
 }: EnemyDisplayProps) {
   return (
     <div className="flex-1 flex items-center justify-center gap-4 sm:gap-8 lg:gap-14 px-3 py-1 min-h-0">
@@ -81,6 +84,28 @@ export default function EnemyDisplay({
                   t.parentElement?.appendChild(fb);
                 }
               }} />
+              {/* ── Status effect overlays (poison/bleeding) ── */}
+              {enemy.statusEffects?.includes('bleeding') && !isDead && (
+                <>
+                  <div className="absolute inset-0 rounded-lg pointer-events-none bleeding-overlay" />
+                  <div className="absolute left-0 top-0 bottom-0 w-[5px] overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-red-900/90 to-red-950 blood-streak" />
+                  </div>
+                </>
+              )}
+              {enemy.statusEffects?.includes('poison') && !isDead && (
+                <>
+                  <div className="absolute inset-0 rounded-lg pointer-events-none poison-overlay" />
+                  <div className="absolute inset-0 rounded-lg pointer-events-none poison-edge-glow" />
+                </>
+              )}
+              {/* ── Active effect indicators (buffs, debuffs, shields, etc.) ── */}
+              <EffectIndicators
+                entityId={enemy.id}
+                activeEffects={activeEffects}
+                statusDurations={statusDurations[enemy.id] || []}
+                isDead={isDead}
+              />
             </div>
             <span className={`text-[10px] sm:text-xs font-bold ${isDead ? 'text-gray-700' : enemy.isBoss ? 'text-red-300' : 'text-gray-300'}`}>
               {enemy.name}
@@ -110,7 +135,7 @@ export default function EnemyDisplay({
             )}
             {isHurt && anim.value && (
               <div className="absolute -top-2 right-0 z-30">
-                <div className="damage-number"><span className={`text-xs font-black ${isCrit ? 'text-orange-400' : 'text-red-400'}`}>-{anim.value}</span></div>
+                <div className="damage-number"><span className={`text-xs font-black ${isCrit ? 'text-orange-400' : 'text-red-400'}`}>⚔️{anim.value}</span></div>
               </div>
             )}
             {isTargetable && (

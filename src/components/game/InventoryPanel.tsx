@@ -1,17 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, getMaxInventorySlots } from '@/game/store';
-import { ItemInstance } from '@/game/types';
+import { ItemInstance, Character } from '@/game/types';
 import { getItemEffectDescriptions } from '@/game/utils/item-effects';
 import { getEquipStatBonus, getEffectSpecialLabel, getStatusChanceBoost } from '@/game/utils/effect-helpers';
 import ItemIcon from './ItemIcon';
 import { CombatHpPanel } from './HpBar';
-import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
+import { CHARACTER_IMAGES, ITEMS, RECIPES_DATA, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star } from 'lucide-react';
+import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star, Hammer } from 'lucide-react';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
 import { RARITY_LABEL, TYPE_LABELS } from '@/game/utils/rarity-helpers';
@@ -35,6 +35,10 @@ export default function InventoryPanel() {
   const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
   const [showTransferPicker, setShowTransferPicker] = useState(false);
   const [sortMode, setSortMode] = useState<'name' | 'type' | 'rarity'>('name');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'recipes'>('inventory');
+  const craftItem = useGameStore(s => s.craftItem);
+  const combat = useGameStore(s => s.combat);
+  const inCombat = !!combat;
 
   if (!inventoryOpen) return null;
 
@@ -153,76 +157,112 @@ export default function InventoryPanel() {
           </div>
         )}
 
-        {/* Sort Controls */}
-        <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-4 pb-1 flex items-center gap-1">
-          <span className="text-[10px] md:text-xs text-white/30 mr-1">Ordina:</span>
-          {([
-            { key: 'name' as const, label: 'Nome', Icon: ArrowDownAZ },
-            { key: 'type' as const, label: 'Tipo', Icon: Layers },
-            { key: 'rarity' as const, label: 'Rarità', Icon: Star },
-          ]).map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              onClick={() => setSortMode(key)}
-              title={label}
-              className={`flex items-center gap-1 px-2 md:px-2.5 py-1 rounded-md text-[10px] md:text-xs transition-all border ${
-                sortMode === key
-                  ? 'bg-red-900/40 border-red-800/60 text-red-300 shadow-[0_0_8px_rgba(153,27,27,0.2)]'
-                  : 'bg-white/[0.03] border-white/[0.06] text-white/40 hover:text-white/60 hover:bg-white/[0.06] hover:border-white/10'
-              }`}
-            >
-              <Icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
+        {/* Inventory / Recipes Tab Switcher */}
+        <div className="shrink-0 flex border-b border-white/[0.06] bg-white/[0.02]">
+          <button
+            onClick={() => { setActiveTab('inventory'); setSelectedItem(null); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs md:text-sm font-medium transition-all border-b-2 ${
+              activeTab === 'inventory'
+                ? 'border-white/20 text-white bg-white/[0.06]'
+                : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.03]'
+            }`}
+          >
+            <Backpack className="w-3.5 h-3.5" /> Inventario
+          </button>
+          <button
+            onClick={() => { setActiveTab('recipes'); setSelectedItem(null); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs md:text-sm font-medium transition-all border-b-2 ${
+              activeTab === 'recipes'
+                ? 'border-amber-500/40 text-amber-300 bg-white/[0.06]'
+                : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.03]'
+            }`}
+          >
+            <Hammer className="w-3.5 h-3.5" /> Ricette
+          </button>
         </div>
 
-        {/* Icon Grid */}
-        <div className="flex-1 min-h-0 px-3 md:px-6 pb-3 md:pb-6">
-          <div className="grid grid-cols-6 gap-2 md:gap-3">
-            {slots.map((item, index) => {
-              const isSelected = item && selectedItem?.uid === item.uid;
-              let slotClass = 'aspect-square rounded-lg md:rounded-xl border-2 flex items-center justify-center text-2xl transition-all duration-200 relative ';
-              if (item) {
-                slotClass += 'bg-white/[0.04] cursor-pointer ';
-                if (isSelected) {
-                  slotClass += 'border-red-800 bg-red-950/30 shadow-[0_0_12px_rgba(153,27,27,0.3)] scale-105';
-                } else {
-                  slotClass += 'border-white/[0.08] hover:border-red-800 hover:bg-white/[0.06] hover:shadow-[0_0_8px_rgba(153,27,27,0.15)] hover:scale-105';
-                }
-                if (item.isEquipped) {
-                  slotClass += ' ring-1 ring-amber-500/40';
-                }
-              } else {
-                slotClass += 'border-white/[0.04] bg-white/[0.02] cursor-default';
-              }
-              return (
-                <motion.button
-                  key={item?.uid || `empty_${index}`}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.03 }}
-                  onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
-                  className={slotClass}
+        {/* Tab Content */}
+        {activeTab === 'inventory' ? (
+          <>
+            {/* Sort Controls */}
+            <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-4 pb-1 flex items-center gap-1">
+              <span className="text-[10px] md:text-xs text-white/30 mr-1">Ordina:</span>
+              {([
+                { key: 'name' as const, label: 'Nome', Icon: ArrowDownAZ },
+                { key: 'type' as const, label: 'Tipo', Icon: Layers },
+                { key: 'rarity' as const, label: 'Rarità', Icon: Star },
+              ]).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setSortMode(key)}
+                  title={label}
+                  className={`flex items-center gap-1 px-2 md:px-2.5 py-1 rounded-md text-[10px] md:text-xs transition-all border ${
+                    sortMode === key
+                      ? 'bg-red-900/40 border-red-800/60 text-red-300 shadow-[0_0_8px_rgba(153,27,27,0.2)]'
+                      : 'bg-white/[0.03] border-white/[0.06] text-white/40 hover:text-white/60 hover:bg-white/[0.06] hover:border-white/10'
+                  }`}
                 >
-                  {item ? (
-                    <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
-                      <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
-                      {item.quantity > 1 && (
-                        <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
-                          {item.quantity}
+                  <Icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Icon Grid */}
+            <div className="flex-1 min-h-0 px-3 md:px-6 pb-3 md:pb-6">
+              <div className="grid grid-cols-6 gap-2 md:gap-3">
+                {slots.map((item, index) => {
+                  const isSelected = item && selectedItem?.uid === item.uid;
+                  let slotClass = 'aspect-square rounded-lg md:rounded-xl border-2 flex items-center justify-center text-2xl transition-all duration-200 relative ';
+                  if (item) {
+                    slotClass += 'bg-white/[0.04] cursor-pointer ';
+                    if (isSelected) {
+                      slotClass += 'border-red-800 bg-red-950/30 shadow-[0_0_12px_rgba(153,27,27,0.3)] scale-105';
+                    } else {
+                      slotClass += 'border-white/[0.08] hover:border-red-800 hover:bg-white/[0.06] hover:shadow-[0_0_8px_rgba(153,27,27,0.15)] hover:scale-105';
+                    }
+                    if (item.isEquipped) {
+                      slotClass += ' ring-1 ring-amber-500/40';
+                    }
+                  } else {
+                    slotClass += 'border-white/[0.04] bg-white/[0.02] cursor-default';
+                  }
+                  return (
+                    <motion.button
+                      key={item?.uid || `empty_${index}`}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.03 }}
+                      onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
+                      className={slotClass}
+                    >
+                      {item ? (
+                        <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
+                          <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
+                          {item.quantity > 1 && (
+                            <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
+                              {item.quantity}
+                            </span>
+                          )}
+                          <span className={`absolute bottom-1 right-1 md:bottom-1.5 md:right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${rarityDotColor[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
                         </span>
+                      ) : (
+                        <span className="text-white/10 text-lg md:text-2xl">+</span>
                       )}
-                      <span className={`absolute bottom-1 right-1 md:bottom-1.5 md:right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${rarityDotColor[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
-                    </span>
-                  ) : (
-                    <span className="text-white/10 text-lg md:text-2xl">+</span>
-                  )}
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        ) : (
+          <InventoryRecipesTab
+            party={party}
+            selectedChar={selectedChar}
+            craftItem={craftItem}
+            inCombat={inCombat}
+          />
+        )}
 
         {/* Detail Panel - always visible, no animation */}
         <div className="shrink-0 border-t border-white/[0.06] bg-white/[0.03]">
@@ -475,3 +515,111 @@ export default function InventoryPanel() {
 }
 
 
+/** Recipes tab embedded in the inventory panel. Always available except during combat. */
+function InventoryRecipesTab({
+  party,
+  selectedChar,
+  craftItem,
+  inCombat,
+}: {
+  party: Character[];
+  selectedChar: Character;
+  craftItem: (recipeIndex: number) => boolean;
+  inCombat: boolean;
+}) {
+  const recipes = RECIPES_DATA;
+
+  const ingredientAvailability = useMemo(() => {
+    const counts: Record<string, number> = {};
+    // Count items from all party inventories ONLY (not item box)
+    // The player must take items from the item box into their inventory first
+    const allSources = party.flatMap(p => p.inventory);
+    for (const item of allSources) {
+      counts[item.itemId] = (counts[item.itemId] || 0) + item.quantity;
+    }
+
+    return recipes.map((recipe, idx) => {
+      const canCraft = !inCombat && recipe.ingredients.every(ing => (counts[ing.itemId] || 0) >= ing.quantity);
+      const ingredientStatus = recipe.ingredients.map(ing => ({
+        itemId: ing.itemId,
+        qty: ing.quantity,
+        have: counts[ing.itemId] || 0,
+        enough: (counts[ing.itemId] || 0) >= ing.quantity,
+        itemDef: ITEMS[ing.itemId],
+      }));
+      const resultDef = ITEMS[recipe.result.itemId];
+      return { recipe, idx, canCraft, ingredientStatus, resultDef };
+    });
+  }, [party, recipes, inCombat]);
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 inventory-scrollbar">
+      {inCombat && (
+        <div className="mb-3 p-2 rounded-lg bg-red-950/30 border border-red-800/30 text-red-300 text-xs text-center">
+          ⚔️ Crafting non disponibile durante il combattimento
+        </div>
+      )}
+      <div className="space-y-2">
+        {ingredientAvailability.map(({ recipe, idx, canCraft, ingredientStatus, resultDef }) => (
+          <div
+            key={recipe.id || idx}
+            className={`p-2.5 md:p-3 rounded-lg border transition-all ${
+              canCraft
+                ? 'border-green-500/20 bg-green-950/10 hover:border-green-500/30'
+                : 'border-white/[0.06] bg-white/[0.02]'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0">
+                <div className="text-xs md:text-sm font-bold text-white/90 truncate">
+                  {recipe.icon} {recipe.name}
+                </div>
+                <p className="text-[10px] md:text-xs text-white/40 mt-0.5 line-clamp-1">
+                  {recipe.description}
+                </p>
+              </div>
+              <Badge className={`text-[9px] md:text-[10px] shrink-0 border-0 ${
+                canCraft
+                  ? 'bg-green-900/50 text-green-300'
+                  : 'bg-white/[0.04] text-white/30'
+              }`}>
+                {canCraft ? '✓ Pronto' : '✗ Mancano'}
+              </Badge>
+            </div>
+
+            {/* Ingredients */}
+            <div className="flex flex-wrap gap-1 md:gap-1.5 mb-2">
+              {ingredientStatus.map((ing, ingIdx) => (
+                <span
+                  key={ingIdx}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] md:text-xs border ${
+                    ing.enough
+                      ? 'border-green-700/30 bg-green-950/20 text-green-300'
+                      : 'border-red-700/30 bg-red-950/20 text-red-300'
+                  }`}
+                >
+                  {ing.itemDef?.icon} {ing.itemDef?.name} {ing.have}/{ing.qty}
+                </span>
+              ))}
+            </div>
+
+            {/* Craft button */}
+            <Button
+              size="sm"
+              onClick={() => craftItem(idx)}
+              disabled={!canCraft}
+              className={`w-full min-h-[40px] h-auto md:h-7 text-xs md:text-sm font-semibold bg-transparent transition-all ${
+                canCraft
+                  ? 'border-amber-600/40 text-amber-300 hover:bg-amber-950/30 hover:border-amber-500/50'
+                  : 'border-white/[0.06] text-white/20 cursor-not-allowed'
+              }`}
+            >
+              <Hammer className="w-3.5 h-3.5 mr-1" />
+              Crea: {resultDef?.icon} {resultDef?.name} x{recipe.result.quantity}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
