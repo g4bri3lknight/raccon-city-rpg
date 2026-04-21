@@ -219,6 +219,20 @@ function applyStatusBonus(baseChance: number, character: Character): number {
   return Math.min(baseChance + bonus, 100);
 }
 
+/** Get total status resistance for a character from equipment on_equip effects */
+function getStatusResist(char: Character, statusType: string): number {
+  let resist = 0;
+  for (const e of getOnEquipEffects(char)) {
+    if (e.type === 'status_resist') {
+      const sr = e as SpecialEffect & { type: 'status_resist' };
+      if (sr.statusType === statusType || sr.statusType === 'all') {
+        resist += sr.value;
+      }
+    }
+  }
+  return Math.min(resist, 100); // Cap at 100%
+}
+
 // ==========================================
 // DAMAGE CALCULATION
 // ==========================================
@@ -664,7 +678,8 @@ function handleDealDamage(
     if (activeEffects) {
       const reflectEffects = activeEffects.filter(ae => ae.type === 'reflect' && ae.targetId === e.id && ae.remainingTurns > 0);
       for (const ref of reflectEffects) {
-        const reflectDmg = Math.floor(calcResult.damage * (ref.amount || 0) / 100);
+        // FIX: Use finalDamage (post-shield) instead of pre-shield calcResult.damage
+        const reflectDmg = Math.floor(finalDamage * (ref.amount || 0) / 100);
         if (reflectDmg > 0) {
           totalReflectDmg += reflectDmg;
           splashLog.push(`🔄 ${e.name} riflette ${reflectDmg} danni!`);
@@ -842,7 +857,10 @@ function handleApplyStatus(
       const isTarget = resolved.allies.some(at => at.id === p.id);
       if (!isTarget) return p;
       const updated = { ...p };
-      if (chance(effectiveChance) && !updated.statusEffects.includes(statusType)) {
+      // FIX: Apply status_resist from equipment
+      const resistAmount = getStatusResist(p, statusType);
+      const finalChance = Math.max(0, effectiveChance - resistAmount);
+      if (chance(finalChance) && !updated.statusEffects.includes(statusType)) {
         updated.statusEffects = [...updated.statusEffects, statusType];
         appliedNames.push(p.name);
       }
@@ -1066,12 +1084,22 @@ function handleTaunt(
   turn: number,
 ): Partial<ActionResult> {
   const message = `${character.name} provoca i nemici! Tutti gli attacchi saranno diretti su di lui per ${effect.duration} turni!`;
+  // FIX: Create an ActiveCombatEffect so the taunt duration is properly tracked
+  // and expired by processActiveEffectsTick
+  const newEffects: ActiveCombatEffect[] = [{
+    id: `taunt_${character.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'taunt' as const,
+    targetId: character.id,
+    sourceId: character.id,
+    remainingTurns: effect.duration,
+  }];
   return {
     log: {
       turn, actorName: character.name, actorType: 'player', action: 'Speciale',
       message,
     },
     tauntTargetId: character.id,
+    activeEffects: newEffects,
   };
 }
 
@@ -1251,16 +1279,35 @@ function handleAddSlots(
   const { allies: slotTargets } = resolveTargets(effect, character, target, party, enemies);
   if (slotTargets.length === 0) return {};
 
+  // FIX: Actually add inventory slots to the target characters
+  let updatedParty: Character[] | undefined;
+  const maxSlotsCap = 30; // reasonable upper cap
+  const appliedNames: string[] = [];
+
+  updatedParty = party.map(p => {
+    const isTarget = slotTargets.some(st => st.id === p.id);
+    if (!isTarget) return p;
+    const newSlots = Math.min(maxSlotsCap, p.maxInventorySlots + effect.amount);
+    if (newSlots > p.maxInventorySlots) {
+      appliedNames.push(p.name);
+      return { ...p, maxInventorySlots: newSlots };
+    }
+    return p;
+  });
+
   const isSelf = slotTargets.length === 1 && slotTargets[0].id === character.id;
-  const message = isSelf
-    ? `${character.name} espande l'inventario di +${effect.amount} slot!`
-    : `${character.name} espande l'inventario di ${slotTargets[0].name} di +${effect.amount} slot!`;
+  const message = appliedNames.length > 0
+    ? (isSelf
+      ? `${character.name} espande l'inventario di +${effect.amount} slot! (${appliedNames[0]}: ${updatedParty!.find(p => appliedNames.includes(p.name))?.maxInventorySlots} slot)`
+      : `${character.name} espande l'inventario: ${appliedNames.map(n => `${n} +${effect.amount} slot`).join(', ')}!`)
+    : `${character.name} non può espandere ulteriormente l'inventario!`;
 
   return {
     log: {
       turn, actorName: character.name, actorType: 'player', action: 'Speciale',
       message,
     },
+    updatedParty,
   };
 }
 
@@ -1638,10 +1685,23 @@ export function executeEnemyAttack(
   enemies?: EnemyInstance[],
   activeEffects?: ActiveCombatEffect[],
 ): { log: CombatLogEntry; updatedParty: Character[]; updatedEnemies?: EnemyInstance[]; appliedStatus?: { targetId: string; effect: StatusEffect; duration: number }; activeEffects?: ActiveCombatEffect[] } {
-  // Pick random ability
-  const ability = enemy.abilities.length > 0
-    ? enemy.abilities[random(0, enemy.abilities.length - 1)]
-    : null;
+  // FIX: Pick ability using weighted random selection based on chance field.
+  // Abilities with higher chance are more likely to be selected.
+  // If no abilities have chance defined, fall back to uniform random.
+  let ability: EnemyAbility | null = null;
+  if (enemy.abilities.length > 0) {
+    const totalWeight = enemy.abilities.reduce((sum, a) => sum + (a.chance || 50), 0);
+    let roll = Math.random() * totalWeight;
+    for (const a of enemy.abilities) {
+      roll -= (a.chance || 50);
+      if (roll <= 0) {
+        ability = a;
+        break;
+      }
+    }
+    // Fallback in case of floating point issues
+    if (!ability) ability = enemy.abilities[enemy.abilities.length - 1];
+  }
 
   if (!ability) {
     return {
@@ -1758,8 +1818,11 @@ function executeEnemyAbilityEffects(
   }
 
   for (const effect of filtered) {
-    // Check activation chance
-    if (effect.chance !== undefined && effect.chance < 100) {
+    // FIX: Check activation chance, but SKIP apply_status effects because they
+    // already handle their own chance roll internally in the handler.
+    // Without this fix, apply_status chance was rolled twice — once here and once
+    // in the apply_status case below — making status effects much weaker than intended.
+    if (effect.chance !== undefined && effect.chance < 100 && effect.type !== 'apply_status') {
       if (!chance(effect.chance)) continue;
     }
 
@@ -1821,7 +1884,8 @@ function executeEnemyAbilityEffects(
             // Reflect: check active reflect effects on this character
             const reflectEffects = allActiveEffects.filter(ae => ae.type === 'reflect' && ae.targetId === p.id && ae.remainingTurns > 0);
             for (const ref of reflectEffects) {
-              const reflectDmg = Math.floor(calcResult.damage * (ref.amount || 0) / 100);
+              // FIX: Use finalDmg (post-shield) instead of pre-shield calcResult.damage
+              const reflectDmg = Math.floor(finalDmg * (ref.amount || 0) / 100);
               if (reflectDmg > 0) {
                 currentEnemy = { ...currentEnemy, currentHp: Math.max(0, currentEnemy.currentHp - reflectDmg) };
                 currentEnemies = currentEnemies.map(e => e.id === currentEnemy.id ? currentEnemy : e);
@@ -1893,7 +1957,10 @@ function executeEnemyAbilityEffects(
           // Apply status to party members
           currentParty = currentParty.map(p => {
             if (!partyTargets.some(pt => pt.id === p.id)) return p;
-            if (chance(applyChance) && !p.statusEffects.includes(statusType)) {
+            // FIX: Apply status_resist from equipment
+            const resistAmount = getStatusResist(p, statusType);
+            const finalChance = Math.max(0, applyChance - resistAmount);
+            if (chance(finalChance) && !p.statusEffects.includes(statusType)) {
               const duration = statusEffect.duration || 3;
               appliedStatus = { targetId: p.id, effect: statusType, duration };
               appliedNames.push(p.name);
@@ -1921,14 +1988,17 @@ function executeEnemyAbilityEffects(
         const healTargets = enemyTargets;
         if (healTargets.length === 0) break;
 
+        let healThisEffect = 0;
         currentEnemies = currentEnemies.map(e => {
           if (!healTargets.some(ht => ht.id === e.id)) return e;
           const rawHeal = healEffect.amount || 0;
           const healAmount = typeof healEffect.percent === 'number' ? Math.floor(e.maxHp * healEffect.percent / 100) : rawHeal;
           totalHeal += healAmount;
+          healThisEffect += healAmount;
           return { ...e, currentHp: Math.min(e.maxHp, e.currentHp + healAmount) };
         });
-        allLogParts.push(`${enemy.name} si cura di ${totalHeal} HP!`);
+        // FIX: Use healThisEffect instead of totalHeal for the log message
+        allLogParts.push(`${enemy.name} si cura di ${healThisEffect} HP!`);
         break;
       }
 
@@ -2158,7 +2228,7 @@ export function calculateFleeChance(party: Character[], enemies: EnemyInstance[]
   if (enemies.some(e => e.isBoss)) return false;
   const aliveParty = party.filter(p => p.currentHp > 0);
   if (aliveParty.length === 0) return false;
-  const avgSpd = aliveParty.reduce((sum, p) => sum + p.baseSpd, 0) / aliveParty.length;
+  const avgSpd = aliveParty.reduce((sum, p) => sum + getCharacterSpd(p), 0) / aliveParty.length;
   const enemyAvgSpd = enemies.reduce((sum, e) => sum + e.spd, 0) / enemies.length;
   const fleeChance = 30 + (avgSpd - enemyAvgSpd) * 5;
   return chance(Math.min(Math.max(fleeChance, 10), 80));

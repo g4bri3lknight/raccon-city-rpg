@@ -39,6 +39,8 @@ import {
   getEffectiveEnemyDef,
   getEffectiveSpd,
   resolveSpecialId,
+  onTakeHit,
+  onTurnStart,
 } from '../../engine/combat';
 import { getItemHealInfo, getItemHasStatusCure, getItemEffectTarget } from '../../utils/item-effects';
 import { WeaponInstance, EffectTarget } from '../../types';
@@ -55,6 +57,52 @@ import {
   playDefeat,
   audio,
 } from '../../engine/sounds';
+
+/** Merge new active effects with existing ones, refreshing duration instead of stacking same type+stat+target */
+function mergeActiveEffects(existing: ActiveCombatEffect[], incoming: ActiveCombatEffect[]): ActiveCombatEffect[] {
+  const result = [...existing];
+  for (const newEffect of incoming) {
+    // Check for same type + stat + targetId (for buff_stat/debuff_stat)
+    if (newEffect.type === 'buff_stat' || newEffect.type === 'debuff_stat') {
+      const existingIdx = result.findIndex(e =>
+        e.type === newEffect.type &&
+        e.stat === newEffect.stat &&
+        e.targetId === newEffect.targetId
+      );
+      if (existingIdx >= 0) {
+        // Refresh duration instead of stacking
+        result[existingIdx] = { ...result[existingIdx], remainingTurns: newEffect.remainingTurns, amount: newEffect.amount };
+        continue;
+      }
+    }
+    // For shield: if same targetId already has a shield, refresh it
+    if (newEffect.type === 'shield') {
+      const existingIdx = result.findIndex(e =>
+        e.type === 'shield' && e.targetId === newEffect.targetId
+      );
+      if (existingIdx >= 0) {
+        // Refresh shield (use the higher value)
+        result[existingIdx] = {
+          ...result[existingIdx],
+          remainingTurns: Math.max(result[existingIdx].remainingTurns, newEffect.remainingTurns),
+          shieldHp: Math.max(result[existingIdx].shieldHp || 0, newEffect.shieldHp || 0),
+          amount: Math.max(result[existingIdx].amount || 0, newEffect.amount || 0),
+        };
+        continue;
+      }
+    }
+    // FIX: For taunt: if there's already a taunt effect, replace it (only one taunt active at a time)
+    if (newEffect.type === 'taunt') {
+      const existingIdx = result.findIndex(e => e.type === 'taunt');
+      if (existingIdx >= 0) {
+        result[existingIdx] = newEffect;
+        continue;
+      }
+    }
+    result.push(newEffect);
+  }
+  return result;
+}
 
 export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   selectCombatAction: (action: CombatAction) => {
@@ -185,19 +233,29 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
         // Track active effects from weapon on_hit
         if (result.activeEffects && result.activeEffects.length > 0) {
-          updatedCombatActiveEffects.push(...result.activeEffects);
+          updatedCombatActiveEffects = mergeActiveEffects(updatedCombatActiveEffects, result.activeEffects);
         }
         // Track status durations on enemies from weapon on_hit effects (poison, bleed, stun)
+        // FIX: Look for the duration from the weapon's on_hit apply_status effect instead of hardcoding 3
         for (const e of updatedEnemies) {
           const prevEnemy = state.enemies.find(pe => pe.id === e.id);
           if (!prevEnemy) continue;
           const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
           for (const effect of newEffects) {
             if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+              let duration = 3; // default
+              if (character.weapon?.effects) {
+                const matchingEffect = character.weapon.effects.find(
+                  eff => eff.type === 'apply_status' && (eff as any).statusType === effect
+                );
+                if (matchingEffect && (matchingEffect as any).duration) {
+                  duration = (matchingEffect as any).duration;
+                }
+              }
               const existing = updatedCombatStatusDurations[e.id] || [];
               updatedCombatStatusDurations[e.id] = [
                 ...existing,
-                { effect: effect as StatusEffect, turnsLeft: 3 },
+                { effect: effect as StatusEffect, turnsLeft: duration },
               ];
             }
           }
@@ -263,16 +321,26 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           updatedEnemies = result.updatedEnemies;
         }
         // Track status durations on enemies after applying specials (poison, bleed, stun)
+        // FIX: Look for the duration from the special's apply_status effect instead of hardcoding 3
         for (const e of updatedEnemies) {
           const prevEnemy = state.enemies.find(pe => pe.id === e.id);
           if (!prevEnemy) continue;
           const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
           for (const effect of newEffects) {
             if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+              let duration = 3; // default
+              if (specialDef?.effects) {
+                const matchingEffect = specialDef.effects.find(
+                  eff => eff.type === 'apply_status' && (eff as any).statusType === effect
+                );
+                if (matchingEffect && (matchingEffect as any).duration) {
+                  duration = (matchingEffect as any).duration;
+                }
+              }
               const existing = updatedCombatStatusDurations[e.id] || [];
               updatedCombatStatusDurations[e.id] = [
                 ...existing,
-                { effect: effect as StatusEffect, turnsLeft: 3 },
+                { effect: effect as StatusEffect, turnsLeft: duration },
               ];
             }
           }
@@ -316,7 +384,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
         // Track active effects from special (buffs, shields, HoT, reflect)
         if (result.activeEffects && result.activeEffects.length > 0) {
-          updatedCombatActiveEffects.push(...result.activeEffects);
+          updatedCombatActiveEffects = mergeActiveEffects(updatedCombatActiveEffects, result.activeEffects);
         }
         // Only set cooldown if the ability was actually resolved
         // (if specialDef is undefined, the ability failed — no point setting a cooldown)
@@ -369,16 +437,26 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           updatedEnemies = result.updatedEnemies;
         }
         // Track status durations on enemies after applying specials (poison, bleed, stun)
+        // FIX: Look for the duration from the special2's apply_status effect instead of hardcoding 3
         for (const e of updatedEnemies) {
           const prevEnemy = state.enemies.find(pe => pe.id === e.id);
           if (!prevEnemy) continue;
           const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
           for (const effect of newEffects) {
             if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+              let duration = 3; // default
+              if (specialDef2?.effects) {
+                const matchingEffect = specialDef2.effects.find(
+                  eff => eff.type === 'apply_status' && (eff as any).statusType === effect
+                );
+                if (matchingEffect && (matchingEffect as any).duration) {
+                  duration = (matchingEffect as any).duration;
+                }
+              }
               const existing = updatedCombatStatusDurations[e.id] || [];
               updatedCombatStatusDurations[e.id] = [
                 ...existing,
-                { effect: effect as StatusEffect, turnsLeft: 3 },
+                { effect: effect as StatusEffect, turnsLeft: duration },
               ];
             }
           }
@@ -420,7 +498,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
         // Track active effects from special2
         if (result.activeEffects && result.activeEffects.length > 0) {
-          updatedCombatActiveEffects.push(...result.activeEffects);
+          updatedCombatActiveEffects = mergeActiveEffects(updatedCombatActiveEffects, result.activeEffects);
         }
         // Only set cooldown if the ability was actually resolved
         // FIX: Turn-based cooldown — store the turn when the special becomes available again
@@ -470,16 +548,26 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         if (result.updatedEnemies) {
           updatedEnemies = result.updatedEnemies;
           // Track status durations on enemies after applying item effects (poison, bleed, stun)
+          // FIX: Look for the duration from the item's apply_status effect instead of hardcoding 3
           for (const e of updatedEnemies) {
             const prevEnemy = state.enemies.find(pe => pe.id === e.id);
             if (!prevEnemy) continue;
             const newEffects = e.statusEffects.filter(s => !prevEnemy.statusEffects.includes(s) && s !== 'none');
             for (const effect of newEffects) {
               if (!updatedCombatStatusDurations[e.id]?.some(d => d.effect === effect)) {
+                let duration = 3; // default
+                if (effectiveItem.effects) {
+                  const matchingEffect = effectiveItem.effects.find(
+                    eff => eff.type === 'apply_status' && (eff as any).statusType === effect
+                  );
+                  if (matchingEffect && (matchingEffect as any).duration) {
+                    duration = (matchingEffect as any).duration;
+                  }
+                }
                 const existing = updatedCombatStatusDurations[e.id] || [];
                 updatedCombatStatusDurations[e.id] = [
                   ...existing,
-                  { effect: effect as StatusEffect, turnsLeft: 3 },
+                  { effect: effect as StatusEffect, turnsLeft: duration },
                 ];
               }
             }
@@ -493,7 +581,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
         // Track active effects from item (buffs, shields, hoTs, reflect)
         if (result.activeEffects && result.activeEffects.length > 0) {
-          updatedCombatActiveEffects.push(...result.activeEffects);
+          updatedCombatActiveEffects = mergeActiveEffects(updatedCombatActiveEffects, result.activeEffects);
         }
         // Handle applied buff
         if (result.appliedBuff) {
@@ -1070,6 +1158,33 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           return;
         }
       }
+
+      // 5b. Use healing items on wounded allies (self or other party members)
+      // FIX: Auto-combat now uses healing items on the most wounded ally
+      const woundedAlly = aliveParty
+        .filter(p => p.currentHp > 0 && p.currentHp < p.maxHp * 0.5)
+        .sort((a, b) => (a.currentHp / a.maxHp) - (b.currentHp / b.maxHp))[0];
+      if (woundedAlly) {
+        // Find best healing item for this ally
+        const healingItems = myUsableItems.filter(i => getItemHealInfo(i));
+        if (healingItems.length > 0) {
+          // Prefer full heal items if ally is very low HP
+          let bestItem;
+          if (woundedAlly.currentHp < woundedAlly.maxHp * 0.25) {
+            bestItem = healingItems.find(i => getItemHealInfo(i)?.isFullHeal) || healingItems[0];
+          } else {
+            // Use the smallest heal that will help (don't waste full heals)
+            bestItem = healingItems.find(i => !getItemHealInfo(i)?.isFullHeal) || healingItems[0];
+          }
+          if (bestItem) {
+            get().selectCombatAction('use_item');
+            get().selectCombatItem(bestItem.uid);
+            get().selectCombatTarget(woundedAlly.id);
+            setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+            return;
+          }
+        }
+      }
     }
   },
 
@@ -1116,7 +1231,8 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     const statusLogEntries: CombatLogEntry[] = [];
     let updatedCooldowns: Record<string, number> = { ...(combat.specialCooldowns || {}) };
     let updatedCooldowns2: Record<string, number> = { ...(combat.special2Cooldowns || {}) };
-    // Clear taunt at new turn (immolation lasts 1 turn)
+    // FIX: Taunt duration is now tracked via ActiveCombatEffect.
+    // Only clear tauntTargetId if there are no active taunt effects remaining.
     let tauntTargetId = combat.tauntTargetId;
 
     // Helper: check for cooldown expiries and generate log notifications.
@@ -1143,7 +1259,8 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     };
 
     if (isNewTurn) {
-      tauntTargetId = null;
+      // FIX: Don't blindly clear taunt — it's now tracked via ActiveCombatEffect.
+      // TauntTargetId will be updated after processActiveEffectsTick removes expired effects.
       checkCooldownExpiries(newTurn);
     }
 
@@ -1168,6 +1285,15 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           currentActiveEffects.splice(0, currentActiveEffects.length,
             ...currentActiveEffects.filter(e => !expiredIds.has(e.id)));
         }
+      }
+
+      // FIX: Update tauntTargetId based on remaining active taunt effects.
+      // If all taunt effects have expired, clear the taunt target.
+      const activeTauntEffects = currentActiveEffects.filter(e => e.type === 'taunt' && e.remainingTurns > 0);
+      if (activeTauntEffects.length > 0) {
+        tauntTargetId = activeTauntEffects[0].targetId;
+      } else {
+        tauntTargetId = null;
       }
 
       // Process status effects on party members
@@ -1447,8 +1573,10 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           searchIdx = 0;
           wrapped = true;
           newTurn = newTurn + 1;
-          // Turn boundary crossed — check cooldown expiries and clear taunt
-          tauntTargetId = null;
+          // Turn boundary crossed — check cooldown expiries
+          // FIX: Don't blindly clear taunt — check if taunt effects are still active
+          const wrapTauntEffects = currentActiveEffects.filter(e => e.type === 'taunt' && e.remainingTurns > 1);
+          tauntTargetId = wrapTauntEffects.length > 0 ? wrapTauntEffects[0].targetId : null;
           checkCooldownExpiries(newTurn);
         }
         const candidate = allActors[searchIdx];
@@ -1518,8 +1646,10 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         let stunNextTurn = newTurn;
         if (stunNextIdx === 0) {
           stunNextTurn = newTurn + 1;
-          // Turn boundary crossed — check cooldown expiries and clear taunt
-          tauntTargetId = null;
+          // Turn boundary crossed — check cooldown expiries
+          // FIX: Don't blindly clear taunt — check if taunt effects are still active
+          const stunTauntEffects = currentActiveEffects.filter(e => e.type === 'taunt' && e.remainingTurns > 1);
+          tauntTargetId = stunTauntEffects.length > 0 ? stunTauntEffects[0].targetId : null;
           checkCooldownExpiries(stunNextTurn);
         }
 
@@ -1572,6 +1702,24 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
       }
 
+      // FIX: Process on_take_hit effects for characters that took damage
+      let afterOnTakeHit = afterEnemyAttack;
+      for (const p of afterEnemyAttack) {
+        const prevP = updatedParty.find(pp => pp.id === p.id);
+        if (prevP && p.currentHp < prevP.currentHp && p.currentHp > 0) {
+          // Character took damage and is still alive — trigger on_take_hit
+          const takeHitResult = onTakeHit(p, enemy, prevP.currentHp - p.currentHp, newTurn, afterOnTakeHit, updatedEnemiesForStatus);
+          if (takeHitResult.activeEffects && takeHitResult.activeEffects.length > 0) {
+            currentActiveEffects = [...currentActiveEffects, ...takeHitResult.activeEffects];
+          }
+          if (takeHitResult.shieldLog) {
+            finalLog.push(takeHitResult.shieldLog);
+          }
+        }
+      }
+      // Replace afterEnemyAttack with the onTakeHit-processed version
+      afterEnemyAttack = afterOnTakeHit;
+
       for (const p of afterEnemyAttack) {
         if (p.currentHp <= 0) alivePartyIds.delete(p.id);
       }
@@ -1600,8 +1748,10 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       let nextNextTurn = newTurn;
       if (nextNextIdx === 0) {
         nextNextTurn = newTurn + 1;
-        // Turn boundary crossed — check cooldown expiries and clear taunt
-        tauntTargetId = null;
+        // Turn boundary crossed — check cooldown expiries
+        // FIX: Don't blindly clear taunt — check if taunt effects are still active
+        const enemyTauntEffects = currentActiveEffects.filter(e => e.type === 'taunt' && e.remainingTurns > 1);
+        tauntTargetId = enemyTauntEffects.length > 0 ? enemyTauntEffects[0].targetId : null;
         checkCooldownExpiries(nextNextTurn);
       }
 
@@ -1630,6 +1780,23 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         setTimeout(() => get().advanceToNextActor(), getCombatDelay(900));
       }
       return;
+    }
+
+    // FIX: Process on_turn_start effects for the current player character
+    if (effectiveNextActor.type === 'player') {
+      const char = updatedParty.find(p => p.id === effectiveNextActor.id);
+      if (char && char.currentHp > 0) {
+        const turnStartResult = onTurnStart(char, newTurn, updatedParty, updatedEnemiesForStatus);
+        if (turnStartResult.log && turnStartResult.log.length > 0) {
+          finalLog = [...finalLog, ...turnStartResult.log];
+        }
+        if (turnStartResult.updatedCharacter) {
+          updatedParty = updatedParty.map(p => p.id === turnStartResult.updatedCharacter!.id ? turnStartResult.updatedCharacter! : p);
+        }
+        if (turnStartResult.activeEffects && turnStartResult.activeEffects.length > 0) {
+          currentActiveEffects = [...currentActiveEffects, ...turnStartResult.activeEffects];
+        }
+      }
     }
 
     // Use effectiveNextActor (handles case where original nextActor died from DOT)

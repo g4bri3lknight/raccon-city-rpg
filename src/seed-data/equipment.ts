@@ -88,7 +88,7 @@ export const EQUIPMENT_STATS: Record<string, EquipmentInstance> = {
     rarity: 'uncommon', description: 'Un distintivo che ispira cura. +30 HP, rigenera 3 HP/turno.',
     effects: [
       { type: 'buff_stat', trigger: 'on_equip', target: 'self', stat: 'hp', amount: 30, flat: true },
-      { type: 'hot', trigger: 'on_turn_start', target: 'self', amountPerTurn: 3, duration: 0 },
+      { type: 'hot', trigger: 'on_turn_start', target: 'self', amountPerTurn: 3, duration: 1 },
     ],
   },
   dog_tags: {
@@ -105,7 +105,7 @@ export const EQUIPMENT_STATS: Record<string, EquipmentInstance> = {
     effects: [
       { type: 'buff_stat', trigger: 'on_equip', target: 'self', stat: 'atk', amount: 5, flat: true },
       { type: 'buff_stat', trigger: 'on_equip', target: 'self', stat: 'hp', amount: 15, flat: true },
-      { type: 'reflect', trigger: 'on_take_hit', target: 'self', percent: 5, duration: 0 },
+      { type: 'reflect', trigger: 'on_take_hit', target: 'self', percent: 5, duration: 1 },
     ],
   },
   goggles: {
