@@ -339,7 +339,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         craftingPoints: data.craftingPoints || 0,
         totalCrafted: data.totalCrafted || 0,
         masterQualityCrafted: data.masterQualityCrafted || 0,
-        runStats: data.runStats || undefined,
+        runStats: data.runStats || getDefaultState().runStats,
       });
       // Auto-save after loading
       setTimeout(() => { try { get().autoSave(); } catch {} }, 200);

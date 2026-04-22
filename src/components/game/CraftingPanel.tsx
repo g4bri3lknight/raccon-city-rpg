@@ -50,12 +50,12 @@ export default function CraftingPanel() {
     }
 
     return visibleRecipes.map(({ recipe, originalIndex }) => {
-      const canCraft = recipe.ingredients.every(ing => (counts[ing.itemId] || 0) >= ing.quantity);
+      const canCraft = !recipe.pointOnly && recipe.ingredients.every(ing => (counts[ing.itemId] || 0) >= ing.quantity);
       const ingredientStatus = recipe.ingredients.map(ing => ({
         itemId: ing.itemId,
-        qty: ing.qty,
+        qty: ing.quantity,
         have: counts[ing.itemId] || 0,
-        enough: (counts[ing.itemId] || 0) >= ing.qty,
+        enough: (counts[ing.itemId] || 0) >= ing.quantity,
         itemDef: ITEMS[ing.itemId],
       }));
       const resultDef = ITEMS[recipe.result.itemId];
@@ -158,9 +158,14 @@ export default function CraftingPanel() {
                 {/* Ingredients or point-only indicator */}
                 <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-1.5 sm:mb-2">
                   {isPointOnly ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border border-amber-700/30 bg-amber-950/20 text-amber-300">
-                      <Zap className="w-3 h-3" /> {recipe.pointCost} punti
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border border-amber-700/30 bg-amber-950/20 text-amber-300">
+                        <Zap className="w-3 h-3" /> Costo: {recipe.pointCost} Punti Craft
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border border-green-700/30 bg-green-950/20 text-green-300">
+                        → {resultDef?.icon} {resultDef?.name} x{recipe.result.quantity}
+                      </span>
+                    </>
                   ) : (
                     ingredientStatus.map((ing, ingIdx) => (
                       <span
@@ -210,8 +215,8 @@ export default function CraftingPanel() {
                       }`}
                     >
                       <Zap className="w-3.5 h-3.5 mr-1" />
-                      <span className="hidden sm:inline">{isPointOnly ? 'Solo Punti:' : 'Punti:'}</span>
-                      <span className="sm:hidden">{recipe.pointCost}pt</span>
+                      <span className="hidden sm:inline">{isPointOnly ? 'Craft con Punti' : 'Punti'}</span>
+                      <span className="sm:hidden">{recipe.pointCost}pt → {resultDef?.icon}{recipe.result.quantity}</span>
                     </Button>
                   )}
                 </div>

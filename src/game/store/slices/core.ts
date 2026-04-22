@@ -203,6 +203,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       craftingPoints: 0,
       totalCrafted: 0,
       masterQualityCrafted: 0,
+      runStats: buildStartState([], 'normale', false, '').runStats,
     });
   },
 });

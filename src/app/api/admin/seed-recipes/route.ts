@@ -23,7 +23,12 @@ export async function POST() {
         resultItemId: recipe.resultItemId,
         resultQty: recipe.resultQty ?? 1,
         difficulty: recipe.difficulty,
+        hidden: recipe.hidden ?? false,
         sortOrder: recipe.sortOrder ?? 0,
+        pointCost: recipe.pointCost ?? null,
+        pointOnly: recipe.pointOnly ?? false,
+        ngPlusOnly: recipe.ngPlusOnly ?? false,
+        forceMasterQuality: recipe.forceMasterQuality ?? false,
       };
       if (existing) {
         await db.gameRecipe.update({ where: { id: recipe.id }, data });

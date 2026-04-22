@@ -29,8 +29,9 @@ export function calculateScore(stats: RunStats, achievementsCount: number): numb
   score += stats.secretRoomsDiscovered * 100;
   score += stats.documentsFound * 50;
 
-  // Speed (encourage fast runs)
-  score -= stats.turnsSurvived * 1;
+  // Speed (encourage fast runs) — use enemiesDefeated/turns ratio indirectly via turnCount
+  // turnsSurvived is tracked via turnCount in runStats
+  score -= (stats.turnsSurvived || 0) * 1;
 
   // NG+ cycle
   score += stats.ngPlusCycle * 500;

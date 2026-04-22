@@ -10,6 +10,7 @@ import { SEED_SPECIALS } from '@/seed-data/specials';
 import { SEED_ENEMIES } from '@/seed-data/enemies';
 import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, WEAPON_MODS } from '@/seed-data/equipment';
 import { SEED_SECRET_ROOMS } from '@/seed-data/secret-rooms';
+import { SEED_RECIPES } from '@/seed-data/recipes';
 
 import { safeErrorResponse } from '@/lib/api-utils';
 const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; danger: string }> = {
@@ -298,6 +299,11 @@ export async function POST() {
     const abilitiesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-enemy-abilities`, { method: 'POST', ...adminHeaders });
     const abilitiesData = await abilitiesRes.json();
     results.push({ entity: 'enemy-abilities', total: abilitiesData.abilitiesCount ?? 0, created: abilitiesData.result?.created ?? 0, updated: abilitiesData.result?.updated ?? 0 });
+
+    // Seed recipes
+    const recipesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-recipes`, { method: 'POST', ...adminHeaders });
+    const recipesData = await recipesRes.json();
+    results.push({ entity: 'recipes', total: SEED_RECIPES.length, created: 0, updated: 0 });
 
     // Seed boss phases (after enemy-abilities since they reference ability IDs)
     const bossPhasesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-boss-phases`, { method: 'POST', ...adminHeaders });

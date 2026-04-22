@@ -1,4 +1,4 @@
-import { Character, DifficultyLevel, GameNotification, RandomizedLocationData, ItemInstance, RunStats } from '../types';
+import { Character, DifficultyLevel, GameNotification, RandomizedLocationData, ItemInstance, RunStats, QuestChainProgress, PermanentEffect } from '../types';
 import { getDifficultyConfig } from '../data/difficulty';
 import { LOCATIONS, validateEffectsIntegrity } from '../data/loader';
 import { generateRandomizedData } from '../data/randomizer';

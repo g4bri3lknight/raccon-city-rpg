@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { Button } from '@/components/ui/button';
@@ -69,7 +69,7 @@ export default function VictoryScreen() {
   const currentScore = useMemo(() => calculateScore(runStats || {} as RunStats, totalAchievements), [runStats, totalAchievements]);
 
   // Load leaderboard on mount
-  useMemo(() => {
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       setLeaderboard(getLeaderboard());
     }

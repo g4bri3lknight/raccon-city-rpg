@@ -165,7 +165,8 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           combat: null,
           enemies: [],
           messageLog: [...state.messageLog, `[${state.turnCount}] 🏃 Fuga riuscita!${hasNemesis ? ' 💀 Ma NEMESIS vi rintraccerà...' : ''}`],
-          ...(hasNemesis && state.nemesisPursuitLevel < 5 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
+          // FIX: Fleeing from Nemesis caps pursuit at level 4 (max without permanent defeat)
+          ...(hasNemesis && state.nemesisPursuitLevel < 4 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
         });
         return;
       } else {
@@ -676,6 +677,10 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             }
           }
         }
+        // Track run stats: items used in combat
+        if (result.consumeItem) {
+          try { get().incrementRunStat('itemsUsed'); } catch {}
+        }
         break;
       }
     }
@@ -723,6 +728,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             actorType: 'player',
             action: 'Combo',
             message: `🔥 Combo x${comboCount}! (+${bonusPercent}% danno, +${bonusDamage})`,
+            damage: bonusDamage,
           });
         }
 
@@ -911,7 +917,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         if (vc.type === 'survive_turns' && vc.turnsRequired && state.combat.turn >= vc.turnsRequired) {
           vcMet = true;
         } else if (vc.type === 'destroy_weak_point') {
-          vcMet = true;
+          vcMet = !vc.turnsRequired || state.combat.turn <= vc.turnsRequired;
         } else if (vc.type === 'kill_target' && vc.targetEnemyId) {
           vcMet = updatedEnemies.some(e => e.id === vc.targetEnemyId && e.currentHp <= 0);
         }
@@ -979,6 +985,22 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         newNemesisPursuitLevel = 5;
         questLogMsgs.push(`[${state.turnCount}] 💀 NEMESIS è stato eliminato definitivamente! L'inseguimento è finito.`);
       }
+
+      // ── Track combat victory stats (damage, kills, combo, etc.) ──
+      const defeatedEnemyList = updatedEnemies.filter(e => e.currentHp <= 0).map(e => ({
+        definitionId: e.definitionId,
+        isBoss: e.isBoss,
+        currentHp: e.currentHp,
+      }));
+      const partyTookDamage = newLog.some(entry => entry.damage !== undefined && entry.damage > 0 && entry.actorType === 'enemy');
+      try {
+        get()._trackCombatVictoryStats(
+          newLog,
+          defeatedEnemyList,
+          state.combat?.comboCount || 0,
+          partyTookDamage,
+        );
+      } catch {}
 
       for (const enemyId of defeatedEnemyIds) {
         for (const npc of Object.values(NPCS)) {
@@ -1651,7 +1673,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         if (dotVc.type === 'survive_turns' && dotVc.turnsRequired && newTurn >= dotVc.turnsRequired) {
           vcMet = true;
         } else if (dotVc.type === 'destroy_weak_point') {
-          vcMet = true;
+          vcMet = !dotVc.turnsRequired || newTurn <= dotVc.turnsRequired;
         } else if (dotVc.type === 'kill_target' && dotVc.targetEnemyId) {
           vcMet = updatedEnemiesForStatus.some(e => e.id === dotVc.targetEnemyId && e.currentHp <= 0);
         }

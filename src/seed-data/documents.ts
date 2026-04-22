@@ -198,4 +198,79 @@ export const SEED_DOCUMENTS: Record<string, GameDocument> = {
     rarity: 'uncommon',
     isSecret: false,
   },
+
+  // ==========================================
+  // CEMETERY (2 documents)
+  // ==========================================
+  doc_cemetery_grave: {
+    id: 'doc_cemetery_grave',
+    title: 'Epitaffio sulla Lapide',
+    content: 'Sulla lapide della famiglia Viscardi c\'è un\'iscrizione consumata dal tempo: "Qui giace colui che vide la verità. La Umbrella non perdona chi conosce i suoi segreti. — A.V., 1987". Sotto l\'epitaffio, delle lettere quasi illeggibili formano una sequenza che sembra un codice.',
+    type: 'note',
+    locationId: 'cemetery',
+    icon: '🪦',
+    rarity: 'common',
+    isSecret: false,
+  },
+  doc_cemetery_catacomb: {
+    id: 'doc_cemetery_catacomb',
+    title: 'Registro Catacombe — Protocollo Viscardi',
+    content: 'DOCUMENTO RISERVATO — Famiglia Viscardi. Le catacombe sotto il cimitero sono state convertite in un deposito di emergenza per i campioni del virus T. Le provette sono sigillate nei sarcofagi di marmo. In caso di fuga, attivare il protocollo di incenerimento tramite il pannello nella cripta principale. Solo il direttore del progetto ha il codice di accesso: 7391. La Umbrella monitorerà il sito tramite telecamere nascoste nelle statue angeliche.',
+    type: 'umbrella_file',
+    locationId: 'cemetery',
+    icon: '📁',
+    rarity: 'uncommon',
+    isSecret: true,
+    hintRequired: 'doc_cemetery_grave',
+  },
+
+  // ==========================================
+  // ABANDONED HOSPITAL (2 documents)
+  // ==========================================
+  doc_abandoned_records: {
+    id: 'doc_abandoned_records',
+    title: 'Registro Pazienti — Reparto Sperimentale',
+    content: 'Registro Pazienti — Ospedale Psichiatrico Raccoon City. Reparto D (Sperimentale). I pazienti ricoverati tra il 1985 e il 1990 sono stati sottoposti a test con il virus T in fase embrionale. Nessun paziente è sopravvissuto oltre il sesto mese. I corpi sono stati smaltiti tramite il sistema fognario conforme all\'accordo con la Umbrella Corporation.',
+    type: 'report',
+    locationId: 'abandoned_hospital',
+    icon: '📋',
+    rarity: 'common',
+    isSecret: false,
+  },
+  doc_abandoned_journal: {
+    id: 'doc_abandoned_journal',
+    title: 'Diario della Dottoressa Moretti',
+    content: 'Diario personale — Dr.ssa Elena Moretti. 15 marzo 1998: Non resisto più. Quello che stiamo facendo qui non è medicina, è tortura. I pazienti del reparto D urlano di notte. La Umbrella ci ha ordinato di aumentare il dosaggio. L\'ho fatto, e adesso tre di loro si sono trasformati in qualcosa che non riesco a descrivere. Se qualcuno troverà questo diario, sappia che la Umbrella sapeva tutto fin dall\'inizio.',
+    type: 'diary',
+    locationId: 'abandoned_hospital',
+    icon: '📔',
+    rarity: 'uncommon',
+    isSecret: true,
+    hintRequired: 'doc_abandoned_records',
+  },
+
+  // ==========================================
+  // WATER TOWER (2 documents)
+  // ==========================================
+  doc_water_maintenance: {
+    id: 'doc_water_maintenance',
+    title: 'Report Manutenzione Torre Idrica',
+    content: 'Report trimestrale — Manutenzione Torre Idrica Zona Industriale. Le condutture principali presentano corrosione avanzata. Il liquido di scarto dal laboratorio Umbrella ha accelerato il deterioramento. Si raccomanda la sostituzione delle valvole di sicurezza nei prossimi 30 giorni. NOTA BENE: Il serbatoio di contenimento al livello inferiore non deve essere aperto senza attrezzature di protezione biologica di livello 4.',
+    type: 'note',
+    locationId: 'water_tower',
+    icon: '📝',
+    rarity: 'common',
+    isSecret: false,
+  },
+  doc_water_umbrella: {
+    id: 'doc_water_umbrella',
+    title: 'Protocollo Smaltimento Bio-Rifiuti',
+    content: 'PROTOCOLO UMBRELLA — Smaltimento Rifiuti Biologici Livello 4. La torre idrica della zona industriale è il punto di smaltimento primario per i campioni virus T e G non più necessari. Il sistema di diluizione nel serbatoio principale riduce la concentrazione virale al 0.01%. Tuttavia, l\'esposizione prolungata al liquido di scarto può causare mutazioni cellulari nei soggetti con sistema immunitario compromesso. Monitorare costantemente la qualità dell\'acqua nel raggio di 500 metri.',
+    type: 'umbrella_file',
+    locationId: 'water_tower',
+    icon: '📁',
+    rarity: 'uncommon',
+    isSecret: true,
+    hintRequired: 'doc_water_maintenance',
+  },
 };

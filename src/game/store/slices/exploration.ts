@@ -206,7 +206,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         nemesisPursuitLevel === 1 ? 'Inseguimento' :
         nemesisPursuitLevel === 2 ? 'Caccia Spietata' :
         nemesisPursuitLevel === 3 ? 'Furia' :
-        'Rabbia Estrema';
+        nemesisPursuitLevel === 4 ? 'Rabbia Estrema' :
+        'Sconfitto';
 
       set({
         messageLog: [...newLog, `[${state.turnCount}] 💀 "S.T.A.R.S...." Un suono terrificante riecheggia... NEMESIS appare! [Livello Inseguimento: ${nemesisPursuitLevel + 1}/5 — ${pursuitLabel}]`],
@@ -262,7 +263,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
             log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Invasione', message: `NEMESIS è apparso! "S.T.A.R.S.!" [Livello ${nemesisPursuitLevel + 1}/5]` }],
             isVictory: false,
             isDefeat: false,
-            fled: true,
+            fled: false,
             statusDurations: {},
             specialCooldowns: {},
             special2Cooldowns: {},
@@ -320,6 +321,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       const newTurnsLeft = state.dynamicEventTurnsLeft - 1;
       if (newTurnsLeft <= 0) {
         tickLog.push(`[${state.turnCount}] ✅ ${evt!.onEndMessage}`);
+        // Track run stats: dynamic events survived
+        try { get().incrementRunStat('dynamicEventsSurvived'); } catch {}
         set({
           activeDynamicEvent: null,
           dynamicEventTurnsLeft: 0,
@@ -581,6 +584,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
       try { playDocumentFound(); } catch {}
       const newDocs = [...state.collectedDocuments, doc.id];
+      // Track run stats: documents found
+      try { get().incrementRunStat('documentsFound'); } catch {}
       set({
         messageLog: [...newLog, `[${state.turnCount}] 📖 Documento trovato: "${doc.title}"`],
         collectedDocuments: newDocs,
@@ -598,6 +603,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     }
 
     set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
+    // Track run stats: turns survived
+    try { get().incrementRunStat('turnsSurvived'); } catch {}
   },
 
   travelTo: (locationId: string) => {
@@ -679,6 +686,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       skipNextEncounter: true,
       currentSubArea: null,
     });
+    // Track run stats: distance traveled
+    try { get().incrementRunStat('distanceTraveled', turnIncrease); } catch {}
     setTimeout(() => get().checkAchievements(), 100);
   },
 
@@ -693,6 +702,9 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     const effectiveItemPool = effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity }));
 
     try { playSearch(); } catch {}
+
+    // Track run stats: searches performed
+    try { get().incrementRunStat('searchesPerformed'); } catch {}
 
     const baseSearchChance = location.searchChance ?? 60;
     const baseDocChance = location.docChance ?? 35;

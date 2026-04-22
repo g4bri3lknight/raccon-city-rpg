@@ -188,4 +188,124 @@ export const SEED_NPCS: Record<string, GameNPC> = {
       },
     ],
   },
+
+  // ==========================================
+  // PIETRO — Cemetery
+  // ==========================================
+  npc_gravedigger: {
+    id: 'npc_gravedigger',
+    name: 'Pietro il Becchino',
+    portrait: '🪦',
+    locationId: 'cemetery',
+    greeting: 'Shhh... non fate rumore. Loro sentono tutto. Mi chiamo Pietro, sono il becchino di questo cimitero da trent\'anni. Ormai non so più chi sia più pericoloso: i morti che camminano o i vivi che li hanno creati.',
+    dialogues: [
+      'Ho scavato abbastanza tombe da sapere quando qualcosa non va. Ultimamente la terra è troppo morbida in certe zone... come se qualcosa si muovesse sottoterra. E le lapidi? Alcune sono state spostate dall\'interno. Credetemi, non è opera di vandali.',
+      'C\'è una cripta qui nel cimitero che non apro da anni. La famiglia Viscardi. Dicevano fossero tutti morti, ma la notte sento dei rumori da laggiù. Forse è meglio che non andiate a controllare.',
+    ],
+    farewell: 'Se trovate una torcia funzionante, portatemela. Di notte questo posto diventa un inferno e la mia lampada a olio sta finendo.',
+    quest: {
+      id: 'quest_gravedigger_flashlight',
+      name: 'Luce per il Becchino',
+      description: 'Pietro ha bisogno di una torcia per pattugliare il cimitero di notte. Trova una Torcia e portagliela.',
+      type: 'fetch',
+      targetId: 'flashlight',
+      targetCount: 1,
+      rewardItems: [{ itemId: 'first_aid', quantity: 1 }],
+      rewardExp: 50,
+      rewardDialogue: [
+        'Grazie mille! Finalmente potrò vedere cosa diavolo si nasconde tra queste tombe di notte. Prendete questo kit medico — me lo ha dato un dottore che è passato di qui la scorsa settimana. Non l\'ho mai più rivisto.',
+      ],
+    },
+    tradeInventory: [
+      {
+        itemId: 'herb_green',
+        quantity: 1,
+        priceItemId: 'ammo_pistol',
+        priceQuantity: 3,
+      },
+    ],
+    questCompletedDialogue: [
+      'Con questa torcia posso almeno vedere da dove vengono quei rumori.',
+    ],
+  },
+
+  // ==========================================
+  // INFERMIERA CHIARA — Abandoned Hospital
+  // ==========================================
+  npc_nurse_ghost: {
+    id: 'npc_nurse_ghost',
+    name: 'Infermiera Chiara',
+    portrait: '👩‍⚕️',
+    locationId: 'abandoned_hospital',
+    greeting: 'Non... non scappate! Sono viva, giuro! Mi chiamo Chiara, infermiera. Mi sono nascosta qui quando l\'ospedale è stato evacuato. Non sapevo che le cose sarebbero diventate così.',
+    dialogues: [
+      'Lavoravo al reparto sperimentale. Non sapevo cosa facessero davvero qui. I pazienti arrivavano di notte, non li vedevo mai uscire. Poi un giorno le porte si sono chiuse e abbiamo sentito le urla. Il virus si è diffuso troppo in fretta.',
+      'Nella farmacia al secondo piano ci sono ancora degli antidoti, ma la porta è bloccata. Se riuscite a trovarne qualcuno da altre parti, portatemeli — mi servono per sopravvivere alle esalazioni che filtrano dai condotti.',
+    ],
+    farewell: 'Portatemi delle bende se ne trovate. Le mie riserve sono quasi esaurite e qui dentro è pieno di spigoli pericolosi.',
+    quest: {
+      id: 'quest_nurse_bandages',
+      name: 'Bende per l\'Infermiera',
+      description: 'Chiara ha bisogno di 3 bende per curarsi le ferite. Trova delle Bende e portagliele.',
+      type: 'fetch',
+      targetId: 'bandage',
+      targetCount: 3,
+      rewardItems: [{ itemId: 'spray', quantity: 1 }],
+      rewardExp: 40,
+      rewardDialogue: [
+        'Oh, grazie! Queste bende sono un regalo dal cielo. Prendete questo spray medicale — l\'ho trovato nel magazzino dell\'ospedale. È potente, vi servirà per affrontare le creature qui fuori.',
+      ],
+    },
+    tradeInventory: [
+      {
+        itemId: 'bandage',
+        quantity: 2,
+        priceItemId: 'first_aid',
+        priceQuantity: 1,
+      },
+    ],
+    questCompletedDialogue: [
+      'Grazie di cuore. Siete la prima persona gentile che incontro da giorni.',
+    ],
+  },
+
+  // ==========================================
+  // GIOVANNI — Water Tower
+  // ==========================================
+  npc_maintenance_worker: {
+    id: 'npc_maintenance_worker',
+    name: 'Giovanni Ferri',
+    portrait: '🔧',
+    locationId: 'water_tower',
+    greeting: 'Ehi! Finalmente qualcuno! Mi chiamo Giovanni, manutentore idraulico. Sono bloccato qui da due giorni — le scale sono piene di quelle cose striscianti.',
+    dialogues: [
+      'Questa torre non è una normale torre dell\'acqua. La Umbrella l\'ha convertita anni fa per smaltire rifiuti biologici dal laboratorio sotterraneo. Quello che pensate sia acqua verde? È virus diluito. Non toccatelo.',
+      'C\'è un passaggio sotto la torre che porta direttamente al laboratorio Umbrella. Ma serve una tessera magnetica per attivare il pannello d\'accesso. Io l\'ho vista usare dai tecnici prima che scoppiasse tutto.',
+    ],
+    farewell: 'Se trovate munizioni per il fucile, portatele. Con queste creature qui intorno non si sa mai quando serviranno.',
+    quest: {
+      id: 'quest_giovanni_ammo',
+      name: 'Munizioni per Giovanni',
+      description: 'Giovanni ha bisogno di munizioni da pistola per difendersi. Trova 3 Munizioni da Pistola e portagliele.',
+      type: 'fetch',
+      targetId: 'ammo_pistol',
+      targetCount: 3,
+      rewardItems: [{ itemId: 'ammo_shotgun', quantity: 3 }],
+      rewardExp: 35,
+      rewardDialogue: [
+        'Eccellente! Le userò per tenermi al sicuro finché non troverò una via d\'uscita. Ecco — ho nascosto delle cartucce da fucile nel serbatoio di contenimento. Prendetele, a me non servono più.',
+      ],
+    },
+    tradeInventory: [
+      {
+        itemId: 'antidote',
+        quantity: 1,
+        priceItemId: 'ammo_shotgun',
+        priceQuantity: 3,
+      },
+    ],
+    questCompletedDialogue: [
+      'Grazie amico. Con queste munizioni posso almeno tenerle a distanza.',
+    ],
+  },
 };

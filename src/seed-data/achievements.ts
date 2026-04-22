@@ -240,4 +240,15 @@ export const SEED_ACHIEVEMENTS: SeedAchievement[] = [
     reward: 'Perfezione artigianale',
     sortOrder: 54,
   },
+  // ── CHAIN SURVIVOR ──
+  {
+    id: 'chain_survivor',
+    name: 'Sopravvissuto alla Catena',
+    description: 'Sopravvivi a un evento a catena.',
+    icon: '⛓️',
+    category: 'exploration',
+    condition: 'survive_chain_event',
+    reward: 'Resilienza estrema',
+    sortOrder: 14,
+  },
 ];

@@ -11,7 +11,7 @@
  * Format: { version, date, description }
  */
 
-export const APP_VERSION = '1.16.0' as const;
+export const APP_VERSION = '1.17.0' as const;
 
 export const VERSION_HISTORY: Array<{
   version: string;
@@ -305,6 +305,28 @@ export const VERSION_HISTORY: Array<{
       '[CSS] Turn order timeline classes (turn-order-timeline, turn-order-entry, turn-order-arrow)',
       '[CSS] Combat log filter and separator classes (combat-log-filter-btn, combat-log-separator, scroll-to-bottom-btn)',
       '[TIPI] TurnOrderEntry interface aggiunta a types.ts',
+    ],
+  },
+  {
+    version: '1.17.0',
+    date: '2025-06-29',
+    changes: [
+      '[CRITICO] Fix CraftingPanel: proprietà `qty` non esistente → corretto in `quantity` — ingredienti ora mostrano correttamente disponibilità e quantità',
+      '[CRITICO] Fix CraftingPanel: ricette solo-punti mostravano "Pronto" verde anche con 0 punti — `canCraft` ora false per pointOnly',
+      '[CRITICO] Fix _trackCombatVictoryStats: funzione mai chiamata dopo vittoria — tutte le statistiche combat (danni, kill, combo) erano sempre a 0',
+      '[CRITICO] Fix runStats undefined dopo caricamento save vecchi — crash su incrementRunStat() se runStats mancava',
+      '[CRITICO] Fix restartGame(): runStats non veniva resettato — statistiche della run precedente persistevano',
+      '[CRITICO] Fix Nemesis fuga: fuggire al livello 4 poneva pursuitLevel a 5 = sconfitta permanente — ora capped a 4',
+      '[ALTO] Fix Victory Condition destroy_weak_point: bonus EXP sempre assegnato ignorando limite turni — ora controlla turnsRequired',
+      '[ALTO] Fix 6 statistiche run mai tracciate: turnsSurvived, searchesPerformed, distanceTraveled, documentsFound, dynamicEventsSurvived, itemsUsed — ora tracciate',
+      '[ALTO] Fix Combo damage non contato nelle statistiche: aggiunto campo `damage` al log entry combo',
+      '[ALTO] Fix VictoryScreen: useMemo usato per side effect (setState) — corretto in useEffect',
+      '[MEDIO] Fix label Nemesis Livello 5: mostrava "Rabbia Estrema" invece di "Sconfitto" — aggiunto caso separato',
+      '[MEDIO] Fix Nemesis combat `fled: true` hardcoded all\'inizio — impostato a `false`, semantica corretta',
+      '[MEDIO] Fix descrizione ricetta Campionamento Virale: ora menziona Punti Craft invece di "materiali di laboratorio"',
+      '[MEDIO] Fix descrizione ricetta Siero del Tyrant: rimossa promessa di doppio risultato (produce solo Adrenalina)',
+      '[MEDIO] Fix initial-state.ts: import mancanti per QuestChainProgress e PermanentEffect — `as` assertions silenti rimosse',
+      '[MEDIO] Fix leaderboard.ts: turnsSurvived fallback a 0 se mancante — penalità velocità non crasha più',
     ],
   },
   {
