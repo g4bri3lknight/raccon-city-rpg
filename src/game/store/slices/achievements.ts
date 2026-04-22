@@ -143,6 +143,28 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
     // game_victory: phase is 'victory'
     if (state.phase === 'victory') {
       checkAndUnlock('victory');
+
+      // NG+ exclusive achievements
+      const ngCycle = state.ngPlusCycle || 0;
+      if (ngCycle >= 1) {
+        checkAndUnlock('ng_plus_victory');
+      }
+      if (ngCycle >= 3) {
+        checkAndUnlock('ng_plus_master_victory');
+      }
+    }
+
+    // chain_survivor: completed at least one chain event sequence
+    if (state.completedChains && state.completedChains.length > 0) {
+      checkAndUnlock('chain_survivor');
+    }
+
+    // #8 Crafting achievements
+    if ((state.totalCrafted || 0) >= 20) {
+      checkAndUnlock('master_crafter');
+    }
+    if ((state.masterQualityCrafted || 0) >= 3) {
+      checkAndUnlock('quality_crafter');
     }
   },
 

@@ -141,4 +141,47 @@ export const SEED_CHARACTERS: CharacterArchetype[] = [
       },
     ],
   },
+  {
+    id: 'survivor',
+    name: 'Sopravvissuta',
+    displayName: 'Sofia Reyes',
+    description: 'Ibrido supporto/combatente che può mantenere in vita il gruppo. Versatile e adattabile, eccelle nel curare e rimuovere status negativi, con la capacità di potenziarsi in emergenza.',
+    maxHp: 120,
+    atk: 14,
+    def: 10,
+    spd: 10,
+    specialName: 'Soccorso Rapido',
+    specialDescription: 'Presta cure rapide al compagno più ferito, pulendo le condizioni negative e rafforzandone la difesa.',
+    specialCost: 12,
+    special2Name: 'Segnalazione Emergenza',
+    special2Description: 'Attiva un segnale di emergenza che potenzia le capacità fisiche, conferendo adrenalina e aumentando attacco e velocità.',
+    special2Cost: 18,
+    passiveDescription: 'Adattabilità: +10% efficacia a tutti gli oggetti curativi usati da questo personaggio.',
+    portraitEmoji: '🔦',
+    startingItems: [
+      {
+        uid: genUid(), itemId: 'combat_knife', name: 'Coltello da Combattimento', description: 'Un coltello militare affilato.',
+        type: 'weapon', rarity: 'uncommon', icon: '🗡️', usable: false, equippable: true, quantity: 1,
+        weaponStats: { itemId: 'combat_knife', name: 'Coltello da Combattimento', type: 'melee', modSlots: [], effects: [{ type: 'buff_stat', trigger: 'on_equip', target: 'self', stat: 'atk', amount: 10, flat: true }, { type: 'apply_status', trigger: 'on_hit', target: 'enemy', statusType: 'bleeding', chance: 25 }] },
+      },
+      {
+        uid: genUid(), itemId: 'bandage', name: 'Benda', description: 'Una benda per fermare le emorragie. Ripristina 25 HP.',
+        type: 'healing', rarity: 'common', icon: '🩹', usable: true, equippable: false, quantity: 2,
+        effect: { type: 'heal', value: 25, target: 'self' },
+      },
+      {
+        uid: genUid(), itemId: 'herb_green', name: 'Erba Verde', description: 'Un\'erba medicinale. Ripristina 30 HP.',
+        type: 'healing', rarity: 'common', icon: '🌿', usable: true, equippable: false, quantity: 1,
+        effect: { type: 'heal', value: 30, target: 'self' },
+      },
+      {
+        uid: genUid(), itemId: 'flashlight', name: 'Torcia', description: 'Una torcia che può accecare temporaneamente un nemico.',
+        type: 'utility', rarity: 'common', icon: '🔦', usable: false, equippable: false, quantity: 1,
+      },
+      {
+        uid: genUid(), itemId: 'lockpick', name: 'Giravite', description: 'Un giravite multiuso. Apre porte chiuse.',
+        type: 'utility', rarity: 'common', icon: '🔧', usable: false, equippable: false, quantity: 1,
+      },
+    ],
+  },
 ];

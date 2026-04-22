@@ -100,6 +100,8 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     if (!secret || state.discoveredSecretRooms.includes(roomId)) return;
     // Play item pickup sound for secret room discovery (#36)
     try { playItemPickup(); } catch {}
+    // Track run stats: secret rooms discovered
+    get().incrementRunStat('secretRoomsDiscovered');
     const newDiscovered = [...state.discoveredSecretRooms, roomId];
     const logMsgs = [
       `[${state.turnCount}] 🚪 Stanza segreta trovata: ${secret.name}!`,
@@ -145,6 +147,8 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     if (state.discoveredRecipes.includes(recipeId)) return;
     // Play item pickup sound
     try { playItemPickup(); } catch {}
+    // Track run stats: recipes discovered
+    get().incrementRunStat('recipesDiscovered');
     set({
       discoveredRecipes: [...state.discoveredRecipes, recipeId],
       messageLog: [...state.messageLog, `[${state.turnCount}] 📜 Ricetta scoperta! Nuova ricetta di crafting disponibile.`],

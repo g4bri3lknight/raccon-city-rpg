@@ -301,6 +301,10 @@ export function calculateHeal(
   if (healerArchetype === 'healer') {
     if (chance(COMBAT_CONFIG.healerCritHealChance)) heal = Math.floor(heal * COMBAT_CONFIG.healerCritHealMult);
   }
+  // Survivor passive: "Adattabilità" — +10% efficacy to all healing items/specials used by this character
+  if (healerArchetype === 'survivor') {
+    heal = Math.floor(heal * 1.1);
+  }
   return heal;
 }
 

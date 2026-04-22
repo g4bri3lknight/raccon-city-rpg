@@ -260,4 +260,34 @@ export const SEED_SPECIALS: SpecialAbilityDefinition[] = [
       { type: 'apply_status', target: 'enemy', statusType: 'stunned', chance: 40 },
     ],
   },
+
+  // ── SURVIVOR ──
+  {
+    id: 'soccorso_rapido',
+    name: 'Soccorso Rapido',
+    description: 'Presta cure rapide al compagno più ferito, pulendo le condizioni negative e rafforzandone la difesa.',
+    icon: '🚑',
+    targetType: 'lowest_hp_ally',
+    cooldown: 12,
+    category: 'support',
+    effects: [
+      { type: 'heal', target: 'lowest_hp_ally', amount: 40 },
+      { type: 'remove_status', target: 'lowest_hp_ally', statuses: ['poison', 'bleeding', 'stunned'] },
+      { type: 'buff_stat', target: 'lowest_hp_ally', stat: 'def', amount: 20, duration: 2 },
+    ],
+  },
+  {
+    id: 'segnalazione_emergenza',
+    name: 'Segnalazione Emergenza',
+    description: 'Attiva un segnale di emergenza che potenzia le capacità fisiche, conferendo adrenalina e aumentando attacco e velocità.',
+    icon: '📡',
+    targetType: 'self',
+    cooldown: 18,
+    category: 'support',
+    effects: [
+      { type: 'buff_stat', target: 'self', stat: 'atk', amount: 50, duration: 3 },
+      { type: 'buff_stat', target: 'self', stat: 'spd', amount: 50, duration: 3 },
+      { type: 'apply_status', target: 'self', statusType: 'adrenaline', chance: 100, duration: 2 },
+    ],
+  },
 ];

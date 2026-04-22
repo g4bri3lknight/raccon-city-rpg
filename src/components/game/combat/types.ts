@@ -1,4 +1,4 @@
-import type { ActiveCombatEffect, Character, CombatAction, CombatLogEntry, CombatState, EnemyInstance, ItemInstance, StatusDuration } from '@/game/types';
+import type { ActiveCombatEffect, Character, CombatAction, CombatLogEntry, CombatState, EnemyInstance, ItemInstance, StatusDuration, TurnOrderEntry } from '@/game/types';
 
 /** Animation info derived from combat log for an entity */
 export type AnimResult =
@@ -22,6 +22,8 @@ export interface CombatHeaderProps {
     turnsRequired?: number;
   } | null;
   comboCount: number;
+  turnOrder?: TurnOrderEntry[];
+  currentActorId?: string;
 }
 
 /* ── EnemyDisplay ── */
@@ -40,6 +42,7 @@ export interface EnemyDisplayProps {
   getAnimForTarget: (id: string, name: string) => AnimResult | null;
   activeEffects: ActiveCombatEffect[];
   statusDurations: Record<string, StatusDuration[]>;
+  floatNumbers?: Array<{ id: number; value: number; type: 'damage' | 'heal' | 'critical'; targetId: string }>;
 }
 
 /* ── PartyDisplay ── */
@@ -53,6 +56,8 @@ export interface PartyDisplayProps {
   getAnimForTarget: (id: string, name: string) => AnimResult | null;
   activeEffects: ActiveCombatEffect[];
   statusDurations: Record<string, StatusDuration[]>;
+  floatNumbers?: Array<{ id: number; value: number; type: 'damage' | 'heal' | 'critical'; targetId: string }>;
+  healTargetId?: string | null;
 }
 
 /* ── CombatLogPanel ── */

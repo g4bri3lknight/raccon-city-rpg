@@ -309,7 +309,12 @@ interface DbRecipe {
   resultItemId: string;
   resultQty: number;
   difficulty: string;
+  hidden?: boolean;
   sortOrder: number;
+  pointCost?: number;
+  pointOnly?: boolean;
+  ngPlusOnly?: boolean;
+  forceMasterQuality?: boolean;
 }
 
 interface DbSecretRoom {
@@ -685,6 +690,11 @@ function loadRecipes(api: Awaited<ReturnType<typeof loadFromApi>>): void {
         ingredients,
         result: { itemId: row.resultItemId, quantity: row.resultQty },
         difficulty: row.difficulty as CraftingRecipe['difficulty'],
+        ...(row.hidden ? { hidden: true } : {}),
+        ...(row.pointCost != null ? { pointCost: row.pointCost } : {}),
+        ...(row.pointOnly ? { pointOnly: true } : {}),
+        ...(row.ngPlusOnly ? { ngPlusOnly: true } : {}),
+        ...(row.forceMasterQuality ? { forceMasterQuality: true } : {}),
       };
     });
     // RECIPES_DATA is now the canonical export (no longer writes back to crafting.ts)

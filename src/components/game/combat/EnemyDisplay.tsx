@@ -2,6 +2,7 @@
 
 import { Swords, Crosshair } from 'lucide-react';
 import { ENEMY_IMAGES, mediaUrl } from '@/game/data/loader';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import EffectIndicators from './EffectIndicators';
 import type { EnemyDisplayProps } from './types';
 
@@ -20,6 +21,7 @@ export default function EnemyDisplay({
   getAnimForTarget,
   activeEffects,
   statusDurations,
+  floatNumbers,
 }: EnemyDisplayProps) {
   return (
     <div className="flex-1 flex items-center justify-center gap-4 sm:gap-8 lg:gap-14 px-3 py-1 min-h-0">
@@ -132,6 +134,19 @@ export default function EnemyDisplay({
             {/* ── #41 Flash overlay on critical (orange glow) ── */}
             {hitIsCritical && isHitTarget && (
               <div className="absolute inset-0 rounded-lg animate-flash-white pointer-events-none z-30" style={{ backgroundColor: 'rgba(251,146,60,0.15)' }} />
+            )}
+            {/* ── Status effect badges with durations ── */}
+            {!isDead && enemy.statusEffects?.filter(s => s !== 'none').length > 0 && (
+              <div className="flex gap-0.5 flex-wrap justify-center">{enemy.statusEffects.filter(s => s !== 'none').map(s => {
+                const dur = (statusDurations[enemy.id] || []).find(d => d.effect === s);
+                const cls = s === 'poison' ? 'status-badge-poison' : s === 'bleeding' ? 'status-badge-bleeding' : s === 'stunned' ? 'status-badge-stunned' : s === 'adrenaline' ? 'status-badge-adrenaline' : 'status-badge';
+                const icon = s === 'poison' ? '☠️' : s === 'bleeding' ? '🩸' : s === 'stunned' ? '⚡' : s === 'adrenaline' ? '💊' : '❓';
+                return (
+                  <span key={s} className={`status-badge ${cls}`} title={`${s}${dur ? ` (${dur.turnsLeft}t)` : ''}`}>
+                    {icon}{dur ? <span className="status-duration">{dur.turnsLeft}</span> : null}
+                  </span>
+                );
+              })}</div>
             )}
             {isHurt && anim.value && (
               <div className="absolute -top-2 right-0 z-30">

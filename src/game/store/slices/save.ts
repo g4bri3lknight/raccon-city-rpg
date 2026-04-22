@@ -62,6 +62,17 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       autoCombat: state.autoCombat ?? false,
       dataVersion: state.dataVersion ?? 0,
       settingsOpen: false,
+      npcReputation: state.npcReputation || {},
+      questChainProgress: state.questChainProgress || {},
+      completedPermanentEvents: state.completedPermanentEvents || [],
+      activePermanentEffects: state.activePermanentEffects || [],
+      pendingChainEvent: state.pendingChainEvent || null,
+      completedChains: state.completedChains || [],
+      ngPlusCycle: state.ngPlusCycle || 0,
+      craftingPoints: state.craftingPoints || 0,
+      totalCrafted: state.totalCrafted || 0,
+      masterQualityCrafted: state.masterQualityCrafted || 0,
+      runStats: state.runStats,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -165,6 +176,17 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       autoCombat: state.autoCombat ?? false,
       dataVersion: state.dataVersion ?? 0,
       settingsOpen: false,
+      npcReputation: state.npcReputation || {},
+      questChainProgress: state.questChainProgress || {},
+      completedPermanentEvents: state.completedPermanentEvents || [],
+      activePermanentEffects: state.activePermanentEffects || [],
+      pendingChainEvent: state.pendingChainEvent || null,
+      completedChains: state.completedChains || [],
+      ngPlusCycle: state.ngPlusCycle || 0,
+      craftingPoints: state.craftingPoints || 0,
+      totalCrafted: state.totalCrafted || 0,
+      masterQualityCrafted: state.masterQualityCrafted || 0,
+      runStats: state.runStats,
     };
 
     const saveKey = 'raccoon_city_autosave';
@@ -307,6 +329,17 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         skipNextEncounter: false,
         godMode: data.godMode ?? false,
         debugOpen: false,
+        npcReputation: data.npcReputation || {},
+        questChainProgress: data.questChainProgress || {},
+        completedPermanentEvents: data.completedPermanentEvents || [],
+        activePermanentEffects: data.activePermanentEffects || [],
+        pendingChainEvent: data.pendingChainEvent || null,
+        completedChains: data.completedChains || [],
+        ngPlusCycle: data.ngPlusCycle || 0,
+        craftingPoints: data.craftingPoints || 0,
+        totalCrafted: data.totalCrafted || 0,
+        masterQualityCrafted: data.masterQualityCrafted || 0,
+        runStats: data.runStats || undefined,
       });
       // Auto-save after loading
       setTimeout(() => { try { get().autoSave(); } catch {} }, 200);
@@ -399,6 +432,17 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       autoCombat: state.autoCombat ?? false,
       dataVersion: state.dataVersion ?? 0,
       settingsOpen: false,
+      npcReputation: state.npcReputation || {},
+      questChainProgress: state.questChainProgress || {},
+      completedPermanentEvents: state.completedPermanentEvents || [],
+      activePermanentEffects: state.activePermanentEffects || [],
+      pendingChainEvent: state.pendingChainEvent || null,
+      completedChains: state.completedChains || [],
+      ngPlusCycle: state.ngPlusCycle || 0,
+      craftingPoints: state.craftingPoints || 0,
+      totalCrafted: state.totalCrafted || 0,
+      masterQualityCrafted: state.masterQualityCrafted || 0,
+      runStats: state.runStats,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -443,10 +487,24 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
 
   // Start a New Game+ from a victory save
   startNewGamePlus: (persistentRibbons: number) => {
+    const state = get();
+    const currentCycle = state.ngPlusCycle || 0;
+    const newCycle = currentCycle + 1;
+
+    // ── Carry forward elements across NG+ ──
+    const carriedBestiary = state.bestiary || [];
+    const carriedAchievements = state.achievements || { unlockedIds: [], unlockTimestamps: {} };
+    const carriedPersistentRibbons = Math.min(persistentRibbons, 10);
+    const carriedDiscoveredRecipes = state.discoveredRecipes || [];
+
     set({
       phase: 'character-select',
       party: [],
-      messageLog: ['🎀 Nuovo Gioco+ attivato! Nastri persistenti: ' + persistentRibbons + '/10', '\nScegli i tuoi personaggi per la nuova avventura...'],
+      messageLog: [
+        `🎀 Nuovo Gioco+ Ciclo ${newCycle} attivato! Nastri persistenti: ${carriedPersistentRibbons}/10`,
+        `📈 Difficoltà: nemici ×${newCycle === 1 ? '1.15' : newCycle === 2 ? '1.30' : '1.50'}, incontri +${newCycle === 1 ? '5' : newCycle === 2 ? '10' : '15'}%`,
+        '\nScegli i tuoi personaggi per la nuova avventura...',
+      ],
       turnCount: 0,
       searchCounts: {},
       searchMaxes: {},
@@ -457,7 +515,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       skipNextEncounter: false,
       completedEvents: [],
       collectedRibbons: 0,
-      persistentRibbons: Math.min(persistentRibbons, 10),
+      persistentRibbons: carriedPersistentRibbons,
       isNewGamePlus: true,
       gameStartTime: 0,
       inventoryOpen: false,
@@ -482,8 +540,9 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       dynamicEventTurnsLeft: 0,
       storyChoices: [],
       discoveredSecretRooms: [],
-      discoveredRecipes: [],
+      discoveredRecipes: carriedDiscoveredRecipes,
       herbCombineCount: 0,
+      questChainProgress: {},
       endingType: null,
       exploredSubAreas: {},
       bossPhases: {},
@@ -503,6 +562,19 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       lastAutoSaveTurn: 0,
       settingsOpen: false,
       dataVersion: 0,
+      npcReputation: {},
+      completedPermanentEvents: [],
+      activePermanentEffects: [],
+      pendingChainEvent: null,
+      completedChains: [],
+      craftingPoints: 0,
+      totalCrafted: 0,
+      masterQualityCrafted: 0,
+      // ── Carried-forward NG+ elements ──
+      ngPlusCycle: newCycle,
+      bestiary: carriedBestiary,
+      achievements: carriedAchievements,
+      runStats: { ...(get().runStats), totalDamageDealt: 0, totalDamageReceived: 0, totalHealingDone: 0, enemiesDefeated: 0, bossesDefeated: 0, itemsCrafted: 0, itemsUsed: 0, documentsFound: 0, secretRoomsDiscovered: 0, recipesDiscovered: 0, questsCompleted: 0, questChainsCompleted: 0, distanceTraveled: 0, searchesPerformed: 0, combatTurnsTotal: 0, perfectCombats: 0, longestCombo: 0, turnsSurvived: 0, dynamicEventsSurvived: 0, playTimeSeconds: 0, endingType: null, characterArchetypes: [], ngPlusCycle: newCycle },
     });
   },
 });

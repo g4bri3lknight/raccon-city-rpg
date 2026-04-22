@@ -5,6 +5,8 @@ import { Swords, Shield, Heart, Zap, Footprints, Package, Loader2 } from 'lucide
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { getSpecialById } from '@/game/data/loader';
 import { resolveSpecialId } from '@/game/engine/combat';
+import { getItemEffectDescriptions } from '@/game/utils/item-effects';
+import type { Character, ItemInstance } from '@/game/types';
 import type { ActionMenuProps } from './types';
 
 export default function ActionMenu({
@@ -26,6 +28,40 @@ export default function ActionMenu({
   onToggleAutoCombat,
 }: ActionMenuProps) {
   const currentEnemyName = enemies.find(e => e.id === combat.currentActorId)?.name;
+
+  // Resolve special ability definitions for tooltips
+  const special1Def = currentCharacter
+    ? getSpecialById(resolveSpecialId(currentCharacter, 'special1Id') || '')
+    : undefined;
+  const special2Def = currentCharacter
+    ? getSpecialById(resolveSpecialId(currentCharacter, 'special2Id') || '')
+    : undefined;
+
+  // Build ability tooltip content
+  const getAbilityTooltip = (def: typeof special1Def | undefined, cd: number, label: string) => {
+    if (!def) return label;
+    const cdText = cd > 0 ? ` (Cooldown: ${cd} turni)` : ' (Pronta!)';
+    const parts = [def.description];
+    if (def.cooldown > 0) parts.push(`Cooldown: ${def.cooldown} turni`);
+    parts.push(`Categoria: ${def.category}`);
+    return parts.join(' | ');
+  };
+
+  // Build attack tooltip
+  const getAttackTooltip = () => {
+    if (!currentCharacter?.weapon) return 'Attacco base';
+    const weapon = currentCharacter.weapon;
+    const parts = [weapon.name];
+    if (weapon.modSlots && weapon.modSlots.length > 0) {
+      const modNames = weapon.modSlots.map((id) => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { WEAPON_MODS } = require('@/game/data/weapon-mods');
+        return WEAPON_MODS[id]?.name || id;
+      });
+      parts.push(`Mod: ${modNames.join(', ')}`);
+    }
+    return parts.join(' | ');
+  };
 
   return (
     <>
@@ -74,90 +110,141 @@ export default function ActionMenu({
               )}
             </div>
             <div className="p-1.5 space-y-0.5">
-              <button
-                onClick={() => !autoCombat && isPlayerTurn && onMenuAction('attack')}
-                disabled={isStunned || autoCombat || !isPlayerTurn}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
-                  aiPredictedAction === 'attack'
-                    ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.3)] animate-pulse'
-                    : 'text-gray-200 hover:bg-red-950/40 hover:text-red-200 hover:border-red-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
-                }`}
-              >
-                <Swords className="w-3.5 h-3.5 text-red-400" />
-                {currentCharacter?.weapon?.type === 'ranged' ? currentCharacter.weapon.name : 'Attacca'}
-                {currentWeaponAmmoCount !== null && (
-                  <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${currentWeaponAmmoCount === 0 ? 'bg-red-900/60 text-red-400' : 'bg-gray-800 text-gray-400'}`}>
-                    🔫 {currentWeaponAmmoCount}
-                  </span>
-                )}
-                {currentCharacter?.weapon?.type === 'melee' && (
-                  <span className="ml-auto text-[9px] text-gray-500">∞</span>
-                )}
-              </button>
-              <button
-                onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special')}
-                disabled={specialCd > 0 || autoCombat || !isPlayerTurn}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
-                  aiPredictedAction === 'special'
-                    ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse'
-                    : 'text-gray-200 hover:bg-amber-950/40 hover:text-amber-200 hover:border-amber-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                {(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special1Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Barricata' : arch === 'healer' ? 'Cura' : 'Mortale'); })()}
-                {specialCd > 0 && (
-                  <span className="ml-auto bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">{specialCd} turni</span>
-                )}
-              </button>
-              <button
-                onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special2')}
-                disabled={special2Cd > 0 || autoCombat || !isPlayerTurn}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
-                  aiPredictedAction === 'special2'
-                    ? 'bg-orange-500/20 border border-orange-500/40 text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.3)] animate-pulse'
-                    : 'text-gray-200 hover:bg-orange-950/40 hover:text-orange-200 hover:border-orange-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-orange-400" />
-                {(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special2Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Immolazione' : arch === 'healer' ? 'Cura Gruppo' : 'Raffica'); })()}
-                {special2Cd > 0 && (
-                  <span className="ml-auto bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">{special2Cd} turni</span>
-                )}
-              </button>
-              <button
-                onClick={() => !autoCombat && isPlayerTurn && onMenuAction('use_item')}
-                disabled={usableItemsCount === 0 || autoCombat || !isPlayerTurn}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
-                  aiPredictedAction === 'use_item'
-                    ? 'bg-green-500/20 border border-green-500/40 text-green-200 shadow-[0_0_12px_rgba(34,197,94,0.3)] animate-pulse'
-                    : 'text-gray-200 hover:bg-green-950/40 hover:text-green-200 hover:border-green-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
-                }`}
-              >
-                <Package className="w-3.5 h-3.5 text-green-400" />
-                Oggetto
-                <span className="ml-auto text-[9px] text-gray-500">{usableItemsCount}</span>
-              </button>
-              <button
-                onClick={() => !autoCombat && isPlayerTurn && onMenuAction('defend')}
-                disabled={autoCombat || !isPlayerTurn}
-                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
-                  aiPredictedAction === 'defend'
-                    ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.3)] animate-pulse'
-                    : 'text-gray-200 hover:bg-cyan-950/40 hover:text-cyan-200 hover:border-cyan-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5 text-cyan-400" />
-                Difesa
-              </button>
-              <button
-                onClick={() => isPlayerTurn && onMenuAction('flee')}
-                disabled={enemies.some(e => e.isBoss) || !isPlayerTurn}
-                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 hover:border-gray-600 border border-transparent transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Footprints className="w-3.5 h-3.5" />
-                Fuga
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => !autoCombat && isPlayerTurn && onMenuAction('attack')}
+                    disabled={isStunned || autoCombat || !isPlayerTurn}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
+                      aiPredictedAction === 'attack'
+                        ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.3)] animate-pulse'
+                        : 'text-gray-200 hover:bg-red-950/40 hover:text-red-200 hover:border-red-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    <Swords className="w-3.5 h-3.5 text-red-400" />
+                    {currentCharacter?.weapon?.type === 'ranged' ? currentCharacter.weapon.name : 'Attacca'}
+                    {currentWeaponAmmoCount !== null && (
+                      <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${currentWeaponAmmoCount === 0 ? 'bg-red-900/60 text-red-400' : 'bg-gray-800 text-gray-400'}`}>
+                        🔫 {currentWeaponAmmoCount}
+                      </span>
+                    )}
+                    {currentCharacter?.weapon?.type === 'melee' && (
+                      <span className="ml-auto text-[9px] text-gray-500">∞</span>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="bg-gray-900 border border-white/10 text-gray-300 max-w-[220px]">
+                  <p className="font-semibold text-[11px]">{currentCharacter?.weapon?.type === 'ranged' ? currentCharacter.weapon.name : 'Attacco Base'}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{getAttackTooltip()}</p>
+                </TooltipContent>
+              </Tooltip>
 
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special')}
+                    disabled={specialCd > 0 || autoCombat || !isPlayerTurn}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
+                      aiPredictedAction === 'special'
+                        ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse'
+                        : 'text-gray-200 hover:bg-amber-950/40 hover:text-amber-200 hover:border-amber-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    {special1Def?.name || (arch === 'tank' ? 'Barricata' : arch === 'healer' ? 'Cura' : 'Mortale')}
+                    {specialCd > 0 && (
+                      <span className="ml-auto bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">{specialCd} turni</span>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="bg-gray-900 border border-white/10 text-gray-300 max-w-[220px]">
+                  <p className="font-semibold text-[11px]">{special1Def?.name || 'Speciale 1'}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{getAbilityTooltip(special1Def, specialCd, 'Speciale')}</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special2')}
+                    disabled={special2Cd > 0 || autoCombat || !isPlayerTurn}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all relative ${
+                      aiPredictedAction === 'special2'
+                        ? 'bg-orange-500/20 border border-orange-500/40 text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.3)] animate-pulse'
+                        : 'text-gray-200 hover:bg-orange-950/40 hover:text-orange-200 hover:border-orange-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5 text-orange-400" />
+                    {special2Def?.name || (arch === 'tank' ? 'Immolazione' : arch === 'healer' ? 'Cura Gruppo' : 'Raffica')}
+                    {special2Cd > 0 && (
+                      <span className="ml-auto bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">{special2Cd} turni</span>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="bg-gray-900 border border-white/10 text-gray-300 max-w-[220px]">
+                  <p className="font-semibold text-[11px]">{special2Def?.name || 'Speciale 2'}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{getAbilityTooltip(special2Def, special2Cd, 'Speciale 2')}</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => !autoCombat && isPlayerTurn && onMenuAction('use_item')}
+                    disabled={usableItemsCount === 0 || autoCombat || !isPlayerTurn}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
+                      aiPredictedAction === 'use_item'
+                        ? 'bg-green-500/20 border border-green-500/40 text-green-200 shadow-[0_0_12px_rgba(34,197,94,0.3)] animate-pulse'
+                        : 'text-gray-200 hover:bg-green-950/40 hover:text-green-200 hover:border-green-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    <Package className="w-3.5 h-3.5 text-green-400" />
+                    Oggetto
+                    <span className="ml-auto text-[9px] text-gray-500">{usableItemsCount}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="bg-gray-900 border border-white/10 text-gray-300">
+                  Usa un oggetto dall'inventario ({usableItemsCount} disponibili)
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => !autoCombat && isPlayerTurn && onMenuAction('defend')}
+                    disabled={autoCombat || !isPlayerTurn}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
+                      aiPredictedAction === 'defend'
+                        ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.3)] animate-pulse'
+                        : 'text-gray-200 hover:bg-cyan-950/40 hover:text-cyan-200 hover:border-cyan-700/50 border border-transparent disabled:opacity-30 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                    Difesa
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="bg-gray-900 border border-white/10 text-gray-300">
+                  Difendi — riduci i danni subiti del 50% fino al prossimo turno
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => isPlayerTurn && onMenuAction('flee')}
+                    disabled={enemies.some(e => e.isBoss) || !isPlayerTurn}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 hover:border-gray-600 border border-transparent transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Footprints className="w-3.5 h-3.5" />
+                    Fuga
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="bg-gray-900 border border-white/10 text-gray-300">
+                  {enemies.some(e => e.isBoss)
+                    ? 'Impossibile fuggire dal BOSS!'
+                    : 'Tenta la fuga — non sempre riesce'}
+                </TooltipContent>
+              </Tooltip>
             </div>
           </motion.div>
         )}
@@ -180,7 +267,7 @@ export default function ActionMenu({
                 </span>
                 {!isPlayerTurn ? (
                   <span className="flex items-center gap-1 text-[9px] text-red-400/60">
-                    <Loader2 className="w-3.5 h-3 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     {currentEnemyName}...
                   </span>
                 ) : (
@@ -206,88 +293,136 @@ export default function ActionMenu({
                 )}
               </div>
               <div className="grid grid-cols-3 gap-1.5 p-2">
-                <button
-                  onClick={() => !autoCombat && isPlayerTurn && onMenuAction('attack')}
-                  disabled={autoCombat || !isPlayerTurn}
-                  className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed ${
-                    aiPredictedAction === 'attack'
-                      ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
-                      : 'text-gray-300 active:bg-red-950/50 active:text-red-200 border border-transparent'
-                  }`}
-                >
-                  <Swords className="w-5 h-5 text-red-400" />
-                  <span className="truncate max-w-full">{currentCharacter?.weapon?.type === 'ranged' ? currentCharacter.weapon.name : 'Attacca'}</span>
-                  {currentWeaponAmmoCount !== null && (
-                    <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${currentWeaponAmmoCount === 0 ? 'bg-red-900/60 text-red-400' : 'bg-gray-800/80 text-gray-400'}`}>
-                      🔫{currentWeaponAmmoCount}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special')}
-                  disabled={specialCd > 0 || autoCombat || !isPlayerTurn}
-                  className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed relative ${
-                    aiPredictedAction === 'special'
-                      ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.3)] animate-pulse'
-                      : 'text-gray-300 active:bg-amber-950/50 active:text-amber-200 border border-transparent'
-                  }`}
-                >
-                  <Zap className="w-5 h-5 text-amber-400" />
-                  <span className="truncate max-w-full">{(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special1Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Barricata' : arch === 'healer' ? 'Cura' : 'Mortale'); })()}</span>
-                  {specialCd > 0 && (
-                    <span className="bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded">{specialCd}t</span>
-                  )}
-                </button>
-                <button
-                  onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special2')}
-                  disabled={special2Cd > 0 || autoCombat || !isPlayerTurn}
-                  className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed relative ${
-                    aiPredictedAction === 'special2'
-                      ? 'bg-orange-500/20 border border-orange-500/40 text-orange-200 shadow-[0_0_10px_rgba(249,115,22,0.3)] animate-pulse'
-                      : 'text-gray-300 active:bg-orange-950/50 active:text-orange-200 border border-transparent'
-                  }`}
-                >
-                  <Zap className="w-5 h-5 text-orange-400" />
-                  <span className="truncate max-w-full">{(() => { const sp = currentCharacter ? getSpecialById(resolveSpecialId(currentCharacter, 'special2Id') || '') : undefined; return sp?.name || (arch === 'tank' ? 'Immolazione' : arch === 'healer' ? 'Cura Gruppo' : 'Raffica'); })()}</span>
-                  {special2Cd > 0 && (
-                    <span className="bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded">{special2Cd}t</span>
-                  )}
-                </button>
-                <button
-                  onClick={() => !autoCombat && isPlayerTurn && onMenuAction('use_item')}
-                  disabled={usableItemsCount === 0 || autoCombat || !isPlayerTurn}
-                  className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed ${
-                    aiPredictedAction === 'use_item'
-                      ? 'bg-green-500/20 border border-green-500/40 text-green-200 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
-                      : 'text-gray-300 active:bg-green-950/50 active:text-green-200 border border-transparent'
-                  }`}
-                >
-                  <Package className="w-5 h-5 text-green-400" />
-                  <span>Oggetto</span>
-                  <span className="text-[8px] text-gray-500">{usableItemsCount}</span>
-                </button>
-                <button
-                  onClick={() => !autoCombat && isPlayerTurn && onMenuAction('defend')}
-                  disabled={autoCombat || !isPlayerTurn}
-                  className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed ${
-                    aiPredictedAction === 'defend'
-                      ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse'
-                      : 'text-gray-300 active:bg-cyan-950/50 active:text-cyan-200 border border-transparent'
-                  }`}
-                >
-                  <Shield className="w-5 h-5 text-cyan-400" />
-                  <span>Difesa</span>
-                </button>
-                <button
-                  onClick={() => isPlayerTurn && onMenuAction('flee')}
-                  disabled={enemies.some(e => e.isBoss) || !isPlayerTurn}
-                  className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium text-gray-500 active:bg-gray-800/60 active:text-gray-200 border border-transparent transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <Footprints className="w-5 h-5" />
-                  <span>Fuga</span>
-                </button>
-              </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => !autoCombat && isPlayerTurn && onMenuAction('attack')}
+                      disabled={autoCombat || !isPlayerTurn}
+                      className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed ${
+                        aiPredictedAction === 'attack'
+                          ? 'bg-red-500/20 border border-red-500/40 text-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
+                          : 'text-gray-300 active:bg-red-950/50 active:text-red-200 border border-transparent'
+                      }`}
+                    >
+                      <Swords className="w-5 h-5 text-red-400" />
+                      <span className="truncate max-w-full">{currentCharacter?.weapon?.type === 'ranged' ? currentCharacter.weapon.name : 'Attacca'}</span>
+                      {currentWeaponAmmoCount !== null && (
+                        <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${currentWeaponAmmoCount === 0 ? 'bg-red-900/60 text-red-400' : 'bg-gray-800/80 text-gray-400'}`}>
+                          🔫{currentWeaponAmmoCount}
+                        </span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-gray-900 border border-white/10 text-gray-300 max-w-[180px]">
+                    {currentCharacter?.weapon?.name || 'Attacco base'}
+                  </TooltipContent>
+                </Tooltip>
 
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special')}
+                      disabled={specialCd > 0 || autoCombat || !isPlayerTurn}
+                      className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed relative ${
+                        aiPredictedAction === 'special'
+                          ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.3)] animate-pulse'
+                          : 'text-gray-300 active:bg-amber-950/50 active:text-amber-200 border border-transparent'
+                      }`}
+                    >
+                      <Zap className="w-5 h-5 text-amber-400" />
+                      <span className="truncate max-w-full">{special1Def?.name || (arch === 'tank' ? 'Barricata' : arch === 'healer' ? 'Cura' : 'Mortale')}</span>
+                      {specialCd > 0 && (
+                        <span className="bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded">{specialCd}t</span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-gray-900 border border-white/10 text-gray-300 max-w-[180px]">
+                    <p className="font-semibold text-[10px]">{special1Def?.name || 'Speciale'}</p>
+                    <p className="text-[9px] text-gray-400 mt-0.5">{special1Def?.description || ''}</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => !autoCombat && isPlayerTurn && onMenuAction('special2')}
+                      disabled={special2Cd > 0 || autoCombat || !isPlayerTurn}
+                      className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed relative ${
+                        aiPredictedAction === 'special2'
+                          ? 'bg-orange-500/20 border border-orange-500/40 text-orange-200 shadow-[0_0_10px_rgba(249,115,22,0.3)] animate-pulse'
+                          : 'text-gray-300 active:bg-orange-950/50 active:text-orange-200 border border-transparent'
+                      }`}
+                    >
+                      <Zap className="w-5 h-5 text-orange-400" />
+                      <span className="truncate max-w-full">{special2Def?.name || (arch === 'tank' ? 'Immolazione' : arch === 'healer' ? 'Cura Gruppo' : 'Raffica')}</span>
+                      {special2Cd > 0 && (
+                        <span className="bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded">{special2Cd}t</span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-gray-900 border border-white/10 text-gray-300 max-w-[180px]">
+                    <p className="font-semibold text-[10px]">{special2Def?.name || 'Speciale 2'}</p>
+                    <p className="text-[9px] text-gray-400 mt-0.5">{special2Def?.description || ''}</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => !autoCombat && isPlayerTurn && onMenuAction('use_item')}
+                      disabled={usableItemsCount === 0 || autoCombat || !isPlayerTurn}
+                      className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed ${
+                        aiPredictedAction === 'use_item'
+                          ? 'bg-green-500/20 border border-green-500/40 text-green-200 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
+                          : 'text-gray-300 active:bg-green-950/50 active:text-green-200 border border-transparent'
+                      }`}
+                    >
+                      <Package className="w-5 h-5 text-green-400" />
+                      <span>Oggetto</span>
+                      <span className="text-[8px] text-gray-500">{usableItemsCount}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-gray-900 border border-white/10 text-gray-300">
+                    Usa un oggetto ({usableItemsCount})
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => !autoCombat && isPlayerTurn && onMenuAction('defend')}
+                      disabled={autoCombat || !isPlayerTurn}
+                      className={`flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed ${
+                        aiPredictedAction === 'defend'
+                          ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.3)] animate-pulse'
+                          : 'text-gray-300 active:bg-cyan-950/50 active:text-cyan-200 border border-transparent'
+                      }`}
+                    >
+                      <Shield className="w-5 h-5 text-cyan-400" />
+                      <span>Difesa</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-gray-900 border border-white/10 text-gray-300">
+                    Riduci danni del 50%
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => isPlayerTurn && onMenuAction('flee')}
+                      disabled={enemies.some(e => e.isBoss) || !isPlayerTurn}
+                      className="flex flex-col items-center justify-center gap-0.5 px-1 py-2 rounded-lg text-[11px] font-medium text-gray-500 active:bg-gray-800/60 active:text-gray-200 border border-transparent transition-all min-h-[48px] disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <Footprints className="w-5 h-5" />
+                      <span>Fuga</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-gray-900 border border-white/10 text-gray-300">
+                    {enemies.some(e => e.isBoss) ? 'Impossibile fuggire!' : 'Tenta la fuga'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           </motion.div>
         )}

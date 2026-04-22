@@ -1,4 +1,4 @@
-import { Character, DifficultyLevel, GameNotification, RandomizedLocationData, ItemInstance } from '../types';
+import { Character, DifficultyLevel, GameNotification, RandomizedLocationData, ItemInstance, RunStats } from '../types';
 import { getDifficultyConfig } from '../data/difficulty';
 import { LOCATIONS, validateEffectsIntegrity } from '../data/loader';
 import { generateRandomizedData } from '../data/randomizer';
@@ -126,5 +126,42 @@ export function getDefaultState() {
     notification: null as GameNotification | null,
     settingsOpen: false,
     lastAutoSaveTurn: 0,
+    questChainProgress: {} as Record<string, QuestChainProgress>,
+    npcReputation: {} as Record<string, number>,
+    completedPermanentEvents: [] as string[],
+    activePermanentEffects: [] as PermanentEffect[],
+    pendingChainEvent: null as { eventId: string; triggerTurn: number } | null,
+    completedChains: [] as string[],
+    ngPlusCycle: 0,
+    // #8 Crafting Advanced
+    craftingPoints: 0,
+    totalCrafted: 0,
+    masterQualityCrafted: 0,
+    // Run statistics
+    runStats: {
+      totalDamageDealt: 0,
+      totalDamageReceived: 0,
+      totalHealingDone: 0,
+      enemiesDefeated: 0,
+      bossesDefeated: 0,
+      itemsCrafted: 0,
+      itemsUsed: 0,
+      documentsFound: 0,
+      secretRoomsDiscovered: 0,
+      recipesDiscovered: 0,
+      questsCompleted: 0,
+      questChainsCompleted: 0,
+      distanceTraveled: 0,
+      searchesPerformed: 0,
+      combatTurnsTotal: 0,
+      perfectCombats: 0,
+      longestCombo: 0,
+      turnsSurvived: 0,
+      dynamicEventsSurvived: 0,
+      playTimeSeconds: 0,
+      endingType: null,
+      characterArchetypes: [],
+      ngPlusCycle: 0,
+    } as RunStats,
   };
 }

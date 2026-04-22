@@ -137,6 +137,8 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
             },
             messageLog: [...state.messageLog, ...logMsgs],
           });
+          // Track run stats: quest completed
+          get().incrementRunStat('questsCompleted');
           return { handled: true, chatMessage: `Grazie! Hai portato esattamente quello che mi serviva! Missione "${npc.quest.name}" completata!` };
         } else if (partyItemCount > 0) {
           // Has some but not enough
@@ -183,6 +185,8 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
           },
           messageLog: [...state.messageLog, ...logMsgs],
         });
+        // Track run stats: quest completed (explore)
+        get().incrementRunStat('questsCompleted');
         return { handled: true, chatMessage: `${npc.quest.rewardDialogue?.[0] || 'Hai fatto un ottimo lavoro esplorando!'} Missione "${npc.quest.name}" completata!` };
       } else if (questProgress) {
         const msg = `Non hai ancora esplorato ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a cercare!`;

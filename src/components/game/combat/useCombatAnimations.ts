@@ -13,15 +13,18 @@ export interface UseCombatAnimationsReturn {
   deathTargetId: string | null;
   bossPhaseId: string | null;
   arenaShakeClass: string;
+  heavyHitClass: string | null;
+  healTargetId: string | null;
 }
 
 /**
  * Manages all combat animation state and side-effects:
- * - Screen shake on enemy death / critical hits
+ * - Screen shake on enemy death / critical hits / heavy hits (>50 dmg)
  * - Kill flash on enemy death
  * - Hit animations on damage (including criticals)
  * - Death animations on enemy death
  * - Boss phase change animations
+ * - Heal flash on player heal
  */
 export function useCombatAnimations(
   combat: CombatState | null,
@@ -34,6 +37,8 @@ export function useCombatAnimations(
   const [hitIsCritical, setHitIsCritical] = useState(false);
   const [deathTargetId, setDeathTargetId] = useState<string | null>(null);
   const [bossPhaseId, setBossPhaseId] = useState<string | null>(null);
+  const [heavyHitClass, setHeavyHitClass] = useState<string | null>(null);
+  const [healTargetId, setHealTargetId] = useState<string | null>(null);
 
   // ── Enemy death detection: play death sound + trigger screen shake & kill flash + death anim ──
   const prevEnemyHpRef = useRef<Record<string, number>>({});
@@ -89,12 +94,34 @@ export function useCombatAnimations(
     prevLogLenForShakeRef.current = combat.log.length;
     if (newEntries.length === 0) return;
     const lastEntry = newEntries[newEntries.length - 1];
+
+    // Critical hit → normal screen shake + glow
     if (lastEntry.isCritical && lastEntry.damage && lastEntry.damage > 0) {
       queueMicrotask(() => {
         setScreenShake('normal');
         setTimeout(() => setScreenShake(null), 500);
       });
     }
+
+    // Heavy hit (>50 damage) → heavy screen shake
+    if (lastEntry.damage && lastEntry.damage > 50 && !lastEntry.isMiss) {
+      queueMicrotask(() => {
+        setHeavyHitClass('animate-screen-shake-heavy-hit');
+        setTimeout(() => setHeavyHitClass(null), 600);
+      });
+    }
+
+    // Heal detection → player heal flash
+    if (lastEntry.heal && lastEntry.heal > 0) {
+      const healId = lastEntry.targetId || (lastEntry.targetIds?.[0]) || null;
+      if (healId) {
+        queueMicrotask(() => {
+          setHealTargetId(healId);
+          setTimeout(() => setHealTargetId(null), 600);
+        });
+      }
+    }
+
     // Trigger hit animation on target(s)
     // Combine targetId (primary) and targetIds (multi/splash) for full coverage
     const hitIds = [
@@ -138,5 +165,7 @@ export function useCombatAnimations(
     deathTargetId,
     bossPhaseId,
     arenaShakeClass,
+    heavyHitClass,
+    healTargetId,
   };
 }

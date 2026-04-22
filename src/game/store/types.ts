@@ -193,6 +193,8 @@ export interface GameStore extends GameState {
   depositToItemBox: (charId: string, itemUid: string, quantity: number) => boolean;
   withdrawFromItemBox: (charId: string, itemBoxIndex: number, quantity: number) => boolean;
   craftItem: (recipeIndex: number) => boolean;
+  craftItemWithPoints: (recipeIndex: number) => boolean;
+  breakdownItem: (charId: string, itemUid: string) => boolean;
 
   // Debug
   debugHealAll: () => void;

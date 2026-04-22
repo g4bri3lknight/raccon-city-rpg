@@ -218,4 +218,26 @@ export const SEED_ACHIEVEMENTS: SeedAchievement[] = [
     reward: 'Strategia passiva',
     sortOrder: 41,
   },
+  // ── CRAFTING ACHIEVEMENTS ──
+  {
+    id: 'master_crafter',
+    name: 'Maestro Artigiano',
+    description: 'Crea 20 oggetti in totale tramite crafting.',
+    icon: '🔨',
+    category: 'special',
+    condition: 'craft_20_items',
+    reward: 'Creatività illimitata',
+    sortOrder: 53,
+  },
+  {
+    id: 'quality_crafter',
+    name: 'Artigiano Perfetto',
+    description: 'Crea 3 oggetti di Qualità Maestra.',
+    icon: '⭐',
+    category: 'special',
+    condition: 'craft_3_master_quality',
+    hidden: true,
+    reward: 'Perfezione artigianale',
+    sortOrder: 54,
+  },
 ];

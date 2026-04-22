@@ -10,6 +10,7 @@ export const SEED_RECIPES = [
     resultItemId: 'herb_mixed',
     resultQty: 1,
     difficulty: 'easy',
+    pointCost: 3,
     sortOrder: 1,
   },
   {
@@ -22,6 +23,7 @@ export const SEED_RECIPES = [
     resultItemId: 'herb_mixed',
     resultQty: 1,
     difficulty: 'easy',
+    pointCost: 3,
     sortOrder: 2,
   },
   {
@@ -34,6 +36,7 @@ export const SEED_RECIPES = [
     resultItemId: 'spray',
     resultQty: 1,
     difficulty: 'medium',
+    pointCost: 5,
     sortOrder: 3,
   },
   {
@@ -47,6 +50,7 @@ export const SEED_RECIPES = [
     resultQty: 1,
     difficulty: 'hard',
     hidden: true,
+    pointCost: 8,
     sortOrder: 4,
   },
   // ── Ammunition Recycling ──
@@ -60,6 +64,7 @@ export const SEED_RECIPES = [
     resultItemId: 'ammo_shotgun',
     resultQty: 1,
     difficulty: 'medium',
+    pointCost: 5,
     sortOrder: 5,
   },
   {
@@ -73,6 +78,7 @@ export const SEED_RECIPES = [
     resultQty: 1,
     difficulty: 'hard',
     hidden: true,
+    pointCost: 8,
     sortOrder: 6,
   },
   {
@@ -86,6 +92,7 @@ export const SEED_RECIPES = [
     resultQty: 1,
     difficulty: 'hard',
     hidden: true,
+    pointCost: 8,
     sortOrder: 7,
   },
   // ── Medical ──
@@ -99,6 +106,7 @@ export const SEED_RECIPES = [
     resultItemId: 'antidote',
     resultQty: 2,
     difficulty: 'easy',
+    pointCost: 3,
     sortOrder: 8,
   },
   {
@@ -111,6 +119,7 @@ export const SEED_RECIPES = [
     resultItemId: 'first_aid',
     resultQty: 1,
     difficulty: 'easy',
+    pointCost: 3,
     sortOrder: 9,
   },
   // ── Boosters & Special Items ──
@@ -125,6 +134,7 @@ export const SEED_RECIPES = [
     resultQty: 1,
     difficulty: 'medium',
     hidden: true,
+    pointCost: 5,
     sortOrder: 10,
   },
   {
@@ -138,6 +148,7 @@ export const SEED_RECIPES = [
     resultQty: 2,
     difficulty: 'medium',
     hidden: true,
+    pointCost: 5,
     sortOrder: 11,
   },
   {
@@ -151,6 +162,7 @@ export const SEED_RECIPES = [
     resultQty: 1,
     difficulty: 'hard',
     hidden: true,
+    pointCost: 8,
     sortOrder: 12,
   },
   // ── Advanced Healing ──
@@ -165,6 +177,7 @@ export const SEED_RECIPES = [
     resultQty: 2,
     difficulty: 'hard',
     hidden: true,
+    pointCost: 8,
     sortOrder: 13,
   },
   // ── Advanced Ammo ──
@@ -179,6 +192,7 @@ export const SEED_RECIPES = [
     resultQty: 2,
     difficulty: 'medium',
     hidden: true,
+    pointCost: 5,
     sortOrder: 14,
   },
   // ── Resource Conversion ──
@@ -193,6 +207,54 @@ export const SEED_RECIPES = [
     resultQty: 2,
     difficulty: 'medium',
     hidden: true,
+    pointCost: 5,
     sortOrder: 15,
+  },
+  // ── #8 Point-Only Recipes ──
+  {
+    id: 'craft_bio_ammo',
+    name: 'Munizioni Biohazard',
+    description: 'Ricicla materiali contaminati in 6 granate esplosive.',
+    icon: '☢️',
+    category: 'ammo',
+    ingredients: JSON.stringify([]),
+    resultItemId: 'ammo_grenade',
+    resultQty: 6,
+    difficulty: 'hard',
+    hidden: true,
+    pointOnly: true,
+    pointCost: 12,
+    sortOrder: 16,
+  },
+  {
+    id: 'craft_viral_sample',
+    name: 'Campionamento Virale',
+    description: 'Crea un Lanciarazzi da materiali di laboratorio recuperati.',
+    icon: '🚀',
+    category: 'ammo',
+    ingredients: JSON.stringify([]),
+    resultItemId: 'rocket_launcher',
+    resultQty: 1,
+    difficulty: 'hard',
+    hidden: true,
+    pointOnly: true,
+    pointCost: 15,
+    sortOrder: 17,
+  },
+  {
+    id: 'craft_ultimate_mix',
+    name: 'Spray Ultimato',
+    description: 'Produce uno Spray con qualità garantita maestra.',
+    icon: '✨',
+    category: 'healing',
+    ingredients: JSON.stringify([]),
+    resultItemId: 'spray',
+    resultQty: 1,
+    difficulty: 'hard',
+    hidden: true,
+    pointOnly: true,
+    pointCost: 10,
+    forceMasterQuality: true,
+    sortOrder: 18,
   },
 ];

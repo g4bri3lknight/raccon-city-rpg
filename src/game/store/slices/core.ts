@@ -75,6 +75,16 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       skipNextEncounter: false,
       dataVersion: 0,
       settingsOpen: false,
+      questChainProgress: {},
+      npcReputation: {},
+      completedPermanentEvents: [],
+      activePermanentEffects: [],
+      pendingChainEvent: null,
+      completedChains: [],
+      ngPlusCycle: 0,
+      craftingPoints: 0,
+      totalCrafted: 0,
+      masterQualityCrafted: 0,
     });
   },
 
@@ -104,7 +114,23 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
 
   victory: () => {
     const ending = get().determineEnding();
-    set({ phase: 'victory', endingType: ending.id });
+    const state = get();
+    // Track run stats: play time, ending type, character archetypes
+    const playTime = state.gameStartTime && state.gameStartTime > 0
+      ? Math.floor((Date.now() - state.gameStartTime) / 1000)
+      : 0;
+    const archetypes = [...new Set(state.party.map(p => p.archetype))];
+    set(s => ({
+      phase: 'victory',
+      endingType: ending.id,
+      runStats: {
+        ...s.runStats,
+        playTimeSeconds: playTime,
+        endingType: ending.id,
+        ngPlusCycle: s.ngPlusCycle,
+        characterArchetypes: archetypes,
+      },
+    }));
     setTimeout(() => get().checkAchievements(), 100);
   },
 
@@ -167,6 +193,16 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       readDocuments: [],
       lastAutoSaveTurn: 0,
       isExploring: false,
+      questChainProgress: {},
+      npcReputation: {},
+      completedPermanentEvents: [],
+      activePermanentEffects: [],
+      pendingChainEvent: null,
+      completedChains: [],
+      ngPlusCycle: 0,
+      craftingPoints: 0,
+      totalCrafted: 0,
+      masterQualityCrafted: 0,
     });
   },
 });

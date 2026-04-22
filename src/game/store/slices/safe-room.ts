@@ -1,10 +1,19 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
-import { ItemInstance } from '../../types';
+import { ItemInstance, ItemQuality } from '../../types';
 import { ITEMS, LOCATIONS, RECIPES_DATA } from '../../data/loader';
-import { getMaxItemBoxSlots, getDefaultItemBoxItems } from '../settings-cache';
-import { nextNotifId, getKeyItemIds } from '../helpers';
+import { QUALITY_LABELS, RARITY_POINTS } from '../../data/crafting';
+import { getDefaultItemBoxItems } from '../settings-cache';
+import { getKeyItemIds } from '../helpers';
 import { playSearch, playSafeRoomAmbient, stopSafeRoomAmbient } from '../../engine/sounds';
+
+// ── Crafting quality roll ──
+function rollQuality(): ItemQuality {
+  const roll = Math.random() * 100;
+  if (roll < 5) return 'master';      // 5%
+  if (roll < 30) return 'superior';    // 25%
+  return 'normal';                     // 70%
+}
 
 export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   enterSafeRoom: () => {
@@ -268,6 +277,9 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
     if (recipeIndex < 0 || recipeIndex >= recipes.length) return false;
     const recipe = recipes[recipeIndex];
 
+    // Point-only recipes cannot be crafted with ingredients
+    if (recipe.pointOnly) return false;
+
     // Count available ingredients across all party members
     const ingredientCounts: Record<string, number> = {};
     for (const ing of recipe.ingredients) {
@@ -325,7 +337,145 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
       }
     }
 
+    // Roll quality
+    const quality = recipe.forceMasterQuality ? 'master' as ItemQuality : rollQuality();
+
     // Add result to selected character
+    const resultDef = ITEMS[recipe.result.itemId];
+    if (!resultDef) return false;
+
+    const qualityLabel = quality !== 'normal' ? ` ${QUALITY_LABELS[quality].stars}` : '';
+
+    const resultItem: ItemInstance = {
+      uid: `craft_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      itemId: recipe.result.itemId,
+      name: resultDef.name,
+      description: resultDef.description,
+      type: resultDef.type,
+      rarity: resultDef.rarity,
+      icon: resultDef.icon,
+      usable: resultDef.usable,
+      equippable: resultDef.equippable,
+      effects: resultDef.effects,
+      quantity: recipe.result.quantity,
+      quality: quality !== 'normal' ? quality : undefined,
+    };
+
+    // Stack if possible (only for normal quality items — superior/master don't stack)
+    let charInventory = updatedParty.find(p => p.id === char.id)!.inventory;
+    if (quality === 'normal') {
+      const existingResultIdx = charInventory.findIndex(i => i.itemId === recipe.result.itemId && !i.quality);
+      if (existingResultIdx >= 0) {
+        charInventory = [...charInventory];
+        charInventory[existingResultIdx] = { ...charInventory[existingResultIdx], quantity: charInventory[existingResultIdx].quantity + recipe.result.quantity };
+        updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: charInventory } : p);
+      } else {
+        charInventory = [...charInventory, resultItem];
+        updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: charInventory } : p);
+      }
+    } else {
+      charInventory = [...charInventory, resultItem];
+      updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: charInventory } : p);
+    }
+
+    // Track crafting stats
+    const newTotalCrafted = (state.totalCrafted || 0) + 1;
+    const newMasterCrafted = (state.masterQualityCrafted || 0) + (quality === 'master' ? 1 : 0);
+
+    set({
+      party: updatedParty,
+      itemBoxItems: updatedBox,
+      totalCrafted: newTotalCrafted,
+      masterQualityCrafted: newMasterCrafted,
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🔨 ${char.name} ha creato ${resultItem.icon} ${resultItem.name}${qualityLabel} x${recipe.result.quantity}!`],
+    });
+
+    // Check achievements
+    setTimeout(() => get().checkAchievements(), 100);
+
+    // Track run stats
+    try { get().incrementRunStat('itemsCrafted'); } catch {}
+
+    return true;
+  },
+
+  craftItemWithPoints: (recipeIndex: number): boolean => {
+    const state = get();
+    const char = state.party.find(p => p.id === state.selectedCharacterId) || state.party.find(p => p.currentHp > 0);
+    if (!char) return false;
+
+    const recipes = RECIPES_DATA;
+    if (recipeIndex < 0 || recipeIndex >= recipes.length) return false;
+    const recipe = recipes[recipeIndex];
+
+    const cost = recipe.pointCost || 0;
+    if (cost <= 0) return false;
+
+    // Check if player has enough crafting points
+    if ((state.craftingPoints || 0) < cost) return false;
+
+    // For non-point-only recipes, still check ingredients
+    if (!recipe.pointOnly) {
+      const ingredientCounts: Record<string, number> = {};
+      for (const ing of recipe.ingredients) {
+        ingredientCounts[ing.itemId] = 0;
+      }
+      for (const ing of recipe.ingredients) {
+        const boxItem = state.itemBoxItems.find(ib => ib.itemId === ing.itemId);
+        if (boxItem) ingredientCounts[ing.itemId] += boxItem.quantity;
+        for (const p of state.party) {
+          const invItem = p.inventory.find(i => i.itemId === ing.itemId);
+          if (invItem) ingredientCounts[ing.itemId] += invItem.quantity;
+        }
+      }
+      for (const ing of recipe.ingredients) {
+        if ((ingredientCounts[ing.itemId] || 0) < ing.quantity) return false;
+      }
+    }
+
+    // Remove ingredients for non-point-only recipes
+    let updatedBox = [...state.itemBoxItems];
+    let updatedParty = state.party.map(p => ({ ...p, inventory: [...p.inventory] }));
+
+    if (!recipe.pointOnly) {
+      for (const ing of recipe.ingredients) {
+        let remaining = ing.quantity;
+        const boxIdx = updatedBox.findIndex(ib => ib.itemId === ing.itemId);
+        if (boxIdx >= 0) {
+          const takeFromBox = Math.min(remaining, updatedBox[boxIdx].quantity);
+          if (takeFromBox >= updatedBox[boxIdx].quantity) {
+            updatedBox.splice(boxIdx, 1);
+          } else {
+            updatedBox[boxIdx] = { ...updatedBox[boxIdx], quantity: updatedBox[boxIdx].quantity - takeFromBox };
+          }
+          remaining -= takeFromBox;
+        }
+        if (remaining > 0) {
+          for (const p of updatedParty) {
+            if (remaining <= 0) break;
+            const invIdx = p.inventory.findIndex(i => i.itemId === ing.itemId);
+            if (invIdx >= 0) {
+              const takeFromInv = Math.min(remaining, p.inventory[invIdx].quantity);
+              if (takeFromInv >= p.inventory[invIdx].quantity) {
+                p.inventory.splice(invIdx, 1);
+              } else {
+                p.inventory[invIdx] = { ...p.inventory[invIdx], quantity: p.inventory[invIdx].quantity - takeFromInv };
+              }
+              remaining -= takeFromInv;
+            }
+          }
+        }
+      }
+    }
+
+    // Roll quality
+    const quality = recipe.forceMasterQuality ? 'master' as ItemQuality : rollQuality();
+    const qualityLabel = quality !== 'normal' ? ` ${QUALITY_LABELS[quality].stars}` : '';
+
+    // Deduct crafting points
+    const newPoints = (state.craftingPoints || 0) - cost;
+
+    // Add result
     const resultDef = ITEMS[recipe.result.itemId];
     if (!resultDef) return false;
 
@@ -341,25 +491,76 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
       equippable: resultDef.equippable,
       effects: resultDef.effects,
       quantity: recipe.result.quantity,
+      quality: quality !== 'normal' ? quality : undefined,
     };
 
-    // Stack if possible
+    // Stack if possible (normal quality only)
     let charInventory = updatedParty.find(p => p.id === char.id)!.inventory;
-    const existingResultIdx = charInventory.findIndex(i => i.itemId === recipe.result.itemId);
-    if (existingResultIdx >= 0) {
-      charInventory = [...charInventory];
-      charInventory[existingResultIdx] = { ...charInventory[existingResultIdx], quantity: charInventory[existingResultIdx].quantity + recipe.result.quantity };
+    if (quality === 'normal') {
+      const existingResultIdx = charInventory.findIndex(i => i.itemId === recipe.result.itemId && !i.quality);
+      if (existingResultIdx >= 0) {
+        charInventory = [...charInventory];
+        charInventory[existingResultIdx] = { ...charInventory[existingResultIdx], quantity: charInventory[existingResultIdx].quantity + recipe.result.quantity };
+        updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: charInventory } : p);
+      } else {
+        charInventory = [...charInventory, resultItem];
+        updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: charInventory } : p);
+      }
     } else {
       charInventory = [...charInventory, resultItem];
+      updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: charInventory } : p);
     }
 
-    updatedParty = updatedParty.map(p => p.id === char.id ? { ...p, inventory: charInventory } : p);
+    // Track crafting stats
+    const newTotalCrafted = (state.totalCrafted || 0) + 1;
+    const newMasterCrafted = (state.masterQualityCrafted || 0) + (quality === 'master' ? 1 : 0);
 
     set({
       party: updatedParty,
       itemBoxItems: updatedBox,
-      messageLog: [...state.messageLog, `[${state.turnCount}] 🔨 ${char.name} ha creato ${resultItem.icon} ${resultItem.name} x${recipe.result.quantity}!`],
+      craftingPoints: newPoints,
+      totalCrafted: newTotalCrafted,
+      masterQualityCrafted: newMasterCrafted,
+      messageLog: [...state.messageLog, `[${state.turnCount}] ⚡ ${char.name} ha creato ${resultItem.icon} ${resultItem.name}${qualityLabel} x${recipe.result.quantity} (${cost} pt)!`],
     });
+
+    setTimeout(() => get().checkAchievements(), 100);
+    try { get().incrementRunStat('itemsCrafted'); } catch {}
+
+    return true;
+  },
+
+  breakdownItem: (charId: string, itemUid: string): boolean => {
+    const state = get();
+    const char = state.party.find(p => p.id === charId);
+    if (!char) return false;
+
+    const itemIdx = char.inventory.findIndex(i => i.uid === itemUid);
+    if (itemIdx < 0) return false;
+
+    const item = char.inventory[itemIdx];
+
+    // Cannot break down: weapons, armor, accessories, mods, collectibles, bags, equipped, key items
+    if (item.isEquipped) return false;
+    if (['weapon', 'armor', 'accessory', 'weapon_mod', 'collectible', 'bag'].includes(item.type)) return false;
+    if (item.type === 'utility' && item.itemId.startsWith('key_')) return false;
+
+    const points = RARITY_POINTS[item.rarity] || 1;
+    const qty = item.quantity || 1;
+    const totalPoints = points * qty;
+
+    // Remove item from inventory
+    const updatedInventory = [...char.inventory];
+    updatedInventory.splice(itemIdx, 1);
+
+    const newPoints = (state.craftingPoints || 0) + totalPoints;
+
+    set({
+      party: state.party.map(p => p.id === charId ? { ...p, inventory: updatedInventory } : p),
+      craftingPoints: newPoints,
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🔧 ${char.name} ha smontato ${item.icon} ${item.name} x${qty} → +${totalPoints} Punti Craft`],
+    });
+
     return true;
   },
 });

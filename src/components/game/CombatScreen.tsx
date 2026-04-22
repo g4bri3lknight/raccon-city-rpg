@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
@@ -10,6 +10,16 @@ import {
   useCombatAnimations, useCombatAudio, useCombatScroll, useCombatActions,
   getAiPrediction, getWeaponAmmoCount, getUsableItems, getAnimForTarget,
 } from './combat';
+
+import type { TurnOrderEntry, CombatLogEntry } from '@/game/types';
+
+// ── Floating damage number ──
+interface FloatNumber {
+  id: number;
+  value: number;
+  type: 'damage' | 'heal' | 'critical';
+  targetId: string;
+}
 
 export default function CombatScreen() {
   // ── Store selectors ──
@@ -42,6 +52,75 @@ export default function CombatScreen() {
   const arch = currentCharacter?.archetype;
   const currentWeaponAmmoCount = getWeaponAmmoCount(currentCharacter);
   const currentEnemyName = enemies.find(e => e.id === combat?.currentActorId)?.name;
+
+  // ── Build turn order for display ──
+  const turnOrder: TurnOrderEntry[] = (() => {
+    if (!combat?.fullTurnOrder) return [];
+    return combat.fullTurnOrder.map(a => {
+      if (a.type === 'player') {
+        const char = party.find(p => p.id === a.id);
+        return {
+          id: a.id,
+          name: char?.name || '?',
+          icon: '🧑',
+          type: 'player' as const,
+          isAlive: char ? char.currentHp > 0 : false,
+        };
+      }
+      const enemy = enemies.find(e => e.id === a.id);
+      return {
+        id: a.id,
+        name: enemy?.name || '?',
+        icon: enemy?.icon || '🧟',
+        type: 'enemy' as const,
+        isAlive: enemy ? enemy.currentHp > 0 : false,
+      };
+    });
+  })();
+
+  // ── Floating damage numbers ──
+  const [floatNumbers, setFloatNumbers] = useState<FloatNumber[]>([]);
+  const floatIdRef = useRef(0);
+  const prevLogLenRef = useRef(0);
+
+  useEffect(() => {
+    if (!combat?.log) return;
+    const prevLen = prevLogLenRef.current;
+    const newEntries = combat.log.slice(prevLen);
+    prevLogLenRef.current = combat.log.length;
+    if (newEntries.length === 0) return;
+
+    for (const entry of newEntries) {
+      const targetId = entry.targetId || entry.targetIds?.[0];
+      if (!targetId) continue;
+
+      if (entry.damage && entry.damage > 0 && !entry.isMiss) {
+        const id = ++floatIdRef.current;
+        setFloatNumbers(prev => [...prev, {
+          id,
+          value: entry.damage,
+          type: entry.isCritical ? 'critical' : 'damage',
+          targetId,
+        }]);
+        // Auto-remove after animation
+        setTimeout(() => {
+          setFloatNumbers(prev => prev.filter(f => f.id !== id));
+        }, 1500);
+      }
+      if (entry.heal && entry.heal > 0) {
+        const id = ++floatIdRef.current;
+        setFloatNumbers(prev => [...prev, {
+          id,
+          value: entry.heal,
+          type: 'heal',
+          targetId,
+        }]);
+        setTimeout(() => {
+          setFloatNumbers(prev => prev.filter(f => f.id !== id));
+        }, 1500);
+      }
+    }
+  }, [combat?.log?.length]);
 
   // ── AI action prediction ──
   const aiPredictedAction = getAiPrediction(autoCombat, isPlayerTurn, currentCharacter, specialCd, special2Cd, aliveParty, aliveEnemies, usableItems);
@@ -115,6 +194,28 @@ export default function CombatScreen() {
     onCancel: actions.cancelAll,
   };
 
+  // ── Floating numbers render helper ──
+  const renderFloatNumbers = (entityId: string) => {
+    const nums = floatNumbers.filter(f => f.targetId === entityId);
+    if (nums.length === 0) return null;
+    return (
+      <div className="absolute inset-0 pointer-events-none z-50 flex items-center justify-center">
+        {nums.map(n => (
+          <div
+            key={n.id}
+            className={`combat-float-number ${n.type === 'critical' ? 'critical' : ''} ${
+              n.type === 'damage' ? 'text-red-400' : n.type === 'critical' ? 'text-yellow-400' : 'text-green-400'
+            }`}
+            style={{ left: '50%', top: '30%' }}
+          >
+            {n.type === 'heal' ? '+' : '-'}{n.value}
+            {n.type === 'critical' && ' ✕'}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   // ── Arena: only entities (enemies + party), NO floating menus ──
   const renderArenaEntities = () => (
     <div className={`relative z-10 flex-1 min-h-0 overflow-hidden px-2 sm:px-4 pb-1.5 ${animState.arenaShakeClass}`}>
@@ -141,6 +242,7 @@ export default function CombatScreen() {
           getAnimForTarget={boundGetAnimForTarget}
           activeEffects={combat.activeEffects || []}
           statusDurations={combat.statusDurations || {}}
+          floatNumbers={floatNumbers}
         />
 
         {/* ── VS divider — horizontal center ── */}
@@ -164,10 +266,24 @@ export default function CombatScreen() {
           getAnimForTarget={boundGetAnimForTarget}
           activeEffects={combat.activeEffects || []}
           statusDurations={combat.statusDurations || {}}
+          floatNumbers={floatNumbers}
+          healTargetId={animState.healTargetId}
         />
       </div>
     </div>
   );
+
+  // ── Combat header props ──
+  const combatHeaderProps = {
+    turn: combat.turn,
+    isPlayerTurn,
+    currentCharacterName: currentCharacter?.name,
+    currentEnemyName,
+    victoryCondition: combat.victoryCondition,
+    comboCount: combat.comboCount,
+    turnOrder,
+    currentActorId: combat.currentActorId,
+  };
 
   return (
     <div className={`h-dvh sm:h-screen game-horror flex flex-col overflow-hidden relative ${animState.killFlash ? 'animate-kill-flash' : ''}`}>
@@ -225,14 +341,7 @@ export default function CombatScreen() {
           style={{ width: `${100 - desktopPercent}%` }}
         >
           {/* Turn indicator (top of right column) */}
-          <CombatHeader
-            turn={combat.turn}
-            isPlayerTurn={isPlayerTurn}
-            currentCharacterName={currentCharacter?.name}
-            currentEnemyName={currentEnemyName}
-            victoryCondition={combat.victoryCondition}
-            comboCount={combat.comboCount}
-          />
+          <CombatHeader {...combatHeaderProps} />
           {/* Combat log fills remaining space */}
           <div className="flex-1 min-h-0 px-3 py-1.5 flex flex-col">
             <CombatLogPanel log={combat.log} party={party} dataVersion={dataVersion} logRef={desktopLogRef} />
@@ -265,14 +374,7 @@ export default function CombatScreen() {
             }}
           />
           {/* Turn indicator (in arena on mobile) */}
-          <CombatHeader
-            turn={combat.turn}
-            isPlayerTurn={isPlayerTurn}
-            currentCharacterName={currentCharacter?.name}
-            currentEnemyName={currentEnemyName}
-            victoryCondition={combat.victoryCondition}
-            comboCount={combat.comboCount}
-          />
+          <CombatHeader {...combatHeaderProps} />
           {/* Arena entities only (no floating menus) */}
           {renderArenaEntities()}
         </div>

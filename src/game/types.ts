@@ -23,7 +23,7 @@ export interface DifficultyConfig {
   description: string;
 }
 
-export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'custom';
+export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'survivor' | 'custom';
 
 export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'none';
 
@@ -391,6 +391,12 @@ export interface ItemDefinition {
   effects?: SpecialEffect[];
 }
 
+// ==========================================
+// #8 - CRAFTING QUALITY
+// ==========================================
+
+export type ItemQuality = 'normal' | 'superior' | 'master';
+
 export interface ItemInstance {
   uid: string;
   itemId: string;
@@ -410,6 +416,8 @@ export interface ItemInstance {
   equipmentStats?: EquipmentInstance;
   // #3 Mod data carried in inventory items (weapon mods)
   modStats?: WeaponMod;
+  // #8 Crafting quality
+  quality?: ItemQuality;
 }
 
 // ==========================================
@@ -602,11 +610,20 @@ export interface StatusDuration {
   turnsLeft: number;
 }
 
+export interface TurnOrderEntry {
+  id: string;
+  name: string;
+  icon: string;
+  type: 'player' | 'enemy';
+  isAlive: boolean;
+}
+
 export interface CombatState {
   turn: number;
   playerOrder: string[]; // Character IDs in action order
   enemyOrder: string[]; // Enemy IDs in action order
   fullTurnOrder: { id: string; type: 'player' | 'enemy' }[]; // stable turn order for the whole combat
+  turnOrder?: TurnOrderEntry[]; // visual turn order timeline (computed from fullTurnOrder)
   currentActorId: string;
   currentActorType: 'player' | 'enemy';
   selectedAction: CombatAction | null;
@@ -767,6 +784,13 @@ export interface GameState {
   herbCombineCount: number; // total herb combination actions
   // Auto-save
   lastAutoSaveTurn: number;
+  // #8 Crafting Avanzato
+  craftingPoints: number;
+  totalCrafted: number;
+  masterQualityCrafted: number;
+  ngPlusCycle: number;
+  // Run statistics
+  runStats: RunStats;
 }
 
 // ==========================================
@@ -965,3 +989,48 @@ export interface EndingDefinition {
 // ==========================================
 
 export type StoryChoiceTag = 'help_survivors' | 'ignore_survivors' | 'enter_lab' | 'skip_lab' | 'go_back_sewers' | 'proceed_sewers' | 'hack_computer' | 'skip_computer';
+
+// ==========================================
+// RUN STATS
+// ==========================================
+
+export interface RunStats {
+  totalDamageDealt: number;
+  totalDamageReceived: number;
+  totalHealingDone: number;
+  enemiesDefeated: number;
+  bossesDefeated: number;
+  itemsCrafted: number;
+  itemsUsed: number;
+  documentsFound: number;
+  secretRoomsDiscovered: number;
+  recipesDiscovered: number;
+  questsCompleted: number;
+  questChainsCompleted: number;
+  distanceTraveled: number;
+  searchesPerformed: number;
+  combatTurnsTotal: number;
+  perfectCombats: number;
+  longestCombo: number;
+  turnsSurvived: number;
+  dynamicEventsSurvived: number;
+  playTimeSeconds: number;
+  endingType: EndingType | null;
+  characterArchetypes: string[];
+  ngPlusCycle: number;
+}
+
+// ==========================================
+// QUEST CHAIN SYSTEM (stubs)
+// ==========================================
+
+export interface QuestChainProgress {
+  currentStep: number;
+  completed: boolean;
+}
+
+export interface PermanentEffect {
+  id: string;
+  type: string;
+  value: number;
+}

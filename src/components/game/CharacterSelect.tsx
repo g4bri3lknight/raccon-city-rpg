@@ -87,6 +87,7 @@ function getArchetypeColor(id: string | undefined) {
     healer: 'border-green-800/50 hover:border-green-600',
     dps: 'border-amber-800/50 hover:border-amber-600',
     control: 'border-purple-800/50 hover:border-purple-600',
+    survivor: 'border-cyan-800/50 hover:border-cyan-600',
   };
   return map[id || ''] || 'border-purple-800/50 hover:border-purple-600';
 }
@@ -97,6 +98,7 @@ function getArchetypeBorderColor(id: string | undefined) {
     healer: 'border-green-600',
     dps: 'border-amber-600',
     control: 'border-purple-600',
+    survivor: 'border-cyan-600',
   };
   return map[id || ''] || 'border-purple-600';
 }
@@ -107,6 +109,7 @@ function getArchetypeLabelColor(id: string | undefined) {
     healer: 'bg-green-900/60 text-green-300',
     dps: 'bg-amber-900/60 text-amber-300',
     control: 'bg-purple-900/60 text-purple-300',
+    survivor: 'bg-cyan-900/60 text-cyan-300',
   };
   return map[id || ''] || 'bg-purple-900/60 text-purple-300';
 }
@@ -117,6 +120,7 @@ function getArchetypeGlow(id: string | undefined) {
     healer: 'shadow-[0_0_30px_rgba(34,197,94,0.2)]',
     dps: 'shadow-[0_0_30px_rgba(245,158,11,0.2)]',
     control: 'shadow-[0_0_30px_rgba(168,85,247,0.2)]',
+    survivor: 'shadow-[0_0_30px_rgba(6,182,212,0.2)]',
   };
   return map[id || ''] || 'shadow-[0_0_30px_rgba(168,85,247,0.2)]';
 }
@@ -127,6 +131,7 @@ function getArchetypeIcon(id: string | undefined) {
     healer: Heart,
     dps: Swords,
     control: Crosshair,
+    survivor: Shield,
   };
   return map[id || ''] || Settings2;
 }
@@ -137,6 +142,7 @@ function getArchetypeIconColor(id: string | undefined) {
     healer: 'text-green-400',
     dps: 'text-amber-400',
     control: 'text-purple-400',
+    survivor: 'text-cyan-400',
   };
   return map[id || ''] || 'text-purple-400';
 }

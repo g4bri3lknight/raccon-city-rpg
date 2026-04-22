@@ -288,6 +288,11 @@ model GameRecipe {
   difficulty    String   @default("easy")    // easy | medium | hard
   hidden       Boolean  @default(false)
   sortOrder     Int      @default(0)
+  // #8 Crafting Avanzato
+  pointCost       Int?     // crafting points required (e.g. easy=3, medium=5, hard=8)
+  pointOnly       Boolean  @default(false) // if true, craftable ONLY with points
+  ngPlusOnly      Boolean  @default(false) // if true, only available in NG+ cycle 1+
+  forceMasterQuality Boolean @default(false) // if true, result is always master quality
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   @@map("game_recipes")
