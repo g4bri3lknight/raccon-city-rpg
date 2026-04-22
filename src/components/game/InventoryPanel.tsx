@@ -44,6 +44,7 @@ export default function InventoryPanel() {
   if (!inventoryOpen) return null;
 
   const selectedChar = party.find(p => p.id === selectedCharacterId) || party[0];
+  if (!selectedChar) return null;
 
   const rarityDotColor: Record<string, string> = {
     common: 'bg-gray-400',

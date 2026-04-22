@@ -53,6 +53,13 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       nemesisLastSeenLocation: state.nemesisLastSeenLocation,
       nemesisLastSeenTurn: state.nemesisLastSeenTurn,
       bossPhases: state.bossPhases,
+      searchedSafeRooms: state.searchedSafeRooms || [],
+      lastAutoSaveTurn: state.lastAutoSaveTurn,
+      bestiary: state.bestiary || [],
+      achievements: state.achievements || { unlockedIds: [], unlockTimestamps: {} },
+      autoCombat: state.autoCombat ?? false,
+      dataVersion: state.dataVersion ?? 0,
+      settingsOpen: false,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -147,7 +154,13 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       nemesisLastSeenLocation: state.nemesisLastSeenLocation,
       nemesisLastSeenTurn: state.nemesisLastSeenTurn,
       bossPhases: state.bossPhases,
+      searchedSafeRooms: state.searchedSafeRooms || [],
       lastAutoSaveTurn: state.turnCount,
+      bestiary: state.bestiary || [],
+      achievements: state.achievements || { unlockedIds: [], unlockTimestamps: {} },
+      autoCombat: state.autoCombat ?? false,
+      dataVersion: state.dataVersion ?? 0,
+      settingsOpen: false,
     };
 
     const saveKey = 'raccoon_city_autosave';
@@ -279,6 +292,15 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         nemesisLastSeenTurn: data.nemesisLastSeenTurn || 0,
         bossPhases: data.bossPhases || {},
         lastAutoSaveTurn: data.lastAutoSaveTurn || 0,
+        bestiary: data.bestiary || [],
+        achievements: data.achievements || { unlockedIds: [], unlockTimestamps: {} },
+        autoCombat: data.autoCombat ?? false,
+        dataVersion: data.dataVersion ?? 0,
+        searchedSafeRooms: data.searchedSafeRooms || [],
+        settingsOpen: false,
+        skipNextEncounter: false,
+        godMode: data.godMode ?? false,
+        debugOpen: false,
       });
       // Auto-save after loading
       setTimeout(() => { try { get().autoSave(); } catch {} }, 200);
@@ -358,6 +380,17 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       currentSubArea: state.currentSubArea,
       itemBoxItems: state.itemBoxItems,
       readDocuments: state.readDocuments,
+      nemesisPursuitLevel: state.nemesisPursuitLevel,
+      nemesisLastSeenLocation: state.nemesisLastSeenLocation,
+      nemesisLastSeenTurn: state.nemesisLastSeenTurn,
+      bossPhases: state.bossPhases,
+      searchedSafeRooms: state.searchedSafeRooms || [],
+      lastAutoSaveTurn: state.lastAutoSaveTurn,
+      bestiary: state.bestiary || [],
+      achievements: state.achievements || { unlockedIds: [], unlockTimestamps: {} },
+      autoCombat: state.autoCombat ?? false,
+      dataVersion: state.dataVersion ?? 0,
+      settingsOpen: false,
     };
 
     const saveKey = `raccoon_city_save_${slot}`;
@@ -378,6 +411,18 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
 
     try {
       if (typeof window !== 'undefined') {
+        // Check size first; trim randomizedLocationData if too large
+        if (saveData.randomizedLocationData !== null) {
+          const json = JSON.stringify(saveData);
+          if (json.length > 4_000_000) {
+            console.warn(`[saveGameVictory] Save data is ${(json.length / 1024).toFixed(0)}KB, trimming randomizedLocationData`);
+            saveData.randomizedLocationData = null;
+          } else {
+            localStorage.setItem(saveKey, json);
+            localStorage.setItem(saveMetaKey, JSON.stringify(meta));
+            return totalPersistent;
+          }
+        }
         localStorage.setItem(saveKey, JSON.stringify(saveData));
         localStorage.setItem(saveMetaKey, JSON.stringify(meta));
       }
@@ -401,6 +446,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       unlockedPaths: [],
       visitedLocations: [],
       mapOpen: false,
+      skipNextEncounter: false,
       completedEvents: [],
       collectedRibbons: 0,
       persistentRibbons: Math.min(persistentRibbons, 10),
@@ -430,10 +476,23 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       discoveredSecretRooms: [],
       endingType: null,
       exploredSubAreas: {},
+      bossPhases: {},
+      nemesisPursuitLevel: 0,
+      nemesisLastSeenLocation: null,
+      nemesisLastSeenTurn: 0,
+      debugOpen: false,
+      godMode: false,
+      autoCombat: false,
+      notification: null,
+      randomizerMode: false,
+      randomizedLocationData: null,
       currentSubArea: null,
       itemBoxItems: [],
       searchedSafeRooms: [],
       readDocuments: [],
+      lastAutoSaveTurn: 0,
+      settingsOpen: false,
+      dataVersion: 0,
     });
   },
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
@@ -64,8 +64,16 @@ export default function CombatScreen() {
   });
 
   // ── Animation helper for entity displays ──
+  const lastEntriesRef = useRef(combat?.log?.slice(-3) || []);
   const lastEntries = combat?.log?.slice(-3) || [];
-  const boundGetAnimForTarget = useCallback((id: string, name: string) => getAnimForTarget(lastEntries, id, name), [lastEntries]);
+  useEffect(() => {
+    if (lastEntries.length > 0) lastEntriesRef.current = lastEntries;
+  }); // intentionally no deps: sync ref every render
+
+  const boundGetAnimForTarget = useCallback(
+    (id: string, name: string) => getAnimForTarget(lastEntriesRef.current, id, name),
+    []
+  );
 
   if (!combat) return null;
 
@@ -222,6 +230,8 @@ export default function CombatScreen() {
             isPlayerTurn={isPlayerTurn}
             currentCharacterName={currentCharacter?.name}
             currentEnemyName={currentEnemyName}
+            victoryCondition={combat.victoryCondition}
+            comboCount={combat.comboCount}
           />
           {/* Combat log fills remaining space */}
           <div className="flex-1 min-h-0 px-3 py-1.5 flex flex-col">
@@ -260,6 +270,8 @@ export default function CombatScreen() {
             isPlayerTurn={isPlayerTurn}
             currentCharacterName={currentCharacter?.name}
             currentEnemyName={currentEnemyName}
+            victoryCondition={combat.victoryCondition}
+            comboCount={combat.comboCount}
           />
           {/* Arena entities only (no floating menus) */}
           {renderArenaEntities()}

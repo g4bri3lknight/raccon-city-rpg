@@ -9,6 +9,7 @@ import { SEED_CHARACTERS } from '@/seed-data/characters';
 import { SEED_SPECIALS } from '@/seed-data/specials';
 import { SEED_ENEMIES } from '@/seed-data/enemies';
 import { EQUIPMENT_STATS, ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, WEAPON_MODS } from '@/seed-data/equipment';
+import { SEED_SECRET_ROOMS } from '@/seed-data/secret-rooms';
 
 import { safeErrorResponse } from '@/lib/api-utils';
 const MAP_LAYOUT: Record<string, { row: number; col: number; icon: string; danger: string }> = {
@@ -244,6 +245,31 @@ async function seedEquipment(): Promise<SeedResult> {
   return { entity: 'equipment', total, created, updated };
 }
 
+async function seedSecretRooms(): Promise<SeedResult> {
+  const entries = SEED_SECRET_ROOMS;
+  let created = 0, updated = 0;
+  for (const room of entries) {
+    const existing = await db.secretRoom.findUnique({ where: { id: room.id } });
+    const data = {
+      locationId: room.locationId,
+      name: room.name,
+      description: room.description,
+      discoveryMethod: room.discoveryMethod,
+      requiredDocumentId: room.requiredDocumentId,
+      requiredNpcQuestId: room.requiredNpcQuestId,
+      searchChance: room.searchChance,
+      hint: room.hint,
+      lootTable: room.lootTable,
+      uniqueItemId: room.uniqueItemId,
+      uniqueItemQuantity: room.uniqueItemQuantity,
+      sortOrder: room.sortOrder,
+    };
+    if (existing) { await db.secretRoom.update({ where: { id: room.id }, data }); updated++; }
+    else { await db.secretRoom.create({ data: { id: room.id, ...data } }); created++; }
+  }
+  return { entity: 'secret-rooms', total: entries.length, created, updated };
+}
+
 /**
  * POST /api/admin/seed-all
  * Master seed endpoint — populates ALL game data from static definitions.
@@ -262,30 +288,34 @@ export async function POST() {
       seedCharacters(),
       seedSpecials(),
       seedEnemies(),
+      seedSecretRooms(),
     ]);
 
+    const adminKey = process.env.ADMIN_KEY || 'raccoon_admin_2024';
+    const adminHeaders = { headers: { 'x-admin-key': adminKey } };
+
     // Seed enemy-abilities after enemies (it also updates enemy ability references)
-    const abilitiesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-enemy-abilities`, { method: 'POST' });
+    const abilitiesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-enemy-abilities`, { method: 'POST', ...adminHeaders });
     const abilitiesData = await abilitiesRes.json();
     results.push({ entity: 'enemy-abilities', total: abilitiesData.abilitiesCount ?? 0, created: abilitiesData.result?.created ?? 0, updated: abilitiesData.result?.updated ?? 0 });
 
     // Seed boss phases (after enemy-abilities since they reference ability IDs)
-    const bossPhasesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-boss-phases`, { method: 'POST' });
+    const bossPhasesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-boss-phases`, { method: 'POST', ...adminHeaders });
     const bossPhasesData = await bossPhasesRes.json();
     results.push({ entity: 'boss-phases', total: bossPhasesData.result?.total ?? 0, created: bossPhasesData.result?.created ?? 0, updated: bossPhasesData.result?.updated ?? 0 });
 
     // Seed achievements
-    const achievementsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-achievements`, { method: 'POST' });
+    const achievementsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-achievements`, { method: 'POST', ...adminHeaders });
     const achievementsData = await achievementsRes.json();
     results.push({ entity: 'achievements', total: achievementsData.result?.total ?? 0, created: achievementsData.result?.created ?? 0, updated: achievementsData.result?.updated ?? 0 });
 
     // Seed endings
-    const endingsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-endings`, { method: 'POST' });
+    const endingsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-endings`, { method: 'POST', ...adminHeaders });
     const endingsData = await endingsRes.json();
     results.push({ entity: 'endings', total: endingsData.result?.total ?? 0, created: endingsData.result?.created ?? 0, updated: endingsData.result?.updated ?? 0 });
 
     // Seed avatars
-    const avatarsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-avatars`, { method: 'POST' });
+    const avatarsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-avatars`, { method: 'POST', ...adminHeaders });
     const avatarsData = await avatarsRes.json();
     results.push({ entity: 'avatars', total: avatarsData.result?.total ?? 9, created: 0, updated: 0 });
 

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
+import { safeErrorResponse } from '@/lib/api-utils';
 
 // Upload an image file and store as BLOB in DB
 // POST /api/admin/images/upload
@@ -60,6 +61,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(created, { status: 201 });
     }
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Images Upload]');
   }
 }

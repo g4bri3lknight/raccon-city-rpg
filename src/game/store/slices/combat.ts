@@ -58,6 +58,30 @@ import {
   audio,
 } from '../../engine/sounds';
 
+/** Calculate combo bonus percentage based on combo count.
+ *  Linear interpolation between thresholds:
+ *    combo 2 → +10%, combo 3 → +20%, combo 5 → +35%, combo 8+ → +50%
+ */
+function getComboBonus(comboCount: number): number {
+  if (comboCount < 2) return 0;
+  if (comboCount >= 8) return 50;
+  const thresholds = [
+    { combo: 2, bonus: 10 },
+    { combo: 3, bonus: 20 },
+    { combo: 5, bonus: 35 },
+    { combo: 8, bonus: 50 },
+  ];
+  for (let i = 0; i < thresholds.length - 1; i++) {
+    const lower = thresholds[i];
+    const upper = thresholds[i + 1];
+    if (comboCount >= lower.combo && comboCount <= upper.combo) {
+      const t = (comboCount - lower.combo) / (upper.combo - lower.combo);
+      return Math.round(lower.bonus + t * (upper.bonus - lower.bonus));
+    }
+  }
+  return 0;
+}
+
 /** Merge new active effects with existing ones, refreshing duration instead of stacking same type+stat+target */
 function mergeActiveEffects(existing: ActiveCombatEffect[], incoming: ActiveCombatEffect[]): ActiveCombatEffect[] {
   const result = [...existing];
@@ -125,6 +149,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         ...state.combat,
         log: newLog,
         party: updatedParty,
+        comboCount: 0,
+        comboTargetId: null,
+        lastOffensiveAction: null,
       });
       return;
     }
@@ -153,6 +180,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         get().advanceToNextActor({
           ...state.combat,
           log: newLog,
+          comboCount: 0,
+          comboTargetId: null,
+          lastOffensiveAction: null,
         });
         return;
       }
@@ -650,6 +680,66 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
     }
 
+    // ── COMBO CHAIN SYSTEM ──
+    // Track consecutive offensive actions against the same enemy for bonus damage
+    const selectedAction = state.combat.selectedAction;
+    const isOffensive = selectedAction === 'attack' || selectedAction === 'special' || selectedAction === 'special2';
+    let comboCount = state.combat.comboCount || 0;
+    let comboTargetId = state.combat.comboTargetId || null;
+    let lastOffensiveAction = state.combat.lastOffensiveAction || null;
+
+    if (isOffensive) {
+      const actionTargetId = state.combat.selectedTarget;
+      // If targeting a different enemy than the combo target, reset combo
+      if (comboTargetId !== null && actionTargetId !== comboTargetId) {
+        comboCount = 0;
+      }
+
+      // Check if the action successfully dealt damage (not a miss)
+      const lastLog = newLog[newLog.length - 1];
+      const didHit = lastLog && lastLog.damage !== undefined && lastLog.damage > 0 && !lastLog.isMiss;
+
+      if (didHit && actionTargetId) {
+        comboCount += 1;
+        comboTargetId = actionTargetId;
+        lastOffensiveAction = selectedAction;
+
+        if (comboCount >= 2) {
+          const bonusPercent = getComboBonus(comboCount);
+          const baseDamage = lastLog.damage!;
+          const bonusDamage = Math.max(1, Math.floor(baseDamage * (bonusPercent / 100)));
+
+          // Apply bonus damage directly to the combo target
+          updatedEnemies = updatedEnemies.map(e => {
+            if (e.id === comboTargetId) {
+              return { ...e, currentHp: Math.max(0, e.currentHp - bonusDamage) };
+            }
+            return e;
+          });
+
+          newLog.push({
+            turn: state.combat.turn,
+            actorName: 'Sistema',
+            actorType: 'player',
+            action: 'Combo',
+            message: `🔥 Combo x${comboCount}! (+${bonusPercent}% danno, +${bonusDamage})`,
+          });
+        }
+
+        // If the combo target died from bonus damage, reset combo
+        if (comboTargetId && updatedEnemies.find(e => e.id === comboTargetId)?.currentHp <= 0) {
+          comboCount = 0;
+          comboTargetId = null;
+          lastOffensiveAction = null;
+        }
+      }
+    } else {
+      // Non-offensive action (use_item, etc.) — reset combo
+      comboCount = 0;
+      comboTargetId = null;
+      lastOffensiveAction = null;
+    }
+
     // ── BOSS PHASE TRANSITION CHECK ──
     const targetIndex: number[] = [];
     for (let i = 0; i < updatedEnemies.length; i++) {
@@ -659,6 +749,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       if (!phases || enemy.currentPhase >= phases.length) continue;
 
       const phaseDef = phases[enemy.currentPhase];
+      if (enemy.maxHp <= 0) continue;
       const hpPercent = enemy.currentHp / enemy.maxHp;
 
       if (hpPercent <= phaseDef.hpThreshold) {
@@ -812,8 +903,42 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
       }
 
+      // Check victory condition for bonus EXP
+      const vc = state.combat?.victoryCondition;
+      let bonusExp = 0;
+      if (vc) {
+        let vcMet = false;
+        if (vc.type === 'survive_turns' && vc.turnsRequired && state.combat.turn >= vc.turnsRequired) {
+          vcMet = true;
+        } else if (vc.type === 'destroy_weak_point') {
+          vcMet = true;
+        } else if (vc.type === 'kill_target' && vc.targetEnemyId) {
+          vcMet = updatedEnemies.some(e => e.id === vc.targetEnemyId && e.currentHp <= 0);
+        }
+        if (vcMet) {
+          bonusExp = vc.rewardExpBonus;
+          for (const char of updatedParty) {
+            if (char.currentHp > 0) {
+              const result = addExp(char, bonusExp);
+              updatedParty = updatedParty.map(p => p.id === result.updated.id ? result.updated : p);
+              if (result.leveledUp) {
+                try { playLevelUp(); } catch {}
+                levelUpMessages.push(`⬆️ ${result.updated.name} sale al livello ${result.updated.level}!`);
+              }
+            }
+          }
+          newLog.push({
+            turn: state.combat.turn,
+            actorName: 'Sistema',
+            actorType: 'player',
+            action: 'Sfida',
+            message: `🏆 ${vc.rewardLabel} +${bonusExp} EXP bonus!`,
+          });
+        }
+      }
+
       const lootNames = combatLoot.map(id => ITEMS[id]?.name).filter(Boolean);
-      let victoryMsg = `⚔️ Sei sopravvissuto allo scontro. +${totalExp} EXP.`;
+      let victoryMsg = `⚔️ Sei sopravvissuto allo scontro. +${totalExp}${bonusExp > 0 ? `+${bonusExp}` : ''} EXP.`;
       if (lostLoot.length > 0) {
         victoryMsg += ` ⚠️ Inventario pieno! Persi: ${lostLoot.join(', ')}`;
       }
@@ -890,7 +1015,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             type: 'victory',
             message: 'EVASIONE COMPLETATA',
             icon: '🚪',
-            subMessage: `Boss eliminato. +${totalExp} EXP`,
+            subMessage: `Boss eliminato. +${totalExp}${bonusExp > 0 ? `+${bonusExp}` : ''} EXP`,
             lootNames: combatLoot.map(id => ITEMS[id]?.name).filter(Boolean),
             levelUps: levelUpMessages,
           },
@@ -899,7 +1024,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           enemies: updatedEnemies,
           messageLog: [
             ...state.messageLog,
-            `[${state.turnCount}] ⚔️ Boss eliminato. Sei sopravvissuto. +${totalExp} EXP`,
+            `[${state.turnCount}] ⚔️ Boss eliminato. Sei sopravvissuto. +${totalExp}${bonusExp > 0 ? `+${bonusExp}` : ''} EXP`,
             ...levelUpMessages,
             ...questLogMsgs,
           ],
@@ -924,7 +1049,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           type: 'victory',
           message: 'SOPRAVVVISSUTO',
           icon: '⚔️',
-          subMessage: `Sei sopravvissuto allo scontro. +${totalExp} EXP`,
+          subMessage: `Sei sopravvissuto allo scontro. +${totalExp}${bonusExp > 0 ? `+${bonusExp}` : ''} EXP`,
           lootNames: combatLoot.map(id => ITEMS[id]?.name).filter(Boolean),
           levelUps: levelUpMessages,
         },
@@ -933,7 +1058,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         enemies: updatedEnemies,
         messageLog: [
           ...state.messageLog,
-          `[${state.turnCount}] ⚔️ Sei sopravvissuto allo scontro. +${totalExp} EXP`,
+          `[${state.turnCount}] ⚔️ Sei sopravvissuto allo scontro. +${totalExp}${bonusExp > 0 ? `+${bonusExp}` : ''} EXP`,
           ...levelUpMessages,
           ...questLogMsgs,
         ],
@@ -961,6 +1086,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       tauntTargetId,
       statusDurations: updatedCombatStatusDurations,
       activeEffects: updatedCombatActiveEffects,
+      comboCount,
+      comboTargetId,
+      lastOffensiveAction,
     });
   },
 
@@ -1511,6 +1639,32 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           levelUpMessages.push(`⬆️ ${char.name} è salito al livello ${result.updated.level}!`);
         }
       }
+      // Check victory condition for bonus EXP (auto-combat DOT victory)
+      const dotVc = combat?.victoryCondition;
+      let dotBonusExp = 0;
+      if (dotVc) {
+        let vcMet = false;
+        if (dotVc.type === 'survive_turns' && dotVc.turnsRequired && newTurn >= dotVc.turnsRequired) {
+          vcMet = true;
+        } else if (dotVc.type === 'destroy_weak_point') {
+          vcMet = true;
+        } else if (dotVc.type === 'kill_target' && dotVc.targetEnemyId) {
+          vcMet = updatedEnemiesForStatus.some(e => e.id === dotVc.targetEnemyId && e.currentHp <= 0);
+        }
+        if (vcMet) {
+          dotBonusExp = dotVc.rewardExpBonus;
+          for (const char of finalParty) {
+            if (char.currentHp <= 0) continue;
+            const result = addExp(char, dotBonusExp);
+            finalParty = finalParty.map(p => p.id === result.updated.id ? result.updated : p);
+            if (result.leveledUp) {
+              try { playLevelUp(); } catch {}
+              levelUpMessages.push(`⬆️ ${char.name} è salito al livello ${result.updated.level}!`);
+            }
+          }
+          finalLog.push({ turn: newTurn, actorName: 'Sistema', actorType: 'player' as const, action: 'Sfida', message: `🏆 ${dotVc.rewardLabel} +${dotBonusExp} EXP bonus!` });
+        }
+      }
       const isBoss = updatedEnemiesForStatus.some(e => e.isBoss);
       try { playVictory(); } catch {}
       set({
@@ -1519,7 +1673,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           type: 'victory',
           message: isBoss ? 'EVASIONE COMPLETATA' : 'SOPRAVVVISSUTO',
           icon: isBoss ? '🚪' : '⚔️',
-          subMessage: isBoss ? `Boss eliminato. +${totalExp} EXP` : `Nemici sconfitti. +${totalExp} EXP`,
+          subMessage: isBoss ? `Boss eliminato. +${totalExp}${dotBonusExp > 0 ? `+${dotBonusExp}` : ''} EXP` : `Nemici sconfitti. +${totalExp}${dotBonusExp > 0 ? `+${dotBonusExp}` : ''} EXP`,
           levelUps: levelUpMessages,
         },
         combat: { ...combat, log: finalLog, isVictory: true, isProcessing: true, turn: newTurn },
@@ -1527,7 +1681,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         enemies: updatedEnemiesForStatus,
         messageLog: [
           ...get().messageLog,
-          `[${get().turnCount}] ⚔️ ${isBoss ? 'Boss eliminato' : 'Nemici sconfitti'}. +${totalExp} EXP`,
+          `[${get().turnCount}] ⚔️ ${isBoss ? 'Boss eliminato' : 'Nemici sconfitti'}. +${totalExp}${dotBonusExp > 0 ? `+${dotBonusExp}` : ''} EXP`,
           ...levelUpMessages,
         ],
         bestiary: victoryBestiary,
@@ -1881,6 +2035,9 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         special2Cooldowns: {},
         tauntTargetId: null,
         activeEffects: [],
+        comboCount: 0,
+        comboTargetId: null,
+        lastOffensiveAction: null,
       },
       messageLog: [...state.messageLog, `[${state.turnCount}] ⭐ BOSS: ${boss.name} blocca la via!`],
     });

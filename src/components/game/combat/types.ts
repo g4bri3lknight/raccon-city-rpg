@@ -13,6 +13,15 @@ export interface CombatHeaderProps {
   isPlayerTurn: boolean;
   currentCharacterName: string | undefined;
   currentEnemyName: string | undefined;
+  victoryCondition: {
+    type: string;
+    description: string;
+    rewardExpBonus: number;
+    rewardLabel: string;
+    targetEnemyId?: string;
+    turnsRequired?: number;
+  } | null;
+  comboCount: number;
 }
 
 /* ── EnemyDisplay ── */

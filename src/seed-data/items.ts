@@ -88,6 +88,24 @@ export const SEED_ITEMS: Record<string, ItemDefinition> = {
     effects: [{ type: 'heal', trigger: 'on_use', target: 'self', amount: 80 }],
   },
 
+  // Booster items
+  adrenaline_shot: {
+    id: 'adrenaline_shot', name: 'Iniezione di Adrenalina', description: 'Un\'iniezione di adrenalina. +20 ATK per 3 turni in combattimento.',
+    type: 'healing', rarity: 'rare', icon: '💉', usable: true, equippable: false,
+    effects: [{ type: 'buff_stat', trigger: 'on_use', target: 'self', stat: 'atk', amount: 20, flat: true }],
+  },
+  defense_pill: {
+    id: 'defense_pill', name: 'Pillola Difensiva', description: 'Un integratore che potenzia le difese del corpo. +15 DEF per 3 turni.',
+    type: 'healing', rarity: 'uncommon', icon: '💊', usable: true, equippable: false,
+    effects: [{ type: 'buff_stat', trigger: 'on_use', target: 'self', stat: 'def', amount: 15, flat: true }],
+  },
+  // Explosive
+  pipe_bomb: {
+    id: 'pipe_bomb', name: 'Bomba Artigianale', description: 'Una bomba fatta con pezzi di ricambio. Infligge 50 danni a tutti i nemici.',
+    type: 'healing', rarity: 'rare', icon: '💣', usable: true, equippable: false,
+    effects: [{ type: 'deal_damage', trigger: 'on_use', target: 'all_enemies', amount: 50, flat: true, ignoreDef: true, noMiss: true }],
+  },
+
   // Antidote
   antidote: {
     id: 'antidote', name: 'Antidoto', description: 'Cura avvelenamento su se stessi.',

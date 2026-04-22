@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { useShallow } from 'zustand/react/shallow';
@@ -64,9 +64,7 @@ export default function ExplorationScreen() {
     toggleMissions: s.toggleMissions,
     toggleSettings: s.toggleSettings,
     handleDynamicEventChoice: s.handleDynamicEventChoice,
-    startQTE: s.startQTE,
     enterSafeRoom: s.enterSafeRoom,
-    encounterNpc: s.encounterNpc,
   })));
 
   const {
@@ -80,11 +78,28 @@ export default function ExplorationScreen() {
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
-    toggleSettings, handleDynamicEventChoice, startQTE, enterSafeRoom,
-    encounterNpc,
+    toggleSettings, handleDynamicEventChoice, enterSafeRoom,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
+  const explorationLogRef = useRef<HTMLDivElement>(null);
+  const partyAvatarData = useMemo(() => party.map(p => ({
+    name: p.name,
+    avatarSrc: mediaUrl(p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '', dataVersion)
+  })), [party, dataVersion]);
+
+  // Auto-scroll exploration log to bottom
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (explorationLogRef.current) {
+          explorationLogRef.current.scrollTop = explorationLogRef.current.scrollHeight;
+        }
+      });
+    });
+  }, [messageLog.length, activeEvent]);
+
+  if (!location) return null;
   // searchMax: DB config (null=random 1-3, 0=unlimited) → searchMaxes: runtime state
   const effectiveMax = searchMaxes[currentLocationId]
     ?? (location.searchMax != null ? (location.searchMax === 0 ? Infinity : location.searchMax) : 0);
@@ -102,24 +117,14 @@ export default function ExplorationScreen() {
   const localNpcs = Object.values(NPCS).filter(
     n => n.locationId === currentLocationId && npcsEncountered.includes(n.id)
   );
-  const explorationLogRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll exploration log to bottom
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (explorationLogRef.current) {
-          explorationLogRef.current.scrollTop = explorationLogRef.current.scrollHeight;
-        }
-      });
-    });
-  }, [messageLog.length, activeEvent]);
-
-  if (!location) return null;
 
   // If in safe room, show SafeRoomPanel instead of exploration
   if (currentSubArea === 'safe_room') {
-    return <SafeRoomPanel />;
+    return (
+      <AnimatePresence mode="wait">
+        <SafeRoomPanel key="safe-room" />
+      </AnimatePresence>
+    );
   }
 
   const aliveParty = party.filter(p => p.currentHp > 0);
@@ -363,7 +368,7 @@ export default function ExplorationScreen() {
                       'text-gray-400'
                     }`}
                   >
-                    <LogText text={msg} party={party.map(p => ({ name: p.name, avatarSrc: mediaUrl(p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '', dataVersion) }))} />
+                    <LogText text={msg} party={partyAvatarData} />
                   </p>
                 ))}
                 {messageLog.length === 0 && !activeEvent && (
@@ -469,17 +474,6 @@ export default function ExplorationScreen() {
 
           {/* Action Buttons */}
           <div className="shrink-0 p-2 sm:p-3 border-t border-white/[0.06] glass-dark-accent max-h-[40vh] sm:max-h-none overflow-y-auto inventory-scrollbar">
-            {/* Status Indicators */}
-            {(activeDynamicEvent || activeNpc) && (
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                {activeDynamicEvent && (
-                  <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 text-[10px] animate-pulse">
-                    {activeDynamicEvent.icon} {activeDynamicEvent.title} ({dynamicEventTurnsLeft})
-                  </Badge>
-                )}
-              </div>
-            )}
-            
             {(() => {
               const isActionBlocked = !!(activeEvent || activeDynamicEvent || activeNpc);
               return (

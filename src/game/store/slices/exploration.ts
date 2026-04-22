@@ -26,6 +26,7 @@ import {
 } from '../helpers';
 import { getMaxInventorySlots } from '../settings-cache';
 import { getAddSlotsAmount } from '../../utils/item-effects';
+import { rollVictoryCondition } from '../../data/victory-conditions';
 import {
   playLocationAmbient,
   playTravel,
@@ -44,6 +45,10 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     if (state.isExploring) return;
     set({ isExploring: true });
     const location = LOCATIONS[state.currentLocationId];
+    if (!location) {
+      set({ isExploring: false });
+      return;
+    }
 
     // Schedule auto-save every 5 turns (fires after current explore completes)
     if ((state.turnCount + 1) % 5 === 0 && state.phase === 'exploration' && state.party.length > 0) {
@@ -138,6 +143,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           }
         }
 
+        const vc = rollVictoryCondition(enemies);
         set({
           phase: 'combat',
           enemies,
@@ -162,6 +168,10 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
             special2Cooldowns: {},
             tauntTargetId: null,
             activeEffects: [],
+            victoryCondition: vc,
+            comboCount: 0,
+            comboTargetId: null,
+            lastOffensiveAction: null,
           },
           notification: null,
           bestiary: currentBestiary,
@@ -232,6 +242,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           existingNem.encountered = true;
         }
 
+        const nemesisVc = rollVictoryCondition([nemesis]);
         set({
           phase: 'combat',
           enemies: [nemesis],
@@ -256,6 +267,10 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
             special2Cooldowns: {},
             tauntTargetId: null,
             activeEffects: [],
+            victoryCondition: nemesisVc,
+            comboCount: 0,
+            comboTargetId: null,
+            lastOffensiveAction: null,
           },
           bestiary: nemesisBestiary,
           notification: null,
@@ -283,13 +298,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           turnCount: state.turnCount + 1,
           activeDynamicEvent: event,
           dynamicEventTurnsLeft: event.duration,
-          notification: {
-            id: nextNotifId(),
-            type: 'encounter',
-            message: `${event.icon} ${event.title}`,
-            icon: event.icon,
-            subMessage: event.onTriggerMessage,
-          },
           isExploring: false,
         });
         return;
@@ -594,6 +602,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
   travelTo: (locationId: string) => {
     const state = get();
     const currentLocation = LOCATIONS[state.currentLocationId];
+    if (!currentLocation) return;
     const destination = LOCATIONS[locationId];
     if (!destination) return;
 
@@ -611,7 +620,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
 
     const effectiveCurrentLoc = getEffectiveLocation(state.currentLocationId, state.randomizedLocationData);
     const lockedEntry = effectiveCurrentLoc?.lockedLocations?.find(l => l.locationId === locationId)
-      || currentLocation.lockedLocations?.find(l => l.locationId === locationId);
+      || currentLocation?.lockedLocations?.find(l => l.locationId === locationId);
     let newUnlockedPaths = [...state.unlockedPaths];
     let updatedParty = [...state.party];
     let keyDiscardMsg = '';
@@ -675,6 +684,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
   searchArea: () => {
     const state = get();
     const location = LOCATIONS[state.currentLocationId];
+    if (!location) return;
     const locId = state.currentLocationId;
     const searchCount = state.searchCounts[locId] || 0;
 
@@ -1077,6 +1087,9 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           special2Cooldowns: {},
           tauntTargetId: null,
           activeEffects: [],
+          comboCount: 0,
+          comboTargetId: null,
+          lastOffensiveAction: null,
         },
         messageLog: [...state.messageLog, ...logMessages],
       });

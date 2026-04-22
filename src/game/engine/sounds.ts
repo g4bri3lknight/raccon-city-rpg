@@ -70,13 +70,8 @@ const BGM_REF_KEYS: Record<string, string> = {
   victory: 'bgm_victory',
 };
 
-// Sounds that are preloaded on first user interaction (most critical)
-const PRELOAD_KEYS = [
-  'playAttack', 'playEnemyHit', 'playPlayerHit', 'playMiss',
-  'playEncounter', 'playVictory', 'playDefeat', 'playPistolShot',
-  'playShotgunBlast', 'playZombieAttack', 'playZombieDeath',
-  'playItemPickup', 'playMenuOpen', 'playMenuClose',
-];
+// No sounds preloaded — sounds only play if loaded from the database.
+// This avoids triggering 404 fetches for sounds that don't exist yet.
 
 // No fallback mappings — if a sound is not found in the DB, nothing is played.
 
@@ -203,13 +198,8 @@ class AudioEngine {
    * Call this once on first user interaction.
    */
   public preloadCriticalSounds(): void {
-    if (this._preloaded || !this.ensureContext()) return;
-    this._preloaded = true;
-    this.resume();
-
-    for (const key of PRELOAD_KEYS) {
-      this.loadSfx(key); // fire-and-forget, will cache for later use
-    }
+    // No-op: sounds are loaded on-demand from DB only.
+    // This avoids unnecessary 404 fetches for sounds not yet uploaded.
   }
 
   // ======== PUBLIC PLAY METHODS ========
@@ -244,7 +234,7 @@ class AudioEngine {
   playHunterAttack(): void { this.playSfx('playHunterAttack', 0.7); }
   playHunterDeath(): void { this.playSfx('playHunterDeath', 0.6); }
   playTyrantAttack(): void { this.playSfx('playTyrantAttack', 0.8); }
-  playNemesisAttack(action?: string): void { this.playSfx('playNemesisAttack', 0.8); }
+  playNemesisAttack(): void { this.playSfx('playNemesisAttack', 0.8); }
   playEnemyDeath(): void { this.playSfx('playEnemyDeath', 0.6); }
 
   playEnemyAttack(enemyName: string, _action?: string): void {
@@ -391,7 +381,9 @@ class AudioEngine {
     if (this._ambientGainNode && this._ambientSource) {
       // Fade out over 300ms then suspend
       try {
-        this._ambientGainNode.gain.linearRampToValueAtTime(0, this.ctx!.currentTime + 0.3);
+        const t = this.ctx!.currentTime;
+        this._ambientGainNode.gain.setValueAtTime(this._ambientGainNode.gain.value, t);
+        this._ambientGainNode.gain.linearRampToValueAtTime(0, t + 0.3);
       } catch {}
       this._ambientSuspended = true;
     }
@@ -401,7 +393,9 @@ class AudioEngine {
   private _resumeAmbient(): void {
     if (this._ambientSuspended && this._ambientGainNode && this._ambientSource) {
       try {
-        this._ambientGainNode.gain.linearRampToValueAtTime(0.25, this.ctx!.currentTime + 0.5);
+        const t = this.ctx!.currentTime;
+        this._ambientGainNode.gain.setValueAtTime(this._ambientGainNode.gain.value, t);
+        this._ambientGainNode.gain.linearRampToValueAtTime(0.25, t + 0.5);
       } catch {}
       this._ambientSuspended = false;
     }

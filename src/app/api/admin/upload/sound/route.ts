@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
+import { safeErrorResponse } from '@/lib/api-utils';
 
 // POST /api/admin/upload/sound — upload a sound file + create/update GameSound record
 // FormData fields: file, id, name, category, associatedId, volume, loopable
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       mimeType,
     });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Upload Sound]');
   }
 }
 
@@ -79,6 +80,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return safeErrorResponse(error, '[Admin Upload Sound]');
   }
 }

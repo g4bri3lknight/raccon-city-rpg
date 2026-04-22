@@ -42,7 +42,7 @@ export default function SafeRoomPanel() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-screen game-horror flex flex-col overflow-hidden"
+      className="h-dvh sm:h-screen game-horror flex flex-col overflow-hidden"
     >
       {/* Header */}
       <div className="relative h-20 sm:h-32 shrink-0 overflow-hidden border-b border-white/[0.06]">

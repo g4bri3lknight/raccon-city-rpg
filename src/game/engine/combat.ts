@@ -2,16 +2,13 @@ import {
   Character,
   EnemyInstance,
   CombatLogEntry,
-  CombatState,
   ItemInstance,
   Archetype,
   StatusEffect,
   SpecialEffect,
-  EffectTarget,
   EffectTrigger,
   SpecialAbilityDefinition,
   ActiveCombatEffect,
-  ItemDefinition,
 } from '../types';
 import { ENEMIES, ARCHETYPE_SPECIAL_MAP, getSpecialById, ITEMS, COMBAT_CONFIG } from '../data/loader';
 import { ALL_EQUIPMENT_IDS, ALL_MOD_ITEM_IDS, EQUIPMENT_STATS } from '../data/equipment';
@@ -428,7 +425,7 @@ export function executePlayerAttack(
       action: actionLabel,
       targetName: enemy.name,
       targetId: enemy.id,
-      damage,
+      damage: isMiss ? undefined : damage,
       isCritical,
       isMiss,
       message,
@@ -681,6 +678,9 @@ function handleDealDamage(
   // Track primary target ID for reporting even when primaryEnemy is null
   const primaryTargetId = primaryEnemy?.id || enemyTargets[0]?.id;
 
+  // Clone activeEffects to avoid directly mutating store state during shield absorption
+  const localActiveEffects = activeEffects ? activeEffects.map(e => ({ ...e })) : undefined;
+
   updatedEnemies = enemies.map(e => {
     const isPrimary = primaryEnemy && e.id === primaryEnemy.id;
     // FIX: Also treat the first resolved target as primary for damage tracking
@@ -691,10 +691,10 @@ function handleDealDamage(
     const isTarget = enemyTargets.some(et => et.id === e.id);
     if (!isTarget) return e;
 
-    const totalAtk = getEffectiveAtk(character, activeEffects) * powerMultiplier;
+    const totalAtk = getEffectiveAtk(character, localActiveEffects) * powerMultiplier;
     const critBonus = getCharacterCritBonus(character);
     const hasAdrenaline = character.statusEffects.includes('adrenaline');
-    const effectiveDef = ignoreDef ? 0 : getEffectiveEnemyDef(e, activeEffects);
+    const effectiveDef = ignoreDef ? 0 : getEffectiveEnemyDef(e, localActiveEffects);
     const calcResult = noMiss
       ? calculateDamageNoMiss(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus)
       : calculateDamage(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus);
@@ -724,8 +724,8 @@ function handleDealDamage(
     finalDamage = Math.max(1, finalDamage);
 
     // Shield absorption: check active shield effects on this enemy
-    if (activeEffects) {
-      const shieldEffects = activeEffects.filter(ae => ae.type === 'shield' && ae.targetId === e.id && ae.shieldHp && ae.shieldHp > 0);
+    if (localActiveEffects) {
+      const shieldEffects = localActiveEffects.filter(ae => ae.type === 'shield' && ae.targetId === e.id && ae.shieldHp && ae.shieldHp > 0);
       for (const shield of shieldEffects) {
         if (finalDamage <= 0) break;
         const absorbed = Math.min(shield.shieldHp!, finalDamage);
@@ -744,8 +744,8 @@ function handleDealDamage(
     }
 
     // Reflect: check active reflect effects on this enemy
-    if (activeEffects) {
-      const reflectEffects = activeEffects.filter(ae => ae.type === 'reflect' && ae.targetId === e.id && ae.remainingTurns > 0);
+    if (localActiveEffects) {
+      const reflectEffects = localActiveEffects.filter(ae => ae.type === 'reflect' && ae.targetId === e.id && ae.remainingTurns > 0);
       for (const ref of reflectEffects) {
         // FIX: Use finalDamage (post-shield) instead of pre-shield calcResult.damage
         const reflectDmg = Math.floor(finalDamage * (ref.amount || 0) / 100);
@@ -849,7 +849,7 @@ function handleHeal(
     let healAmount: number;
     if (effect.percent) {
       const pctValue = typeof effect.percent === 'number' ? effect.percent : (effect.amount || 0);
-      healAmount = Math.floor(p.maxHp * pctValue / 100);
+      healAmount = Math.floor(getCharacterMaxHp(p) * pctValue / 100);
     } else {
       healAmount = effect.amount || 0;
     }

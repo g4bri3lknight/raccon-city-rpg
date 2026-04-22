@@ -29,7 +29,7 @@ export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'n
 
 export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible' | 'armor' | 'accessory' | 'weapon_mod';
 
-export type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 
 // ==========================================
 // SPECIAL ABILITIES — EFFECT SYSTEM
@@ -618,6 +618,18 @@ export interface CombatState {
   special2Cooldowns: Record<string, number>; // characterId → turns remaining until special2 is available
   tauntTargetId: string | null; // if set, enemies must target this character
   activeEffects: ActiveCombatEffect[]; // tracked buffs, shields, HoTs, reflect, taunts
+  victoryCondition: {
+    type: string;
+    description: string;
+    rewardExpBonus: number;
+    rewardLabel: string;
+    targetEnemyId?: string;
+    turnsRequired?: number;
+  } | null;
+  // Combo chain system
+  comboCount: number;           // Current consecutive attack streak
+  comboTargetId: string | null; // Target being focused
+  lastOffensiveAction: string | null; // Track if last action was offensive
 }
 
 // ==========================================
@@ -797,16 +809,6 @@ export interface BestiaryEntry {
 }
 
 // ==========================================
-// NEMESIS INVASION
-// ==========================================
-
-export interface NemesisInvasionState {
-  invasionCount: number; // how many times Nemesis has invaded this run
-  lastInvasionTurn: number; // turnCount when Nemesis last appeared
-  invasionDefeated: boolean; // whether the player has defeated Nemesis during an invasion
-}
-
-// ==========================================
 // #16 - DOCUMENTS / LORE
 // ==========================================
 
@@ -878,7 +880,7 @@ export interface AvatarDefinition {
 // #20 - DYNAMIC EVENTS
 // ==========================================
 
-export type DynamicEventType = 'blackout' | 'alarm' | 'collapse' | 'lockdown' | 'gas_leak' | 'fire';
+export type DynamicEventType = 'blackout' | 'alarm' | 'collapse' | 'lockdown' | 'gas_leak' | 'fire' | 'nemesis_invasion' | 'horde';
 
 export interface DynamicEvent {
   id: string;

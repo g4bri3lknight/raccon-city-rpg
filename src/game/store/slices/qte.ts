@@ -1,10 +1,8 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
-import { ItemInstance } from '../../types';
 import { getDifficultyConfig } from '../../data/difficulty';
 import { ITEMS } from '../../data/loader';
-import { createEnemyInstance, getAutoCombatDefault } from '../helpers';
-import { playDefeat } from '../../engine/sounds';
+import { createEnemyInstance } from '../helpers';
 
 export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   startQTE: (triggerSource: 'nemesis' | 'event' | 'boss') => {
@@ -67,16 +65,17 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
     const current = qs.sequences[qs.currentStep];
     if (!current) return;
 
-    qs.isProcessing = true;
+    const updatedQs = { ...qs, isProcessing: true };
+    set({ qteState: updatedQs });
 
     if (direction === current.direction) {
       // Success!
-      const newSuccesses = qs.successes + 1;
-      const nextStep = qs.currentStep + 1;
+      const newSuccesses = updatedQs.successes + 1;
+      const nextStep = updatedQs.currentStep + 1;
 
-      if (nextStep >= qs.sequences.length) {
+      if (nextStep >= updatedQs.sequences.length) {
         // All sequences done — determine result
-        const ratio = newSuccesses / qs.sequences.length;
+        const ratio = newSuccesses / updatedQs.sequences.length;
         const result = ratio >= 0.8 ? 'success' : ratio >= 0.5 ? 'partial' : 'failure';
 
         setTimeout(() => {
@@ -84,7 +83,7 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
         }, 500);
 
         set({
-          qteState: { ...qs, successes: newSuccesses, currentStep: nextStep, isProcessing: true, isComplete: true, result },
+          qteState: { ...updatedQs, successes: newSuccesses, currentStep: nextStep, isProcessing: true, isComplete: true, result },
         });
       } else {
         setTimeout(() => {
@@ -98,15 +97,15 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
           }));
         }, 400);
 
-        set({ qteState: { ...qs, successes: newSuccesses, currentStep: nextStep, isProcessing: true } });
+        set({ qteState: { ...updatedQs, successes: newSuccesses, currentStep: nextStep, isProcessing: true } });
       }
     } else {
       // Failure!
-      const newFailures = qs.failures + 1;
-      const nextStep = qs.currentStep + 1;
+      const newFailures = updatedQs.failures + 1;
+      const nextStep = updatedQs.currentStep + 1;
 
-      if (nextStep >= qs.sequences.length) {
-        const ratio = qs.successes / qs.sequences.length;
+      if (nextStep >= updatedQs.sequences.length) {
+        const ratio = updatedQs.successes / updatedQs.sequences.length;
         const result = ratio >= 0.8 ? 'success' : ratio >= 0.5 ? 'partial' : 'failure';
 
         setTimeout(() => {
@@ -114,7 +113,7 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
         }, 500);
 
         set({
-          qteState: { ...qs, failures: newFailures, currentStep: nextStep, isProcessing: true, isComplete: true, result },
+          qteState: { ...updatedQs, failures: newFailures, currentStep: nextStep, isProcessing: true, isComplete: true, result },
         });
       } else {
         setTimeout(() => {
@@ -128,7 +127,7 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
           }));
         }, 400);
 
-        set({ qteState: { ...qs, failures: newFailures, currentStep: nextStep, isProcessing: true } });
+        set({ qteState: { ...updatedQs, failures: newFailures, currentStep: nextStep, isProcessing: true } });
       }
     }
   },
@@ -248,6 +247,9 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
             special2Cooldowns: {},
             tauntTargetId: null,
             activeEffects: [],
+            comboCount: 0,
+            comboTargetId: null,
+            lastOffensiveAction: null,
           },
           messageLog: [...state.messageLog, ...logMessages],
           ...(qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),

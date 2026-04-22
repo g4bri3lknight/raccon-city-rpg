@@ -205,6 +205,9 @@ export const createDebugSlice: StateCreator<GameStore, [], [], GameStore> = (set
         special2Cooldowns: {},
         tauntTargetId: null,
         activeEffects: [],
+        comboCount: 0,
+        comboTargetId: null,
+        lastOffensiveAction: null,
       },
       messageLog: [...state.messageLog, `[DEBUG] 👾 Combattimento iniziato contro ${def.name}!`],
     });
@@ -269,8 +272,17 @@ export const createDebugSlice: StateCreator<GameStore, [], [], GameStore> = (set
       enemies: killedEnemies,
       messageLog: [...state.messageLog, `[DEBUG] 💀 Tutti i nemici uccisi.`],
     });
-    // Trigger victory check
-    setTimeout(() => get().executeCombatTurn(), 500);
+    // Trigger victory check by advancing to next actor
+    setTimeout(() => {
+      const currentState = get();
+      if (currentState.combat && currentState.phase === 'combat') {
+        // Check if all enemies are dead - if so, trigger victory via advanceToNextActor
+        const allDead = currentState.enemies.every(e => e.currentHp <= 0);
+        if (allDead) {
+          get().advanceToNextActor();
+        }
+      }
+    }, 500);
   },
 
   debugToggleGodMode: () => {

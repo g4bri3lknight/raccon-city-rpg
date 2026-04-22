@@ -228,7 +228,7 @@ export const createPuzzleSlice: StateCreator<GameStore, [], [], GameStore> = (se
   closePuzzle: () => {
     const state = get();
     const locId = state.puzzleSourceLocationId;
-    const completedEvents = locId
+    const completedEvents = (locId && state.puzzleState?.isSolved)
       ? state.completedEvents.includes(locId)
         ? state.completedEvents
         : [...state.completedEvents, locId]

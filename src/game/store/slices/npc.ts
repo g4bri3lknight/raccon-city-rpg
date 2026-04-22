@@ -26,9 +26,17 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
     } else {
       // Normal flow: check for next available quest
       const completedQuestIds = Object.keys(state.npcQuestProgress).filter(id => state.npcQuestProgress[id]?.completed);
-      const inProgressQuestIds = Object.keys(state.npcQuestProgress).filter(id => !state.npcQuestProgress[id]?.completed);
-      const dbQuest = getFirstAvailableQuest(npcId, [...completedQuestIds, ...inProgressQuestIds]);
-      npcWithQuest = dbQuest ? { ...npc, quest: dbQuest } : npc;
+      // Also check if this NPC has an in-progress quest and reattach it
+      const dbQuest = getFirstAvailableQuest(npcId, completedQuestIds);
+      if (dbQuest) {
+        npcWithQuest = { ...npc, quest: dbQuest };
+      } else {
+        // No new quest available — check if this NPC has an in-progress quest
+        const inProgressQuest = Object.values(QUESTS).find(q =>
+          q.npcId === npcId && state.npcQuestProgress[q.id] && !state.npcQuestProgress[q.id].completed
+        );
+        npcWithQuest = inProgressQuest ? { ...npc, quest: inProgressQuest } : npc;
+      }
     }
 
     set({
@@ -49,8 +57,9 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
 
   talkToNpc: () => {
     const state = get();
-    if (!state.activeNpc) return;
+    if (!state.activeNpc) return { handled: false };
     const npc = state.activeNpc;
+    const noOp = { handled: false };
 
     // ── Check for fetch quest completion ──
     if (npc.quest && npc.quest.type === 'fetch' && !state.npcQuestProgress[npc.quest.id]?.completed) {
@@ -128,13 +137,14 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
             },
             messageLog: [...state.messageLog, ...logMsgs],
           });
-          return;
+          return { handled: true, chatMessage: `Grazie! Hai portato esattamente quello che mi serviva! Missione "${npc.quest.name}" completata!` };
         } else if (partyItemCount > 0) {
           // Has some but not enough
+          const msg = `Vedo che hai ${partyItemCount}/${npc.quest.targetCount} di quello che ti ho chiesto... portami il resto!`;
           set(state => ({
-            messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "Vedo che hai ${partyItemCount}/${npc.quest.targetCount} di quello che ti ho chiesto... portami il resto!"`],
+            messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${msg}"`],
           }));
-          return;
+          return { handled: true, chatMessage: msg };
         }
       }
     }
@@ -173,12 +183,13 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
           },
           messageLog: [...state.messageLog, ...logMsgs],
         });
-        return;
+        return { handled: true, chatMessage: `${npc.quest.rewardDialogue?.[0] || 'Hai fatto un ottimo lavoro esplorando!'} Missione "${npc.quest.name}" completata!` };
       } else if (questProgress) {
+        const msg = `Non hai ancora esplorato ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a cercare!`;
         set(state => ({
-          messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "Non hai ancora esplorato ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a cercare!"`],
+          messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${msg}"`],
         }));
-        return;
+        return { handled: true, chatMessage: msg };
       }
     }
 
@@ -187,19 +198,21 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
       const questProgress = state.npcQuestProgress[npc.quest.id];
       if (questProgress) {
         const remaining = npc.quest.targetCount - questProgress.currentCount;
+        const msg = `Devi ancora eliminare ${remaining} ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a combattere!`;
         set(state => ({
-          messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "Devi ancora eliminare ${remaining} ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a combattere!"`],
+          messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${msg}"`],
         }));
-        return;
+        return { handled: true, chatMessage: msg };
       }
     }
 
     // ── Default: random dialogue ──
-    if (!npc.dialogues || npc.dialogues.length === 0) return;
+    if (!npc.dialogues || npc.dialogues.length === 0) return noOp;
     const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
     set(state => ({
       messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${dialogue}"`],
     }));
+    return { handled: false, chatMessage: dialogue };
   },
 
   acceptNpcQuest: () => {

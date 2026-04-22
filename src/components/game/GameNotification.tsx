@@ -155,6 +155,49 @@ export default function GameNotification() {
     }
   }, [notification, playSound]);
 
+  // Memoize particle data to prevent jitter on re-renders
+  const victoryParticles = useMemo(() => {
+    if (!notification) return [];
+    return Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      startX: 20 + Math.random() * 60,
+      startY: 60 + Math.random() * 20,
+      endY: 20 + Math.random() * 30,
+      endX: 15 + Math.random() * 70,
+      scaleMid: 0.4 + Math.random() * 0.3,
+      duration: 2.5 + Math.random() * 1.5,
+      delay: Math.random() * 0.8,
+      size: 3 + Math.random() * 5,
+    }));
+  }, [notification?.id]);
+
+  const defeatParticles = useMemo(() => {
+    if (!notification) return [];
+    return Array.from({ length: 10 }, (_, i) => ({
+      id: i,
+      left: 3 + (i * 10),
+      heights: [
+        0,
+        30 + Math.random() * 60,
+        50 + Math.random() * 90,
+        70 + Math.random() * 110,
+      ] as number[],
+      delay: Math.random() * 1,
+    }));
+  }, [notification?.id]);
+
+  const itemParticles = useMemo(() => {
+    if (!notification) return [];
+    return Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      endX: 25 + Math.random() * 50,
+      endY: 25 + Math.random() * 50,
+      duration: 1 + Math.random() * 0.5,
+      delay: Math.random() * 0.5,
+      size: 3 + Math.random() * 5,
+    }));
+  }, [notification?.id]);
+
   if (!state.visible || !notification) return null;
 
   const theme = getTheme(notification.type);
@@ -204,24 +247,24 @@ export default function GameNotification() {
         {/* Victory: subtle ember particles instead of golden shower */}
         {isVictory && !prefersReducedMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {Array.from({ length: 8 }).map((_, i) => (
+            {victoryParticles.map((p) => (
               <motion.div
-                key={i}
-                initial={{ opacity: 0, y: '60%', x: `${20 + Math.random() * 60}%`, scale: 0.2 }}
+                key={p.id}
+                initial={{ opacity: 0, y: `${p.startY}%`, x: `${p.startX}%`, scale: 0.2 }}
                 animate={{
                   opacity: [0, 0.5, 0.3, 0],
-                  y: `${20 + Math.random() * 30}%`,
-                  x: `${15 + Math.random() * 70}%`,
-                  scale: [0.2, 0.4 + Math.random() * 0.3, 0.1],
+                  y: `${p.endY}%`,
+                  x: `${p.endX}%`,
+                  scale: [0.2, p.scaleMid, 0.1],
                 }}
-                transition={{ duration: 2.5 + Math.random() * 1.5, delay: Math.random() * 0.8, ease: 'easeOut' }}
+                transition={{ duration: p.duration, delay: p.delay, ease: 'easeOut' }}
                 className="absolute"
                 style={{
-                  width: `${3 + Math.random() * 5}px`,
-                  height: `${3 + Math.random() * 5}px`,
-                  background: i % 3 === 0
+                  width: `${p.size}px`,
+                  height: `${p.size}px`,
+                  background: p.id % 3 === 0
                     ? 'radial-gradient(circle, rgba(160,120,60,0.7), transparent)'
-                    : i % 3 === 1
+                    : p.id % 3 === 1
                     ? 'radial-gradient(circle, rgba(180,80,40,0.5), transparent)'
                     : 'radial-gradient(circle, rgba(140,100,50,0.4), transparent)',
                   borderRadius: '50%',
@@ -234,18 +277,18 @@ export default function GameNotification() {
         {/* Defeat: blood drip streaks */}
         {isDefeat && !prefersReducedMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {Array.from({ length: 10 }).map((_, i) => (
+            {defeatParticles.map((p) => (
               <motion.div
-                key={i}
+                key={p.id}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{
                   opacity: [0, 0.5, 0.35, 0],
-                  height: ['0px', `${30 + Math.random() * 60}px`, `${50 + Math.random() * 90}px`, `${70 + Math.random() * 110}px`],
+                  height: ['0px', `${p.heights[1]}px`, `${p.heights[2]}px`, `${p.heights[3]}px`],
                 }}
-                transition={{ duration: 3, delay: Math.random() * 1, ease: 'easeOut' }}
+                transition={{ duration: 3, delay: p.delay, ease: 'easeOut' }}
                 className="absolute"
                 style={{
-                  left: `${3 + (i * 10)}%`,
+                  left: `${p.left}%`,
                   top: 0,
                   width: '2px',
                   background: 'linear-gradient(to bottom, rgba(127,29,29,0.8), rgba(180,20,20,0.3), transparent)',
@@ -290,21 +333,21 @@ export default function GameNotification() {
         {/* Item found: sparkle particles */}
         {isItem && !prefersReducedMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {Array.from({ length: 8 }).map((_, i) => (
+            {itemParticles.map((p) => (
               <motion.div
-                key={i}
+                key={p.id}
                 initial={{ opacity: 0, scale: 0, x: '50%', y: '50%' }}
                 animate={{
                   opacity: [0, 0.9, 0],
                   scale: [0, 1.2, 0.5],
-                  x: `${25 + Math.random() * 50}%`,
-                  y: `${25 + Math.random() * 50}%`,
+                  x: `${p.endX}%`,
+                  y: `${p.endY}%`,
                 }}
-                transition={{ duration: 1 + Math.random() * 0.5, delay: Math.random() * 0.5 }}
+                transition={{ duration: p.duration, delay: p.delay }}
                 className="absolute"
                 style={{
-                  width: `${3 + Math.random() * 5}px`,
-                  height: `${3 + Math.random() * 5}px`,
+                  width: `${p.size}px`,
+                  height: `${p.size}px`,
                   background: 'radial-gradient(circle, rgba(74,222,128,0.8), transparent)',
                   borderRadius: '50%',
                 }}
@@ -389,7 +432,7 @@ export default function GameNotification() {
                 fontFamily: isDefeat ? 'serif' : "'Courier New', monospace",
               }}
             >
-              {theme.label ? notification.message : notification.message}
+              {theme.label ? `${theme.label} — ${notification.message}` : notification.message}
             </motion.div>
 
             {/* Sub message */}

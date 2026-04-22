@@ -165,7 +165,11 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
       });
       if (met) return ending;
     }
-    return ENDINGS['ending_escape'];
+    const fallback = ENDINGS['ending_escape'];
+    if (!fallback) {
+      return { id: 'ending_unknown', name: 'Fine', description: 'Il tuo viaggio è terminato.', requirements: [], priority: -1 };
+    }
+    return fallback;
   },
 
   toggleMap: () => {

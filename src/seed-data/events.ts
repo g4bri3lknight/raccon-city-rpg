@@ -258,4 +258,87 @@ export const SEED_EVENTS: Record<string, DynamicEvent> = {
       },
     ],
   },
+
+  // ==========================================
+  // NEMESIS INVASION
+  // ==========================================
+  event_nemesis_invasion: {
+    id: 'event_nemesis_invasion',
+    title: 'Invasione Nemesis',
+    description: '"S.T.A.R.S..." La voce meccanica squarcia il silenzio. I passi pesanti del cacciatore si avvicinano. Nemesis è qui.',
+    icon: '💀',
+    type: 'nemesis_invasion',
+    duration: 2,
+    effect: {
+      encounterRateMod: 0,
+      enemyStatMult: 1.3,
+      searchBonus: false,
+      damagePerTurn: 5,
+    },
+    triggerChance: 10,
+    minTurn: 15,
+    locationIds: [],
+    onTriggerMessage: '💀 "S.T.A.R.S..." I passi pesanti del cacciatore echeggiano nei corridoi. Nemesis è qui!',
+    onEndMessage: '💀 I passi si allontanano. Nemesis ha perso le vostre tracce... per ora.',
+    choices: [
+      {
+        text: 'Scappare e nascondersi',
+        outcome: {
+          description: 'Vi nascondete in un armadio metallico, trattenendo il respiro. I passi pesanti si avvicinano... si fermano... e poi si allontanano. Siete salvi, ma il terrore vi ha sfiniti.',
+          endEvent: true,
+          hpChange: -5,
+        },
+      },
+      {
+        text: 'Preparare una trappola',
+        outcome: {
+          description: 'Con mani tremanti preparate una trappola con cavi e detriti. Quando Nemesis passa, la trappola lo rallenta abbastanza da permettervi di scappare. Nello scompiglio raccogliete alcuni rifornimenti abbandonati.',
+          endEvent: true,
+          receiveItems: [{ itemId: 'ammo_pistol', quantity: 3 }, { itemId: 'herb_green', quantity: 1 }],
+          hpChange: -10,
+        },
+      },
+    ],
+  },
+
+  // ==========================================
+  // ZOMBIE HORDE
+  // ==========================================
+  event_horde: {
+    id: 'event_horde',
+    title: 'Ondata Zombie',
+    description: 'Un grido terrificante risuona nell\'oscurità. Decine di figure inettesche emergono dalle ombre — è un\'ondata zombie!',
+    icon: '🧟',
+    type: 'horde',
+    duration: 2,
+    effect: {
+      encounterRateMod: 40,
+      enemyStatMult: 0.8,
+      searchBonus: false,
+      damagePerTurn: 0,
+    },
+    triggerChance: 6,
+    minTurn: 8,
+    locationIds: [],
+    onTriggerMessage: '🧟 Un urlo collettivo squarcia il silenzio! Decine di zombie emergono da ogni angolo — è un\'ondata!',
+    onEndMessage: '🧟 Gli ultimi zombie vengono abbattuti o si disperdono nelle ombre. L\'ondata è passata.',
+    choices: [
+      {
+        text: 'Barricatarsi',
+        outcome: {
+          description: 'Rovesciate mobili e formate una barricata. Gli zombie si ammassano contro di essa, ma tenete duro. Quando finalmente si allontanano, la zona è libera.',
+          endEvent: true,
+        },
+      },
+      {
+        text: 'Fuggire verso un\'area più sicura',
+        outcome: {
+          description: 'Scappate attraverso i corridoi, schivando le mani artigliate dei non-morti. Nella fuga trovate una benda abbandonata e riuscite a raggiungere una zona relativamente sicura.',
+          endEvent: true,
+          hpChange: -5,
+          receiveItems: [{ itemId: 'bandage', quantity: 1 }],
+        },
+      },
+    ],
+  },
 };

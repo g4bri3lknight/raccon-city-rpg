@@ -163,7 +163,7 @@ export interface GameStore extends GameState {
 
   // #18 NPCs
   encounterNpc: (npcId: string, specificQuestId?: string) => void;
-  talkToNpc: () => void;
+  talkToNpc: () => { handled: boolean; chatMessage?: string };
   acceptNpcQuest: () => void;
   tradeWithNpc: (tradeIndex: number) => { success: boolean; reason?: string };
   closeNpcDialog: () => void;

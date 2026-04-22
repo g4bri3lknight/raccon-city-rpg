@@ -14,7 +14,6 @@ interface ChatMessage {
   role: 'npc' | 'player' | 'system';
   content: string;
   id: string;
-  isFallback?: boolean;
 }
 
 export default function NPCDialogPanel() {
@@ -28,9 +27,7 @@ export default function NPCDialogPanel() {
   const closeNpcDialog = useGameStore(s => s.closeNpcDialog);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [lastNpcId, setLastNpcId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [tradeErrors, setTradeErrors] = useState<Record<number, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const npc = activeNpc;
@@ -57,26 +54,20 @@ export default function NPCDialogPanel() {
       content: npc.greeting,
       id: `greeting-${npc.id}`,
     }]);
-    setError(null);
     setTradeErrors({});
   }
 
   const handleTalk = useCallback(() => {
     if (!npc) return;
-    setIsLoading(true);
-    // Simulate a small delay for the dialog response
-    setTimeout(() => {
-      const dialogue = npc.dialogues[Math.floor(Math.random() * npc.dialogues.length)];
+    const result = talkToNpc();
+    // Show the NPC's response in the dialog chat
+    if (result.chatMessage) {
       setChatMessages(prev => [...prev, {
         role: 'npc',
-        content: dialogue,
+        content: result.chatMessage!,
         id: `npc-talk-${Date.now()}`,
-        isFallback: true,
       }]);
-      setError(null);
-      setIsLoading(false);
-      talkToNpc();
-    }, 400);
+    }
   }, [npc, talkToNpc]);
 
   useEffect(() => {
@@ -221,30 +212,10 @@ export default function NPCDialogPanel() {
                     <p className="text-sm text-white/80 italic leading-relaxed">
                       &ldquo;{msg.content}&rdquo;
                     </p>
-                    {msg.isFallback && (
-                      <span className="text-[9px] text-white/20 italic mt-0.5">risposta predefinita</span>
-                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
-              {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 text-white/40"
-                >
-                  <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-                  <span className="text-xs italic">{npc?.name} sta parlando...</span>
-                </motion.div>
-              )}
             </div>
-
-            {error && (
-              <div className="flex items-center gap-1.5 p-2 rounded-lg border border-red-900/30 bg-red-950/20">
-                <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
-                <span className="text-[10px] text-red-400/80">{error}</span>
-              </div>
-            )}
           </div>
 
           {/* Quest Section */}
@@ -397,7 +368,7 @@ export default function NPCDialogPanel() {
             <Button
               onClick={handleTalk}
               variant="ghost"
-              disabled={isLoading}
+              disabled={false}
               className={`flex-1 bg-transparent hover:bg-white/[0.08] border text-sm ${
                 talkLabel.includes('Consegna') || talkLabel.includes('Rapporto')
                   ? 'border-green-700/30 text-green-300 hover:text-green-200'
@@ -405,7 +376,7 @@ export default function NPCDialogPanel() {
               }`}
             >
               <MessageSquare className="w-4 h-4 mr-1.5" />
-              {isLoading ? '...' : talkLabel}
+              {talkLabel}
             </Button>
             <Button
               onClick={closeNpcDialog}

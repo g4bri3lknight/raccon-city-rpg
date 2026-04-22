@@ -4,6 +4,8 @@ import { ACHIEVEMENTS } from '../../data/loader';
 import { getKeyItemIds } from '../helpers';
 import { playMenuOpen, playMenuClose, playAchievement } from '../../engine/sounds';
 
+let achievementNotifTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   toggleAchievements: () => {
     try {
@@ -35,9 +37,11 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
       },
       newAchievementNotification: `🏆 Traguardo sbloccato: ${name}`,
     });
-    // Clear notification after 4 seconds
-    setTimeout(() => {
+    // Clear notification after 4 seconds (with race-condition protection)
+    if (achievementNotifTimer) clearTimeout(achievementNotifTimer);
+    achievementNotifTimer = setTimeout(() => {
       set({ newAchievementNotification: null });
+      achievementNotifTimer = null;
     }, 4000);
   },
 

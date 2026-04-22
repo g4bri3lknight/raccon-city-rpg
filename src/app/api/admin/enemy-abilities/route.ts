@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, description, power, chance, statusType, statusChance, statusDuration, sortOrder } = body;
+    const { id, name, description, power, chance, effects, sortOrder } = body;
     if (!id || !name) {
       return NextResponse.json({ error: 'id e name sono obbligatori' }, { status: 400 });
     }
@@ -27,9 +27,7 @@ export async function POST(req: NextRequest) {
         description: description ?? '',
         power: power ?? 1.0,
         chance: chance ?? 50,
-        statusType: statusType ?? '',
-        statusChance: statusChance ?? 0,
-        statusDuration: statusDuration ?? 0,
+        effects: effects ?? '[]',
         sortOrder: sortOrder ?? 0,
       },
     });
@@ -57,9 +55,7 @@ export async function PUT(req: NextRequest) {
         ...(data.description !== undefined && { description: data.description }),
         ...(data.power !== undefined && { power: Number(data.power) }),
         ...(data.chance !== undefined && { chance: Number(data.chance) }),
-        ...(data.statusType !== undefined && { statusType: data.statusType }),
-        ...(data.statusChance !== undefined && { statusChance: Number(data.statusChance) }),
-        ...(data.statusDuration !== undefined && { statusDuration: Number(data.statusDuration) }),
+        ...(data.effects !== undefined && { effects: data.effects }),
         ...(data.sortOrder !== undefined && { sortOrder: Number(data.sortOrder) }),
       },
     });
