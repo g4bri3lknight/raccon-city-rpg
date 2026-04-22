@@ -58,6 +58,17 @@ export const SEED_DOCUMENTS: Record<string, GameDocument> = {
     rarity: 'common',
     isSecret: false,
   },
+  doc_rpd_diary: {
+    id: 'doc_rpd_diary',
+    title: 'Diario del Capo Irons — Aggiunta',
+    content: 'Aggiunta personale — 25 settembre. Ho trovato un pannello rimovibile dietro la foto di gruppo nell\'ufficio del capitano. Dietro c\'è un\'armeria segreta con equipaggiamento militare d\'epoca. Non ho ancora capito come aprire il meccanismo nascosto, ma ci sono delle incisioni sul telaio che sembrano un codice. Forse serve la combinazione giusta. Non lo dirò a nessuno — quella roba è mia.',
+    type: 'diary',
+    locationId: 'rpd_station',
+    icon: '📔',
+    rarity: 'rare',
+    isSecret: true,
+    hintRequired: 'doc_chief_diary',
+  },
 
   // ==========================================
   // HOSPITAL DISTRICT (3 documents)
@@ -81,6 +92,17 @@ export const SEED_DOCUMENTS: Record<string, GameDocument> = {
     icon: '📔',
     rarity: 'rare',
     isSecret: false,
+  },
+  doc_lab_report: {
+    id: 'doc_lab_report',
+    title: 'Report Armi Improvvisate — Umbrella R&D',
+    content: 'PROGETTO SPECIALE — Armi Improvvisate da Campo. Il nostro team ha sviluppato diverse armi utilizzando materiali di recupero: 1) Bomba Artigianale: tubo metallico riempito con polvere da sparo e schegge. Danno esplosivo garantito contro bersagli multipli. 2) Granata 40mm Potenziata: caricamento esplosivo modificato con frammentazione aumentata. 3) Munizioni Mitragliatrice: polvere ricaricata con maggiore potenza di sparo. Le ricette complete sono classificate TOP SECRET — consultare il manuale operativo Lab-B3 per i dettagli.',
+    type: 'report',
+    locationId: 'hospital_district',
+    icon: '📋',
+    rarity: 'rare',
+    isSecret: true,
+    hintRequired: 'doc_doctor_journal',
   },
   doc_nurse_note: {
     id: 'doc_nurse_note',
@@ -116,6 +138,17 @@ export const SEED_DOCUMENTS: Record<string, GameDocument> = {
     rarity: 'rare',
     isSecret: false,
     hintRequired: 'doc_chief_diary',
+  },
+  doc_sewers_map: {
+    id: 'doc_sewers_map',
+    title: 'Mappa Condotti Fognari — Tratto C-7',
+    content: 'PLANTOLOGIA UFFICIALE — Condotti Fognari Raccoon City. Tratto C-7 (Zona Industriale). La mappa mostra un percorso alternativo attraverso le condutture secondarie che porta direttamente al laboratorio Umbrella senza passare dal cancello principale. Le annotazioni a matita indicano un "punto di ricarica munizioni" nascosto in una nicchia del muro. La mappa include anche le istruzioni per ricaricare manualmente le munizioni 5.56mm usando polvere da sparo recuperata e bossoli vuoti. Utile per chi ha armi automatiche.',
+    type: 'note',
+    locationId: 'sewers',
+    icon: '🗺️',
+    rarity: 'rare',
+    isSecret: true,
+    hintRequired: 'doc_umbrella_disposal',
   },
 
   // ==========================================

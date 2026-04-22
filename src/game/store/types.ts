@@ -208,6 +208,13 @@ export interface GameStore extends GameState {
   debugToggleGodMode: () => void;
   debugSpawnCollectible: () => void;
   debugGiveAllRibbons: () => void;
+  debugSpawnItem: (itemId: string) => void;
+  debugSpawnDocument: (docId: string) => void;
+
+  // Achievement extended
+  incrementHerbCombine: () => void;
+  checkPerfectCombat: () => void;
+  checkAutoCombatVictory: () => void;
 
   // Admin data refresh
   bumpDataVersion: () => void;

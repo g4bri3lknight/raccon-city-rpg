@@ -123,7 +123,7 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
     }
 
     // bestiary_all: bestiary entries with defeated=true >= 12
-    if (state.bestiary.filter(b => b.defeated).length >= 12) {
+    if (state.bestiary.filter(b => b.defeated).length >= 13) {
       checkAndUnlock('bestiary_all');
     }
 
@@ -132,9 +132,48 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
       checkAndUnlock('savior');
     }
 
+    // no_damage_victory: won combat without any party member losing HP
+    if (state.phase === 'victory' || state.phase === 'exploration') {
+      // Check after combat: if party has no missing HP from start of last combat
+      if (state.herbCombineCount >= 3) {
+        checkAndUnlock('herb_master');
+      }
+    }
+
     // game_victory: phase is 'victory'
     if (state.phase === 'victory') {
       checkAndUnlock('victory');
+    }
+  },
+
+  incrementHerbCombine: () => {
+    const state = get();
+    const newCount = state.herbCombineCount + 1;
+    set({ herbCombineCount: newCount });
+    // Check immediately
+    if (newCount >= 3) {
+      get().checkAchievements();
+    }
+  },
+
+  checkPerfectCombat: () => {
+    const state = get();
+    if (state.achievements.unlockedIds.includes('perfect_combat')) return;
+    // A combat just ended — check if party took zero damage
+    const allFullHp = state.party.every(p => p.currentHp > 0 && p.currentHp === p.maxHp);
+    const anyDamageTaken = state.combat?.log?.some(entry =>
+      entry.actorType === 'enemy' && entry.targetType === undefined && entry.damage && entry.damage > 0
+    ) ?? false;
+    if (!anyDamageTaken) {
+      get().unlockAchievement('perfect_combat');
+    }
+  },
+
+  checkAutoCombatVictory: () => {
+    const state = get();
+    if (state.achievements.unlockedIds.includes('auto_combat_win')) return;
+    if (state.phase === 'victory' && state.autoCombat) {
+      get().unlockAchievement('auto_combat_win');
     }
   },
 });

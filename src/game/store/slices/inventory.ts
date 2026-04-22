@@ -350,9 +350,12 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
       return {
         party,
         messageLog: combined ? [...state.messageLog, logMsg] : state.messageLog,
+        herbCombineCount: combined ? state.herbCombineCount + 1 : state.herbCombineCount,
       };
     });
-    return combined;
+    if (combined) {
+      setTimeout(() => get().checkAchievements(), 50);
+    }
   },
 
   transferItem: (fromCharacterId: string, itemUid: string, toCharacterId: string, quantity?: number) => {

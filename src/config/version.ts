@@ -11,7 +11,7 @@
  * Format: { version, date, description }
  */
 
-export const APP_VERSION = '1.7.0' as const;
+export const APP_VERSION = '1.8.0' as const;
 
 export const VERSION_HISTORY: Array<{
   version: string;
@@ -212,6 +212,27 @@ export const VERSION_HISTORY: Array<{
       '[UI] Placeholder misteriosi "???" per ricette non ancora scoperte con icona lucchetto',
       '[PERSISTENZA] discoveredRecipes salvato/caricato in tutti gli slot + autosave + NG+',
       '[SISTEMA] CraftingRecipe.hidden field + discoverRecipe() action nel GameStore',
+    ],
+  },
+  {
+    version: '1.8.0',
+    date: '2025-06-22',
+    changes: [
+      '[CRITICO] Fix 3 Stanze Segrete inaccessibili: RPD Armory (doc fantasma → doc_chief_diary), Lab Birkin (locationId errato → laboratory_entrance), Lab Birkin (quest fantasma → quest_voss_data creata per Dr. Voss)',
+      '[CRITICO] Fix 3 Documenti fantasma per recipe discovery: creati doc_rpd_diary, doc_lab_report, doc_sewers_map con lore RE — ora 9 ricette nascoste sono scopribili tramite documenti',
+      '[CRITICO] Fix 3 Achievement impossibili: "Combattimento Perfetto" (checkPerfectCombat), "Erborista" (herbCombineCount tracking), "Comando Automatico" (checkAutoCombatVictory su vittoria)',
+      '[CRITICO] Fix Pipe Bomb: aggiunto flat/amount a DealDamageEffect + logica flat damage nel combat engine — ora infligge 50 danni fissi instead of ATK-based',
+      '[ALTO] Fix Ending "Eroe": ora conta NPC con quest completate (npcQuestProgress.completed) invece di NPC incontrati (npcsEncountered)',
+      '[ALTO] Fix Flashlight/Lockpick: impostato usable=false — non più consumabili senza effetto',
+      '[ALTO] Fix Achievement Bestiary: contatore aggiornato da 12 a 13 nemici (include proto_tyrant)',
+      '[ALTO] Aggiunto isExploring: boolean al tipo GameState + herbCombineCount: number per tracking achievement',
+      '[MEDIO] Rimosso codice morto: useAIContentGenerator.ts, secrets.ts, dynamic-events.ts (3 file)',
+      '[MEDIO] Fix softlock key_rpd: aggiunto al pool item city_outskirts (8% chance) oltre a hospital (12%)',
+      '[MEDIO] Aggiunto campo hidden Boolean @default(false) a Prisma GameRecipe',
+      '[MEDIO] Aggiunto quest_voss_data "Dati del Progetto Tyrant" al Dr. Voss — Sconfiggi 2 Hunter per sbloccare hint stanza segreta',
+      '[MEDIO] Dr. Chen: aggiunto questCompletedDialogue per messaggio post-quest',
+      '[NUOVO] 3 Documenti segreti: Diario Irons (RPD), Report Armi Improvvisate (Lab), Mappa Condotti C-7 (Fogne)',
+      '[PERSISTENZA] herbCombineCount salvato/caricato in tutti gli slot save + autosave + NG+',
     ],
   },
 ];

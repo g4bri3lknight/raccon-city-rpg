@@ -150,11 +150,11 @@ export const SEED_ITEMS: Record<string, ItemDefinition> = {
   // Utility
   flashlight: {
     id: 'flashlight', name: 'Torcia', description: 'Una torcia per illuminare le tenebre.',
-    type: 'utility', rarity: 'common', icon: '🔦', usable: true, equippable: false,
+    type: 'utility', rarity: 'common', icon: '🔦', usable: false, equippable: false,
   },
   lockpick: {
     id: 'lockpick', name: 'Grisaglie', description: 'Set di grisaglie per aprire serrature.',
-    type: 'utility', rarity: 'uncommon', icon: '🗝️', usable: true, equippable: false,
+    type: 'utility', rarity: 'uncommon', icon: '🗝️', usable: false, equippable: false,
   },
   ink_ribbon: {
     id: 'ink_ribbon', name: 'Nastro d\'Inchiostro', description: 'Un oggetto raro da collezione. Raccogline 10 per un obiettivo segreto.',

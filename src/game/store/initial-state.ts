@@ -87,6 +87,7 @@ export function getDefaultState() {
     godMode: false,
     skipNextEncounter: false,
     isExploring: false,
+    herbCombineCount: 0,
     completedEvents: [] as string[],
     collectedRibbons: 0,
     persistentRibbons: 0,

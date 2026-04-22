@@ -160,7 +160,7 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
           case 'boss_defeated':
             return state.bestiary.some(b => b.enemyId === req.value && b.defeated);
           case 'npc_saved':
-            return state.npcsEncountered.length >= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
+            return Object.values(state.npcQuestProgress).filter(p => p.completed).length >= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
           case 'documents_found':
             return state.collectedDocuments.length >= (typeof req.value === 'number' ? req.value : parseInt(String(req.value)));
           case 'turn_limit':

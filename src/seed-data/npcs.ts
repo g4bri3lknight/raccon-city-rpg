@@ -66,6 +66,9 @@ export const SEED_NPCS: Record<string, GameNPC> = {
       ],
     },
     tradeInventory: [],
+    questCompletedDialogue: [
+      'Grazie infinite. Questi antidoti salveranno delle vite.',
+    ],
   },
 
   // ==========================================
@@ -160,6 +163,19 @@ export const SEED_NPCS: Record<string, GameNPC> = {
       'Ho nascosto dei dati nei server di backup dell\'archivio. Contengono le prove di tutto ciò che l\'Umbrella ha fatto. Se sopravvivete, portatele alla luce. Il mondo deve sapere.',
     ],
     farewell: 'Portate alla luce la verità. È l\'unica cosa che posso chiedervi... è l\'unica cosa che mi rimane.',
+    quest: {
+      id: 'quest_voss_data',
+      name: 'Dati del Progetto Tyrant',
+      description: 'Il Dr. Voss vuole che tu sconfigga un nemico nel laboratorio e gli porti prove della tua forza. Sconfiggi un Hunter.',
+      type: 'kill',
+      targetId: 'hunter',
+      targetCount: 2,
+      rewardItems: [{ itemId: 'ammo_magnum', quantity: 4 }],
+      rewardExp: 70,
+      rewardDialogue: [
+        'Hai dimostrato di poter affrontare le creature di questa facility. Ti dirò quello che so: il laboratorio ha un livello segreto accessibile tramite un pannello con il codice 4817. Dietro c\'è il laboratorio privato di Birkin, con equipaggiamento che potrebbe esserti utile per la fuga. Stai attento — le difese del Tyrant sono state progettate per resistere a qualsiasi cosa.',
+      ],
+    },
     questCompletedDialogue: [
       'Grazie... per non avermi ucciso. Meriterei molto peggio.',
     ],

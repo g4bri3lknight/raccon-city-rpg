@@ -692,12 +692,17 @@ function handleDealDamage(
     if (!isTarget) return e;
 
     const totalAtk = getEffectiveAtk(character, localActiveEffects) * powerMultiplier;
+
+    // flat: use fixed amount instead of ATK-based calculation
+    const useFlatDamage = effect.flat && typeof effect.amount === 'number' && effect.amount > 0;
     const critBonus = getCharacterCritBonus(character);
     const hasAdrenaline = character.statusEffects.includes('adrenaline');
     const effectiveDef = ignoreDef ? 0 : getEffectiveEnemyDef(e, localActiveEffects);
-    const calcResult = noMiss
-      ? calculateDamageNoMiss(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus)
-      : calculateDamage(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus);
+    const calcResult = useFlatDamage
+      ? { damage: effect.amount!, isCritical: false, isMiss: false }
+      : noMiss
+        ? calculateDamageNoMiss(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus)
+        : calculateDamage(totalAtk, effectiveDef, e.isDefending, character.archetype, hasAdrenaline, critBonus);
 
     if (calcResult.isMiss) {
       if (isPrimary || isPrimaryForTracking) isMiss = true;

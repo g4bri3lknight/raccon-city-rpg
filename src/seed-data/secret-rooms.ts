@@ -5,7 +5,7 @@ export const SEED_SECRET_ROOMS = [
     name: 'Armeria Segreta RPD',
     description: 'Un\'armeria nascosta dietro una parete finta nell\'ufficio del capitano. Contiene equipaggiamento militare d\'epoca.',
     discoveryMethod: 'document',
-    requiredDocumentId: 'doc_rpd_diary',
+    requiredDocumentId: 'doc_chief_diary',
     requiredNpcQuestId: null,
     searchChance: 0,
     hint: 'Il diario del capitano menziona un pannello rimovibile... "Dietro la foto di gruppo si trova qualcosa che non dovrebbe essere lì. Forse un meccanismo nascosto?"',
@@ -37,7 +37,7 @@ export const SEED_SECRET_ROOMS = [
   },
   {
     id: 'secret_lab_birkin',
-    locationId: 'laboratory',
+    locationId: 'laboratory_entrance',
     name: 'Laboratorio Segreto Birkin',
     description: 'Il laboratorio privato del Dr. Birkin, nascosto dietro un passaggio sigillato nel livello inferiore. Qui ha condotto gli esperimenti sul G-Virus.',
     discoveryMethod: 'npc_hint',

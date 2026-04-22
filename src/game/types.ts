@@ -85,6 +85,10 @@ export interface DealDamageEffect extends BaseEffect {
   basedOnTargetHp?: number;
   /** For splash: exclude the primary target from this effect */
   excludePrimaryTarget?: boolean;
+  /** If true, amount is a flat fixed damage number (ignores ATK) */
+  flat?: boolean;
+  /** Flat damage amount (only used when flat=true) */
+  amount?: number;
 }
 
 export interface HealEffect extends BaseEffect {
@@ -712,6 +716,7 @@ export interface GameState {
   isNewGamePlus: boolean; // whether current run is a New Game+
   gameStartTime: number; // timestamp (ms) when the current adventure started
   skipNextEncounter: boolean; // prevent combat on next explore
+  isExploring: boolean; // anti-spam flag for exploration in progress
   achievements: AchievementState;
   achievementsOpen: boolean;
   bestiary: BestiaryEntry[];
@@ -758,6 +763,8 @@ export interface GameState {
   dataVersion: number;
   // Settings panel
   settingsOpen: boolean;
+  // Achievement tracking
+  herbCombineCount: number; // total herb combination actions
   // Auto-save
   lastAutoSaveTurn: number;
 }

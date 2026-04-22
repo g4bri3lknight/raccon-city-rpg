@@ -1068,7 +1068,11 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       });
       setTimeout(() => {
         set({ phase: 'exploration', combat: null, enemies: [], notification: null });
-        setTimeout(() => get().checkAchievements(), 100);
+        setTimeout(() => {
+          get().checkAchievements();
+          get().checkPerfectCombat();
+          get().checkAutoCombatVictory();
+        }, 100);
       }, 3500);
       return;
     }

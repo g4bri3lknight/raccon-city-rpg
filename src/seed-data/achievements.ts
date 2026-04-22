@@ -166,7 +166,7 @@ export const SEED_ACHIEVEMENTS: SeedAchievement[] = [
   {
     id: 'bestiary_all',
     name: 'Enciclopedia Vivente',
-    description: 'Sconfiggi tutti i 12 tipi di nemici.',
+    description: 'Sconfiggi tutti i 13 tipi di nemici.',
     icon: '📚',
     category: 'collection',
     condition: 'bestiary_all',

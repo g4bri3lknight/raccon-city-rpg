@@ -14,6 +14,7 @@ export const SEED_LOCATIONS: Record<string, LocationDefinition> = {
       { itemId: 'ammo_pistol', chance: 25, quantity: 4 },
       { itemId: 'bag_small', chance: 15, quantity: 1 },
       { itemId: 'key_sewers', chance: 15, quantity: 1 },
+      { itemId: 'key_rpd', chance: 8, quantity: 1 },
       { itemId: 'crank_handle', chance: 12, quantity: 1 },
       { itemId: 'rocket_launcher', chance: 5, quantity: 1 },
       { itemId: 'ink_ribbon', chance: 20, quantity: 1 },
