@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { audioEngine } from '@/game/engine/sounds';
 import { Button } from '@/components/ui/button';
-import { X, Volume2, VolumeX, Music, Gamepad2, Settings, Gauge } from 'lucide-react';
+import { X, Volume2, VolumeX, Music, Gamepad2, Settings, Gauge, Bug, ShieldCheck } from 'lucide-react';
 
 const SETTINGS_KEY = 'raccoon_city_settings';
 
@@ -105,6 +105,19 @@ export default function SettingsPanel() {
   const handleCombatSpeed = useCallback((speed: 1 | 2 | 3) => {
     setCombatSpeed(speed);
   }, []);
+
+  const handleOpenDebugPanel = useCallback(() => {
+    useGameStore.setState({ debugOpen: true });
+    toggleSettings();
+  }, [toggleSettings]);
+
+  const handleOpenAdminPanel = useCallback(() => {
+    toggleSettings();
+    // Small delay so settings panel closes first
+    setTimeout(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3' }));
+    }, 150);
+  }, [toggleSettings]);
 
   return (
     <AnimatePresence>
@@ -257,6 +270,51 @@ export default function SettingsPanel() {
                         className={`absolute top-[2px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform ${muted ? 'left-[2px]' : 'left-[20px]'}`}
                       />
                     </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="h-px bg-white/[0.06]" />
+
+              {/* ── Developer Tools Section ── */}
+              <div>
+                <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Bug className="w-3.5 h-3.5" />
+                  Strumenti Sviluppo
+                </h3>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={handleOpenDebugPanel}
+                    className="flex items-center justify-between w-full py-2.5 px-3 rounded-lg bg-white/[0.03] border border-yellow-500/20 hover:bg-yellow-500/[0.06] transition-colors cursor-pointer"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-sm text-yellow-300/80 flex items-center gap-2 cursor-pointer">
+                        <Bug className="w-4 h-4 text-yellow-400" />
+                        Debug Panel
+                      </label>
+                      <p className="text-[10px] text-white/30 ml-6">
+                        Cure, spawn nemici, teletrasporto, god mode
+                      </p>
+                    </div>
+                    <span className="text-[9px] text-white/20 bg-white/[0.04] px-1.5 py-0.5 rounded font-mono">F2</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenAdminPanel}
+                    className="flex items-center justify-between w-full py-2.5 px-3 rounded-lg bg-white/[0.03] border border-emerald-500/20 hover:bg-emerald-500/[0.06] transition-colors cursor-pointer"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-sm text-emerald-300/80 flex items-center gap-2 cursor-pointer">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        Admin Panel
+                      </label>
+                      <p className="text-[10px] text-white/30 ml-6">
+                        CRUD oggetti, quest, eventi, documenti, suoni
+                      </p>
+                    </div>
+                    <span className="text-[9px] text-white/20 bg-white/[0.04] px-1.5 py-0.5 rounded font-mono">F3</span>
                   </button>
                 </div>
               </div>

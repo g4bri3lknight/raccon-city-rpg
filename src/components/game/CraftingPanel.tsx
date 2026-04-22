@@ -5,13 +5,25 @@ import { useGameStore } from '@/game/store';
 import { ITEMS, RECIPES_DATA } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Hammer, Check, AlertCircle } from 'lucide-react';
+import { Hammer, Check, AlertCircle, Lock, BookOpen } from 'lucide-react';
 
 export default function CraftingPanel() {
   const party = useGameStore(s => s.party);
   const craftItem = useGameStore(s => s.craftItem);
+  const discoveredRecipes = useGameStore(s => s.discoveredRecipes);
 
   const recipes = RECIPES_DATA;
+
+  const totalRecipes = recipes.length;
+  const hiddenCount = recipes.filter(r => r.hidden).length;
+  const discoveredCount = hiddenCount - recipes.filter(r => r.hidden && !discoveredRecipes.includes(r.id)).length;
+
+  // Filter: show non-hidden recipes + discovered hidden recipes
+  const visibleRecipes = useMemo(() => {
+    return recipes
+      .map((recipe, originalIndex) => ({ recipe, originalIndex }))
+      .filter(({ recipe }) => !recipe.hidden || discoveredRecipes.includes(recipe.id));
+  }, [recipes, discoveredRecipes]);
 
   const ingredientAvailability = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -20,7 +32,7 @@ export default function CraftingPanel() {
       counts[item.itemId] = (counts[item.itemId] || 0) + item.quantity;
     }
 
-    return recipes.map(recipe => {
+    return visibleRecipes.map(({ recipe, originalIndex }) => {
       const canCraft = recipe.ingredients.every(ing => (counts[ing.itemId] || 0) >= ing.quantity);
       const ingredientStatus = recipe.ingredients.map(ing => ({
         itemId: ing.itemId,
@@ -30,9 +42,11 @@ export default function CraftingPanel() {
         itemDef: ITEMS[ing.itemId],
       }));
       const resultDef = ITEMS[recipe.result.itemId];
-      return { recipe, canCraft, ingredientStatus, resultDef };
+      return { recipe, originalIndex, canCraft, ingredientStatus, resultDef };
     });
-  }, [party, recipes]);
+  }, [party, visibleRecipes]);
+
+  const undiscoveredCount = recipes.filter(r => r.hidden && !discoveredRecipes.includes(r.id)).length;
 
   return (
     <div className="space-y-1.5 sm:space-y-2.5">
@@ -40,16 +54,16 @@ export default function CraftingPanel() {
         <Hammer className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
         <h3 className="text-sm sm:text-base font-bold text-white/90">Crafting</h3>
         <Badge className="text-xs bg-amber-900/40 text-amber-300 border-amber-700/30 ml-auto">
-          {recipes.length} ricette
+          {discoveredCount}/{totalRecipes} ricette
         </Badge>
       </div>
 
       <div className="space-y-1.5 sm:space-y-2 max-h-[48vh] sm:max-h-[55vh] overflow-y-auto inventory-scrollbar pr-1.5">
-        {ingredientAvailability.map((entry, idx) => {
-          const { recipe, canCraft, ingredientStatus, resultDef } = entry;
+        {ingredientAvailability.map((entry) => {
+          const { recipe, originalIndex, canCraft, ingredientStatus, resultDef } = entry;
           return (
             <div
-              key={recipe.id || idx}
+              key={recipe.id || originalIndex}
               className={`p-2 sm:p-3 rounded-lg border transition-all ${
                 canCraft
                   ? 'border-green-500/20 bg-green-950/10 hover:border-green-500/30'
@@ -95,7 +109,7 @@ export default function CraftingPanel() {
               {/* Craft button */}
               <Button
                 size="sm"
-                onClick={() => craftItem(idx)}
+                onClick={() => craftItem(originalIndex)}
                 disabled={!canCraft}
                 className={`w-full min-h-[44px] h-auto sm:h-7 text-xs sm:text-sm font-semibold bg-transparent transition-all ${
                   canCraft
@@ -109,6 +123,34 @@ export default function CraftingPanel() {
             </div>
           );
         })}
+
+        {/* Undiscovered recipe placeholders */}
+        {undiscoveredCount > 0 && (
+          <>
+            <div className="flex items-center gap-2 mt-3 mb-1 px-1">
+              <Lock className="w-3.5 h-3.5 text-white/20" />
+              <span className="text-[10px] sm:text-xs text-white/25 font-medium">
+                {undiscoveredCount} ricetta{undiscoveredCount > 1 ? 'e' : ''} segreta{undiscoveredCount > 1 ? 'e' : ''} da scoprire
+              </span>
+            </div>
+            {Array.from({ length: undiscoveredCount }).map((_, i) => (
+              <div
+                key={`hidden_${i}`}
+                className="p-2 sm:p-3 rounded-lg border border-white/[0.03] bg-white/[0.01] opacity-40"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded bg-white/[0.06] flex items-center justify-center">
+                    <Lock className="w-4 h-4 text-white/20" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white/20">???</div>
+                    <div className="text-[10px] text-white/10">Cerca nei documenti o esplora per scoprire...</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

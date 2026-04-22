@@ -733,6 +733,8 @@ export interface GameState {
   storyChoices: StoryChoiceTag[];
   // #22 Secret Rooms
   discoveredSecretRooms: string[];
+  // Discovered recipes (hidden recipes only show when discovered)
+  discoveredRecipes: string[];
   // #23 Endings
   endingType: EndingType | null;
   // Mini-map

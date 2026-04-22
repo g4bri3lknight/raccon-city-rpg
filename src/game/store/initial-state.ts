@@ -108,6 +108,7 @@ export function getDefaultState() {
     dynamicEventTurnsLeft: 0,
     storyChoices: [] as string[],
     discoveredSecretRooms: [] as string[],
+    discoveredRecipes: [] as string[],
     endingType: null as string | null,
     exploredSubAreas: {} as Record<string, string[]>,
     randomizerMode: false,

@@ -13,4 +13,5 @@ export interface CraftingRecipe {
   ingredients: { itemId: string; quantity: number }[];
   result: { itemId: string; quantity: number };
   difficulty: 'easy' | 'medium' | 'hard';
+  hidden?: boolean; // if true, recipe is not visible until discovered
 }

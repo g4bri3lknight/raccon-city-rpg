@@ -11,7 +11,7 @@
  * Format: { version, date, description }
  */
 
-export const APP_VERSION = '1.6.0' as const;
+export const APP_VERSION = '1.7.0' as const;
 
 export const VERSION_HISTORY: Array<{
   version: string;
@@ -199,6 +199,19 @@ export const VERSION_HISTORY: Array<{
       '[UI] Sfida bonus Victory Condition mostrata in CombatHeader durante il combat',
       '[REFATTORI] Victory conditions: rimosso avviso "DEAD CODE", importato nel combat loop',
       '[REFATTORI] DynamicEventType: aggiunti nemesis_invasion e horde al type union',
+    ],
+  },
+  {
+    version: '1.7.0',
+    date: '2025-06-22',
+    changes: [
+      '[NUOVO] Sistema Ricette Scopribili: 9 ricette nascoste che si sbloccano esplorando — 6 ricette base sempre visibili',
+      '[NUOVO] Discovery tramite documenti: 3 documenti (diario RPD, report lab, mappa fogne) sbloccano ricette segrete',
+      '[NUOVO] Discovery randomica: 8% di probabilità per search di scoprire una ricetta nascosta',
+      '[UI] Contatore ricette scoperte (es. 8/15) nei pannelli Crafting e Inventario',
+      '[UI] Placeholder misteriosi "???" per ricette non ancora scoperte con icona lucchetto',
+      '[PERSISTENZA] discoveredRecipes salvato/caricato in tutti gli slot + autosave + NG+',
+      '[SISTEMA] CraftingRecipe.hidden field + discoverRecipe() action nel GameStore',
     ],
   },
 ];

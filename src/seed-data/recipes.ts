@@ -46,6 +46,7 @@ export const SEED_RECIPES = [
     resultItemId: 'spray',
     resultQty: 1,
     difficulty: 'hard',
+    hidden: true,
     sortOrder: 4,
   },
   // ── Ammunition Recycling ──
@@ -71,6 +72,7 @@ export const SEED_RECIPES = [
     resultItemId: 'ammo_magnum',
     resultQty: 1,
     difficulty: 'hard',
+    hidden: true,
     sortOrder: 6,
   },
   {
@@ -83,6 +85,7 @@ export const SEED_RECIPES = [
     resultItemId: 'ammo_grenade',
     resultQty: 1,
     difficulty: 'hard',
+    hidden: true,
     sortOrder: 7,
   },
   // ── Medical ──
@@ -121,6 +124,7 @@ export const SEED_RECIPES = [
     resultItemId: 'adrenaline_shot',
     resultQty: 1,
     difficulty: 'medium',
+    hidden: true,
     sortOrder: 10,
   },
   {
@@ -133,6 +137,7 @@ export const SEED_RECIPES = [
     resultItemId: 'defense_pill',
     resultQty: 2,
     difficulty: 'medium',
+    hidden: true,
     sortOrder: 11,
   },
   {
@@ -145,6 +150,7 @@ export const SEED_RECIPES = [
     resultItemId: 'pipe_bomb',
     resultQty: 1,
     difficulty: 'hard',
+    hidden: true,
     sortOrder: 12,
   },
   // ── Advanced Healing ──
@@ -158,6 +164,7 @@ export const SEED_RECIPES = [
     resultItemId: 'first_aid',
     resultQty: 2,
     difficulty: 'hard',
+    hidden: true,
     sortOrder: 13,
   },
   // ── Advanced Ammo ──
@@ -171,6 +178,7 @@ export const SEED_RECIPES = [
     resultItemId: 'ammo_machinegun',
     resultQty: 2,
     difficulty: 'medium',
+    hidden: true,
     sortOrder: 14,
   },
   // ── Resource Conversion ──
@@ -184,6 +192,7 @@ export const SEED_RECIPES = [
     resultItemId: 'spray',
     resultQty: 2,
     difficulty: 'medium',
+    hidden: true,
     sortOrder: 15,
   },
 ];

@@ -13,6 +13,7 @@ import {
   LOCATIONS,
   NPCS,
   SECRET_ROOMS,
+  RECIPES_DATA,
 } from '../../data/loader';
 import { generateRandomizedData, getEffectiveLocation } from '../../data/randomizer';
 import {
@@ -781,12 +782,35 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
       const newDocs = [...state.collectedDocuments, doc.id];
       try { playDocumentFound(); } catch {}
+      // Some documents reveal hidden recipes
+      const RECIPE_HINT_DOCS: Record<string, string[]> = {
+        'doc_rpd_diary': ['craft_spray_super', 'craft_mega_bandage'],
+        'doc_lab_report': ['craft_pipe_bomb', 'craft_grenade_40mm'],
+        'doc_sewers_map': ['craft_machinegun_ammo'],
+      };
+      let newDiscoveredRecipes: string[] | undefined;
+      const hintRecipes = RECIPE_HINT_DOCS[doc.id];
+      if (hintRecipes) {
+        for (const recipeId of hintRecipes) {
+          if (!state.discoveredRecipes.includes(recipeId)) {
+            newDiscoveredRecipes = [...(newDiscoveredRecipes || state.discoveredRecipes), recipeId];
+            const recipe = RECIPES_DATA.find(r => r.id === recipeId);
+            if (recipe) {
+              newLog.push(`[${state.turnCount}] 📜 Il documento rivela una ricetta segreta: ${recipe.name}!`);
+            }
+          }
+        }
+      }
+      const docLog = newDiscoveredRecipes
+        ? [...newLog, `[${state.turnCount}] 📖 ${flavourText} ${searcherName} trova un documento: "${doc.title}"`]
+        : [...newLog, `[${state.turnCount}] 📖 ${flavourText} ${searcherName} trova un documento: "${doc.title}"`];
       set({
-        messageLog: [...newLog, `[${state.turnCount}] 📖 ${flavourText} ${searcherName} trova un documento: "${doc.title}"`],
+        messageLog: docLog,
         collectedDocuments: newDocs,
         turnCount: state.turnCount + 1,
         searchCounts: newSearchCounts,
         searchMaxes: newSearchMaxes,
+        discoveredRecipes: newDiscoveredRecipes || state.discoveredRecipes,
         notification: {
           id: nextNotifId(),
           type: 'item_found',
@@ -983,6 +1007,17 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
     }
 
+    // Recipe discovery: 8% chance to discover a hidden recipe during search
+    let newDiscoveredRecipes: string[] | undefined;
+    if (!state.activeDynamicEvent) {
+      const hiddenRecipes = RECIPES_DATA.filter(r => r.hidden && !state.discoveredRecipes.includes(r.id));
+      if (hiddenRecipes.length > 0 && Math.random() * 100 < 8) {
+        const discoveredRecipe = hiddenRecipes[Math.floor(Math.random() * hiddenRecipes.length)];
+        newDiscoveredRecipes = [...state.discoveredRecipes, discoveredRecipe.id];
+        newLog.push(`[${state.turnCount}] 📜 Hai trovato un appunto con una ricetta di crafting segreta: ${discoveredRecipe.name}!`);
+      }
+    }
+
     set({
       messageLog: [...newLog, `[${state.turnCount}] 🎒 ${flavourText} Trovati: ${foundNames.join(', ')}.`],
       party: updatedParty,
@@ -991,6 +1026,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       searchMaxes: newSearchMaxes,
       notification: lastNotif,
       collectedRibbons: newRibbonCount,
+      discoveredRecipes: newDiscoveredRecipes || state.discoveredRecipes,
     });
     setTimeout(() => get().checkAchievements(), 100);
   },

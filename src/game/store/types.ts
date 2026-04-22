@@ -177,6 +177,9 @@ export interface GameStore extends GameState {
   // #22 Secret Rooms
   discoverSecretRoom: (roomId: string) => void;
 
+  // Recipe Discovery
+  discoverRecipe: (recipeId: string) => void;
+
   // #23 Endings
   determineEnding: () => EndingDefinition;
 

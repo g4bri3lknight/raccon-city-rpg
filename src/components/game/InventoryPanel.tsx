@@ -11,7 +11,7 @@ import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, ITEMS, RECIPES_DATA, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star, Hammer } from 'lucide-react';
+import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star, Hammer, Lock, BookOpen } from 'lucide-react';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
 import { RARITY_LABEL, TYPE_LABELS } from '@/game/utils/rarity-helpers';
@@ -40,6 +40,7 @@ export default function InventoryPanel() {
   const craftItem = useGameStore(s => s.craftItem);
   const combat = useGameStore(s => s.combat);
   const inCombat = !!combat;
+  const discoveredRecipes = useGameStore(s => s.discoveredRecipes);
 
   if (!inventoryOpen) return null;
 
@@ -263,6 +264,7 @@ export default function InventoryPanel() {
             selectedChar={selectedChar}
             craftItem={craftItem}
             inCombat={inCombat}
+            discoveredRecipes={discoveredRecipes}
           />
         )}
 
@@ -557,13 +559,27 @@ function InventoryRecipesTab({
   selectedChar,
   craftItem,
   inCombat,
+  discoveredRecipes,
 }: {
   party: Character[];
   selectedChar: Character;
   craftItem: (recipeIndex: number) => boolean;
   inCombat: boolean;
+  discoveredRecipes: string[];
 }) {
   const recipes = RECIPES_DATA;
+
+  const totalRecipes = recipes.length;
+  const hiddenCount = recipes.filter(r => r.hidden).length;
+  const discoveredCount = hiddenCount - recipes.filter(r => r.hidden && !discoveredRecipes.includes(r.id)).length;
+  const undiscoveredCount = recipes.filter(r => r.hidden && !discoveredRecipes.includes(r.id)).length;
+
+  // Filter: show non-hidden recipes + discovered hidden recipes
+  const visibleRecipes = useMemo(() => {
+    return recipes
+      .map((recipe, originalIndex) => ({ recipe, originalIndex }))
+      .filter(({ recipe }) => !recipe.hidden || discoveredRecipes.includes(recipe.id));
+  }, [recipes, discoveredRecipes]);
 
   const ingredientAvailability = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -574,7 +590,7 @@ function InventoryRecipesTab({
       counts[item.itemId] = (counts[item.itemId] || 0) + item.quantity;
     }
 
-    return recipes.map((recipe, idx) => {
+    return visibleRecipes.map(({ recipe, originalIndex }) => {
       const canCraft = !inCombat && recipe.ingredients.every(ing => (counts[ing.itemId] || 0) >= ing.quantity);
       const ingredientStatus = recipe.ingredients.map(ing => ({
         itemId: ing.itemId,
@@ -584,9 +600,9 @@ function InventoryRecipesTab({
         itemDef: ITEMS[ing.itemId],
       }));
       const resultDef = ITEMS[recipe.result.itemId];
-      return { recipe, idx, canCraft, ingredientStatus, resultDef };
+      return { recipe, originalIndex, canCraft, ingredientStatus, resultDef };
     });
-  }, [party, recipes, inCombat]);
+  }, [party, visibleRecipes, inCombat]);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 inventory-scrollbar">
@@ -595,10 +611,19 @@ function InventoryRecipesTab({
           ⚔️ Crafting non disponibile durante il combattimento
         </div>
       )}
+
+      {/* Recipe count badge */}
+      <div className="flex items-center gap-2 mb-3">
+        <BookOpen className="w-3.5 h-3.5 text-amber-400/60" />
+        <Badge className="text-[10px] md:text-xs bg-amber-900/40 text-amber-300 border-amber-700/30">
+          {discoveredCount}/{totalRecipes} ricette scoperte
+        </Badge>
+      </div>
+
       <div className="space-y-2">
-        {ingredientAvailability.map(({ recipe, idx, canCraft, ingredientStatus, resultDef }) => (
+        {ingredientAvailability.map(({ recipe, originalIndex, canCraft, ingredientStatus, resultDef }) => (
           <div
-            key={recipe.id || idx}
+            key={recipe.id || originalIndex}
             className={`p-2.5 md:p-3 rounded-lg border transition-all ${
               canCraft
                 ? 'border-green-500/20 bg-green-950/10 hover:border-green-500/30'
@@ -642,7 +667,7 @@ function InventoryRecipesTab({
             {/* Craft button */}
             <Button
               size="sm"
-              onClick={() => craftItem(idx)}
+              onClick={() => craftItem(originalIndex)}
               disabled={!canCraft}
               className={`w-full min-h-[40px] h-auto md:h-7 text-xs md:text-sm font-semibold bg-transparent transition-all ${
                 canCraft
@@ -655,6 +680,34 @@ function InventoryRecipesTab({
             </Button>
           </div>
         ))}
+
+        {/* Undiscovered recipe placeholders */}
+        {undiscoveredCount > 0 && (
+          <>
+            <div className="flex items-center gap-2 mt-3 mb-1 px-1">
+              <Lock className="w-3.5 h-3.5 text-white/20" />
+              <span className="text-[10px] md:text-xs text-white/25 font-medium">
+                {undiscoveredCount} ricetta{undiscoveredCount > 1 ? 'e' : ''} segreta{undiscoveredCount > 1 ? 'e' : ''} da scoprire
+              </span>
+            </div>
+            {Array.from({ length: undiscoveredCount }).map((_, i) => (
+              <div
+                key={`hidden_${i}`}
+                className="p-2.5 md:p-3 rounded-lg border border-white/[0.03] bg-white/[0.01] opacity-40"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded bg-white/[0.06] flex items-center justify-center">
+                    <Lock className="w-4 h-4 text-white/20" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white/20">???</div>
+                    <div className="text-[10px] text-white/10">Cerca nei documenti o esplora per scoprire...</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

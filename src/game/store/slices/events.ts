@@ -140,6 +140,17 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     setTimeout(() => get().checkAchievements(), 100);
   },
 
+  discoverRecipe: (recipeId: string) => {
+    const state = get();
+    if (state.discoveredRecipes.includes(recipeId)) return;
+    // Play item pickup sound
+    try { playItemPickup(); } catch {}
+    set({
+      discoveredRecipes: [...state.discoveredRecipes, recipeId],
+      messageLog: [...state.messageLog, `[${state.turnCount}] 📜 Ricetta scoperta! Nuova ricetta di crafting disponibile.`],
+    });
+  },
+
   determineEnding: () => {
     const state = get();
     const endings = Object.values(ENDINGS).sort((a, b) => b.priority - a.priority);
