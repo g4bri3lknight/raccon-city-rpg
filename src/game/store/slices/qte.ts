@@ -2,7 +2,8 @@ import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { getDifficultyConfig } from '../../data/difficulty';
 import { ITEMS } from '../../data/loader';
-import { createEnemyInstance } from '../helpers';
+import { createEnemyInstance, getAutoCombatDefault } from '../helpers';
+import { rollVictoryCondition } from '../../data/victory-conditions';
 
 export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   startQTE: (triggerSource: 'nemesis' | 'event' | 'boss') => {
@@ -31,6 +32,8 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
       postSuccessMessage = '🏃 Sei riuscito a fuggire da NEMESIS! Trovi un nascondiglio sicuro.';
       postFailureMessage = '💀 NEMESIS ti colpisce! Sei ferito ma sei sopravvissuto... per ora.';
       postSuccessItems = [{ itemId: 'first_aid', quantity: 1 }];
+      // Failed escape → trigger Nemesis combat
+      postFailureCombat = ['nemesis_boss'];
     } else if (triggerSource === 'event') {
       postSuccessMessage = '🏃 Sei scappato appena in tempo!';
       postFailureMessage = '💥 Sei caduto e ti sei ferito!';
@@ -215,17 +218,31 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
       // If nemesis QTE failed, trigger combat
       if (qs.triggerSource === 'nemesis' && qs.postFailureCombat) {
         const diff = getDifficultyConfig(state.difficulty, state.partySize);
-        const enemies = qs.postFailureCombat.map(id => createEnemyInstance(id, diff.statMult));
+        // Scale Nemesis strength with pursuit level (same formula as exploration)
+        const nemesisStatMult = diff.statMult * (0.8 + 0.1 * state.nemesisPursuitLevel);
+        const enemies = qs.postFailureCombat.map(id => createEnemyInstance(id, nemesisStatMult));
         const allActors = [
           ...updatedParty.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
           ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
         ].sort((a, b) => b.spd - a.spd + (Math.random() - 0.5) * 4);
         const firstActor = allActors[0];
 
+        // Track bestiary
+        const nemesisBestiary = [...state.bestiary];
+        const existingNem = nemesisBestiary.find(b => b.enemyId === 'nemesis_boss');
+        if (!existingNem) {
+          nemesisBestiary.push({ enemyId: 'nemesis_boss', encountered: true, defeated: false, timesDefeated: 0 });
+        } else {
+          existingNem.encountered = true;
+        }
+
+        const nemesisVc = rollVictoryCondition(enemies);
+
         set({
           phase: 'combat',
           party: updatedParty,
           enemies,
+          autoCombat: getAutoCombatDefault(),
           qteState: null,
           combat: {
             turn: 1,
@@ -247,12 +264,16 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
             special2Cooldowns: {},
             tauntTargetId: null,
             activeEffects: [],
+            victoryCondition: nemesisVc,
             comboCount: 0,
             comboTargetId: null,
             lastOffensiveAction: null,
           },
+          bestiary: nemesisBestiary,
+          nemesisLastSeenLocation: state.currentLocationId,
+          nemesisLastSeenTurn: state.turnCount,
           messageLog: [...state.messageLog, ...logMessages],
-          ...(qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
+          ...(state.nemesisPursuitLevel < 5 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
         });
         if (firstActor.type === 'enemy') {
           setTimeout(() => get().advanceToNextActor(), 1400);

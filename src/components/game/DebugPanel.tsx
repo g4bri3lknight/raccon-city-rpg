@@ -147,6 +147,11 @@ export default function DebugPanel() {
   const debugGiveAllRibbons = useGameStore(s => s.debugGiveAllRibbons);
   const debugSpawnItem = useGameStore(s => s.debugSpawnItem);
   const debugSpawnDocument = useGameStore(s => s.debugSpawnDocument);
+  const debugUnlockAllRecipes = useGameStore(s => s.debugUnlockAllRecipes);
+  const debugSetDifficulty = useGameStore(s => s.debugSetDifficulty);
+  const debugTriggerQTE = useGameStore(s => s.debugTriggerQTE);
+  const debugRevealMap = useGameStore(s => s.debugRevealMap);
+  const debugResetSearch = useGameStore(s => s.debugResetSearch);
 
   // Reactive data lookups — recomputed when dataVersion changes (after DB load / admin CRUD)
   const enemyOptions = useMemo(() =>
@@ -410,12 +415,15 @@ export default function DebugPanel() {
           <Section title="Info Stato" icon={<Bug className="w-3.5 h-3.5" />}>
             <div className="space-y-1 text-[9px] text-white/40">
               <div className="flex justify-between"><span>Phase:</span><span className="text-white/70 font-mono">{phase}</span></div>
+              <div className="flex justify-between"><span>Difficulty:</span><span className="text-white/70 font-mono">{useGameStore.getState().difficulty}</span></div>
               <div className="flex justify-between"><span>Party:</span><span className="text-white/70 font-mono">{party.length}</span></div>
               <div className="flex justify-between"><span>Turn:</span><span className="text-white/70 font-mono">{useGameStore.getState().turnCount}</span></div>
               <div className="flex justify-between"><span>Location:</span><span className="text-white/70 font-mono">{useGameStore.getState().currentLocationId}</span></div>
               <div className="flex justify-between"><span>Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().collectedRibbons}/{MAX_RIBBONS}</span></div>
               <div className="flex justify-between"><span>Persist Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().persistentRibbons}/{MAX_RIBBONS}</span></div>
               <div className="flex justify-between"><span>Documents:</span><span className="text-white/70 font-mono">{collectedDocuments.length}/{docList.length}</span></div>
+              <div className="flex justify-between"><span>Recipes:</span><span className="text-white/70 font-mono">{useGameStore.getState().discoveredRecipes.length}</span></div>
+              <div className="flex justify-between"><span>Nemesis Pursuit:</span><span className="text-white/70 font-mono">{useGameStore.getState().nemesisPursuitLevel}/5</span></div>
               <div className="flex justify-between"><span>New Game+:</span><span className="text-white/70 font-mono">{useGameStore.getState().isNewGamePlus ? 'YES' : 'NO'}</span></div>
             </div>
           </Section>
@@ -542,6 +550,49 @@ export default function DebugPanel() {
                 </div>
               </>
             )}
+          </Section>
+
+          {/* ── Crafting / Recipes ── */}
+          <Section title="Crafting / Ricette" icon={<span className="text-sm">🔨</span>}>
+            <DebugButton
+              label="Sblocca Tutte le Ricette"
+              icon={<span className="text-sm">📜</span>}
+              onClick={debugUnlockAllRecipes}
+              variant="success"
+            />
+          </Section>
+
+          {/* ── QTE Test ── */}
+          <Section title="Test QTE" icon={<span className="text-sm">⏱️</span>}>
+            <p className="text-[9px] text-white/30 mb-1">Attiva una sequenza QTE di test (solo in esplorazione).</p>
+            <DebugButton
+              label="Attiva QTE (Evento)"
+              icon={<span className="text-sm">🎬</span>}
+              onClick={debugTriggerQTE}
+            />
+          </Section>
+
+          {/* ── Game Settings ── */}
+          <Section title="Impostazioni Gioco" icon={<Settings className="w-3.5 h-3.5" />}>
+            <div className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Difficoltà</div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => debugSetDifficulty('sopravvissuto')}
+                className="flex-1 text-[10px] px-2 py-1.5 rounded border border-green-500/30 text-green-300 hover:bg-green-950/20 transition-colors"
+              >Sopravvissuto</button>
+              <button
+                onClick={() => debugSetDifficulty('normale')}
+                className="flex-1 text-[10px] px-2 py-1.5 rounded border border-yellow-500/30 text-yellow-300 hover:bg-yellow-950/20 transition-colors"
+              >Normale</button>
+              <button
+                onClick={() => debugSetDifficulty('incubo')}
+                className="flex-1 text-[10px] px-2 py-1.5 rounded border border-red-500/30 text-red-300 hover:bg-red-950/20 transition-colors"
+              >Incubo</button>
+            </div>
+            <div className="mt-2 space-y-1">
+              <DebugButton label="Rivela Mappa Completa" icon={<MapPin className="w-3.5 h-3.5" />} onClick={debugRevealMap} />
+              <DebugButton label="Reset Ricerche Location" icon={<Search className="w-3.5 h-3.5" />} onClick={debugResetSearch} />
+            </div>
           </Section>
 
           {/* ── Admin Panel ── */}

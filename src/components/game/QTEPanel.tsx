@@ -309,7 +309,7 @@ export default function QTEPanel() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // ── Touch button handler ──
+  // ── Touch button handler (uses onTouchStart for zero-delay on mobile) ──
   const handleTouchInput = useCallback(
     (direction: string) => {
       if (!qteState || qteState.isProcessing || qteState.isComplete) return;
@@ -318,6 +318,15 @@ export default function QTEPanel() {
       applyFeedback(isCorrect ? 'success' : 'failure', direction);
     },
     [qteState, applyFeedback],
+  );
+
+  // Wrapper that prevents default to avoid 300ms click delay + ghost clicks
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent, direction: string) => {
+      e.preventDefault();
+      handleTouchInput(direction);
+    },
+    [handleTouchInput],
   );
 
   // ── Don't render if no QTE state ──
@@ -723,6 +732,7 @@ export default function QTEPanel() {
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               <div />
               <button
+                onTouchStart={(e) => handleTouchStart(e, 'up')}
                 onClick={() => handleTouchInput('up')}
                 disabled={qteState.isProcessing}
                 className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg glass-btn flex items-center justify-center text-white/70 active:text-green-400 active:bg-green-500/20 active:border-green-500/40 transition-all disabled:opacity-30 touch-manipulation"
@@ -732,6 +742,7 @@ export default function QTEPanel() {
               <div />
 
               <button
+                onTouchStart={(e) => handleTouchStart(e, 'left')}
                 onClick={() => handleTouchInput('left')}
                 disabled={qteState.isProcessing}
                 className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg glass-btn flex items-center justify-center text-white/70 active:text-green-400 active:bg-green-500/20 active:border-green-500/40 transition-all disabled:opacity-30 touch-manipulation"
@@ -740,6 +751,7 @@ export default function QTEPanel() {
               </button>
               <div className="w-14 h-14 sm:w-16 sm:h-16" />
               <button
+                onTouchStart={(e) => handleTouchStart(e, 'right')}
                 onClick={() => handleTouchInput('right')}
                 disabled={qteState.isProcessing}
                 className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg glass-btn flex items-center justify-center text-white/70 active:text-green-400 active:bg-green-500/20 active:border-green-500/40 transition-all disabled:opacity-30 touch-manipulation"
@@ -749,6 +761,7 @@ export default function QTEPanel() {
 
               <div />
               <button
+                onTouchStart={(e) => handleTouchStart(e, 'down')}
                 onClick={() => handleTouchInput('down')}
                 disabled={qteState.isProcessing}
                 className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg glass-btn flex items-center justify-center text-white/70 active:text-green-400 active:bg-green-500/20 active:border-green-500/40 transition-all disabled:opacity-30 touch-manipulation"
@@ -759,6 +772,7 @@ export default function QTEPanel() {
             </div>
 
             <button
+              onTouchStart={(e) => handleTouchStart(e, 'space')}
               onClick={() => handleTouchInput('space')}
               disabled={qteState.isProcessing}
               className="mt-1 w-40 sm:w-48 h-10 sm:h-12 rounded-lg glass-btn flex items-center justify-center gap-2 text-white/70 active:text-green-400 active:bg-green-500/20 active:border-green-500/40 transition-all disabled:opacity-30 touch-manipulation"

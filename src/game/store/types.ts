@@ -212,6 +212,11 @@ export interface GameStore extends GameState {
   debugGiveAllRibbons: () => void;
   debugSpawnItem: (itemId: string) => void;
   debugSpawnDocument: (docId: string) => void;
+  debugUnlockAllRecipes: () => void;
+  debugSetDifficulty: (difficulty: DifficultyLevel) => void;
+  debugTriggerQTE: () => void;
+  debugRevealMap: () => void;
+  debugResetSearch: () => void;
 
   // Achievement extended
   incrementHerbCombine: () => void;

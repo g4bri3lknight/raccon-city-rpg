@@ -224,64 +224,11 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         isExploring: false,
       });
 
+      // Start QTE instead of going directly to combat —
+      // player gets a chance to dodge; failure triggers combat via completeQTE
       setTimeout(() => {
-        const currentState = get();
-        const allActors = [
-          ...currentState.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
-          ...[nemesis].map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
-        ].sort((a, b) => {
-          const jitterA = Math.random() * 4;
-          const jitterB = Math.random() * 4;
-          return (b.spd + jitterB) - (a.spd + jitterA);
-        });
-        const firstActor = allActors[0];
-
-        const nemesisBestiary = [...currentState.bestiary];
-        const existingNem = nemesisBestiary.find(b => b.enemyId === 'nemesis_boss');
-        if (!existingNem) {
-          nemesisBestiary.push({ enemyId: 'nemesis_boss', encountered: true, defeated: false, timesDefeated: 0 });
-        } else {
-          existingNem.encountered = true;
-        }
-
-        const nemesisVc = rollVictoryCondition([nemesis]);
-        set({
-          phase: 'combat',
-          enemies: [nemesis],
-          autoCombat: getAutoCombatDefault(),
-          combat: {
-            turn: 1,
-            playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
-            enemyOrder: allActors.filter(a => a.type === 'enemy').map(a => a.id),
-            fullTurnOrder: allActors.map(a => ({ id: a.id, type: a.type })),
-            currentActorId: firstActor.id,
-            currentActorType: firstActor.type,
-            selectedAction: null,
-            selectedTarget: null,
-            selectedItemUid: null,
-            isProcessing: false,
-            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Invasione', message: `NEMESIS è apparso! "S.T.A.R.S.!" [Livello ${nemesisPursuitLevel + 1}/5]` }],
-            isVictory: false,
-            isDefeat: false,
-            fled: false,
-            statusDurations: {},
-            specialCooldowns: {},
-            special2Cooldowns: {},
-            tauntTargetId: null,
-            activeEffects: [],
-            victoryCondition: nemesisVc,
-            comboCount: 0,
-            comboTargetId: null,
-            lastOffensiveAction: null,
-          },
-          bestiary: nemesisBestiary,
-          notification: null,
-        });
-
-        if (firstActor.type === 'enemy') {
-          setTimeout(() => get().advanceToNextActor(), 1400);
-        }
-      }, 1500);
+        get().startQTE('nemesis');
+      }, 1200);
       return;
     }
 

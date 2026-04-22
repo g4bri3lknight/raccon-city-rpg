@@ -158,8 +158,15 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
 
     if (action === 'flee') {
       const canFlee = calculateFleeChance(state.party, state.enemies);
+      const hasNemesis = state.enemies.some(e => e.definitionId === 'nemesis_boss');
+
+      if (hasNemesis) {
+        // Fleeing from Nemesis triggers a QTE — success = escape, failure = combat continues
+        get().startQTE('nemesis');
+        return;
+      }
+
       if (canFlee) {
-        const hasNemesis = state.enemies.some(e => e.definitionId === 'nemesis_boss');
         set({
           phase: 'exploration',
           combat: null,
@@ -1346,6 +1353,25 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
       }
     }
+
+    // ═══════════════════════════════════════════════════════
+    // FALLBACK: Attack weakest enemy — safety net for ALL archetypes
+    // This prevents auto-combat from freezing when:
+    //   - survivor archetype has no dedicated AI block
+    //   - tank/healer/control conditions don't match
+    //   - no usable items in inventory
+    // ═══════════════════════════════════════════════════════
+    const fallbackEnemies = get().enemies.filter(e => e.currentHp > 0);
+    if (fallbackEnemies.length > 0) {
+      const weakest = fallbackEnemies.reduce((a, b) => (a.currentHp / a.maxHp) < (b.currentHp / b.maxHp) ? a : b);
+      get().selectCombatAction('attack');
+      get().selectCombatTarget(weakest.id);
+      setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
+      return;
+    }
+
+    // Absolute safety: if we get here with no enemies, force advance
+    setTimeout(() => get().advanceToNextActor(), getCombatDelay(300));
   },
 
       advanceToNextActor: (combatState: GameStore['combat'] & { party?: Character[]; enemies?: EnemyInstance[] }) => {

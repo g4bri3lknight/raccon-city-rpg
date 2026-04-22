@@ -1,8 +1,9 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
+import type { DifficultyLevel } from '../types';
 import { ItemInstance } from '../../types';
 import { getDifficultyConfig } from '../../data/difficulty';
-import { ITEMS, ENEMIES, DOCUMENTS, LOCATIONS, refreshGameData } from '../../data/loader';
+import { ITEMS, ENEMIES, DOCUMENTS, LOCATIONS, RECIPES_DATA, refreshGameData } from '../../data/loader';
 import { addItemToParty, createEnemyInstance, getAutoCombatDefault } from '../helpers';
 import { invalidateSettingsCache, fetchGameSettings } from '../settings-cache';
 
@@ -260,6 +261,9 @@ export const createDebugSlice: StateCreator<GameStore, [], [], GameStore> = (set
       currentLocationId: locationId,
       visitedLocations: [...new Set([...state.visitedLocations, locationId])],
       activeEvent: null,
+      activeNpc: null,
+      qteState: null,
+      puzzleState: null,
       messageLog: [...state.messageLog, `[DEBUG] 📍 Teletrasportato a ${dest.name}.`],
     });
   },
@@ -321,10 +325,134 @@ export const createDebugSlice: StateCreator<GameStore, [], [], GameStore> = (set
     }));
   },
 
+  debugSpawnItem: (itemId: string) => {
+    const state = get();
+    const def = ITEMS[itemId];
+    if (!def) {
+      set(state => ({
+        messageLog: [...state.messageLog, `[DEBUG] ⚠️ Oggetto "${itemId}" non trovato.`],
+      }));
+      return;
+    }
+    // Find first alive character with space
+    const target = state.party.find(p => p.currentHp > 0 && p.inventory.length < p.maxInventorySlots);
+    if (!target) {
+      set(state => ({
+        messageLog: [...state.messageLog, `[DEBUG] ⚠️ Inventario pieno! Nessuno spazio per ${def.name}.`],
+      }));
+      return;
+    }
+    const newItem: ItemInstance = {
+      uid: `debug_${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      itemId,
+      name: def.name,
+      description: def.description,
+      type: def.type,
+      rarity: def.rarity,
+      icon: def.icon,
+      usable: def.usable,
+      equippable: def.equippable,
+      effects: def.effects,
+      quantity: 1,
+    };
+    const updatedParty = state.party.map(p => {
+      if (p.id !== target.id) return p;
+      return { ...p, inventory: [...p.inventory, newItem] };
+    });
+    set({
+      party: updatedParty,
+      messageLog: [...state.messageLog, `[DEBUG] 🎒 ${def.name} (${def.icon}) aggiunto a ${target.name}.`],
+      notification: {
+        id: `notif_debug_${Date.now()}`,
+        type: 'item_found' as const,
+        message: def.name,
+        icon: def.icon,
+        itemId,
+        subMessage: `Debug spawn → ${target.name}`,
+      },
+    });
+  },
+
+  debugSpawnDocument: (docId: string) => {
+    const state = get();
+    const def = DOCUMENTS[docId];
+    if (!def) {
+      set(state => ({
+        messageLog: [...state.messageLog, `[DEBUG] ⚠️ Documento "${docId}" non trovato.`],
+      }));
+      return;
+    }
+    if (state.collectedDocuments.includes(docId)) {
+      set(state => ({
+        messageLog: [...state.messageLog, `[DEBUG] ℹ️ Documento "${def.title}" già raccolto.`],
+      }));
+      return;
+    }
+    set({
+      collectedDocuments: [...state.collectedDocuments, docId],
+      messageLog: [...state.messageLog, `[DEBUG] 📄 "${def.title}" aggiunto ai documenti raccolti.`],
+      notification: {
+        id: `notif_debug_${Date.now()}`,
+        type: 'item_found' as const,
+        message: def.title,
+        icon: '📄',
+        itemId: docId,
+        subMessage: `Documento ${def.isSecret ? '(Segreto)' : ''} raccolto`,
+      },
+    });
+  },
+
   bumpDataVersion: () => {
     invalidateSettingsCache(); // invalidate settings cache so it reloads
     fetchGameSettings(); // reload in background
     refreshGameData(); // reload all game data from DB
     set(state => ({ dataVersion: state.dataVersion + 1, searchMaxes: {} }));
+  },
+
+  debugUnlockAllRecipes: () => {
+    const state = get();
+    const allIds = RECIPES_DATA.map((r: { id: string }) => r.id);
+    const newDiscovered = [...new Set([...state.discoveredRecipes, ...allIds])];
+    set({
+      discoveredRecipes: newDiscovered,
+      messageLog: [...state.messageLog, `[DEBUG] 📜 Tutte le ricette sbloccate (${newDiscovered.length} totali).`],
+    });
+  },
+
+  debugSetDifficulty: (difficulty: DifficultyLevel) => {
+    set(state => ({
+      difficulty,
+      messageLog: [...state.messageLog, `[DEBUG] ⚙️ Difficoltà impostata a ${difficulty}.`],
+    }));
+  },
+
+  debugTriggerQTE: () => {
+    const state = get();
+    if (state.phase !== 'exploration') {
+      set(state => ({
+        messageLog: [...state.messageLog, '[DEBUG] ⚠️ QTE può essere attivato solo in esplorazione.'],
+      }));
+      return;
+    }
+    get().startQTE('event');
+  },
+
+  debugRevealMap: () => {
+    const state = get();
+    const allLocationIds = Object.keys(LOCATIONS);
+    const newVisited = [...new Set([...state.visitedLocations, ...allLocationIds])];
+    const newUnlocked = [...new Set([...state.unlockedPaths])]; // keep existing
+    set({
+      visitedLocations: newVisited,
+      messageLog: [...state.messageLog, `[DEBUG] 🗺️ Tutte le ${allLocationIds.length} location rivelate sulla mappa.`],
+    });
+  },
+
+  debugResetSearch: () => {
+    set(state => ({
+      searchCounts: {},
+      searchMaxes: {},
+      messageLog: [...state.messageLog, '[DEBUG] 🔍 Contatori ricerca resettati per tutte le location.'],
+    }));
   },
 });
