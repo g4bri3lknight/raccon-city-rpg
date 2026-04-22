@@ -41,6 +41,7 @@ export default function ExplorationScreen() {
     activeDynamicEvent: s.activeDynamicEvent,
     dynamicEventTurnsLeft: s.dynamicEventTurnsLeft,
     activeNpc: s.activeNpc,
+    isExploring: s.isExploring,
     collectedDocuments: s.collectedDocuments,
     npcQuestProgress: s.npcQuestProgress,
     readDocuments: s.readDocuments,
@@ -73,6 +74,7 @@ export default function ExplorationScreen() {
     searchCounts, searchMaxes, partySize, activeEvent, inventoryOpen,
     selectedCharacterId, collectedRibbons, persistentRibbons, isNewGamePlus,
     difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc,
+    isExploring,
     collectedDocuments, npcQuestProgress, readDocuments, randomizerMode,
     randomizedLocationData, currentSubArea, npcsEncountered,
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
@@ -478,23 +480,27 @@ export default function ExplorationScreen() {
               </div>
             )}
             
-            <div className={`grid grid-cols-3 sm:grid-cols-3 gap-1 sm:gap-2 ${activeEvent || activeNpc ? 'opacity-40 pointer-events-none' : ''}`}>
+            {(() => {
+              const isActionBlocked = !!(activeEvent || activeDynamicEvent || activeNpc);
+              return (
+              <div className={`grid grid-cols-3 sm:grid-cols-3 gap-1 sm:gap-2 ${isActionBlocked ? 'opacity-40 pointer-events-none' : ''}`}>
               <Button
                 onClick={explore}
-                disabled={aliveParty.length === 0}
+                disabled={aliveParty.length === 0 || isActionBlocked || isExploring}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
               >
                 <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Esplora
               </Button>
               <Button
                 onClick={searchArea}
-                disabled={aliveParty.length === 0 || searchExhausted}
+                disabled={aliveParty.length === 0 || searchExhausted || isActionBlocked}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Cerca
               </Button>
               <Button
                 onClick={toggleInventory}
+                disabled={isActionBlocked}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
               >
                 <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Inventario</span><span className="sm:hidden">Invent.</span>
@@ -502,24 +508,28 @@ export default function ExplorationScreen() {
 
               <Button
                 onClick={toggleMap}
+                disabled={isActionBlocked}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
               >
                 <Map className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Mappa
               </Button>
               <Button
                 onClick={toggleAchievements}
+                disabled={isActionBlocked}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
               >
                 <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Traguardi</span><span className="sm:hidden">Trag.</span>
               </Button>
               <Button
                 onClick={toggleBestiary}
+                disabled={isActionBlocked}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
               >
                 <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Bestiario
               </Button>
               <Button
                 onClick={toggleDocuments}
+                disabled={isActionBlocked}
                 className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
               >
                 <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Documenti</span><span className="sm:hidden">Doc.</span>
@@ -534,6 +544,7 @@ export default function ExplorationScreen() {
               </Button>
               <Button
                 onClick={toggleMissions}
+                disabled={isActionBlocked}
                 className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
               >
                 <ScrollText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Missioni
@@ -546,6 +557,7 @@ export default function ExplorationScreen() {
               {hasSafeRoom && (
                 <Button
                   onClick={enterSafeRoom}
+                  disabled={isActionBlocked}
                   className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
                 >
                   <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Safe Room</span><span className="sm:hidden">Safe</span>
@@ -554,13 +566,15 @@ export default function ExplorationScreen() {
               {location.isBossArea && (
                 <Button
                   onClick={startBossFight}
-                  disabled={aliveParty.length === 0}
+                  disabled={aliveParty.length === 0 || isActionBlocked}
                   className="col-span-3 sm:col-span-1 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-white text-[10px] sm:text-sm py-1.5 sm:py-2.5 font-bold animate-pulse"
                 >
                   <Skull className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Affronta il Boss
                 </Button>
               )}
             </div>
+              );
+            })()}
 
             {/* Travel Options */}
             {/* #45 Randomizer: use randomized nextLocations */}
@@ -584,7 +598,7 @@ export default function ExplorationScreen() {
                           key={locId}
                           variant="outline"
                           onClick={() => travelTo(locId)}
-                          disabled={isLocked}
+                          disabled={isLocked || !!(activeEvent || activeDynamicEvent || activeNpc)}
                           className={`text-[10px] sm:text-xs border ${
                             isLocked
                               ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'

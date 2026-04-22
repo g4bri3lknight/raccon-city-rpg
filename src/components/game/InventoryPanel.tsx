@@ -34,6 +34,7 @@ export default function InventoryPanel() {
   const transferItem = useGameStore(s => s.transferItem);
   const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
   const [showTransferPicker, setShowTransferPicker] = useState(false);
+  const [transferQty, setTransferQty] = useState(1);
   const [sortMode, setSortMode] = useState<'name' | 'type' | 'rarity'>('name');
   const [activeTab, setActiveTab] = useState<'inventory' | 'recipes'>('inventory');
   const craftItem = useGameStore(s => s.craftItem);
@@ -408,7 +409,7 @@ export default function InventoryPanel() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setShowTransferPicker(true)}
+                    onClick={() => { setTransferQty(selectedItem?.quantity || 1); setShowTransferPicker(true); }}
                     className="bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all"
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" /> Dai a...
@@ -462,6 +463,38 @@ export default function InventoryPanel() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
+                {/* Quantity selector for stackable items */}
+                {(selectedItem.type === 'ammo' || selectedItem.type === 'healing' || selectedItem.type === 'antidote') && selectedItem.quantity > 1 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs text-white/40">Quantità:</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setTransferQty(q => Math.max(1, q - 1))}
+                        className="w-7 h-7 flex items-center justify-center rounded bg-white/[0.06] hover:bg-white/[0.12] text-white/60 hover:text-white text-sm transition-colors"
+                      >−</button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={selectedItem.quantity}
+                        value={transferQty}
+                        onChange={e => {
+                          const v = parseInt(e.target.value) || 1;
+                          setTransferQty(Math.min(selectedItem.quantity, Math.max(1, v)));
+                        }}
+                        className="w-12 h-7 text-center text-sm bg-white/[0.06] border border-white/[0.08] rounded text-white"
+                      />
+                      <button
+                        onClick={() => setTransferQty(q => Math.min(selectedItem.quantity, q + 1))}
+                        className="w-7 h-7 flex items-center justify-center rounded bg-white/[0.06] hover:bg-white/[0.12] text-white/60 hover:text-white text-sm transition-colors"
+                      >+</button>
+                    </div>
+                    <button
+                      onClick={() => setTransferQty(selectedItem.quantity)}
+                      className="text-[10px] text-white/40 hover:text-white/70 transition-colors ml-1"
+                    >Tutto</button>
+                    <span className="text-[10px] text-white/30">/ {selectedItem.quantity}</span>
+                  </div>
+                )}
               </div>
               <div className="p-3 space-y-2">
                 {party
@@ -474,7 +507,9 @@ export default function InventoryPanel() {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
-                          const success = transferItem(selectedChar!.id, selectedItem.uid, char.id);
+                          const isStackable = selectedItem.type === 'ammo' || selectedItem.type === 'healing' || selectedItem.type === 'antidote';
+                          const qty = isStackable ? transferQty : undefined;
+                          const success = transferItem(selectedChar!.id, selectedItem.uid, char.id, qty);
                           if (success) {
                             setSelectedItem(null);
                             setShowTransferPicker(false);

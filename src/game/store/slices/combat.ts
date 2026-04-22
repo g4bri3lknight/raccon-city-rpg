@@ -886,7 +886,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
 
         set({
           notification: {
-            id: `notif_${++notifId}`,
+            id: nextNotifId(),
             type: 'victory',
             message: 'EVASIONE COMPLETATA',
             icon: '🚪',
@@ -920,7 +920,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
 
       set({
         notification: {
-          id: `notif_${++notifId}`,
+          id: nextNotifId(),
           type: 'victory',
           message: 'SOPRAVVVISSUTO',
           icon: '⚔️',
@@ -1685,7 +1685,8 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         return;
       }
 
-      const { log, updatedParty: afterEnemyAttack, appliedStatus, updatedEnemies: enemySelfEffects, activeEffects: enemyActiveEffects } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, updatedEnemiesForStatus, currentActiveEffects);
+      const { log, updatedParty: _afterEnemyAttack, appliedStatus, updatedEnemies: enemySelfEffects, activeEffects: enemyActiveEffects } = executeEnemyAttack(enemy, updatedParty, newTurn, tauntTargetId, updatedEnemiesForStatus, currentActiveEffects);
+      let afterEnemyAttack = _afterEnemyAttack;
 
       if (enemySelfEffects) {
         updatedEnemiesForStatus = updatedEnemiesForStatus.map(e => {

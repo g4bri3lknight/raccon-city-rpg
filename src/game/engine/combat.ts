@@ -538,19 +538,9 @@ function resolveTargets(
     if ('currentHp' in target && 'definitionId' in target) {
       return { enemies: [target as EnemyInstance], allies: [] };
     }
-    // Path 3: Match by name if target has a name property (stale copy scenario)
-    if ('currentHp' in target && 'id' in target) {
-      const targetName = (target as { name?: string }).name;
-      if (targetName) {
-        const matchedByName = enemies.find(e => e.name === targetName && e.currentHp > 0);
-        if (matchedByName) {
-          return { enemies: [matchedByName], allies: [] };
-        }
-      }
-    }
-    // Path 4: REMOVED — no more fallback to first alive enemy.
-    // The fallback was causing specials like Colpo Mortale to attack the wrong enemy
-    // when the target resolution failed due to stale/incorrect target objects.
+    // Path 3: REMOVED — name-based fallback was dangerous when multiple enemies
+    // share the same name (e.g., 3 Zombies). Could cause abilities to hit the wrong
+    // enemy. Only ID-based resolution is safe.
     // If no target was matched, return empty and let the caller handle it.
     return { enemies: [], allies: [] };
   }
@@ -601,16 +591,31 @@ function handleDealDamage(
   // Always determine the "primary enemy" from the `target` parameter.
   // This is the enemy the player selected — exactly like basic attack does it.
   // The store already resolved the correct target; we just need to find it in the enemies array.
+  const targetId = (target as { id?: string }).id;
   let primaryEnemy: EnemyInstance | null = null;
-  if ('currentHp' in target && 'definitionId' in target) {
-    // Target is a proper EnemyInstance — find the matching fresh instance in enemies array
-    const targetId = (target as EnemyInstance).id;
-    const freshInstance = enemies.find(e => e.id === targetId && e.currentHp > 0);
-    primaryEnemy = freshInstance || (target as EnemyInstance);
-  } else if ('id' in target) {
-    // Target might be a Character — find the enemy by selectedTarget ID
-    const targetId = (target as { id: string }).id;
+
+  if (targetId) {
+    // Always look up the fresh instance by ID in the current enemies array.
+    // Try alive first, then allow dead (for overkill scenarios in multi-effect abilities).
     primaryEnemy = enemies.find(e => e.id === targetId && e.currentHp > 0) || null;
+    if (!primaryEnemy) {
+      primaryEnemy = enemies.find(e => e.id === targetId) || null;
+    }
+    // SAFETY FALLBACK: If ID lookup failed for a single-target effect, try using
+    // the passed target directly. The store resolved the correct enemy instance
+    // from selectedTarget, so if it's an EnemyInstance with a valid definitionId,
+    // we can use it as a last resort. This prevents abilities like Colpo Mortale
+    // or Raffica's first effect from silently doing nothing when the ID-based
+    // lookup fails due to timing/state synchronization edge cases.
+    if (!primaryEnemy && (effTarget === 'enemy') && 'definitionId' in target && 'currentHp' in target) {
+      console.warn(`[Combat] handleDealDamage: target ${targetId} not found in enemies array ` +
+        `(enemies=[${enemies.map(e => `${e.id}(${e.currentHp}/${e.maxHp})`).join(', ')}]), ` +
+        `using passed target directly as fallback.`);
+      primaryEnemy = target as EnemyInstance;
+    } else if (!primaryEnemy && (effTarget === 'enemy' || effTarget === 'random_enemy')) {
+      console.warn(`[Combat] handleDealDamage: target ${targetId} not found in enemies array ` +
+        `(enemies=[${enemies.map(e => `${e.id}(${e.currentHp}/${e.maxHp})`).join(', ')}]), skipping effect.`);
+    }
   }
 
   // ── DETERMINE WHICH ENEMIES TO DAMAGE ──
@@ -618,7 +623,30 @@ function handleDealDamage(
 
   if (effTarget === 'enemy') {
     // Single-target: use the primary enemy directly (like basic attack)
-    enemyTargets = primaryEnemy ? [primaryEnemy] : [];
+    // FIX: If primaryEnemy was resolved via fallback (direct target reference),
+    // ensure it still exists in the current enemies array for proper damage application.
+    // If not found, try matching by definitionId (for cases where the enemy was
+    // re-instantiated between target selection and effect execution).
+    if (primaryEnemy) {
+      const inArray = enemies.find(e => e.id === primaryEnemy.id);
+      if (inArray) {
+        enemyTargets = [inArray];
+      } else if ('definitionId' in primaryEnemy) {
+        // Fallback: match by definitionId among alive enemies of the same type
+        const byDef = enemies.find(e => e.definitionId === (primaryEnemy as EnemyInstance).definitionId && e.currentHp > 0);
+        if (byDef) {
+          console.warn(`[Combat] handleDealDamage: target ${targetId} not in enemies, matched by definitionId to ${byDef.id}`);
+          primaryEnemy = byDef;
+          enemyTargets = [byDef];
+        } else {
+          enemyTargets = [];
+        }
+      } else {
+        enemyTargets = [];
+      }
+    } else {
+      enemyTargets = [];
+    }
   } else if (effTarget === 'all_enemies') {
     // AoE: all alive enemies
     enemyTargets = enemies.filter(e => e.currentHp > 0);
@@ -634,8 +662,12 @@ function handleDealDamage(
   if (enemyTargets.length === 0) return {};
 
   // When excludePrimaryTarget is true, check if there are any non-primary targets.
-  if (excludePrimaryTarget) {
-    const nonPrimaryTargets = enemyTargets.filter(et => !primaryEnemy || et.id !== primaryEnemy.id);
+  // FIX: If primaryEnemy is null (target resolution failed), do NOT skip this effect
+  // for AoE abilities — damage all valid targets instead. This prevents Raffica's
+  // secondary effect (all_enemies + excludePrimaryTarget) from being silently
+  // dropped when the target lookup fails.
+  if (excludePrimaryTarget && primaryEnemy) {
+    const nonPrimaryTargets = enemyTargets.filter(et => et.id !== primaryEnemy.id);
     if (nonPrimaryTargets.length === 0) return {};
   }
 
@@ -1590,18 +1622,20 @@ function executeEffectsInternal(
     console.warn(`[Combat] Effects did not activate for ${actionLabel}: effects=[${effectSummary}] aliveEnemies=${enemyCount} targetId=${'id' in target ? (target as {id?:string}).id : 'N/A'}`);
 
     // FALLBACK: For deal_damage effects targeting 'enemy' with no results,
-    // attempt a direct damage application to the first alive enemy.
-    // This handles edge cases where resolveTargets fails due to stale target objects.
+    // attempt a direct damage application using the selected target.
+    // FIX: Use currentEnemies instead of the original enemies array
+    // (the original may be stale if previous effects modified enemy HP).
+    // FIX: Do NOT fall back to first alive enemy — this caused abilities to
+    // attack the wrong target. Only use the explicitly selected target.
     const hasDamageEffect = effects.some(e => e.type === 'deal_damage');
-    if (hasDamageEffect && enemyCount > 0) {
-      // Try the selected target first by ID, only fall back to first alive as last resort
+    if (hasDamageEffect && currentEnemies.filter(e => e.currentHp > 0).length > 0) {
       let fallbackEnemy: EnemyInstance | null = null;
       if ('id' in target) {
-        fallbackEnemy = enemies.find(e => e.id === (target as { id: string }).id && e.currentHp > 0) || null;
+        fallbackEnemy = currentEnemies.find(e => e.id === (target as { id: string }).id && e.currentHp > 0) || null;
       }
-      if (!fallbackEnemy) {
-        // Only as last resort, use first alive enemy
-        fallbackEnemy = enemies.find(e => e.currentHp > 0) || null;
+      // Secondary fallback: match by definitionId if target has one (enemy re-instantiated)
+      if (!fallbackEnemy && 'definitionId' in target) {
+        fallbackEnemy = currentEnemies.find(e => e.definitionId === (target as EnemyInstance).definitionId && e.currentHp > 0) || null;
       }
       if (!fallbackEnemy) {
         return { log: { turn, actorName: character.name, actorType: 'player', action: actionLabel, message: `${character.name} usa ${actionLabel} ma non ci sono bersagli validi!` } };
@@ -1623,7 +1657,7 @@ function executeEffectsInternal(
       finalDamage = Math.max(1, finalDamage);
       const isCrit = damageEffect.guaranteedCrit || calcResult.isCritical;
 
-      const updatedEnemies = enemies.map(e => {
+      const updatedEnemies = currentEnemies.map(e => {
         if (e.id === fallbackEnemy.id) {
           return { ...e, currentHp: Math.max(0, e.currentHp - finalDamage), isDefending: false };
         }

@@ -41,6 +41,8 @@ import {
 export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   explore: () => {
     const state = get();
+    if (state.isExploring) return;
+    set({ isExploring: true });
     const location = LOCATIONS[state.currentLocationId];
 
     // Schedule auto-save every 5 turns (fires after current explore completes)
@@ -65,7 +67,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     // Check for combat encounter (skip if just resolved an event)
     const shouldSkipEncounter = state.skipNextEncounter;
     if (shouldSkipEncounter) {
-      set({ messageLog: newLog, turnCount: state.turnCount + 1, skipNextEncounter: false });
+      set({ messageLog: newLog, turnCount: state.turnCount + 1, skipNextEncounter: false, isExploring: false });
       return;
     }
 
@@ -78,7 +80,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
       const enemies: EnemyInstance[] = [];
       if (enemyPool.length === 0) {
-        set({ messageLog: newLog, turnCount: state.turnCount + 1 });
+        set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
         return;
       }
       for (let i = 0; i < numEnemies; i++) {
@@ -108,6 +110,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           icon: '⚔️',
           subMessage: 'Preparati al combattimento!',
         },
+        isExploring: false,
       });
 
       // Delay combat start to show notification
@@ -206,6 +209,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         },
         nemesisLastSeenLocation: state.currentLocationId,
         nemesisLastSeenTurn: state.turnCount,
+        isExploring: false,
       });
 
       setTimeout(() => {
@@ -286,6 +290,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
             icon: event.icon,
             subMessage: event.onTriggerMessage,
           },
+          isExploring: false,
         });
         return;
       }
@@ -312,6 +317,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           party: updatedParty,
           messageLog: [...newLog, ...tickLog],
           turnCount: state.turnCount + 1,
+          isExploring: false,
         });
       } else {
         set({
@@ -319,6 +325,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           party: updatedParty,
           messageLog: [...newLog, ...tickLog],
           turnCount: state.turnCount + 1,
+          isExploring: false,
         });
       }
       return;
@@ -329,6 +336,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     const newNpcs = locationNpcs.filter(n => !state.npcsEncountered.includes(n.id));
     if (newNpcs.length > 0 && Math.random() < 0.15) {
       const npc = newNpcs[Math.floor(Math.random() * newNpcs.length)];
+      set({ isExploring: false });
       get().encounterNpc(npc.id);
       return;
     }
@@ -352,7 +360,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           }
           if (itemDef.type === 'collectible') {
             if (state.collectedRibbons >= 10) {
-              set({ messageLog: newLog, turnCount: state.turnCount + 1 });
+              set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
               return;
             }
             const newCount = state.collectedRibbons + 1;
@@ -368,6 +376,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
                 itemId: 'ink_ribbon',
                 subMessage: `Collezionabili: ${newCount}/10`,
               },
+              isExploring: false,
             });
             setTimeout(() => get().checkAchievements(), 100);
             return;
@@ -404,6 +413,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
                   subMessage: `${targetChar.name}: ${oldSlots} → ${newSlots} slot`,
                   characterId: targetId,
                 } : null,
+                isExploring: false,
               });
             } else {
               // Add to inventory as normal item
@@ -436,6 +446,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
                   subMessage: `Ricevuto da ${targetChar?.name || 'qualcuno'}`,
                   characterId: targetId,
                 },
+                isExploring: false,
               });
             }
             return;
@@ -447,7 +458,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
               p.inventory.some(i => i.itemId === foundEntry.itemId)
             );
             if (partyAlreadyHasKey) {
-              set({ messageLog: [...newLog, `[${state.turnCount}] 🎒 Avete trovato ${itemDef.name}, ma ne avete già una copia.`], turnCount: state.turnCount + 1 });
+              set({ messageLog: [...newLog, `[${state.turnCount}] 🎒 Avete trovato ${itemDef.name}, ma ne avete già una copia.`], turnCount: state.turnCount + 1, isExploring: false });
               return;
             }
           }
@@ -522,6 +533,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
                 subMessage: `Ricevuto da ${finder.name}`,
                 characterId: finder.id,
               } : null,
+              isExploring: false,
             });
           } else {
             set({
@@ -537,6 +549,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
                 subMessage: `Ricevuto da ${finder.name}`,
                 characterId: finder.id,
               },
+              isExploring: false,
             });
           }
           return;
@@ -554,7 +567,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     if (allLocationDocs.length > 0 && Math.random() < 0.25) {
       const doc = allLocationDocs[Math.floor(Math.random() * allLocationDocs.length)];
       if (doc.hintRequired && !state.collectedDocuments.includes(doc.hintRequired)) {
-        set({ messageLog: newLog, turnCount: state.turnCount + 1 });
+        set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
         return;
       }
       try { playDocumentFound(); } catch {}
@@ -570,11 +583,12 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           icon: doc.icon,
           subMessage: doc.type === 'umbrella_file' ? '📄 File Umbrella' : `📝 ${doc.type}`,
         },
+        isExploring: false,
       });
       return;
     }
 
-    set({ messageLog: newLog, turnCount: state.turnCount + 1 });
+    set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
   },
 
   travelTo: (locationId: string) => {

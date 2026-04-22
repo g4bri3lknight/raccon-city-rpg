@@ -37,7 +37,7 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
       ...(alreadyEncountered ? {} : {
         messageLog: [...state.messageLog, `[${state.turnCount}] 👤 Incontrate ${npc.name}! "${npc.greeting}"`],
         notification: {
-          id: `notif_${++notifId}`,
+          id: nextNotifId(),
           type: 'item_found',
           message: npc.name,
           icon: npc.portrait,

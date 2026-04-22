@@ -25,7 +25,7 @@ export default function ItemSelector({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.12 }}
-            className="hidden lg:flex flex-col absolute z-40 right-44 sm:right-52 bottom-2 sm:bottom-3 glass-dark rounded-lg overflow-hidden"
+            className="hidden lg:flex flex-col absolute z-40 right-[220px] xl:right-[244px] bottom-2 sm:bottom-3 glass-dark rounded-lg overflow-hidden"
             style={{ width: '370px', height: '240px' }}
           >
             {/* Header — spans full width */}

@@ -355,7 +355,7 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
     return combined;
   },
 
-  transferItem: (fromCharacterId: string, itemUid: string, toCharacterId: string) => {
+  transferItem: (fromCharacterId: string, itemUid: string, toCharacterId: string, quantity?: number) => {
     if (fromCharacterId === toCharacterId) return false;
 
     let transferred = false;
@@ -369,11 +369,18 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
       const item = fromChar.inventory.find(i => i.uid === itemUid);
       if (!item) return state;
 
+      // Determine transfer quantity (default: entire stack)
+      const isStackable = item.type === 'ammo' || item.type === 'healing' || item.type === 'antidote';
+      const transferQty = (isStackable && quantity !== undefined && quantity > 0)
+        ? Math.min(quantity, item.quantity)
+        : item.quantity;
+      if (transferQty <= 0) return state;
+
       let updatedFromChar = { ...fromChar };
       let updatedToChar = { ...toChar };
       let updatedParty = state.party;
 
-      if (item.isEquipped) {
+      if (item.isEquipped && transferQty === item.quantity) {
         if (item.weaponStats) {
           updatedFromChar = { ...updatedFromChar, weapon: null };
         } else if (item.type === 'armor') {
@@ -383,23 +390,33 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
         }
       }
 
-      updatedFromChar = {
-        ...updatedFromChar,
-        inventory: updatedFromChar.inventory.map(i =>
-          i.uid === itemUid ? { ...i, isEquipped: false } : i
-        ).filter(i => i.uid !== itemUid),
-      };
+      // Remove from source (reduce quantity or remove entirely)
+      if (transferQty >= item.quantity) {
+        updatedFromChar = {
+          ...updatedFromChar,
+          inventory: updatedFromChar.inventory.map(i =>
+            i.uid === itemUid ? { ...i, isEquipped: false } : i
+          ).filter(i => i.uid !== itemUid),
+        };
+      } else {
+        updatedFromChar = {
+          ...updatedFromChar,
+          inventory: updatedFromChar.inventory.map(i =>
+            i.uid === itemUid ? { ...i, quantity: i.quantity - transferQty } : i
+          ),
+        };
+      }
 
-      const isStackable = item.type === 'ammo' || item.type === 'healing' || item.type === 'antidote';
+      // Add to target
       const existingTargetIdx = updatedToChar.inventory.findIndex(i => i.itemId === item.itemId);
       if (isStackable && existingTargetIdx >= 0) {
         const updatedInv = [...updatedToChar.inventory];
-        updatedInv[existingTargetIdx] = { ...updatedInv[existingTargetIdx], quantity: updatedInv[existingTargetIdx].quantity + item.quantity };
+        updatedInv[existingTargetIdx] = { ...updatedInv[existingTargetIdx], quantity: updatedInv[existingTargetIdx].quantity + transferQty };
         updatedToChar = { ...updatedToChar, inventory: updatedInv };
       } else if (updatedToChar.inventory.length < updatedToChar.maxInventorySlots || item.type === 'bag') {
         updatedToChar = {
           ...updatedToChar,
-          inventory: [...updatedToChar.inventory, { ...item, isEquipped: false }],
+          inventory: [...updatedToChar.inventory, { ...item, isEquipped: false, quantity: transferQty }],
         };
       } else {
         logMsg = `[Turno ${state.turnCount}] 🚫 Inventario di ${toChar.name} pieno!`;
@@ -419,7 +436,8 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
       });
 
       transferred = true;
-      logMsg = `[Turno ${state.turnCount}] 🔄 ${fromChar.name} passa ${item.name} a ${toChar.name}.`;
+      const qtyLabel = transferQty < item.quantity ? ` x${transferQty}` : '';
+      logMsg = `[Turno ${state.turnCount}] 🔄 ${fromChar.name} passa ${item.name}${qtyLabel} a ${toChar.name}.`;
 
       const transferBagAmt = getAddSlotsAmount(item.effects);
       if (item.type === 'bag' && transferBagAmt !== null) {

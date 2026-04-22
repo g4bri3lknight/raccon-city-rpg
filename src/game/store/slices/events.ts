@@ -15,7 +15,7 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
       dynamicEventTurnsLeft: event.duration,
       messageLog: [...state.messageLog, `[${state.turnCount}] ${event.icon} ${event.onTriggerMessage}`],
       notification: {
-        id: `notif_${++notifId}`,
+        id: nextNotifId(),
         type: 'encounter',
         message: `${event.icon} ${event.title}`,
         icon: event.icon,
@@ -130,7 +130,7 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
       messageLog: [...state.messageLog, ...logMsgs],
       turnCount: state.turnCount + 1,
       notification: {
-        id: `notif_${++notifId}`,
+        id: nextNotifId(),
         type: 'item_found',
         message: `🚪 ${secret.name}`,
         icon: '🚪',
