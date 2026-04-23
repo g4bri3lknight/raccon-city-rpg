@@ -19,6 +19,7 @@ export const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: str
     common:    { it: 'Comune' },
     uncommon:  { it: 'Non Comune' },
     rare:      { it: 'Raro' },
+    epic:      { it: 'Epico' },
     legendary: { it: 'Leggendario' },
   },
   questType: {
@@ -33,6 +34,8 @@ export const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: str
     lockdown:  { it: 'Isolamento', hint: 'aree chiuse' },
     gas_leak:  { it: 'Fuga di Gas', hint: 'danni cumulativi' },
     fire:      { it: 'Incendio', hint: 'danni gravi' },
+    nemesis_invasion: { it: 'Invasione Nemesis', hint: 'Nemesis attacca ogni N turni' },
+    horde:           { it: 'Orda', hint: 'ondata continua di nemici' },
   },
   documentType: {
     diary:          { it: 'Diario' },
@@ -72,6 +75,7 @@ export const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: str
     dps:     { it: 'DPS' },
     control: { it: 'Controllo' },
     custom:  { it: 'Personalizzato' },
+    survivor: { it: 'Sopravvissuto' },
   },
   specialCategory: {
     offensive: { it: 'Offensivo' },

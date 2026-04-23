@@ -197,6 +197,7 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
           common: 'border-gray-500/30 text-gray-400 bg-gray-500/10',
           uncommon: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/10',
           rare: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/15',
+          epic: 'border-purple-400/40 text-purple-300 bg-purple-400/15',
           legendary: 'border-emerald-300/40 text-emerald-200 bg-emerald-300/15',
         };
         return (

@@ -271,8 +271,14 @@ export default function MapEditor() {
       if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
         processed[f.key] = JSON.stringify(processed[f.key]);
       }
+      // For known nullable fields, set empty to null instead of deleting
+      const NULLABLE_FIELDS = new Set(['searchChance', 'docChance', 'searchMax', 'bossId', 'mapIcon', 'mapRow', 'mapCol']);
       if (processed[f.key] === '' || processed[f.key] === undefined) {
-        delete processed[f.key];
+        if (NULLABLE_FIELDS.has(f.key)) {
+          processed[f.key] = null;
+        } else {
+          delete processed[f.key];
+        }
       }
     }
     return processed;

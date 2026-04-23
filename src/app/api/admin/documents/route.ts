@@ -16,6 +16,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    if (body.isSecret !== undefined) body.isSecret = !!body.isSecret;
     const document = await db.document.create({ data: body });
     return NextResponse.json(document, { status: 201 });
   } catch (error) {
@@ -29,6 +30,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, ...data } = body;
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+    if (data.isSecret !== undefined) data.isSecret = !!data.isSecret;
     const document = await db.document.update({ where: { id }, data });
     return NextResponse.json(document);
   } catch (error) {

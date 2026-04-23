@@ -30,6 +30,9 @@ export async function GET() {
       tradeInventory: JSON.parse(row.tradeInventory || '[]'),
       questCompletedDialogue: JSON.parse(row.questCompletedDialogue || '[]'),
       sortOrder: row.sortOrder,
+      badgeLabel: row.badgeLabel,
+      badgeIcon: row.badgeIcon,
+      badgeColor: row.badgeColor,
       createdAt: row.createdAt,
     }));
 
@@ -63,6 +66,9 @@ export async function POST(request: NextRequest) {
         tradeInventory: jsonStr(body.tradeInventory, '[]'),
         questCompletedDialogue: jsonStr(body.questCompletedDialogue, '[]'),
         sortOrder: body.sortOrder ?? 0,
+        badgeLabel: body.badgeLabel ?? '',
+        badgeIcon: body.badgeIcon ?? '',
+        badgeColor: body.badgeColor ?? '',
       },
     });
 
@@ -96,6 +102,9 @@ export async function PUT(request: NextRequest) {
     if (updateFields.tradeInventory !== undefined) data.tradeInventory = jsonStr(updateFields.tradeInventory, '[]');
     if (updateFields.questCompletedDialogue !== undefined) data.questCompletedDialogue = jsonStr(updateFields.questCompletedDialogue, '[]');
     if (updateFields.sortOrder !== undefined) data.sortOrder = updateFields.sortOrder;
+    if (updateFields.badgeLabel !== undefined) data.badgeLabel = updateFields.badgeLabel;
+    if (updateFields.badgeIcon !== undefined) data.badgeIcon = updateFields.badgeIcon;
+    if (updateFields.badgeColor !== undefined) data.badgeColor = updateFields.badgeColor;
 
     const npc = await db.gameNPC.update({
       where: { id },

@@ -100,6 +100,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
+    // Coerce number fields from string to number
+    if (data.maxHp !== undefined) data.maxHp = Number(data.maxHp) || 100;
+    if (data.atk !== undefined) data.atk = Number(data.atk) || 0;
+    if (data.def !== undefined) data.def = Number(data.def) || 0;
+    if (data.spd !== undefined) data.spd = Number(data.spd) || 0;
+    if (data.specialCost !== undefined) data.specialCost = Number(data.specialCost) || 0;
+    if (data.special2Cost !== undefined) data.special2Cost = Number(data.special2Cost) || 0;
+    if (data.sortOrder !== undefined) data.sortOrder = Number(data.sortOrder) || 0;
+
     // Serialize startingItems if it's not already a string
     if (data.startingItems !== undefined) {
       data.startingItems = jsonStr(data.startingItems, '[]');

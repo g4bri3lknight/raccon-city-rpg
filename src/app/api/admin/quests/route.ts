@@ -2,6 +2,13 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { safeErrorResponse } from '@/lib/api-utils';
+
+/** Serialize a value to JSON string — skip if already a string */
+function jsonStr(val: unknown, fallback: string): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  try { return JSON.stringify(val); } catch { return fallback; }
+}
 // GET /api/admin/quests — list all
 export async function GET() {
   try {
@@ -16,7 +23,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const quest = await db.sideQuest.create({ data: body });
+    const quest = await db.sideQuest.create({
+      data: {
+        ...body,
+        rewardItems: jsonStr(body.rewardItems, '[]'),
+        rewardDialogue: jsonStr(body.rewardDialogue, '[]'),
+      },
+    });
     return NextResponse.json(quest, { status: 201 });
   } catch (error) {
     return safeErrorResponse(error, '[Admin Quests]');
@@ -29,6 +42,8 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, ...data } = body;
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+    if (data.rewardItems !== undefined) data.rewardItems = jsonStr(data.rewardItems, '[]');
+    if (data.rewardDialogue !== undefined) data.rewardDialogue = jsonStr(data.rewardDialogue, '[]');
     const quest = await db.sideQuest.update({ where: { id }, data });
     return NextResponse.json(quest);
   } catch (error) {

@@ -2,6 +2,13 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { safeErrorResponse } from '@/lib/api-utils';
+
+/** Serialize a value to JSON string — skip if already a string */
+function jsonStr(val: unknown, fallback: string): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  try { return JSON.stringify(val); } catch { return fallback; }
+}
 // GET /api/admin/events — list all
 export async function GET() {
   try {
@@ -16,7 +23,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const event = await db.dynamicEvent.create({ data: body });
+    const event = await db.dynamicEvent.create({
+      data: {
+        ...body,
+        locationIds: jsonStr(body.locationIds, '[]'),
+        choices: jsonStr(body.choices, '[]'),
+      },
+    });
     return NextResponse.json(event, { status: 201 });
   } catch (error) {
     return safeErrorResponse(error, '[Admin Events]');
@@ -29,6 +42,8 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, ...data } = body;
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+    if (data.locationIds !== undefined) data.locationIds = jsonStr(data.locationIds, '[]');
+    if (data.choices !== undefined) data.choices = jsonStr(data.choices, '[]');
     const event = await db.dynamicEvent.update({ where: { id }, data });
     return NextResponse.json(event);
   } catch (error) {
