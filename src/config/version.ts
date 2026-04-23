@@ -346,7 +346,7 @@ export const VERSION_HISTORY: Array<{
   },
   {
     version: '1.19.0',
-    date: '2025-07-02',
+    date: '2026-04-23',
     changes: [
       '[FIX] Pulsante Seed Default ripristinato nel MapEditor — era sparito dopo l\'unione delle tab Location + Mappa',
       '[FIX] Campi location vuoti nell\'edit: enemyPool, itemPool, description, encounterRate e tutti gli altri campi ora popolati correttamente dal DB',

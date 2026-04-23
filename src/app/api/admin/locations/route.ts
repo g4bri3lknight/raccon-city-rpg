@@ -86,30 +86,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'id and name are required' }, { status: 400 });
     }
 
+    // Handle mapDanger: if 'auto' (-1) is selected, calculate from enemy pool
+    let mapDanger = 0;
+    let mapDangerAuto = false;
+    const rawDanger = String(body.mapDanger ?? '0');
+    if (rawDanger === '-1' || rawDanger === 'auto') {
+      const enemyPoolStr = jsonStr(body.enemyPool, '[]');
+      mapDanger = await calcAutoDanger(enemyPoolStr);
+      mapDangerAuto = true;
+    } else {
+      mapDanger = parseInt(rawDanger, 10) || 0;
+    }
+
     const location = await db.gameLocation.create({
       data: {
         id: body.id,
         name: body.name,
         description: body.description ?? '',
-        encounterRate: body.encounterRate ?? 0,
+        encounterRate: Number(body.encounterRate) || 0,
         enemyPool: jsonStr(body.enemyPool, '[]'),
         itemPool: jsonStr(body.itemPool, '[]'),
         storyEvent: body.storyEvent ? jsonStr(body.storyEvent, '') : '',
         nextLocations: jsonStr(body.nextLocations, '[]'),
-        isBossArea: body.isBossArea ?? false,
+        isBossArea: !!body.isBossArea,
         bossId: body.bossId ?? null,
         ambientText: jsonStr(body.ambientText, '[]'),
         lockedLocations: jsonStr(body.lockedLocations, '[]'),
         subAreas: jsonStr(body.subAreas, '[]'),
-        sortOrder: body.sortOrder ?? 0,
-        searchChance: body.searchChance != null ? body.searchChance : null,
-        docChance: body.docChance != null ? body.docChance : null,
-        searchMax: body.searchMax != null ? body.searchMax : null,
-        mapRow: body.mapRow ?? null,
-        mapCol: body.mapCol ?? null,
+        sortOrder: Number(body.sortOrder) || 0,
+        searchChance: body.searchChance != null ? Number(body.searchChance) : null,
+        docChance: body.docChance != null ? Number(body.docChance) : null,
+        searchMax: body.searchMax != null ? Number(body.searchMax) : null,
+        mapRow: body.mapRow != null ? Number(body.mapRow) : null,
+        mapCol: body.mapCol != null ? Number(body.mapCol) : null,
         mapIcon: body.mapIcon ?? null,
-        mapDanger: body.mapDanger ?? 0,
-        mapDangerAuto: body.mapDangerAuto ?? false,
+        mapDanger,
+        mapDangerAuto,
       },
     });
 

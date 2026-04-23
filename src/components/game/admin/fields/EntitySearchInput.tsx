@@ -182,13 +182,18 @@ export function MiniEntitySearch({ value, onChange, endpoint, labelKey, iconKey 
   // Find current entity name
   const currentEntity = entities.find(e => e.id === value);
 
+  const filterEntities = (v: string) => {
+    const q = v.toLowerCase();
+    if (!q) return entities; // show all when empty
+    return entities.filter(e =>
+      e.id.toLowerCase().includes(q) || e.label.toLowerCase().includes(q)
+    );
+  };
+
   const handleInputChange = (v: string) => {
     setQuery(v);
     onChange(v);
-    const q = v.toLowerCase();
-    const filtered = entities.filter(e =>
-      e.id.toLowerCase().includes(q) || e.label.toLowerCase().includes(q)
-    ).slice(0, 10);
+    const filtered = filterEntities(v);
     setResults(filtered);
     setShowDropdown(filtered.length > 0);
   };
@@ -206,7 +211,9 @@ export function MiniEntitySearch({ value, onChange, endpoint, labelKey, iconKey 
         value={query}
         onChange={e => handleInputChange(e.target.value)}
         onFocus={() => {
-          if (query.length > 0) handleInputChange(query);
+          const filtered = filterEntities(query);
+          setResults(filtered);
+          setShowDropdown(filtered.length > 0);
         }}
         placeholder="Cerca..."
         className="w-full text-[12px] bg-black border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-emerald-500/40"

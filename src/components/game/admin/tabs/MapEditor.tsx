@@ -530,24 +530,26 @@ export default function MapEditor() {
                             R{cell.row}
                           </span>
 
-                          {/* Action buttons (edit/delete) — visible on cell hover */}
+                          {/* Action buttons (edit/delete) — always visible */}
                           {cell.location && (
-                            <div className="absolute top-1 right-1 z-20 flex items-center gap-0.5 opacity-0 [.group\/cell:hover_&]:opacity-100 transition-opacity">
+                            <div className="absolute top-1 right-1 z-20 flex items-center gap-1">
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setEditingId(cell.location!.id); setCreating(false); }}
-                                className="text-[10px] text-cyan-400/60 hover:text-cyan-300 bg-black/60 rounded p-0.5 transition-colors"
+                                className="flex items-center gap-1 text-[10px] font-medium text-cyan-400/80 hover:text-cyan-300 bg-black/70 rounded-md px-1.5 py-1 transition-colors border border-cyan-500/15 hover:border-cyan-500/30"
                                 title="Modifica"
                               >
-                                <Pencil className="w-3 h-3" />
+                                <Pencil className="w-3.5 h-3.5" />
+                                <span>Modifica</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); handleDelete(cell.location!.id); }}
-                                className="text-[10px] text-red-400/50 hover:text-red-300 bg-black/60 rounded p-0.5 transition-colors"
+                                className="flex items-center gap-1 text-[10px] font-medium text-red-400/70 hover:text-red-300 bg-black/70 rounded-md px-1.5 py-1 transition-colors border border-red-500/15 hover:border-red-500/30"
                                 title="Elimina"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Elimina</span>
                               </button>
                             </div>
                           )}
@@ -703,34 +705,40 @@ export default function MapEditor() {
                         onDragEnd={handleDragEnd}
                         className="p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] cursor-grab active:cursor-grabbing hover:bg-white/[0.04] transition-colors"
                       >
+                        {/* Name row */}
                         <div className="flex items-center gap-2">
                           <GripVertical className="w-3 h-3 text-white/15 shrink-0" />
                           <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
                           <span className="text-[11px] text-white/60 truncate min-w-0 flex-1">{loc.name}</span>
-                          {/* Quick action buttons */}
+                        </div>
+                        {/* Action buttons row */}
+                        <div className="flex items-center gap-1.5 mt-1.5 pl-5">
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setEditingId(loc.id); setCreating(false); }}
-                            className="text-[10px] text-cyan-400/50 hover:text-cyan-400 shrink-0 transition-colors"
+                            className="flex items-center gap-1 text-[10px] font-medium text-cyan-400/70 hover:text-cyan-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-cyan-500/15 hover:border-cyan-500/30"
                             title="Modifica location"
                           >
                             <Pencil className="w-3 h-3" />
+                            <span>Modifica</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => placeAtEmpty(loc.id)}
-                            className="text-[10px] text-emerald-400/60 hover:text-emerald-400 shrink-0 transition-colors"
+                            className="flex items-center gap-1 text-[10px] font-medium text-emerald-400/60 hover:text-emerald-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-emerald-500/15 hover:border-emerald-500/30"
                             title="Posiziona automaticamente"
                           >
                             <Eye className="w-3 h-3" />
+                            <span>Mappa</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(loc.id)}
-                            className="text-[10px] text-red-400/40 hover:text-red-400 shrink-0 transition-colors"
+                            className="flex items-center gap-1 text-[10px] font-medium text-red-400/60 hover:text-red-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-red-500/15 hover:border-red-500/30"
                             title="Elimina location"
                           >
                             <Trash2 className="w-3 h-3" />
+                            <span>Elimina</span>
                           </button>
                         </div>
                         {showConnectionNames && locConns.length > 0 && (

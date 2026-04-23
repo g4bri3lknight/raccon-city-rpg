@@ -14,53 +14,40 @@ export async function POST() {
     let seeded = 0;
 
     for (const loc of entries) {
+      const commonFields = {
+        name: loc.name,
+        description: loc.description,
+        encounterRate: loc.encounterRate,
+        enemyPool: JSON.stringify(loc.enemyPool),
+        itemPool: JSON.stringify(loc.itemPool),
+        storyEvent: loc.storyEvent ? JSON.stringify(loc.storyEvent) : '',
+        nextLocations: JSON.stringify(loc.nextLocations),
+        isBossArea: loc.isBossArea,
+        bossId: loc.bossId ?? null,
+        ambientText: JSON.stringify(loc.ambientText ?? []),
+        lockedLocations: JSON.stringify(loc.lockedLocations ?? []),
+        subAreas: JSON.stringify(loc.subAreas ?? []),
+        mapRow: loc.mapRow ?? null,
+        mapCol: loc.mapCol ?? null,
+        mapIcon: loc.mapIcon ?? null,
+        mapDanger: loc.mapDanger ?? 0,
+        mapDangerAuto: true,
+        searchChance: loc.searchChance ?? null,
+        docChance: loc.docChance ?? null,
+        searchMax: loc.searchMax ?? null,
+        shortName: loc.shortName ?? null,
+      };
+
       await db.gameLocation.upsert({
         where: { id: loc.id },
-        update: {
-          name: loc.name,
-          description: loc.description,
-          encounterRate: loc.encounterRate,
-          enemyPool: JSON.stringify(loc.enemyPool),
-          itemPool: JSON.stringify(loc.itemPool),
-          storyEvent: loc.storyEvent ? JSON.stringify(loc.storyEvent) : '',
-          nextLocations: JSON.stringify(loc.nextLocations),
-          isBossArea: loc.isBossArea,
-          bossId: loc.bossId ?? null,
-          ambientText: JSON.stringify(loc.ambientText ?? []),
-          lockedLocations: JSON.stringify(loc.lockedLocations ?? []),
-          subAreas: JSON.stringify(loc.subAreas ?? []),
-          mapRow: loc.mapRow ?? null,
-          mapCol: loc.mapCol ?? null,
-          mapIcon: loc.mapIcon ?? null,
-          mapDanger: loc.mapDanger != null ? String(loc.mapDanger) : null,
-          shortName: loc.shortName ?? null,
-        },
-        create: {
-          id: loc.id,
-          name: loc.name,
-          description: loc.description,
-          encounterRate: loc.encounterRate,
-          enemyPool: JSON.stringify(loc.enemyPool),
-          itemPool: JSON.stringify(loc.itemPool),
-          storyEvent: loc.storyEvent ? JSON.stringify(loc.storyEvent) : '',
-          nextLocations: JSON.stringify(loc.nextLocations),
-          isBossArea: loc.isBossArea,
-          bossId: loc.bossId ?? null,
-          ambientText: JSON.stringify(loc.ambientText ?? []),
-          lockedLocations: JSON.stringify(loc.lockedLocations ?? []),
-          subAreas: JSON.stringify(loc.subAreas ?? []),
-          mapRow: loc.mapRow ?? null,
-          mapCol: loc.mapCol ?? null,
-          mapIcon: loc.mapIcon ?? null,
-          mapDanger: loc.mapDanger != null ? String(loc.mapDanger) : null,
-          shortName: loc.shortName ?? null,
-        },
+        update: commonFields,
+        create: { id: loc.id, ...commonFields },
       });
 
       seeded++;
     }
 
-    return NextResponse.json({ seeded });
+    return NextResponse.json({ message: `Seeded ${seeded} locations`, seeded });
   } catch (error) {
     return safeErrorResponse(error, '[Admin Seed Locations]');
   }
