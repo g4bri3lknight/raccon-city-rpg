@@ -98,10 +98,11 @@ export const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: str
     any:    { it: 'Universale', hint: 'Compatibile con tutti i tipi di arma' },
   },
   mapDangerLevel: {
-    basso:    { it: 'Basso', hint: 'poche minacce, area sicura' },
-    medio:    { it: 'Medio', hint: 'minacce moderate, attenzione' },
-    alto:     { it: 'Alto', hint: 'pericoloso, preparati al combattimento' },
-    critico:  { it: 'Critico', hint: 'molto pericoloso, rischio morte' },
+    '-1':    { it: '⚙️ Automatico', hint: 'Calcolato automaticamente in base al pool nemici della location' },
+    '0':     { it: '🟢 Sicura', hint: 'Poche minacce, area sicura' },
+    '1':     { it: '🟡 Moderata', hint: 'Minacce moderate, attenzione' },
+    '2':     { it: '🟠 Pericolosa', hint: 'Pericoloso, preparati al combattimento' },
+    '3':     { it: '🔴 Mortale', hint: 'Molto pericoloso, rischio morte' },
   },
   recipeCategory: {
     ammo:    { it: 'Munizioni' },

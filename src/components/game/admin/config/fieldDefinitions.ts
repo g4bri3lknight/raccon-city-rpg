@@ -132,6 +132,10 @@ export const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'ambientText', label: 'Testi Ambientali', type: 'text-list', colSpan: 3 },
     { key: 'lockedLocations', label: 'Location Bloccate', type: 'locked-locs', colSpan: 3 },
     { key: 'subAreas', label: 'Sotto-Aree', type: 'sub-areas', colSpan: 3 },
+    { key: 'mapRow', label: 'Riga Mappa', type: 'number', placeholder: '0-4', helpText: 'Posizione verticale sulla mappa (0 = in alto). Lascia vuoto per nascondere dalla mappa.' },
+    { key: 'mapCol', label: 'Colonna Mappa', type: 'number', placeholder: '-1, 0, 1', helpText: 'Posizione orizzontale: -1 = sinistra, 0 = centro, 1 = destra' },
+    { key: 'mapIcon', label: 'Icona Mappa', type: 'text', placeholder: 'es: 🏢' },
+    { key: 'mapDanger', label: 'Pericolo Mappa', type: 'select', options: ['-1', '0', '1', '2', '3'], enumGroup: 'mapDangerLevel', defaultValue: '-1', helpText: 'ⓘ Solo visivo sulla mappa. "Automatico" calcola il livello in base ai nemici presenti nella location. Il valore calcolato viene salvato nel DB.' },
     { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione (non usato dal motore di gioco)' },
   ],
   specials: [

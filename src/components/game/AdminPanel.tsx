@@ -29,6 +29,8 @@ import { TableSkeleton } from './admin/TableSkeleton';
 import { AvatarManager } from './admin/tabs/AvatarManager';
 import { StartScreenEditor } from './admin/tabs/StartScreenEditor';
 import { GameSettingsEditor } from './admin/tabs/GameSettingsEditor';
+import MapEditor from './admin/tabs/MapEditor';
+
 
 // ═══════════════════════════════════════════════════════════════
 // Main AdminPanel
@@ -319,7 +321,18 @@ export default function AdminPanel() {
   };
 
   const editingData = editingId
-    ? (data.find(r => String(r.id) === editingId) as Record<string, unknown> || {})
+    ? (() => {
+        const raw = { ...(data.find(r => String(r.id) === editingId) as Record<string, unknown> || {}) };
+        // Map mapDanger: if auto mode, convert to '-1' for the form select
+        if (raw.mapDangerAuto && 'mapDanger' in raw) {
+          raw.mapDanger = '-1';
+        } else if ('mapDanger' in raw) {
+          raw.mapDanger = String(raw.mapDanger);
+        }
+        // Remove mapDangerAuto from form data (API derives it from mapDanger value)
+        delete raw.mapDangerAuto;
+        return raw;
+      })()
     : {};
 
   // ── Login Dialog ──
@@ -519,7 +532,7 @@ export default function AdminPanel() {
           {/* ── Content Area ── */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {tabConfig.custom ? (
-              activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : <StartScreenEditor />
+              activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
             ) : (
             <>
             {/* Status message */}

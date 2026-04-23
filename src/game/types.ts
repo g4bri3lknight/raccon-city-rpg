@@ -522,7 +522,7 @@ export interface LocationDefinition {
   mapRow?: number;       // vertical position (0 = top)
   mapCol?: number;       // horizontal position (0 = center, -1 = left, 1 = right)
   mapIcon?: string;      // emoji icon for map node
-  mapDanger?: number;    // danger level 0-3 for visual color
+  mapDanger?: number;    // danger level 0-3 for visual color (always resolved, auto-calc at save time)
 }
 
 export interface StoryEvent {

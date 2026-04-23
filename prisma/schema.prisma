@@ -134,7 +134,8 @@ model GameLocation {
   mapRow          Int?
   mapCol          Int?
   mapIcon         String?
-  mapDanger       String?
+  mapDanger       Int      @default(0)   // resolved danger level 0-3 (always calculated, even for auto)
+  mapDangerAuto   Boolean  @default(false) // true = auto-calculated from enemy pool
   shortName       String?
   createdAt       DateTime @default(now())
   @@map("game_locations")

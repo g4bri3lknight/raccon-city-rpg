@@ -35,14 +35,14 @@ export function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: 
 
   return (
     <div className="space-y-1.5">
-      <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[12px]">
-          <thead className="sticky top-0 bg-black/95">
+      <div className="max-h-48 overflow-y-auto overflow-x-hidden admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[12px] table-fixed">
+          <thead className="sticky top-0 z-10 bg-black">
             <tr className="border-b border-white/[0.06]">
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Item ID</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-20">Chance %</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-20">Quantità</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium w-8">#</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium">Item</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium w-20">Chance %</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium w-20">Quantità</th>
               <th className="w-8"></th>
             </tr>
           </thead>
@@ -50,7 +50,7 @@ export function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: 
             {items.map((item, i) => (
               <tr key={i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
-                <td className="px-1 py-1">
+                <td className="px-1 py-1 min-w-0 overflow-hidden">
                   <MiniEntitySearch
                     value={item.itemId}
                     onChange={v => updateItem(i, 'itemId', v)}
@@ -66,7 +66,7 @@ export function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: 
                     onChange={e => updateItem(i, 'chance', Number(e.target.value))}
                     min={0}
                     max={100}
-                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -75,7 +75,7 @@ export function ItemPoolEditor({ value, onChange }: { value: unknown; onChange: 
                     value={item.quantity}
                     onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                     min={1}
-                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -123,13 +123,13 @@ export function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onCh
 
   return (
     <div className="space-y-1.5">
-      <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[12px]">
-          <thead className="sticky top-0 bg-black/95">
+      <div className="max-h-48 overflow-y-auto overflow-x-hidden admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[12px] table-fixed">
+          <thead className="sticky top-0 z-10 bg-black">
             <tr className="border-b border-white/[0.06]">
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Item ID</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-24">Quantità</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium w-8">#</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium">Item</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium w-24">Quantità</th>
               <th className="w-8"></th>
             </tr>
           </thead>
@@ -137,7 +137,7 @@ export function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onCh
             {items.map((item, i) => (
               <tr key={i} className="border-b border-white/[0.03] bg-black hover:bg-neutral-900">
                 <td className="px-2 py-1 text-white/20 font-mono">{i + 1}</td>
-                <td className="px-1 py-1">
+                <td className="px-1 py-1 min-w-0 overflow-hidden">
                   <MiniEntitySearch
                     value={item.itemId}
                     onChange={v => updateItem(i, 'itemId', v)}
@@ -152,7 +152,7 @@ export function ItemBoxDefaultsEditor({ value, onChange }: { value: string; onCh
                     value={item.quantity}
                     onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                     min={1}
-                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
+                    className="w-full text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1 py-1 text-white/70 font-mono focus:outline-none focus:border-emerald-500/40"
                   />
                 </td>
                 <td className="px-1 py-1">

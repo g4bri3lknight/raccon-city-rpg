@@ -2,6 +2,29 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { safeErrorResponse } from '@/lib/api-utils';
+import { calculateDangerLevel } from '@/lib/danger-calculator';
+
+/** Calculate danger level from enemy pool for a specific location.
+ *  Queries the DB for enemy stats matching the given enemy IDs. */
+async function calcAutoDanger(enemyPoolStr: string): Promise<number> {
+  let poolIds: string[] = [];
+  try { poolIds = JSON.parse(enemyPoolStr || '[]'); } catch { return 0; }
+  if (!poolIds || poolIds.length === 0) return 0;
+
+  const enemies = await db.gameEnemy.findMany({
+    where: { id: { in: poolIds } },
+    select: { id: true, maxHp: true, atk: true, def: true, isBoss: true, abilities: true },
+  });
+
+  const enemyMap: Record<string, { maxHp: number; atk: number; def: number; abilities: unknown[]; isBoss: boolean }> = {};
+  for (const e of enemies) {
+    let abLen = 0;
+    try { abLen = JSON.parse(e.abilities || '[]').length; } catch { abLen = 0; }
+    enemyMap[e.id] = { maxHp: e.maxHp, atk: e.atk, def: e.def, abilities: new Array(abLen).fill(null), isBoss: e.isBoss };
+  }
+
+  return calculateDangerLevel(poolIds, enemyMap);
+}
 /** Serialize a value to JSON string — skip if already a string (handleCreate already serializes) */
 function jsonStr(val: unknown, fallback: string): string {
   if (val === null || val === undefined) return fallback;
@@ -41,6 +64,7 @@ export async function GET() {
       mapCol: loc.mapCol,
       mapIcon: loc.mapIcon,
       mapDanger: loc.mapDanger,
+      mapDangerAuto: loc.mapDangerAuto,
       hasSubAreas: (JSON.parse(loc.subAreas || '[]') as unknown[]).length > 0,
       hasStoryEvent: !!loc.storyEvent && loc.storyEvent !== '',
     }));
@@ -84,7 +108,8 @@ export async function POST(request: NextRequest) {
         mapRow: body.mapRow ?? null,
         mapCol: body.mapCol ?? null,
         mapIcon: body.mapIcon ?? null,
-        mapDanger: body.mapDanger ?? null,
+        mapDanger: body.mapDanger ?? 0,
+        mapDangerAuto: body.mapDangerAuto ?? false,
       },
     });
 
@@ -127,7 +152,32 @@ export async function PUT(request: NextRequest) {
     if (updateFields.mapRow !== undefined) data.mapRow = updateFields.mapRow;
     if (updateFields.mapCol !== undefined) data.mapCol = updateFields.mapCol;
     if (updateFields.mapIcon !== undefined) data.mapIcon = updateFields.mapIcon;
-    if (updateFields.mapDanger !== undefined) data.mapDanger = updateFields.mapDanger;
+
+    // Handle mapDanger: if 'auto' (-1) is selected, calculate from enemy pool;
+    // otherwise store the manual value directly.
+    if (updateFields.mapDanger !== undefined) {
+      const rawVal = String(updateFields.mapDanger);
+      if (rawVal === '-1' || rawVal === 'auto') {
+        // Auto mode: calculate from enemy pool
+        const enemyPoolStr = updateFields.enemyPool != null
+          ? (typeof updateFields.enemyPool === 'string' ? updateFields.enemyPool : JSON.stringify(updateFields.enemyPool))
+          : (await db.gameLocation.findUnique({ where: { id }, select: { enemyPool: true } }))?.enemyPool ?? '[]';
+        data.mapDanger = await calcAutoDanger(enemyPoolStr);
+        data.mapDangerAuto = true;
+      } else {
+        data.mapDanger = parseInt(rawVal, 10) || 0;
+        data.mapDangerAuto = false;
+      }
+    }
+
+    // If enemy pool changes and the location is in auto mode, recalculate danger
+    if (updateFields.enemyPool !== undefined && !updateFields.mapDanger) {
+      const loc = await db.gameLocation.findUnique({ where: { id }, select: { mapDangerAuto: true } });
+      if (loc?.mapDangerAuto) {
+        const enemyPoolStr = typeof updateFields.enemyPool === 'string' ? updateFields.enemyPool : JSON.stringify(updateFields.enemyPool);
+        data.mapDanger = await calcAutoDanger(enemyPoolStr);
+      }
+    }
 
     const location = await db.gameLocation.update({
       where: { id },

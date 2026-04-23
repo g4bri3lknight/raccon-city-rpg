@@ -28,13 +28,13 @@ export function LockedLocsEditor({ value, onChange }: { value: unknown; onChange
 
   return (
     <div className="space-y-1.5">
-      <div className="max-h-48 overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[12px]">
-          <thead className="sticky top-0 bg-black/95">
+      <div className="max-h-48 overflow-y-auto overflow-x-hidden admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[12px] table-fixed">
+          <thead className="sticky top-0 z-10 bg-black">
             <tr className="border-b border-white/[0.06]">
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium w-8">#</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Location ID</th>
-              <th className="text-left px-2 py-1.5 text-white/40 font-medium">Item Richiesto</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium w-8">#</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium">Location</th>
+              <th className="text-left px-2 py-1.5 text-white/50 font-medium">Item Richiesto</th>
               <th className="text-left px-2 py-1.5 text-white/40 font-medium">Msg Blocco</th>
               <th className="w-8"></th>
             </tr>

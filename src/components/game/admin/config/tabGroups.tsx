@@ -31,7 +31,7 @@ export interface TabGroupDef {
 
 export const TAB_GROUPS: TabGroupDef[] = [
   { id: 'world', label: 'Mondo', icon: '🌍', defaultOpen: true, tabs: [
-    { id: 'locations', label: 'Location', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location', group: 'world' },
+    { id: 'locations', label: 'Location & Mappa', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location', custom: true, group: 'world' },
     { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC', group: 'world' },
     { id: 'quests', label: 'Missioni', icon: <Scroll className="w-4 h-4" />, endpoint: '/api/admin/quests', entityLabel: 'Missione', group: 'world' },
     { id: 'events', label: 'Eventi', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/events', entityLabel: 'Evento', group: 'world' },

@@ -39,6 +39,10 @@ export { SECRET_ROOMS_DATA as SECRET_ROOMS };
 // Re-export image maps
 export { ENEMY_IMAGES, CHARACTER_IMAGES };
 
+// ── Note: mapDanger is now always stored as resolved 0-3 in the DB.
+// The API calculates auto danger on save, so the loader just reads the value.
+// The shared formula lives in src/lib/danger-calculator.ts for use by both API and game.
+
 // Boss phases — loaded from DB at runtime
 export { BOSS_PHASES_DATA as BOSS_PHASES };
 
@@ -209,7 +213,8 @@ interface DbLocation {
   mapRow: number | null;
   mapCol: number | null;
   mapIcon: string | null;
-  mapDanger: string | null;
+  mapDanger: number;
+  mapDangerAuto: boolean;
   shortName: string | null;
 }
 
@@ -493,7 +498,7 @@ function mapDbLocation(loc: DbLocation): LocationDefinition {
     ...(loc.mapRow != null ? { mapRow: loc.mapRow } : {}),
     ...(loc.mapCol != null ? { mapCol: loc.mapCol } : {}),
     ...(loc.mapIcon ? { mapIcon: loc.mapIcon } : {}),
-    ...(loc.mapDanger != null ? { mapDanger: parseInt(loc.mapDanger, 10) || 0 } : {}),
+    mapDanger: loc.mapDanger ?? 0,
   };
 }
 

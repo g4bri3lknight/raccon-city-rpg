@@ -11,7 +11,7 @@
  * Format: { version, date, description }
  */
 
-export const APP_VERSION = '1.17.0' as const;
+export const APP_VERSION = '1.19.0' as const;
 
 export const VERSION_HISTORY: Array<{
   version: string;
@@ -308,6 +308,21 @@ export const VERSION_HISTORY: Array<{
     ],
   },
   {
+    version: '1.18.0',
+    date: '2025-07-01',
+    changes: [
+      '[NUOVO] Tab unificate "Location & Mappa": le tab Location e Mappa Visuale sono state unite in un\'unica tab con gestione completa CRUD + posizionamento visuale',
+      '[NUOVO] Pulsante "Aggiungi Location" dalla mappa: apre il dialog di creazione con tutti i campi, senza cambiare tab',
+      '[NUOVO] Pulsanti modifica/elimina su ogni cella della griglia (visibili su hover) e nella sidebar',
+      '[NUOVO] Nomi delle location collegate mostrati sotto ogni nodo sulla mappa (toggle 🏷️)',
+      '[NUOVO] Frecce direzionali per collegamenti adiacenti sulla griglia (toggle ↗️)',
+      '[NUOVO] Batch positions API: salvataggio atomico di tutte le posizioni in una singola transazione',
+      '[FIX] Fix errore salvataggio mappa: sostituite N richieste PUT concorrenti con singola batch transaction',
+      '[UX] Connection names con indicatori: collegamenti bloccati mostrati in ambra con icona 🔒',
+      '[UX] Sidebar non posizionate mostra collegamenti per aiutare il posizionamento',
+    ],
+  },
+  {
     version: '1.17.0',
     date: '2025-06-29',
     changes: [
@@ -327,6 +342,16 @@ export const VERSION_HISTORY: Array<{
       '[MEDIO] Fix descrizione ricetta Siero del Tyrant: rimossa promessa di doppio risultato (produce solo Adrenalina)',
       '[MEDIO] Fix initial-state.ts: import mancanti per QuestChainProgress e PermanentEffect — `as` assertions silenti rimosse',
       '[MEDIO] Fix leaderboard.ts: turnsSurvived fallback a 0 se mancante — penalità velocità non crasha più',
+    ],
+  },
+  {
+    version: '1.19.0',
+    date: '2025-07-02',
+    changes: [
+      '[FIX] Pulsante Seed Default ripristinato nel MapEditor — era sparito dopo l\'unione delle tab Location + Mappa',
+      '[FIX] Campi location vuoti nell\'edit: enemyPool, itemPool, description, encounterRate e tutti gli altri campi ora popolati correttamente dal DB',
+      '[FIX] mapCol e mapRow rimossi dal modale location — gestiti visivamente tramite drag-and-drop sulla griglia',
+      '[UX] Banner descrittivo delle location sotto l\'header del MapEditor',
     ],
   },
   {
