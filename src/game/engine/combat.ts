@@ -1881,7 +1881,7 @@ export function executeEnemyAttack(
 
   if (!ability) {
     return {
-      log: { turn, actorName: enemy.name, actorType: 'enemy', action: 'Idle', message: `${enemy.name} guarda nella direzione dei giocatori.` },
+      log: { turn, actorName: enemy.name, actorDefinitionId: enemy.definitionId, actorType: 'enemy', action: 'Idle', message: `${enemy.name} guarda nella direzione dei giocatori.` },
       updatedParty: party,
     };
   }
@@ -1897,7 +1897,7 @@ export function executeEnemyAttack(
   }
   if (!target) {
     return {
-      log: { turn, actorName: enemy.name, actorType: 'enemy', action: 'Idle', message: `${enemy.name} guarda nella direzione dei giocatori.` },
+      log: { turn, actorName: enemy.name, actorDefinitionId: enemy.definitionId, actorType: 'enemy', action: 'Idle', message: `${enemy.name} guarda nella direzione dei giocatori.` },
       updatedParty: party,
     };
   }
@@ -1930,7 +1930,7 @@ function executeEnemyAbilityEffects(
   const filtered = effects.filter(e => !e.trigger || e.trigger === 'on_use');
   if (filtered.length === 0) {
     return {
-      log: { turn, actorName: enemy.name, actorType: 'enemy', action: abilityName, message: '' },
+      log: { turn, actorName: enemy.name, actorDefinitionId: enemy.definitionId, actorType: 'enemy', action: abilityName, message: '' },
       updatedParty: party,
     };
   }
@@ -2359,7 +2359,7 @@ function executeEnemyAbilityEffects(
 
   if (allLogParts.length === 0) {
     return {
-      log: { turn, actorName: enemy.name, actorType: 'enemy', action: abilityName, message: `${enemy.name} usa ${abilityName} ma gli effetti non si attivano!` },
+      log: { turn, actorName: enemy.name, actorDefinitionId: enemy.definitionId, actorType: 'enemy', action: abilityName, message: `${enemy.name} usa ${abilityName} ma gli effetti non si attivano!` },
       updatedParty: party,
     };
   }
@@ -2368,6 +2368,7 @@ function executeEnemyAbilityEffects(
     log: {
       turn,
       actorName: enemy.name,
+      actorDefinitionId: enemy.definitionId,
       actorType: 'enemy',
       action: abilityName,
       targetName: primaryTargetName || primaryTarget.name,
@@ -2538,6 +2539,7 @@ export function processActiveEffectsTick(
           log.push({
             turn,
             actorName: e.name,
+            actorDefinitionId: e.definitionId,
             actorType: 'enemy',
             action: 'Cura nel Tempo',
             targetName: e.name,

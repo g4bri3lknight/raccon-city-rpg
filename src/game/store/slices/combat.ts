@@ -784,6 +784,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         newLog.push({
           turn: state.combat.turn,
           actorName: enemy.name,
+          actorDefinitionId: enemy.definitionId,
           actorType: 'enemy',
           action: `Fase ${newPhase}: ${phaseDef.name}`,
           message: phaseDef.message,
@@ -1582,6 +1583,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             statusLogEntries.push({
               turn: newTurn,
               actorName: enemy.name,
+              actorDefinitionId: enemy.definitionId,
               actorType: 'enemy',
               action: 'Avvelenamento',
               damage: poisonDmg,
@@ -1594,6 +1596,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             statusLogEntries.push({
               turn: newTurn,
               actorName: enemy.name,
+              actorDefinitionId: enemy.definitionId,
               actorType: 'enemy',
               action: 'Sanguinamento',
               damage: bleedDmg,
@@ -1604,6 +1607,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             statusLogEntries.push({
               turn: newTurn,
               actorName: enemy.name,
+              actorDefinitionId: enemy.definitionId,
               actorType: 'enemy',
               action: 'Stordito',
               message: `💫 ${enemy.name} è stordito! (${sd.turnsLeft} turni rimasti)`,
@@ -1841,6 +1845,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         const stunLog: CombatLogEntry = {
           turn: newTurn,
           actorName: enemy.name,
+          actorDefinitionId: enemy.definitionId,
           actorType: 'enemy',
           action: 'Stordito',
           message: `💫 ${enemy.name} è stordito e salta il turno!`,

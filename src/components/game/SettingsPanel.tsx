@@ -49,6 +49,7 @@ function saveSettings(settings: PersistedSettings): void {
 function applyAudioSettings(s: PersistedSettings): void {
   audioEngine.muted = s.muted;
   audioEngine.volume = s.masterVolume / 100;
+  audioEngine.sfxVolume = s.sfxVolume / 100;
   audioEngine.bgmVolume = s.bgmVolume / 100;
 }
 
@@ -83,9 +84,8 @@ export default function SettingsPanel() {
 
   const handleSfxVolume = useCallback((v: number) => {
     setSfxVolume(v);
-    const master = masterVolume / 100;
-    audioEngine.volume = Math.max(0, Math.min(1, master * (v / 100)));
-  }, [masterVolume]);
+    audioEngine.sfxVolume = v / 100;
+  }, []);
 
   const handleBgmVolume = useCallback((v: number) => {
     setBgmVolume(v);

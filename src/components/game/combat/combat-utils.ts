@@ -49,7 +49,12 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
   if (action === 'Avvelenamento') return audio.playPoisonTick;
   if (action === 'Sanguinamento') return audio.playBleedTick;
   if (action === 'Attacco' || action === 'Colpo corpo a corpo') {
-    return entry.actorType === 'player' ? audio.playAttack : null;
+    if (entry.actorType === 'player') return audio.playAttack;
+    // Enemy basic attack → try entity-specific sound first, then generic
+    if (entry.actorDefinitionId) {
+      return () => playEnemyAttack(entry.actorDefinitionId, entry.actorName, entry.action);
+    }
+    return null;
   }
 
   // 3. Look up special ability by name → entity-specific sound (DB only)
@@ -75,7 +80,8 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
 
   // 6. Any remaining enemy damage action → try entity-specific attack sound from DB
   if (entry.damage && entry.damage > 0 && entry.actorType === 'enemy') {
-    return () => playEnemyAttack(entry.actorName, entry.action);
+    const defId = entry.actorDefinitionId || entry.actorName.toLowerCase().replace(/\s+/g, '_');
+    return () => playEnemyAttack(defId, entry.actorName, entry.action);
   }
 
   return null;

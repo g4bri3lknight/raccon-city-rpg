@@ -85,9 +85,14 @@ class AudioEngine {
   // Evicted buffers can be re-loaded from DB on demand.
   private _cache: LruCache<AudioBuffer> = new LruCache<AudioBuffer>(50);
   private _loading: Set<string> = new Set();
+  // SFX gain node — independent from master, controlled by sfxVolume slider
+  private _sfxGain: GainNode | null = null;
+  public sfxGain: GainNode | null = null;
+  private _sfxVolume = 0.5;
+  // BGM gain node — independent from master and SFX, controlled by bgmVolume slider
   private _bgmGain: GainNode | null = null;
   public bgmGain: GainNode | null = null;
-  public bgmVolume = 0.15;
+  private _bgmVolumeVal = 0.5;
   public currentBgm: string | null = null;
   public bgmTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -105,9 +110,15 @@ class AudioEngine {
     if (typeof window === 'undefined' || !window.AudioContext) return false;
     try {
       this.ctx = new AudioContext();
+      // Master gain → destination (controlled by Master slider)
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.value = this._muted ? 0 : this._masterVolume;
       this.masterGain.connect(this.ctx.destination);
+      // SFX gain → masterGain (controlled by SFX slider)
+      this._sfxGain = this.ctx.createGain();
+      this._sfxGain.gain.value = this._sfxVolume;
+      this._sfxGain.connect(this.masterGain);
+      this.sfxGain = this._sfxGain;
       this._initialized = true;
       return true;
     } catch { return false; }
@@ -126,12 +137,28 @@ class AudioEngine {
     if (this.masterGain) this.masterGain.gain.value = v ? 0 : this._masterVolume;
   }
 
+  // SFX volume property — controls the dedicated sfxGain node
+  public get sfxVolume(): number { return this._sfxVolume; }
+
+  public set sfxVolume(v: number) {
+    this._sfxVolume = Math.max(0, Math.min(1, v));
+    if (this._sfxGain) this._sfxGain.gain.value = this._muted ? 0 : this._sfxVolume;
+  }
+
   public get volume(): number { return this._masterVolume; }
 
   public set volume(v: number) {
     this._masterVolume = Math.max(0, Math.min(1, v));
     if (this.masterGain && !this._muted) this.masterGain.gain.value = this._masterVolume;
   }
+
+  // BGM volume setter — also applies to the bgmGain node
+  public set bgmVolume(v: number) {
+    this._bgmVolumeVal = Math.max(0, Math.min(1, v));
+    if (this._bgmGain) this._bgmGain.gain.value = this._muted ? 0 : this._bgmVolumeVal;
+  }
+
+  public get bgmVolume(): number { return this._bgmVolumeVal; }
 
   // ======== ASYNC SFX LOADING (plays immediately after load) ========
 
@@ -166,7 +193,8 @@ class AudioEngine {
       const gain = this.ctx.createGain();
       gain.gain.value = volume;
       source.connect(gain);
-      gain.connect(this.masterGain!);
+      // Route through sfxGain instead of masterGain — SFX slider controls this
+      gain.connect(this._sfxGain!);
       source.start(0);
     } catch {}
   }
@@ -237,12 +265,11 @@ class AudioEngine {
   playNemesisAttack(): void { this.playSfx('playNemesisAttack', 0.8); }
   playEnemyDeath(): void { this.playSfx('playEnemyDeath', 0.6); }
 
-  playEnemyAttack(enemyName: string, _action?: string): void {
-    // Try entity-specific sound: attack_{enemyId}
+  playEnemyAttack(definitionId: string, _enemyName?: string, _action?: string): void {
+    // Try entity-specific sound: attack_{definitionId}
     // No fallback — if not found in DB, play nothing
-    const enemyId = enemyName.toLowerCase().replace(/\s+/g, '_');
-    if (!enemyId) return;
-    const entityRefKey = `attack_${enemyId}`;
+    if (!definitionId) return;
+    const entityRefKey = `attack_${definitionId}`;
 
     if (this._cache.has(entityRefKey)) {
       this.playSfx(entityRefKey, 0.6);
@@ -360,7 +387,9 @@ class AudioEngine {
         const gain = this.ctx.createGain();
         gain.gain.value = 0.25; // ambient volume (lower than SFX)
         source.connect(gain);
-        gain.connect(this.masterGain!);
+        // Route ambient through bgmGain — BGM slider controls ambient volume
+        this._ensureBgmGain();
+        gain.connect(this._bgmGain!);
         source.start(0);
 
         this._ambientSource = source;
@@ -438,7 +467,9 @@ class AudioEngine {
         const gain = this.ctx.createGain();
         gain.gain.value = 0.25;
         source.connect(gain);
-        gain.connect(this.masterGain!);
+        // Route ambient through bgmGain — BGM slider controls ambient volume
+        this._ensureBgmGain();
+        gain.connect(this._bgmGain!);
         source.start(0);
         this._ambientSource = source;
         this._ambientGainNode = gain;
@@ -457,6 +488,16 @@ class AudioEngine {
   // ======== BGM SYSTEM ========
   private _bgmSource: AudioBufferSourceNode | null = null;
   private _bgmAudioBuffer: AudioBuffer | null = null;
+
+  // Ensure bgmGain node exists (created lazily when BGM first plays)
+  private _ensureBgmGain(): void {
+    if (!this._bgmGain && this.ctx) {
+      this._bgmGain = this.ctx.createGain();
+      this._bgmGain.gain.value = this.bgmVolume;
+      this._bgmGain.connect(this.masterGain!);
+      this.bgmGain = this._bgmGain;
+    }
+  }
 
   // LRU cache for decoded BGM buffers — max 10 entries (BGM files are larger).
   // Evicted buffers can be re-loaded from DB on demand.
@@ -484,14 +525,9 @@ class AudioEngine {
 
     this.currentBgm = type;
 
-    // Create gain node for BGM
-    if (!this._bgmGain) {
-      this._bgmGain = this.ctx!.createGain();
-      this._bgmGain.gain.value = this.bgmVolume;
-      this._bgmGain.connect(this.masterGain!);
-      this.bgmGain = this._bgmGain;
-    }
-    this._bgmGain.gain.value = this.bgmVolume;
+    // Ensure BGM gain node exists and update volume
+    this._ensureBgmGain();
+    this._bgmGain!.gain.value = this.bgmVolume;
 
     // Check BGM cache first
     const cachedBgm = this._bgmCache.get(type);
@@ -572,7 +608,7 @@ export function playMenuOpen(): void { audioEngine.playMenuOpen(); }
 export function playMenuClose(): void { audioEngine.playMenuClose(); }
 export function playSafeRoomAmbient(): void { audioEngine.playSafeRoomAmbient(); }
 export function stopSafeRoomAmbient(): void { audioEngine.stopSafeRoomAmbient(); }
-export function playEnemyAttack(enemyName: string, action?: string): void { audioEngine.playEnemyAttack(enemyName, action); }
+export function playEnemyAttack(definitionId: string, enemyName?: string, action?: string): void { audioEngine.playEnemyAttack(definitionId, enemyName, action); }
 export function playEnemyDeath(): void { audioEngine.playEnemyDeath(); }
 export function playEntityEnemyDeath(enemyId: string): void { audioEngine.playEntityEnemyDeath(enemyId); }
 export function playEntitySpecial(specialId: string, category: string): void { audioEngine.playEntitySpecial(specialId, category); }

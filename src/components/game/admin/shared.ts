@@ -238,6 +238,27 @@ export const MEDIA_UPLOADS: Record<MediaTabId, MediaUploadDef[]> = {
   'secret-rooms': [],
   recipes: [],
   'avatars': [],
-  'start-screen': [],
+  'start-screen': [
+    {
+      key: 'bgm',
+      label: '🎵 BGM Schermata Titolo',
+      mediaType: 'sound' as const,
+      category: 'bgm',
+      accept: 'audio/wav,audio/mpeg,audio/ogg,audio/mp4',
+      idTemplate: 'bgm_title',
+      nameTemplate: 'BGM Titolo',
+      helpText: 'Musica di sottofondo della schermata principale. Riprodotta anche nella selezione personaggi e nel creatore. Usa un file audio ripetibile (loop).',
+    },
+    {
+      key: 'bg_image',
+      label: '🖼️ Immagine Sfondo',
+      mediaType: 'image' as const,
+      category: 'background',
+      accept: 'image/png,image/jpeg,image/webp',
+      idTemplate: 'bg_title',
+      nameTemplate: 'Background Titolo',
+      helpText: 'Immagine di sfondo della schermata principale (la stessa usata in gioco). Risoluzione consigliata: 1920×1080.',
+    },
+  ],
   'settings':     [],
 };

@@ -591,6 +591,7 @@ export type CombatAction = 'attack' | 'special' | 'special2' | 'use_item' | 'def
 export interface CombatLogEntry {
   turn: number;
   actorName: string;
+  actorDefinitionId?: string;
   actorType: 'player' | 'enemy';
   action: string;
   targetName?: string;

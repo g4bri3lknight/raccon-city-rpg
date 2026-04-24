@@ -11,7 +11,7 @@
  * Format: { version, date, description }
  */
 
-export const APP_VERSION = '1.21.5' as const;
+export const APP_VERSION = '1.21.7' as const;
 
 export const VERSION_HISTORY: Array<{
   version: string;
@@ -500,6 +500,33 @@ export const VERSION_HISTORY: Array<{
       '[FIX] Upload suoni: rimosso il middleware dalle rotte upload (che imponeva il limite di 10MB) — i file audio grandi ora vengono caricati correttamente',
       '[FIX] Upload: aggiunto controllo auth diretto nelle route handler sound/image — le rotte upload rimangono protette anche senza middleware',
       '[FIX] SoundPreviewButton: aggiunto type="button" al pulsante play — senza questo, dentro un <form> il click faceva submit del form e chiudeva il dialog invece di riprodurre il suono',
+      '[UX] StartScreenEditor: aggiunta sezione Media Upload con upload BGM (bgm_title) — ora è possibile caricare la musica della schermata titolo direttamente dal pannello admin',
+      '[UX] StartScreenEditor: migliorato layout sezione upload sfondo — spostato dentro card con bordo, stesso stile degli altri MediaUpload',
+    ],
+  },
+  {
+    version: '1.21.6',
+    date: '2026-04-25',
+    changes: [
+      '[CRITICO] Fix controlli volume: lo slider SFX abbassava TUTTO l\'audio (musica + effetti) perché condivideva il masterGain — ora SFX ha un GainNode dedicato e indipendente',
+      '[FIX] Slider SFX ora controlla esclusivamente gli effetti sonori (attacchi, notifiche, effetti combattimento, menu)',
+      '[FIX] Slider BGM ora controlla sia la musica di sottofondo che l\'ambientazione delle location (routing corretto attraverso bgmGain)',
+      '[FIX] Slider Master controlla il volume generale senza interferire con SFX o BGM',
+      '[AUDIO] Nuovo audio routing: masterGain → { sfxGain, bgmGain } — tre canali indipendenti',
+    ],
+  },
+  {
+    version: '1.21.7',
+    date: '2026-04-25',
+    changes: [
+      '[CRITICO] Fix suoni nemico: gli attacchi base ("Attacco") non producevano alcun suono — combat-utils.ts restituiva null per actorType=enemy con action=Attacco',
+      '[CRITICO] Fix ref key nemico: playEnemyAttack() derivava la ref key dal nome visualizzato ("Zombie Donna" → attack_zombie_donna) invece che dal definitionId (zombie_female) — la maggior parte dei suoni caricati non venivano trovati',
+      '[CRITICO] Fix ref key ambient nel DB: i suoni ambient pre-seedati usavano formato vecchio (playAmbientCity) ma il motore cercava formato nuovo (ambient_city_outskirts) — aggiornati 5 record nel DB',
+      '[FIX] CombatLogEntry: aggiunto campo actorDefinitionId per passare il definitionId nemico dal combat engine al sistema audio',
+      '[FIX] Eliminato bgm.ts — codice morto (381 righe di BGM sintetizzato che mai veniva importato ma poteva causare confusione)',
+      '[FIX] 11 log entry nel combat engine e combat store slice aggiornati con actorDefinitionId',
+      '[AUDIO] I suoni attacco/morte caricati per nemici ora vengono riprodotti correttamente usando il definitionId',
+      '[AUDIO] I suoni ambientali delle location ora vengono riprodotti con le ref key corrette',
     ],
   },
 ];
