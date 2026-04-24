@@ -53,6 +53,17 @@ import {
 import { getMaxInventorySlots } from '../settings-cache';
 import { audio } from '../../engine/sounds';
 
+/** Clean all combat-only status effects from party members (poison, bleeding, stunned, adrenaline).
+ *  Called when combat ends to prevent stale statuses from leaking into exploration
+ *  or causing bugs in the next combat (e.g. stunned skipping first turn permanently). */
+function cleanCombatStatusEffects(party: Character[]): Character[] {
+  return party.map(p => ({
+    ...p,
+    statusEffects: [] as StatusEffect[],
+    isDefending: false,
+  }));
+}
+
 /** Calculate combo bonus percentage based on combo count.
  *  Linear interpolation between thresholds:
  *    combo 2 → +10%, combo 3 → +20%, combo 5 → +35%, combo 8+ → +50%
@@ -166,6 +177,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           phase: 'exploration',
           combat: null,
           enemies: [],
+          party: cleanCombatStatusEffects(state.party),
           messageLog: [...state.messageLog, `[${state.turnCount}] 🏃 Fuga riuscita!${hasNemesis ? ' 💀 Ma NEMESIS vi rintraccerà...' : ''}`],
           // FIX: Fleeing from Nemesis caps pursuit at level 4 (max without permanent defeat)
           ...(hasNemesis && state.nemesisPursuitLevel < 4 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
@@ -1039,7 +1051,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             levelUps: levelUpMessages,
           },
           combat: { ...state.combat, log: newLog, isVictory: true, isProcessing: true },
-          party: updatedParty,
+          party: cleanCombatStatusEffects(updatedParty),
           enemies: updatedEnemies,
           messageLog: [
             ...state.messageLog,
@@ -1070,7 +1082,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           levelUps: levelUpMessages,
         },
         combat: { ...state.combat, log: newLog, isVictory: true, isProcessing: true },
-        party: updatedParty,
+        party: cleanCombatStatusEffects(updatedParty),
         enemies: updatedEnemies,
         messageLog: [
           ...state.messageLog,
@@ -1652,12 +1664,8 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
 
     // Check if ALL enemies died from DOT → declare victory
     if (aliveEnemyIds.size === 0 && updatedEnemiesForStatus.length > 0) {
-      const updatedPartyAfterDot = updatedParty.map(p => {
-        if (p.statusEffects.includes('poison') || p.statusEffects.includes('bleeding')) {
-          return { ...p, statusEffects: p.statusEffects.filter(s => s !== 'poison' && s !== 'bleeding') };
-        }
-        return p;
-      });
+      // Clean ALL combat-only status effects from party (not just poison/bleeding)
+      const updatedPartyAfterDot = cleanCombatStatusEffects(updatedParty);
       let totalExp = 0;
       const victoryBestiary = [...get().bestiary];
       for (const e of updatedEnemiesForStatus) {

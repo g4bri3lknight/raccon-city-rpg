@@ -261,7 +261,7 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
                 const currentSlots = updatedCharacter.maxInventorySlots;
                 if (currentSlots >= maxSlots) {
                   logParts.push(`Inventario già al massimo (${maxSlots} slot)`);
-                  shouldConsume = false;
+                  // Don't prevent consumption — other effects (heal, status cure) still applied
                 } else {
                   const newSlots = Math.min(maxSlots, currentSlots + slotsToAdd);
                   updatedCharacter.maxInventorySlots = newSlots;

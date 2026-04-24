@@ -246,7 +246,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       if (dmg > 0) {
         updatedParty = updatedParty.map(p => ({
           ...p,
-          currentHp: Math.max(1, p.currentHp - dmg),
+          // Skip dead party members — don't revive them with Math.max(1, ...)
+          currentHp: p.currentHp > 0 ? Math.max(1, p.currentHp - dmg) : 0,
         }));
         tickLog.push(`[${state.turnCount}] 💔 ${evt!.icon} ${dmg} danni a tutti (${state.dynamicEventTurnsLeft - 1} turni rimasti)`);
       }
@@ -924,6 +925,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     }
 
     // ── SECRET ROOM DISCOVERY ──
+    let discoveredSecretRoomId: string | null = null;
     const locationSecrets = Object.values(SECRET_ROOMS).filter((s: any) =>
       s.locationId === locId &&
       !state.discoveredSecretRooms.includes(s.id)
@@ -943,8 +945,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         }
       }
       if (canDiscover) {
-        get().discoverSecretRoom(secret.id);
-        return;
+        discoveredSecretRoomId = secret.id;
+        break;
       }
     }
 
@@ -969,6 +971,10 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       collectedRibbons: newRibbonCount,
       discoveredRecipes: newDiscoveredRecipes || state.discoveredRecipes,
     });
+    // Discover secret room AFTER committing search state (items, counts, etc.)
+    if (discoveredSecretRoomId) {
+      get().discoverSecretRoom(discoveredSecretRoomId);
+    }
     setTimeout(() => get().checkAchievements(), 100);
   },
 

@@ -3,6 +3,7 @@ import { GameStore } from '../types';
 import { SaveSlotInfo } from '../types';
 import { LOCATIONS, NGPLUS_CONFIG } from '../../data/loader';
 import { playSafeRoomAmbient } from '../../engine/sounds';
+import { getDefaultState } from '../initial-state';
 
 export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   saveGame: (slot: number) => {
