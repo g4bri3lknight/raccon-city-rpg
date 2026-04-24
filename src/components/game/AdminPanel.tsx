@@ -48,7 +48,7 @@ export default function AdminPanel() {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<Record<TabId, number>>({
-    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'boss-phases': 0, achievements: 0, endings: 0, 'secret-rooms': 0, recipes: 0, avatars: 0, 'start-screen': 0, settings: 0,
+    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'boss-phases': 0, achievements: 0, endings: 0, 'secret-rooms': 0, recipes: 0, avatars: 0, 'start-screen': 0, settings: 0, 'quest-chains': 0,
   });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -192,7 +192,7 @@ export default function AdminPanel() {
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults', 'quest-chain-steps']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -213,6 +213,19 @@ export default function AdminPanel() {
         if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
+        // quest-chain-final-reward is an object — serialize it
+        if (f.type === 'quest-chain-final-reward' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // dynamic-dialogues is an array — serialize it
+        if (f.type === 'dynamic-dialogues' && Array.isArray(processed[f.key])) {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // permanent-map-effect is an object — serialize it
+        if (f.type === 'permanent-map-effect' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // json and requirements-editor — already string from editor, skip
         if (processed[f.key] === '' || processed[f.key] === undefined) {
           delete processed[f.key];
         }
@@ -239,7 +252,7 @@ export default function AdminPanel() {
       if (editingId && !processed.id) {
         processed.id = editingId;
       }
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults', 'quest-chain-steps']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -260,6 +273,19 @@ export default function AdminPanel() {
         if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
           processed[f.key] = JSON.stringify(processed[f.key]);
         }
+        // quest-chain-final-reward is an object — serialize it
+        if (f.type === 'quest-chain-final-reward' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // dynamic-dialogues is an array — serialize it
+        if (f.type === 'dynamic-dialogues' && Array.isArray(processed[f.key])) {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // permanent-map-effect is an object — serialize it
+        if (f.type === 'permanent-map-effect' && processed[f.key] != null && typeof processed[f.key] === 'object') {
+          processed[f.key] = JSON.stringify(processed[f.key]);
+        }
+        // json and requirements-editor — already string from editor, skip
         if (processed[f.key] === '' || processed[f.key] === undefined) {
           delete processed[f.key];
         }

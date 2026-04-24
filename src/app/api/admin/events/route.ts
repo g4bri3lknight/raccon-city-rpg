@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
         ...body,
         locationIds: jsonStr(body.locationIds, '[]'),
         choices: jsonStr(body.choices, '[]'),
+        permanentMapEffect: jsonStr(body.permanentMapEffect, ''),
       },
     });
     return NextResponse.json(event, { status: 201 });
@@ -44,6 +45,7 @@ export async function PUT(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     if (data.locationIds !== undefined) data.locationIds = jsonStr(data.locationIds, '[]');
     if (data.choices !== undefined) data.choices = jsonStr(data.choices, '[]');
+    if (data.permanentMapEffect !== undefined) data.permanentMapEffect = jsonStr(data.permanentMapEffect, '');
     const event = await db.dynamicEvent.update({ where: { id }, data });
     return NextResponse.json(event);
   } catch (error) {

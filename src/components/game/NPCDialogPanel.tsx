@@ -8,7 +8,7 @@ import { getNpcPortraitUrl } from '@/game/data/npc-images';
 import ItemIcon from './ItemIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, MessageSquare, ScrollText, Handshake, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, MessageSquare, ScrollText, Handshake, ArrowLeft, CheckCircle2, AlertCircle, Heart, Shield, Star } from 'lucide-react';
 
 interface ChatMessage {
   role: 'npc' | 'player' | 'system';
@@ -19,6 +19,7 @@ interface ChatMessage {
 export default function NPCDialogPanel() {
   const activeNpc = useGameStore(s => s.activeNpc);
   const npcQuestProgress = useGameStore(s => s.npcQuestProgress);
+  const npcReputation = useGameStore(s => s.npcReputation);
   const party = useGameStore(s => s.party);
   const visitedLocations = useGameStore(s => s.visitedLocations);
   const talkToNpc = useGameStore(s => s.talkToNpc);
@@ -36,6 +37,13 @@ export default function NPCDialogPanel() {
   const questCompleted = questProgress?.completed || false;
   const hasQuest = quest && !questCompleted;
 
+  // Reputation system
+  const rep = npc ? (npcReputation[npc.id] || 0) : 0;
+  const repLevel = rep >= 7 ? 'Alleato' : rep >= 4 ? 'Affidato' : rep >= 1 ? 'Amichevole' : rep <= -2 ? 'Sospettoso' : 'Neutrale';
+  const repColor = rep >= 7 ? 'text-yellow-300 bg-yellow-900/30 border-yellow-700/30' : rep >= 4 ? 'text-emerald-300 bg-emerald-900/30 border-emerald-700/30' : rep >= 1 ? 'text-blue-300 bg-blue-900/30 border-blue-700/30' : rep <= -2 ? 'text-red-300 bg-red-900/30 border-red-700/30' : 'text-gray-300 bg-gray-800/30 border-gray-700/30';
+  const repIcon = rep >= 7 ? Star : rep >= 4 ? Shield : Heart;
+  const RepIconComp = repIcon;
+
   // NPC portrait image + fallback emoji
   const portraitUrl = npc ? getNpcPortraitUrl(npc.id) : null;
   const badge = npc?.badgeLabel ? {
@@ -47,11 +55,19 @@ export default function NPCDialogPanel() {
   // Initialize greeting when NPC changes
   // Using React's "adjusting state during render" pattern per
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  // Build greeting with reputation prefix
+  const getGreetingWithRep = (baseGreeting: string) => {
+    if (rep >= 7) return `[Vecchio amico] ${baseGreeting}`;
+    if (rep >= 4) return `[Buon amico] ${baseGreeting}`;
+    if (rep <= -2) return `[Sospettoso] ${baseGreeting}`;
+    return baseGreeting;
+  };
+
   if (npc && lastNpcId !== npc.id) {
     setLastNpcId(npc.id);
     setChatMessages([{
       role: 'npc',
-      content: npc.greeting,
+      content: getGreetingWithRep(npc.greeting),
       id: `greeting-${npc.id}`,
     }]);
     setTradeErrors({});
@@ -109,7 +125,10 @@ export default function NPCDialogPanel() {
     if (!npc?.tradeInventory) return false;
     const trade = npc.tradeInventory[tradeIndex];
     if (!trade) return false;
-    return party.some(p => p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity));
+    const tradeRep = npcReputation[npc.id] || 0;
+    const discount = tradeRep >= 7 ? 2 : tradeRep >= 4 ? 1 : 0;
+    const effectivePrice = Math.max(1, trade.priceQuantity - discount);
+    return party.some(p => p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= effectivePrice));
   };
 
   const handleTrade = (tradeIndex: number) => {
@@ -179,6 +198,11 @@ export default function NPCDialogPanel() {
                     {badge.label}
                   </Badge>
                 )}
+                {/* Reputation badge */}
+                <Badge className={`text-[10px] border ${repColor} flex items-center gap-1`}>
+                  <RepIconComp className="w-3 h-3" />
+                  {repLevel} ({rep >= 0 ? '+' : ''}{rep})
+                </Badge>
               </div>
             </div>
             <Button
@@ -298,6 +322,10 @@ export default function NPCDialogPanel() {
                   const priceDef = ITEMS[trade.priceItemId];
                   const tradeQty = trade.quantity || 1;
                   const tradeError = tradeErrors[idx];
+                  // Reputation discount
+                  const tradeDiscount = rep >= 7 ? 2 : rep >= 4 ? 1 : 0;
+                  const effectivePrice = Math.max(1, trade.priceQuantity - tradeDiscount);
+                  const hasDiscount = tradeDiscount > 0;
                   return (
                     <div
                       key={idx}
@@ -325,7 +353,10 @@ export default function NPCDialogPanel() {
                             <span className="text-[10px] text-white/40">Prezzo:</span>
                             <span className="flex items-center gap-1 text-[10px] text-amber-300/70">
                               <ItemIcon itemId={trade.priceItemId} rarity="common" size={12} />
-                              {trade.priceQuantity}x {priceDef?.name || trade.priceItemId}
+                              {effectivePrice}x {priceDef?.name || trade.priceItemId}
+                              {hasDiscount && (
+                                <span className="text-[9px] text-green-400/80 ml-1">(-{tradeDiscount} reputazione)</span>
+                              )}
                             </span>
                           </div>
                         </div>

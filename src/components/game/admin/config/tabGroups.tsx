@@ -3,13 +3,13 @@ import {
   MapPin, Users, Scroll, Zap, FileText, DoorOpen,
   Swords, Sparkles, Skull, Flame, Crown,
   Package, Wrench, Trophy, Flag, Volume2, ImageIcon, Bell,
-  Monitor, Settings,
+  Monitor, Settings, Link2,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-export type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'recipes';
+export type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'recipes' | 'quest-chains';
 
 export interface TabConfig {
   id: TabId;
@@ -34,6 +34,7 @@ export const TAB_GROUPS: TabGroupDef[] = [
     { id: 'locations', label: 'Location & Mappa', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location', custom: true, group: 'world' },
     { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC', group: 'world' },
     { id: 'quests', label: 'Missioni', icon: <Scroll className="w-4 h-4" />, endpoint: '/api/admin/quests', entityLabel: 'Missione', group: 'world' },
+    { id: 'quest-chains', label: 'Quest Chain', icon: <Link2 className="w-4 h-4" />, endpoint: '/api/admin/quest-chains', entityLabel: 'Quest Chain', group: 'world' },
     { id: 'events', label: 'Eventi', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/events', entityLabel: 'Evento', group: 'world' },
     { id: 'documents', label: 'Documenti', icon: <FileText className="w-4 h-4" />, endpoint: '/api/admin/documents', entityLabel: 'Documento', group: 'world' },
     { id: 'secret-rooms', label: 'Stanze Segrete', icon: <DoorOpen className="w-4 h-4" />, endpoint: '/api/admin/secret-rooms', entityLabel: 'Stanza Segreta', group: 'world' },

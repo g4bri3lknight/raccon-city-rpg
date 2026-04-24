@@ -152,6 +152,16 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
       if (ngCycle >= 3) {
         checkAndUnlock('ng_plus_master_victory');
       }
+      // NG+ cycle milestones
+      if (ngCycle >= 1) {
+        checkAndUnlock('ach_ng_plus_1');
+      }
+      if (ngCycle >= 3) {
+        checkAndUnlock('ach_ng_plus_3');
+      }
+      if (ngCycle >= 5) {
+        checkAndUnlock('ach_ng_plus_5');
+      }
     }
 
     // chain_survivor: completed at least one chain event sequence

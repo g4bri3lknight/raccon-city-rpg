@@ -63,6 +63,9 @@ model DynamicEvent {
   onTriggerMessage String
   onEndMessage     String
   choices          String   // JSON: [{text, outcome:{description,endEvent,receiveItems,hpChange}}]
+  chainId          String   @default("")     // chain grouping ID (e.g. "power_crisis")
+  nextEventId      String   @default("")     // next event to trigger after this one
+  permanentMapEffect String @default("")     // JSON: {type:"lock_location"|"unlock_location"|"change_danger", locationId, value}
   createdAt        DateTime @default(now())
   @@map("dynamic_events")
 }
@@ -155,6 +158,7 @@ model GameNPC {
   badgeLabel             String   @default("")     // e.g. "Meccanico", "Medico"
   badgeIcon              String   @default("")     // e.g. "🔧", "🥼"
   badgeColor             String   @default("")     // Tailwind classes, e.g. "bg-emerald-900/40 text-emerald-300 border-emerald-700/30"
+  dynamicDialogues       String   @default("[]")     // JSON: [{text,conditions:[{type,value,compare?}],priority}]
   sortOrder              Int      @default(0)
   createdAt              DateTime @default(now())
   @@map("game_npcs")
@@ -351,3 +355,45 @@ model GameAvatar {
   createdAt DateTime @default(now())
   @@map("game_avatars")
 }
+
+model QuestChain {
+  id          String   @id
+  npcId       String
+  name        String
+  description String   @default("")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  steps       QuestChainStep[]
+  finalReward QuestChainFinalReward?
+  @@map("quest_chains")
+}
+
+model QuestChainStep {
+  id              String   @id
+  chainId         String
+  stepIndex       Int      @default(0)
+  description     String
+  type            String   // fetch | kill | explore | talk | choose
+  targetId        String   @default("")
+  targetCount     Int      @default(0)
+  nextStepId      String   @default("")
+  rewardItems     String   @default("[]")     // JSON: [{itemId,quantity}]
+  rewardExp       Int      @default(0)
+  rewardDialogue  String   @default("[]")     // JSON: ["line1","line2"]
+  branchChoice    String   @default("")     // JSON: {prompt,choices:[{text,description,nextStepId,flag}]}
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  chain           QuestChain @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  @@map("quest_chain_steps")
+}
+
+model QuestChainFinalReward {
+  chainId     String   @id
+  rewardItems String   @default("[]")     // JSON: [{itemId,quantity}]
+  rewardExp   Int      @default(0)
+  dialogue    String   @default("[]")     // JSON: ["line1","line2"]
+  chain       QuestChain @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  @@map("quest_chain_final_rewards")
+}
+
+

@@ -14,7 +14,7 @@ export interface MediaUploadsSectionProps {
 }
 
 export function MediaUploadsSection({ mediaUploads, entityId }: MediaUploadsSectionProps) {
-  if (mediaUploads.length === 0) return null;
+  if (!mediaUploads || mediaUploads.length === 0) return null;
 
   return (
     <div className="mt-2 pt-3 border-t border-white/[0.06]">

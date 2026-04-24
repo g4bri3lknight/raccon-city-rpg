@@ -389,6 +389,9 @@ export default function ExplorationScreen() {
                       <div className="flex items-center gap-2">
                         <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                         <span className="text-xs font-semibold uppercase tracking-wider text-amber-300">Evento Dinamico</span>
+                        {activeDynamicEvent.chainId && (
+                          <span className="text-xs text-purple-400" title="Evento a catena">⛓️</span>
+                        )}
                         <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 text-[10px] ml-auto">
                           {dynamicEventTurnsLeft} turni
                         </Badge>

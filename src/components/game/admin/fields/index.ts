@@ -23,6 +23,9 @@ export { StatusApplyEditor, StatusCuredEditor, SpecialEffectEditor } from './Sta
 export { EventChoicesEditor } from './EventChoicesEditor';
 export { StoryEventEditor } from './StoryEventEditor';
 export { RequirementsEditor } from './RequirementsEditor';
+export { QuestChainsEditor, QuestChainFinalRewardEditor, JsonEditor } from './QuestChainsEditor';
+export { DynamicDialoguesEditor } from './DynamicDialoguesEditor';
+export { PermanentMapEffectEditor } from './PermanentMapEffectEditor';
 
 // Form section components
 export { MediaUploadsSection } from './MediaUploadsSection';

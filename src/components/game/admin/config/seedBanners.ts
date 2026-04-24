@@ -1,6 +1,6 @@
 import {
   Package, Scroll, Zap, FileText, Bell, MapPin, Users, Swords,
-  Skull, Trophy, Flag, DoorOpen, Settings,
+  Skull, Trophy, Flag, DoorOpen, Settings, Link2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TabId } from './tabGroups';
@@ -34,6 +34,7 @@ export const SEED_BANNERS: Record<TabId, SeedBannerConfig | null> = {
   'endings': { icon: Flag, label: 'Finale', description: 'Gestione <span className="text-white/50 font-medium">finali</span> — configura i finali multipli del gioco con requisiti, descrizioni e priorità', seedEndpoint: '/api/admin/seed-endings' },
   'secret-rooms': { icon: DoorOpen, label: 'Stanze Segrete', description: 'Gestione <span className="text-white/50 font-medium">stanze segrete</span> — aggiungi, modifica o rimuovi stanze nascoste scopribili durante l\'esplorazione', seedEndpoint: '/api/admin/seed-secret-rooms' },
   recipes:      { icon: Settings, label: 'Ricette',     description: 'Gestione <span className="text-white/50 font-medium">ricette di crafting</span> — configura materiali, risultati e difficoltà delle ricette', seedEndpoint: '/api/admin/seed-recipes' },
+  'quest-chains': { icon: Link2, label: 'Quest Chain', description: 'Gestione <span className="text-white/50 font-medium">quest chain</span> — configura catene di missioni multi-step con branching e ricompense finali', seedEndpoint: '/api/admin/seed-quest-chains' },
   avatars:      null,
   'start-screen': null,
   settings:     null,

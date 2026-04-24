@@ -4,7 +4,7 @@ import { getCustomPassiveDescription as _getCustomPassiveDescription } from './c
 import { ENEMY_IMAGES, CHARACTER_IMAGES } from './enemies';
 import { rebuildWeaponModsFromItems } from './weapon-mods';
 import { rebuildEquipmentFromItems } from './equipment';
-import type { ItemDefinition, ItemType, Rarity, LocationDefinition } from '../types';
+import type { ItemDefinition, ItemType, Rarity, LocationDefinition, MultiStepQuest } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition, Archetype } from '../types';
@@ -26,6 +26,8 @@ export let BOSS_PHASES_DATA: Record<string, BossPhase[]> = {};
 export let ACHIEVEMENTS_DATA: Record<string, AchievementDefinition> = {};
 export let ENDINGS_DATA: Record<string, EndingDefinition> = {};
 export let AVATARS_DATA: AvatarDefinition[] = [];
+export let QUEST_CHAINS_DATA: Record<string, MultiStepQuest> = {};
+export let NPC_QUEST_CHAIN_MAP: Record<string, string> = {};
 
 // Backward compat aliases
 export { NPCS_DATA as NPCS };
@@ -77,6 +79,27 @@ export let COMBAT_CONFIG: Record<string, number> = {
 // Combat boolean settings — loaded from GameSetting DB
 export let COMBAT_BOOL_CONFIG: Record<string, boolean> = {
   autoUseItems: true,
+};
+
+// Reputation config — loaded from GameSetting DB
+export let REPUTATION_CONFIG: Record<string, number> = {
+  discountThreshold1: 4,   // -1 price discount
+  discountThreshold2: 7,   // -2 price discount
+  discountAmount1: 1,
+  discountAmount2: 2,
+  questRepGain: 2,
+  suspiciousThreshold: -2,
+};
+
+// NG+ config — loaded from GameSetting DB
+export let NGPLUS_CONFIG: Record<string, number | string> = {
+  cycle1Multiplier: 1.15,
+  cycle2Multiplier: 1.30,
+  cycle3PlusMultiplier: 1.50,
+  carriedCraftPointsPercent: 30,
+  bonusItemCycle: 2,        // minimum cycle to get bonus items
+  bonusItemId: 'antidote',
+  bonusItemQuantity: 2,
 };
 
 /** Helper: get combat delay in ms adjusted by speed setting.
@@ -163,6 +186,9 @@ interface DbEvent {
   onTriggerMessage: string;
   onEndMessage: string;
   choices: string;
+  chainId: string;
+  nextEventId: string;
+  permanentMapEffect: string;
 }
 
 interface DbDocument {
@@ -234,6 +260,7 @@ interface DbNPC {
   badgeColor: string;
   sortOrder: number;
   createdAt: Date;
+  dynamicDialogues: string;
 }
 
 interface DbCharacter {
@@ -387,6 +414,40 @@ interface DbAvatar {
   sortOrder: number;
 }
 
+interface DbQuestChain {
+  id: string;
+  npcId: string;
+  name: string;
+  description: string;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbQuestChainStep {
+  id: string;
+  chainId: string;
+  stepIndex: number;
+  description: string;
+  type: string;
+  targetId: string;
+  targetCount: number;
+  nextStepId: string;
+  rewardItems: string;
+  rewardExp: number;
+  rewardDialogue: string;
+  branchChoice: string;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+interface DbQuestChainFinalReward {
+  chainId: string;
+  rewardItems: string;
+  rewardExp: number;
+  dialogue: string;
+  createdAt: Date;
+}
+
 // ── Mappers ──
 
 function mapDbItem(item: DbItem): ItemDefinition {
@@ -440,6 +501,14 @@ function mapDbEvent(event: DbEvent): DynamicEvent {
     onTriggerMessage: event.onTriggerMessage,
     onEndMessage: event.onEndMessage,
     choices: JSON.parse(event.choices || '[]'),
+    // Chain event fields
+    ...(event.chainId ? { chainId: event.chainId } : {}),
+    ...(event.nextEventId ? { nextEventId: event.nextEventId } : {}),
+    ...(event.permanentMapEffect ? {
+      permanentMapEffect: (() => {
+        try { return JSON.parse(event.permanentMapEffect); } catch { return undefined; }
+      })()
+    } : {}),
   };
 }
 
@@ -521,6 +590,7 @@ function mapDbNpc(row: DbNPC): GameNPC {
     ...(row.badgeLabel ? { badgeLabel: row.badgeLabel } : {}),
     ...(row.badgeIcon ? { badgeIcon: row.badgeIcon } : {}),
     ...(row.badgeColor ? { badgeColor: row.badgeColor } : {}),
+    ...(row.dynamicDialogues ? { dynamicDialogues: JSON.parse(row.dynamicDialogues || '[]') } : {}),
   };
 }
 
@@ -809,6 +879,71 @@ async function loadAvatars(api: Awaited<ReturnType<typeof loadFromApi>>): Promis
   }
 }
 
+function loadQuestChains(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  QUEST_CHAINS_DATA = {};
+  NPC_QUEST_CHAIN_MAP = {};
+  if (api?.questChains && api.questChains.length > 0) {
+    const chains = api.questChains as DbQuestChain[];
+    const steps = (api.questChainSteps || []) as DbQuestChainStep[];
+    const rewards = (api.questChainFinalRewards || []) as DbQuestChainFinalReward[];
+
+    for (const chain of chains) {
+      // Get steps for this chain
+      const chainSteps = steps
+        .filter(s => s.chainId === chain.id)
+        .sort((a, b) => a.stepIndex - b.stepIndex);
+
+      // Get final reward for this chain
+      const fr = rewards.find(r => r.chainId === chain.id);
+      let finalReward = { items: [], exp: 0, dialogue: [] };
+      if (fr) {
+        try { finalReward.items = JSON.parse(fr.rewardItems || '[]'); } catch {}
+        finalReward.exp = fr.rewardExp || 0;
+        try { finalReward.dialogue = JSON.parse(fr.dialogue || '[]'); } catch {}
+      }
+
+      // Build MultiStepQuest object
+      const multiSteps = chainSteps.map(step => {
+        let rewardItems = [];
+        try { rewardItems = JSON.parse(step.rewardItems || '[]'); } catch {}
+        let rewardDialogue = [];
+        try { rewardDialogue = JSON.parse(step.rewardDialogue || '[]'); } catch {}
+        let branchChoice = undefined;
+        try {
+          if (step.branchChoice) branchChoice = JSON.parse(step.branchChoice);
+        } catch {}
+
+        return {
+          id: step.id,
+          description: step.description,
+          type: step.type as any,
+          targetId: step.targetId,
+          targetCount: step.targetCount,
+          nextStepId: step.nextStepId,
+          reward: {
+            items: rewardItems,
+            exp: step.rewardExp,
+            dialogue: rewardDialogue,
+          },
+          ...(branchChoice ? { branchChoice } : {}),
+        };
+      });
+
+      QUEST_CHAINS_DATA[chain.id] = {
+        id: chain.id,
+        npcId: chain.npcId,
+        name: chain.name,
+        description: chain.description,
+        steps: multiSteps,
+        finalReward,
+      };
+
+      // Build NPC→chain map
+      NPC_QUEST_CHAIN_MAP[chain.npcId] = chain.id;
+    }
+  }
+}
+
 async function loadGameSettings(): Promise<void> {
   try {
     const resp = await fetch('/api/game-settings');
@@ -868,6 +1003,24 @@ async function loadGameSettings(): Promise<void> {
       const raw = settings[`combat.${key}`];
       if (raw !== undefined) {
         COMBAT_BOOL_CONFIG[key] = raw === 'true';
+      }
+    }
+
+    // Reputation config
+    for (const key of Object.keys(REPUTATION_CONFIG)) {
+      const raw = settings[`reputation.${key}`];
+      if (raw !== undefined) {
+        const parsed = parseFloat(raw);
+        if (!isNaN(parsed)) REPUTATION_CONFIG[key] = parsed;
+      }
+    }
+
+    // NG+ config
+    for (const key of Object.keys(NGPLUS_CONFIG)) {
+      const raw = settings[`ngplus.${key}`];
+      if (raw !== undefined) {
+        const parsed = parseFloat(raw);
+        if (!isNaN(parsed)) NGPLUS_CONFIG[key] = parsed;
       }
     }
   } catch {
@@ -932,6 +1085,9 @@ async function loadFromApi(): Promise<{
   achievements: DbAchievement[];
   endings: DbEnding[];
   avatars: DbAvatar[];
+  questChains: DbQuestChain[];
+  questChainSteps: DbQuestChainStep[];
+  questChainFinalRewards: DbQuestChainFinalReward[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -1051,6 +1207,7 @@ export async function initGameData(): Promise<void> {
         loadAchievements(api),
         loadEndings(api),
         loadAvatars(api),
+        loadQuestChains(api),
         loadGameSettings(),
       ]);
       // Boss phases must load AFTER enemy abilities (resolves ability IDs)
@@ -1090,6 +1247,7 @@ export async function refreshGameData(): Promise<void> {
     loadAchievements(api),
     loadEndings(api),
     loadAvatars(api),
+    loadQuestChains(api),
     loadGameSettings(),
   ]);
   // Boss phases must load AFTER enemy abilities (resolves ability IDs)

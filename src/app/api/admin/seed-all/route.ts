@@ -60,6 +60,8 @@ async function seedEvents(): Promise<SeedResult> {
       locationIds: JSON.stringify(evt.locationIds ?? []),
       onTriggerMessage: evt.onTriggerMessage, onEndMessage: evt.onEndMessage,
       choices: JSON.stringify(evt.choices ?? []),
+      chainId: evt.chainId ?? '',
+      nextEventId: evt.nextEventId ?? '',
     };
     if (existing) { await db.dynamicEvent.update({ where: { id: evt.id }, data }); updated++; }
     else { await db.dynamicEvent.create({ data: { id: evt.id, ...data } }); created++; }
@@ -324,6 +326,11 @@ export async function POST() {
     const avatarsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-avatars`, { method: 'POST', ...adminHeaders });
     const avatarsData = await avatarsRes.json();
     results.push({ entity: 'avatars', total: avatarsData.result?.total ?? 9, created: 0, updated: 0 });
+
+    // Seed quest chains
+    const questChainsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-quest-chains`, { method: 'POST', ...adminHeaders });
+    const questChainsData = await questChainsRes.json();
+    results.push({ entity: 'quest-chains', total: questChainsData.total ?? 0, created: questChainsData.created ?? 0, updated: 0 });
 
     const summary = results.map(r => `${r.entity}: ${r.created} nuovi, ${r.updated} agg. (totale ${r.total})`).join('\n');
 

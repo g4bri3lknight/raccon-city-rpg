@@ -3,7 +3,8 @@ import { GameStore } from '../types';
 import { Archetype, CustomCharacterConfig, DifficultyLevel } from '../../types';
 import { fetchGameSettings } from '../settings-cache';
 import { buildStartState } from '../initial-state';
-import { createCharacter, createCustomCharacter } from '../helpers';
+import { createCharacter, createCustomCharacter, addItemToParty } from '../helpers';
+import { NGPLUS_CONFIG } from '../../data/loader';
 
 export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   startGame: () => {
@@ -82,6 +83,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       pendingChainEvent: null,
       completedChains: [],
       ngPlusCycle: 0,
+      ngPlusEnemyMultiplier: 1,
       craftingPoints: 0,
       totalCrafted: 0,
       masterQualityCrafted: 0,
@@ -97,6 +99,14 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const party = selectedArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
     set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...'));
+    // NG+ bonus: give bonus items if cycle >= configured threshold
+    if ((state.ngPlusCycle || 0) >= Number(NGPLUS_CONFIG.bonusItemCycle)) {
+      const postState = get();
+      const bonusResult = addItemToParty(postState.party, String(NGPLUS_CONFIG.bonusItemId), Number(NGPLUS_CONFIG.bonusItemQuantity));
+      if (bonusResult.added) {
+        set({ party: bonusResult.party, messageLog: [...postState.messageLog, `🎁 Bonus NG+ (Ciclo ${state.ngPlusCycle}): ${bonusResult.characterName} riceve ${String(NGPLUS_CONFIG.bonusItemId)} ×${Number(NGPLUS_CONFIG.bonusItemQuantity)}!`] });
+      }
+    }
   },
 
   startAdventureWithCustom: (presetArchetypes: Archetype[], customCharacters: CustomCharacterConfig[]) => {
@@ -106,6 +116,14 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const party = [...presetParty, ...customParty];
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
     set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...'));
+    // NG+ bonus: give bonus items if cycle >= configured threshold
+    if ((state.ngPlusCycle || 0) >= Number(NGPLUS_CONFIG.bonusItemCycle)) {
+      const postState = get();
+      const bonusResult = addItemToParty(postState.party, String(NGPLUS_CONFIG.bonusItemId), Number(NGPLUS_CONFIG.bonusItemQuantity));
+      if (bonusResult.added) {
+        set({ party: bonusResult.party, messageLog: [...postState.messageLog, `🎁 Bonus NG+ (Ciclo ${state.ngPlusCycle}): ${bonusResult.characterName} riceve ${String(NGPLUS_CONFIG.bonusItemId)} ×${Number(NGPLUS_CONFIG.bonusItemQuantity)}!`] });
+      }
+    }
   },
 
   gameOver: () => {
@@ -200,6 +218,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       pendingChainEvent: null,
       completedChains: [],
       ngPlusCycle: 0,
+      ngPlusEnemyMultiplier: 1,
       craftingPoints: 0,
       totalCrafted: 0,
       masterQualityCrafted: 0,

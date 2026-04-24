@@ -1,11 +1,20 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
-import { ITEMS, NPCS, QUESTS } from '../../data/loader';
+import { ITEMS, NPCS, QUESTS, REPUTATION_CONFIG } from '../../data/loader';
 import { getFirstAvailableQuest } from '../../data/quest-helper';
 import { addItemToParty, canAddItemToParty, nextNotifId } from '../helpers';
 import { playNPCEncounter, playMenuOpen, playMenuClose } from '../../engine/sounds';
 
 export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
+
+  modifyNpcReputation: (npcId: string, amount: number) => {
+    set(state => ({
+      npcReputation: {
+        ...state.npcReputation,
+        [npcId]: (state.npcReputation[npcId] || 0) + amount,
+      },
+    }));
+  },
   encounterNpc: (npcId: string, specificQuestId?: string) => {
     const npc = NPCS[npcId];
     if (!npc) return;
@@ -139,6 +148,8 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
           });
           // Track run stats: quest completed
           get().incrementRunStat('questsCompleted');
+          // +2 reputation for completing a quest
+          get().modifyNpcReputation(npc.id, REPUTATION_CONFIG.questRepGain);
           return { handled: true, chatMessage: `Grazie! Hai portato esattamente quello che mi serviva! Missione "${npc.quest.name}" completata!` };
         } else if (partyItemCount > 0) {
           // Has some but not enough
@@ -187,6 +198,8 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
         });
         // Track run stats: quest completed (explore)
         get().incrementRunStat('questsCompleted');
+        // +2 reputation for completing a quest
+        get().modifyNpcReputation(npc.id, REPUTATION_CONFIG.questRepGain);
         return { handled: true, chatMessage: `${npc.quest.rewardDialogue?.[0] || 'Hai fatto un ottimo lavoro esplorando!'} Missione "${npc.quest.name}" completata!` };
       } else if (questProgress) {
         const msg = `Non hai ancora esplorato ${npc.quest.targetId.replace(/_/g, ' ')}. Continua a cercare!`;
@@ -238,12 +251,20 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
     if (!state.activeNpc?.tradeInventory) return { success: false, reason: 'Nessuno scambio disponibile' };
     const trade = state.activeNpc.tradeInventory[tradeIndex];
     if (!trade) return { success: false, reason: 'Scambio non trovato' };
+    // Reputation discount on trade prices
+    const rep = state.npcReputation[state.activeNpc.id] || 0;
+    const discount = rep >= REPUTATION_CONFIG.discountThreshold2 ? REPUTATION_CONFIG.discountAmount2 : rep >= REPUTATION_CONFIG.discountThreshold1 ? REPUTATION_CONFIG.discountAmount1 : 0;
+    const effectivePrice = Math.max(1, trade.priceQuantity - discount);
     const hasPriceItem = state.party.some(p =>
-      p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity)
+      p.inventory.some(i => i.itemId === trade.priceItemId && i.quantity >= effectivePrice)
     );
     if (!hasPriceItem) {
+      const priceDef = ITEMS[trade.priceItemId];
+      const priceLabel = discount > 0
+        ? `${effectivePrice}x ${priceDef?.name || trade.priceItemId} (sconto reputazione: -${discount})`
+        : `${effectivePrice}x ${priceDef?.name || trade.priceItemId}`;
       set(state => ({
-        messageLog: [...state.messageLog, `[${state.turnCount}] ❌ Non avete gli oggetti necessari per lo scambio.`],
+        messageLog: [...state.messageLog, `[${state.turnCount}] ❌ Non avete gli oggetti necessari per lo scambio. Serve: ${priceLabel}`],
       }));
       return { success: false, reason: 'Oggetti insufficienti' };
     }
@@ -256,15 +277,15 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
     let priceRemoved = false;
     for (const p of updatedParty) {
       if (priceRemoved) break;
-      const idx = p.inventory.findIndex(i => i.itemId === trade.priceItemId && i.quantity >= trade.priceQuantity);
+      const idx = p.inventory.findIndex(i => i.itemId === trade.priceItemId && i.quantity >= effectivePrice);
       if (idx >= 0) {
         const item = p.inventory[idx];
-        if (item.quantity > trade.priceQuantity) {
+        if (item.quantity > effectivePrice) {
           updatedParty = updatedParty.map(pp =>
             pp.id === p.id ? {
               ...pp,
               inventory: pp.inventory.map((ii, iiIdx) =>
-                iiIdx === idx ? { ...ii, quantity: ii.quantity - trade.priceQuantity } : ii
+                iiIdx === idx ? { ...ii, quantity: ii.quantity - effectivePrice } : ii
               ),
             } : pp
           );
@@ -280,9 +301,10 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
     if (!tradedDef) return { success: false, reason: 'Oggetto non trovato' };
     const result = addItemToParty(updatedParty, trade.itemId, tradeQty);
     updatedParty = result.party;
+    const discountMsg = discount > 0 ? ' 🏷️ Sconto reputazione!' : '';
     set(state => ({
       party: updatedParty,
-      messageLog: [...state.messageLog, `[${state.turnCount}] 🤝 Scambio completato! Ricevuto: ${tradedDef.name}${tradeQty > 1 ? ` x${tradeQty}` : ''}${result.added ? ` → ${result.characterName}` : ' (inventario pieno!)'}`],
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🤝 Scambio completato! Ricevuto: ${tradedDef.name}${tradeQty > 1 ? ` x${tradeQty}` : ''}${result.added ? ` → ${result.characterName}` : ' (inventario pieno!)'}${discountMsg}`],
     }));
     // Auto-save after successful trade
     setTimeout(() => { try { get().autoSave(); } catch {} }, 100);

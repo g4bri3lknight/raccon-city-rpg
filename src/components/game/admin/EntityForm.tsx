@@ -33,6 +33,11 @@ import {
   RequirementsEditor,
   MediaUploadsSection,
   FormActions,
+  QuestChainsEditor,
+  QuestChainFinalRewardEditor,
+  JsonEditor,
+  DynamicDialoguesEditor,
+  PermanentMapEffectEditor,
 } from './fields';
 
 // Re-export ItemBoxDefaultsEditor for external consumers (GameSettingsEditor)
@@ -265,6 +270,49 @@ export function EntityForm({
       return (
         <FieldContainer key={f.key} field={f}>
           <RequirementsEditor value={val} onChange={v => handleChange(f.key, v)} />
+        </FieldContainer>
+      );
+    }
+
+    if (f.type === 'quest-chain-steps') {
+      return (
+        <FieldContainer key={f.key} field={f}>
+          <QuestChainsEditor value={val} onChange={v => handleChange(f.key, v)} />
+        </FieldContainer>
+      );
+    }
+
+    if (f.type === 'quest-chain-final-reward') {
+      return (
+        <FieldContainer key={f.key} field={f}>
+          <QuestChainFinalRewardEditor value={val} onChange={v => handleChange(f.key, v)} />
+        </FieldContainer>
+      );
+    }
+
+    if (f.type === 'dynamic-dialogues') {
+      return (
+        <FieldContainer key={f.key} field={f}>
+          <DynamicDialoguesEditor value={val} onChange={v => handleChange(f.key, v)} />
+        </FieldContainer>
+      );
+    }
+
+    if (f.type === 'permanent-map-effect') {
+      return (
+        <FieldContainer key={f.key} field={f}>
+          <PermanentMapEffectEditor value={val} onChange={v => handleChange(f.key, v)} />
+        </FieldContainer>
+      );
+    }
+
+    if (f.type === 'json') {
+      return (
+        <FieldContainer key={f.key} field={f}>
+          <JsonEditor
+            value={val}
+            onChange={v => handleChange(f.key, v)}
+          />
         </FieldContainer>
       );
     }

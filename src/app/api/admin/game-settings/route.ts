@@ -60,6 +60,23 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'combat.defaultCooldown':        { value: '2',    label: 'Cooldown Speciale Default (turni)',   group: 'combat', sortOrder: 316 },
   'combat.speed':                  { value: '1.0',  label: 'Velocità Combattimento',             group: 'combat', sortOrder: 320 },
   'combat.autoUseItems':           { value: 'true', label: 'AI usa oggetti',                     group: 'combat', sortOrder: 321 },
+
+  // ── New Game+ ──
+  'ngplus.cycle1Multiplier':       { value: '1.15', label: 'Molt. Ciclo 1 NG+',                group: 'ngplus', sortOrder: 400 },
+  'ngplus.cycle2Multiplier':       { value: '1.30', label: 'Molt. Ciclo 2 NG+',                group: 'ngplus', sortOrder: 401 },
+  'ngplus.cycle3PlusMultiplier':   { value: '1.50', label: 'Molt. Ciclo 3+ NG+',               group: 'ngplus', sortOrder: 402 },
+  'ngplus.carriedCraftPointsPercent': { value: '30',  label: '% Craft Points Portati',          group: 'ngplus', sortOrder: 403 },
+  'ngplus.bonusItemCycle':         { value: '2',    label: 'Ciclo Minimo Bonus Item',           group: 'ngplus', sortOrder: 404 },
+  'ngplus.bonusItemId':            { value: 'antidote', label: 'Bonus Item ID NG+',              group: 'ngplus', sortOrder: 405 },
+  'ngplus.bonusItemQuantity':      { value: '2',    label: 'Bonus Item Quantità NG+',           group: 'ngplus', sortOrder: 406 },
+
+  // ── NPC Reputation ──
+  'reputation.discountThreshold1':  { value: '4',    label: 'Soglia Sconto 1',                  group: 'reputation', sortOrder: 500 },
+  'reputation.discountThreshold2':  { value: '7',    label: 'Soglia Sconto 2',                  group: 'reputation', sortOrder: 501 },
+  'reputation.discountAmount1':     { value: '1',    label: 'Sconto 1 (prezzo -N)',              group: 'reputation', sortOrder: 502 },
+  'reputation.discountAmount2':     { value: '2',    label: 'Sconto 2 (prezzo -N)',              group: 'reputation', sortOrder: 503 },
+  'reputation.questRepGain':        { value: '2',    label: 'Reputazione per Quest',             group: 'reputation', sortOrder: 504 },
+  'reputation.suspiciousThreshold': { value: '-2',   label: 'Soglia Sospetto',                   group: 'reputation', sortOrder: 505 },
 };
 
 async function ensureDefaults() {

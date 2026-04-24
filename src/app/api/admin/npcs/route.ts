@@ -33,6 +33,7 @@ export async function GET() {
       badgeLabel: row.badgeLabel,
       badgeIcon: row.badgeIcon,
       badgeColor: row.badgeColor,
+      dynamicDialogues: row.dynamicDialogues ? JSON.parse(row.dynamicDialogues) : [],
       createdAt: row.createdAt,
     }));
 
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
         badgeLabel: body.badgeLabel ?? '',
         badgeIcon: body.badgeIcon ?? '',
         badgeColor: body.badgeColor ?? '',
+        dynamicDialogues: jsonStr(body.dynamicDialogues, '[]'),
       },
     });
 
@@ -105,6 +107,7 @@ export async function PUT(request: NextRequest) {
     if (updateFields.badgeLabel !== undefined) data.badgeLabel = updateFields.badgeLabel;
     if (updateFields.badgeIcon !== undefined) data.badgeIcon = updateFields.badgeIcon;
     if (updateFields.badgeColor !== undefined) data.badgeColor = updateFields.badgeColor;
+    if (updateFields.dynamicDialogues !== undefined) data.dynamicDialogues = jsonStr(updateFields.dynamicDialogues, '[]');
 
     const npc = await db.gameNPC.update({
       where: { id },

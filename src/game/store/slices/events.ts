@@ -47,6 +47,7 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     }
     if (outcome.endEvent) {
       logMessages.push(`[${state.turnCount}] ${state.activeDynamicEvent.onEndMessage}`);
+      const completedEventId = state.activeDynamicEvent.id;
       set({
         activeDynamicEvent: null,
         dynamicEventTurnsLeft: 0,
@@ -54,6 +55,7 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
         messageLog: [...state.messageLog, ...logMessages],
         turnCount: state.turnCount + 1,
       });
+      get().checkEventChain(completedEventId);
     } else {
       set({
         party: updatedParty,
@@ -79,12 +81,14 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     }
     if (newTurnsLeft <= 0) {
       logMsgs.push(`[${state.turnCount}] ✅ ${state.activeDynamicEvent.onEndMessage}`);
+      const completedEventId = state.activeDynamicEvent.id;
       set({
         activeDynamicEvent: null,
         dynamicEventTurnsLeft: 0,
         party: updatedParty,
         messageLog: [...state.messageLog, ...logMsgs],
       });
+      get().checkEventChain(completedEventId);
     } else {
       set({
         dynamicEventTurnsLeft: newTurnsLeft,
@@ -185,6 +189,33 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
       return { id: 'ending_unknown', name: 'Fine', description: 'Il tuo viaggio è terminato.', requirements: [], priority: -1 };
     }
     return fallback;
+  },
+
+  checkEventChain: (completedEventId: string) => {
+    const state = get();
+    const completedEvent = DYNAMIC_EVENTS[completedEventId];
+    if (!completedEvent?.nextEventId) return;
+
+    // Check if next event exists and hasn't been permanently completed
+    const nextEvent = DYNAMIC_EVENTS[completedEvent.nextEventId];
+    if (!nextEvent || state.completedPermanentEvents.includes(nextEvent.id)) return;
+
+    // Check minTurn requirement
+    if (state.turnCount < (nextEvent.minTurn || 0)) {
+      // Schedule for later
+      set(state => ({
+        pendingChainEvent: { eventId: nextEvent.id, triggerTurn: nextEvent.minTurn || state.turnCount + 5 },
+        completedChains: [...state.completedChains, completedEvent.chainId || completedEventId],
+      }));
+      return;
+    }
+
+    // Trigger immediately
+    get().triggerDynamicEvent(nextEvent.id);
+    set(state => ({
+      completedChains: [...state.completedChains, completedEvent.chainId || completedEventId],
+      messageLog: [...state.messageLog, `[${state.turnCount}] ⛓️ Evento a catena! ${nextEvent.icon} ${nextEvent.title} si attiva!`],
+    }));
   },
 
   toggleMap: () => {

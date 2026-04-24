@@ -27,6 +27,10 @@ import {
   NPCQuest,
   DynamicEventChoice,
   RandomizedLocationData,
+  RunStats,
+  QuestChainProgress,
+  QuestChainStep,
+  PermanentEffect,
 } from '../types';
 
 export type {
@@ -58,6 +62,10 @@ export type {
   NPCQuest,
   DynamicEventChoice,
   RandomizedLocationData,
+  RunStats,
+  QuestChainProgress,
+  QuestChainStep,
+  PermanentEffect,
 };
 
 export interface SaveSlotInfo {
@@ -222,6 +230,22 @@ export interface GameStore extends GameState {
   incrementHerbCombine: () => void;
   checkPerfectCombat: () => void;
   checkAutoCombatVictory: () => void;
+
+  // Run statistics
+  incrementRunStat: (key: keyof RunStats, value?: number) => void;
+  _trackCombatVictoryStats: (combatLog: CombatLogEntry[], defeatedEnemies: { definitionId: string; isBoss: boolean; currentHp: number }[], comboCount: number, partyTookDamage: boolean) => void;
+
+  // Quest Chain system
+  acceptQuestChain: (chainId: string) => void;
+  advanceQuestChainStep: (chainId: string) => { completed: boolean; message: string };
+  handleChainBranchChoice: (chainId: string, choiceIndex: number) => { message: string };
+  getActiveChainForNpc: (npcId: string) => QuestChainStep | null;
+
+  // NPC Reputation
+  modifyNpcReputation: (npcId: string, amount: number) => void;
+
+  // Chain Dynamic Events
+  checkEventChain: (completedEventId: string) => void;
 
   // Admin data refresh
   bumpDataVersion: () => void;

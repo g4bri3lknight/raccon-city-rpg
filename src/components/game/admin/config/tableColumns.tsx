@@ -331,6 +331,26 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       width: 'w-20',
       render: (row) => <span className="text-white/50">{row.duration} turni</span>,
     },
+    {
+      key: 'chainId',
+      label: 'Chain',
+      width: 'w-28',
+      render: (row) => {
+        const c = String(row.chainId ?? '');
+        if (!c) return <span className="text-white/15 text-[12px]">—</span>;
+        return <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-purple-500/30 text-purple-300 bg-purple-500/10">{c}</Badge>;
+      },
+    },
+    {
+      key: 'nextEventId',
+      label: 'Next →',
+      width: 'w-36',
+      render: (row) => {
+        const n = String(row.nextEventId ?? '');
+        if (!n) return <span className="text-white/15 text-[12px]">—</span>;
+        return <span className="text-[12px] text-white/50 font-mono">{n}</span>;
+      },
+    },
   ],
   documents: [
     { key: 'id', label: 'ID', width: 'w-44' },
@@ -968,4 +988,20 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
   'avatars': [],
   'start-screen': [],
   settings:     [],
+  'quest-chains': [
+    { key: 'id', label: 'ID', width: 'w-48' },
+    { key: 'npcId', label: 'NPC ID', width: 'w-36' },
+    { key: 'name', label: 'Nome', width: 'w-40' },
+    {
+      key: 'description',
+      label: 'Descrizione',
+      width: 'w-56',
+      render: (row) => {
+        const d = String(row.description ?? '');
+        if (!d) return <span className="text-white/15 text-[12px]">—</span>;
+        return <span className="text-[12px] text-white/50" title={d}>{d.length > 60 ? d.slice(0, 60) + '…' : d}</span>;
+      },
+    },
+    { key: 'sortOrder', label: 'Ordine', width: 'w-16' },
+  ],
 };

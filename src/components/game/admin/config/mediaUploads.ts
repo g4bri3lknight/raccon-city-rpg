@@ -173,6 +173,7 @@ export const MEDIA_UPLOADS: Record<TabId, MediaUploadDef[]> = {
   'endings': [],
   'secret-rooms': [],
   recipes: [],
+  'quest-chains': [],
   'avatars': [],
   'start-screen': [],
   settings:     [],

@@ -700,6 +700,15 @@ export interface QTEState {
 
 export interface GameState {
   phase: GamePhase;
+  // Quest Chain system
+  questChainProgress: Record<string, QuestChainProgress>;
+  // NPC Reputation system
+  npcReputation: Record<string, number>;
+  // Chain Dynamic Events
+  completedPermanentEvents: string[];
+  activePermanentEffects: PermanentEffect[];
+  pendingChainEvent: { eventId: string; triggerTurn: number } | null;
+  completedChains: string[];
   party: Character[];
   partySize: number; // 1, 2, or 3 — set at game start
   currentLocationId: string;
@@ -789,6 +798,7 @@ export interface GameState {
   totalCrafted: number;
   masterQualityCrafted: number;
   ngPlusCycle: number;
+  ngPlusEnemyMultiplier: number; // 1.0 base, increases each NG+ cycle
   // Run statistics
   runStats: RunStats;
 }
@@ -934,6 +944,14 @@ export interface DynamicEvent {
   onTriggerMessage: string;
   onEndMessage: string;
   choices: DynamicEventChoice[];
+  // Chain event support
+  chainId?: string; // group ID for linked events
+  nextEventId?: string; // event to trigger after this one ends
+  permanentMapEffect?: {
+    type: 'lock_location' | 'unlock_location' | 'change_danger';
+    locationId: string;
+    value: number | string;
+  };
 }
 
 export interface DynamicEventChoice {
@@ -1021,16 +1039,53 @@ export interface RunStats {
 }
 
 // ==========================================
-// QUEST CHAIN SYSTEM (stubs)
+// QUEST CHAIN SYSTEM
 // ==========================================
 
 export interface QuestChainProgress {
-  currentStep: number;
+  currentStepIndex: number;
   completed: boolean;
+  chosenFlags: string[];
 }
 
 export interface PermanentEffect {
   id: string;
   type: string;
   value: number;
+}
+
+export interface QuestChainStep {
+  id: string;
+  description: string;
+  type: 'fetch' | 'kill' | 'explore' | 'talk' | 'choose';
+  targetId?: string;
+  targetCount: number;
+  nextStepId: string;
+  reward: {
+    items?: { itemId: string; quantity: number }[];
+    exp: number;
+    dialogue: string[];
+  };
+  branchChoice?: {
+    prompt: string;
+    choices: {
+      text: string;
+      description: string;
+      nextStepId: string;
+      flag: string;
+    }[];
+  };
+}
+
+export interface MultiStepQuest {
+  id: string;
+  npcId: string;
+  name: string;
+  description: string;
+  steps: QuestChainStep[];
+  finalReward: {
+    items?: { itemId: string; quantity: number }[];
+    exp: number;
+    dialogue: string[];
+  };
 }

@@ -15,6 +15,8 @@ import { createEventsSlice } from './slices/events';
 import { createSafeRoomSlice } from './slices/safe-room';
 import { createSaveSlice } from './slices/save';
 import { createDebugSlice } from './slices/debug';
+import { createRunStatsSlice } from './slices/run-stats';
+import { createQuestChainsSlice } from './slices/quest-chains';
 
 // Re-export for backward compatibility
 export { getDifficultyConfig } from '../data/difficulty';
@@ -39,4 +41,6 @@ export const useGameStore = create<GameStore>()((...a) => ({
   ...createSafeRoomSlice(...a),
   ...createSaveSlice(...a),
   ...createDebugSlice(...a),
+  ...createRunStatsSlice(...a),
+  ...createQuestChainsSlice(...a),
 }));

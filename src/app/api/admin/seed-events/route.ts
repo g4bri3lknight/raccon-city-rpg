@@ -32,6 +32,8 @@ export async function POST() {
         onTriggerMessage: evt.onTriggerMessage,
         onEndMessage: evt.onEndMessage,
         choices: JSON.stringify(evt.choices ?? []),
+        chainId: evt.chainId ?? '',
+        nextEventId: evt.nextEventId ?? '',
       };
 
       if (existing) {

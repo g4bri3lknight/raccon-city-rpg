@@ -126,4 +126,21 @@ export const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
   { key: 'combat.defaultCooldown', label: 'Cooldown Speciale Default', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 10, step: 1, helpText: 'Cooldown in turni delle abilità speciali (se non specificato)' },
   { key: 'combat.speed', label: 'Velocità Combattimento', type: 'range', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0.5, max: 3.0, step: 0.1, helpText: 'Velocità delle animazioni di combattimento. 0.5 = lento, 1.0 = normale, 3.0 = veloce' },
   { key: 'combat.autoUseItems', label: 'AI usa oggetti', type: 'toggle', group: 'combat', groupLabel: '⚔️ Combattimento', helpText: 'Se attivo, il combattimento automatico usa pozze e oggetti di cura quando necessario' },
+
+  // ── New Game+ ──
+  { key: 'ngplus.cycle1Multiplier', label: 'Moltiplicatore Ciclo 1', type: 'number', group: 'ngplus', groupLabel: '🔄 New Game+', min: 1, max: 3, step: 0.05, helpText: 'Moltiplicatore statistiche nemici nel primo ciclo NG+ (es. 1.15 = +15%)' },
+  { key: 'ngplus.cycle2Multiplier', label: 'Moltiplicatore Ciclo 2', type: 'number', group: 'ngplus', groupLabel: '🔄 New Game+', min: 1, max: 4, step: 0.05, helpText: 'Moltiplicatore statistiche nemici nel secondo ciclo NG+' },
+  { key: 'ngplus.cycle3PlusMultiplier', label: 'Moltiplicatore Ciclo 3+', type: 'number', group: 'ngplus', groupLabel: '🔄 New Game+', min: 1, max: 5, step: 0.05, helpText: 'Moltiplicatore dal terzo ciclo in poi' },
+  { key: 'ngplus.carriedCraftPointsPercent', label: '% Craft Points Portati', type: 'number', group: 'ngplus', groupLabel: '🔄 New Game+', min: 0, max: 100, step: 5, helpText: 'Percentuale dei Punti Craft portati nel NG+ (es. 30 = 30%)' },
+  { key: 'ngplus.bonusItemCycle', label: 'Ciclo Minimo Bonus Item', type: 'number', group: 'ngplus', groupLabel: '🔄 New Game+', min: 1, max: 10, helpText: 'Ciclo NG+ minimo per ricevere l\'oggetto bonus all\'inizio' },
+  { key: 'ngplus.bonusItemId', label: 'Bonus Item ID', type: 'text', group: 'ngplus', groupLabel: '🔄 New Game+', placeholder: 'es: antidote', helpText: 'ID dell\'oggetto bonus ricevuto all\'inizio di ogni ciclo NG+' },
+  { key: 'ngplus.bonusItemQuantity', label: 'Bonus Item Quantità', type: 'number', group: 'ngplus', groupLabel: '🔄 New Game+', min: 0, max: 99, helpText: 'Quantità dell\'oggetto bonus ricevuto all\'inizio di ogni ciclo' },
+
+  // ── NPC Reputation ──
+  { key: 'reputation.discountThreshold1', label: 'Soglia Sconto 1', type: 'number', group: 'reputation', groupLabel: '💬 Reputazione NPC', helpText: 'Reputazione minima per ottenere il primo sconto sugli scambi' },
+  { key: 'reputation.discountThreshold2', label: 'Soglia Sconto 2', type: 'number', group: 'reputation', groupLabel: '💬 Reputazione NPC', helpText: 'Reputazione minima per ottenere il secondo sconto sugli scambi' },
+  { key: 'reputation.discountAmount1', label: 'Sconto 1 (-prezzo)', type: 'number', group: 'reputation', groupLabel: '💬 Reputazione NPC', min: 0, max: 10, helpText: 'Riduzione prezzo al primo livello di sconto' },
+  { key: 'reputation.discountAmount2', label: 'Sconto 2 (-prezzo)', type: 'number', group: 'reputation', groupLabel: '💬 Reputazione NPC', min: 0, max: 20, helpText: 'Riduzione prezzo al secondo livello di sconto' },
+  { key: 'reputation.questRepGain', label: '+Reputazione per Quest', type: 'number', group: 'reputation', groupLabel: '💬 Reputazione NPC', min: 0, max: 10, helpText: 'Punti reputazione guadagnati completando una quest' },
+  { key: 'reputation.suspiciousThreshold', label: 'Soglia Sospetto', type: 'number', group: 'reputation', groupLabel: '💬 Reputazione NPC', max: 0, helpText: 'Sotto questa soglia di reputazione, l\'NPC diventa sospetto (es. -2)' },
 ];

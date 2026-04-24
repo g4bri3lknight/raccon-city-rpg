@@ -6,7 +6,7 @@ import type { TabId } from './tabGroups';
 export interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'status-cured' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items' | 'effects-editor' | 'item-box-defaults' | 'requirements-editor';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'entity-search' | 'tag-editor' | 'entity-tag-editor' | 'item-pool' | 'text-list' | 'locked-locs' | 'sub-areas' | 'story-event' | 'status-apply' | 'status-cured' | 'quest-rewards' | 'event-choices' | 'rich-text-editor' | 'trade-inventory' | 'starting-items' | 'effects-editor' | 'item-box-defaults' | 'requirements-editor' | 'json' | 'quest-chain-steps' | 'quest-chain-final-reward' | 'dynamic-dialogues' | 'permanent-map-effect';
   options?: string[];
   enumGroup?: string; // key into ENUM_LABELS for Italian translations
   entitySearchEndpoint?: string; // for entity-search type
@@ -70,6 +70,9 @@ export const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'onTriggerMessage', label: 'Msg Trigger', type: 'textarea', colSpan: 3 },
     { key: 'onEndMessage', label: 'Msg Fine', type: 'textarea', colSpan: 3 },
     { key: 'choices', label: 'Scelte', type: 'event-choices', colSpan: 3 },
+    { key: 'chainId', label: 'Chain ID', type: 'text', placeholder: 'es: power_crisis', helpText: 'ID del gruppo di eventi concatenati (es. "power_crisis")' },
+    { key: 'nextEventId', label: 'Prossimo Evento', type: 'entity-search', entitySearchEndpoint: '/api/admin/events', entitySearchLabelKey: 'title', entityIconKey: 'icon', placeholder: 'Cerca evento...', helpText: "Evento da attivare dopo questo nella catena", colSpan: 2 },
+    { key: 'permanentMapEffect', label: 'Effetto Permanente Mappa', type: 'permanent-map-effect', colSpan: 3, helpText: 'Effetto permanente sulla mappa al termine dell\'evento: blocca/sblocca location, cambia pericolo, ecc.' },
   ],
   documents: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: doc_survivor_note' },
@@ -100,6 +103,7 @@ export const FIELD_MAP: Record<TabId, FieldDef[]> = {
     { key: 'badgeLabel', label: 'Badge Label', type: 'text', placeholder: 'es: Meccanico, Medico', helpText: 'Testo mostrato sotto il nome NPC sulla mappa' },
     { key: 'badgeIcon', label: 'Badge Icona', type: 'text', placeholder: 'es: 🔧, 🥼', colSpan: 2 },
     { key: 'badgeColor', label: 'Badge Colori', type: 'text', placeholder: 'es: bg-emerald-900/40 text-emerald-300 border-emerald-700/30', colSpan: 3, helpText: 'Classi Tailwind CSS per lo stile del badge (bg, text, border)' },
+    { key: 'dynamicDialogues', label: 'Dialoghi Dinamici', type: 'dynamic-dialogues', colSpan: 3, helpText: 'Dialoghi condizionali mostrati in base a reputazione, quest completate, oggetti posseduti, flag' },
   ],
   characters: [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: tank, healer, dps, control' },
@@ -247,4 +251,13 @@ export const FIELD_MAP: Record<TabId, FieldDef[]> = {
   'avatars': [],
   'start-screen': [],
   settings:     [],
+  'quest-chains': [
+    { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: chain_sangue_infetto' },
+    { key: 'npcId', label: 'NPC ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/npcs', entitySearchLabelKey: 'name', placeholder: 'es: npc_dr_chen', required: true, colSpan: 2 },
+    { key: 'name', label: 'Nome', type: 'text', required: true, placeholder: 'es: Sangue Infetto' },
+    { key: 'description', label: 'Descrizione', type: 'textarea', colSpan: 3, placeholder: 'Descrizione della quest chain...' },
+    { key: 'sortOrder', label: 'Ordine', type: 'number', defaultValue: 0, helpText: 'Ordine di visualizzazione nella lista' },
+    { key: 'steps', label: '💡 Steps', type: 'quest-chain-steps', colSpan: 3, helpText: 'Array di step della catena. Ogni step ha id, description, type, targetId, targetCount, nextStepId, reward, branchChoice.' },
+    { key: 'finalReward', label: 'Ricompensa Finale', type: 'quest-chain-final-reward', colSpan: 3, helpText: 'Ricompensa al completamento di tutta la catena: items, exp, dialoghi' },
+  ],
 };

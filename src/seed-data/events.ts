@@ -22,6 +22,8 @@ export const SEED_EVENTS: Record<string, DynamicEvent> = {
     locationIds: [],
     onTriggerMessage: '💡 Le luci si spengono improvvisamente! Un blackout totale ha colpito la zona. Le tenebre nascondono sia pericoli che tesori nascosti...',
     onEndMessage: '💡 L\'energia torna gradualmente. Le luci lampeggiano e si stabilizzano. Il blackout è terminato.',
+    chainId: 'power_crisis',
+    nextEventId: 'event_blackout_aftermath',
     choices: [
       {
         text: 'Restare al coperto e aspettare',
@@ -196,6 +198,8 @@ export const SEED_EVENTS: Record<string, DynamicEvent> = {
     locationIds: [],
     onTriggerMessage: '☠️ Un gas verdastro e tossico si diffonde nell\'aria! Le vostre vie respiratorie bruciano. Dovete trovare una via d\'uscita o una maschera!',
     onEndMessage: '☠️ Il gas si dissipa lentamente. L\'aria torna respirabile, ma i vostri polmoni bruciano ancora.',
+    chainId: 'toxic_chain',
+    nextEventId: 'event_gas_spread',
     choices: [
       {
         text: 'Cercare una maschera antigas',
@@ -238,6 +242,8 @@ export const SEED_EVENTS: Record<string, DynamicEvent> = {
     locationIds: [],
     onTriggerMessage: '🔥 Le fiamme esplodono all\'improvviso! L\'incendio blocca le vie di fuga! Il calore è soffocante!',
     onEndMessage: '🔥 Le fiamme si affievoliscono e si spengono. Il fumo si dissipa. L\'incendio è sotto controllo.',
+    chainId: 'fire_chain',
+    nextEventId: 'event_fire_secondary',
     choices: [
       {
         text: 'Tentare di spegnere le fiamme',
@@ -254,6 +260,132 @@ export const SEED_EVENTS: Record<string, DynamicEvent> = {
           endEvent: true,
           receiveItems: [{ itemId: 'bandage', quantity: 2 }],
           hpChange: -8,
+        },
+      },
+    ],
+  },
+
+  // ==========================================
+  // BLACKOUT AFTERMATH (Chain: power_crisis)
+  // ==========================================
+  event_blackout_aftermath: {
+    id: 'event_blackout_aftermath',
+    title: 'Conseguenze del Blackout',
+    description: 'I generatori di backup stanno cedendo dopo il blackout. Le luci tremolano in modo inquietante e i sistemi di sicurezza sono instabili. Qualcosa si è infiltrato durante il buio...',
+    icon: '⚡',
+    type: 'alarm',
+    duration: 2,
+    effect: {
+      encounterRateMod: 20,
+      enemyStatMult: 1.1,
+      searchBonus: false,
+      damagePerTurn: 0,
+    },
+    triggerChance: 0,
+    minTurn: 7,
+    locationIds: [],
+    onTriggerMessage: '⚡ I generatori di backup si spengono con un gemito! I sistemi di sicurezza sono in tilt!',
+    onEndMessage: '⚡ L\'ultimo generatore si riaccende. L\'energia viene stabilizzata.',
+    choices: [
+      {
+        text: 'Riparare il quadro elettrico',
+        outcome: {
+          description: 'Con un po\' di fatica riparate il quadro elettrico. Le luci tornano stabili e trovate dei rifornimenti abbandonati vicino al pannello.',
+          endEvent: true,
+          receiveItems: [{ itemId: 'ammo_pistol', quantity: 2 }],
+          hpChange: -5,
+        },
+      },
+      {
+        text: 'Evacuare l\'area immediatamente',
+        outcome: {
+          description: 'Fuggite prima che i generatori cedano del tutto. Nella fretta vi fate male contro dei detriti, ma siete al sicuro.',
+          endEvent: true,
+          hpChange: -10,
+        },
+      },
+    ],
+  },
+
+  // ==========================================
+  // GAS SPREAD (Chain: toxic_chain)
+  // ==========================================
+  event_gas_spread: {
+    id: 'event_gas_spread',
+    title: 'Gas Tossico Diffuso',
+    description: 'Il gas si è diffuso nelle aree adiacenti attraverso le condutture. L\'aria è irrespirabile e i vostri polmoni bruciano. Le creature sembrano più aggressive nell\'atmosfera tossica.',
+    icon: '🧪',
+    type: 'gas_leak',
+    duration: 3,
+    effect: {
+      encounterRateMod: 10,
+      enemyStatMult: 1.15,
+      searchBonus: false,
+      damagePerTurn: 6,
+    },
+    triggerChance: 0,
+    minTurn: 10,
+    locationIds: [],
+    onTriggerMessage: '🧪 Il gas tossico si è diffuso nelle aree adiacenti! L\'aria è velenosa!',
+    onEndMessage: '🧪 Il gas si dissipa finalmente. L\'aria torna lentamente respirabile.',
+    choices: [
+      {
+        text: 'Trovare una maschera di fortuna',
+        outcome: {
+          description: 'Trovate dei tessuti impregnati di solvente e vi coprite il viso. Non è perfetto, ma vi protegge abbastanza da sopravvivere. Trovate anche delle erbe curative abbandonate.',
+          endEvent: true,
+          receiveItems: [{ itemId: 'herb_green', quantity: 2 }],
+          hpChange: -8,
+        },
+      },
+      {
+        text: 'Trattenere il respiro e correre',
+        outcome: {
+          description: 'Trattenete il fiato e attraversate la nuvola di gas. Le vostre vie respiratorie bruciano violentemente, ma riuscite a raggiungere un\'area sicura.',
+          endEvent: true,
+          hpChange: -18,
+        },
+      },
+    ],
+  },
+
+  // ==========================================
+  // FIRE SECONDARY (Chain: fire_chain)
+  // ==========================================
+  event_fire_secondary: {
+    id: 'event_fire_secondary',
+    title: 'Struttura Compromessa',
+    description: 'L\'incendio ha indebolito la struttura dell\'edificio. Le travi crepitano, il soffitto è instabile e il pavimento trema sotto i vostri piedi. Un crollo secondario è imminente.',
+    icon: '🏚️',
+    type: 'collapse',
+    duration: 2,
+    effect: {
+      encounterRateMod: 0,
+      enemyStatMult: 0,
+      searchBonus: false,
+      damagePerTurn: 7,
+    },
+    triggerChance: 0,
+    minTurn: 18,
+    locationIds: [],
+    onTriggerMessage: '🏚️ CRACK! La struttura cede! L\'incendio ha indebolito le fondamenta — il pavimento sta cedendo!',
+    onEndMessage: '🏚️ Il crollo si arresta. La struttura regge... ma per quanto ancora?',
+    choices: [
+      {
+        text: 'Attraversare rapidamente la zona instabile',
+        outcome: {
+          description: 'Correte attraverso la zona pericolosa schivando i detriti. Una trave cade vicino a voi ma riuscite a passare prima che il tutto crolli.',
+          endEvent: true,
+          hpChange: -12,
+        },
+      },
+      {
+        text: 'Rinforzare i supporti con materiale di recupero',
+        outcome: {
+          description: 'Usate travi e detriti per rinforzare i supporti. Lavorate velocemente e riuscite a stabilizzare la zona abbastanza da passare. Trovate dei rifornimenti tra le macerie.',
+          endEvent: true,
+          receiveItems: [{ itemId: 'bandage', quantity: 1 }, { itemId: 'ammo_pistol', quantity: 2 }],
+          hpChange: -5,
         },
       },
     ],

@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { SaveSlotInfo } from '../types';
-import { LOCATIONS } from '../../data/loader';
+import { LOCATIONS, NGPLUS_CONFIG } from '../../data/loader';
 
 export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   saveGame: (slot: number) => {
@@ -69,6 +69,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       pendingChainEvent: state.pendingChainEvent || null,
       completedChains: state.completedChains || [],
       ngPlusCycle: state.ngPlusCycle || 0,
+      ngPlusEnemyMultiplier: state.ngPlusEnemyMultiplier || 1,
       craftingPoints: state.craftingPoints || 0,
       totalCrafted: state.totalCrafted || 0,
       masterQualityCrafted: state.masterQualityCrafted || 0,
@@ -183,6 +184,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       pendingChainEvent: state.pendingChainEvent || null,
       completedChains: state.completedChains || [],
       ngPlusCycle: state.ngPlusCycle || 0,
+      ngPlusEnemyMultiplier: state.ngPlusEnemyMultiplier || 1,
       craftingPoints: state.craftingPoints || 0,
       totalCrafted: state.totalCrafted || 0,
       masterQualityCrafted: state.masterQualityCrafted || 0,
@@ -336,6 +338,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         pendingChainEvent: data.pendingChainEvent || null,
         completedChains: data.completedChains || [],
         ngPlusCycle: data.ngPlusCycle || 0,
+        ngPlusEnemyMultiplier: data.ngPlusEnemyMultiplier || 1,
         craftingPoints: data.craftingPoints || 0,
         totalCrafted: data.totalCrafted || 0,
         masterQualityCrafted: data.masterQualityCrafted || 0,
@@ -439,6 +442,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       pendingChainEvent: state.pendingChainEvent || null,
       completedChains: state.completedChains || [],
       ngPlusCycle: state.ngPlusCycle || 0,
+      ngPlusEnemyMultiplier: state.ngPlusEnemyMultiplier || 1,
       craftingPoints: state.craftingPoints || 0,
       totalCrafted: state.totalCrafted || 0,
       masterQualityCrafted: state.masterQualityCrafted || 0,
@@ -496,15 +500,25 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const carriedAchievements = state.achievements || { unlockedIds: [], unlockTimestamps: {} };
     const carriedPersistentRibbons = Math.min(persistentRibbons, 10);
     const carriedDiscoveredRecipes = state.discoveredRecipes || [];
+    // Carry forward 30% of crafting points
+    const carriedCraftingPoints = Math.floor((state.craftingPoints || 0) * (Number(NGPLUS_CONFIG.carriedCraftPointsPercent) / 100));
+
+    // ── NG+ enemy scaling multiplier ──
+    const ngPlusEnemyMultiplier = newCycle === 1 ? Number(NGPLUS_CONFIG.cycle1Multiplier) : newCycle === 2 ? Number(NGPLUS_CONFIG.cycle2Multiplier) : Number(NGPLUS_CONFIG.cycle3PlusMultiplier);
+
+    // ── NG+ bonus items for cycle >= configured threshold ──
+    const bonusItemCount = newCycle >= Number(NGPLUS_CONFIG.bonusItemCycle) ? Number(NGPLUS_CONFIG.bonusItemQuantity) : 0;
 
     set({
       phase: 'character-select',
       party: [],
       messageLog: [
         `🎀 Nuovo Gioco+ Ciclo ${newCycle} attivato! Nastri persistenti: ${carriedPersistentRibbons}/10`,
-        `📈 Difficoltà: nemici ×${newCycle === 1 ? '1.15' : newCycle === 2 ? '1.30' : '1.50'}, incontri +${newCycle === 1 ? '5' : newCycle === 2 ? '10' : '15'}%`,
+        `📈 Moltiplicatore nemici: ×${ngPlusEnemyMultiplier}`,
+        bonusItemCount > 0 ? `🎁 Bonus NG+: ${Number(NGPLUS_CONFIG.bonusItemQuantity)} ${String(NGPLUS_CONFIG.bonusItemId)} all'inizio dell'avventura!` : '',
+        carriedCraftingPoints > 0 ? `🔧 Punti crafting conservati: ${carriedCraftingPoints} (${Number(NGPLUS_CONFIG.carriedCraftPointsPercent)}%)` : '',
         '\nScegli i tuoi personaggi per la nuova avventura...',
-      ],
+      ].filter(Boolean),
       turnCount: 0,
       searchCounts: {},
       searchMaxes: {},
@@ -567,14 +581,18 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       activePermanentEffects: [],
       pendingChainEvent: null,
       completedChains: [],
-      craftingPoints: 0,
+      craftingPoints: carriedCraftingPoints,
       totalCrafted: 0,
       masterQualityCrafted: 0,
       // ── Carried-forward NG+ elements ──
       ngPlusCycle: newCycle,
+      ngPlusEnemyMultiplier,
       bestiary: carriedBestiary,
       achievements: carriedAchievements,
       runStats: { ...(get().runStats), totalDamageDealt: 0, totalDamageReceived: 0, totalHealingDone: 0, enemiesDefeated: 0, bossesDefeated: 0, itemsCrafted: 0, itemsUsed: 0, documentsFound: 0, secretRoomsDiscovered: 0, recipesDiscovered: 0, questsCompleted: 0, questChainsCompleted: 0, distanceTraveled: 0, searchesPerformed: 0, combatTurnsTotal: 0, perfectCombats: 0, longestCombo: 0, turnsSurvived: 0, dynamicEventsSurvived: 0, playTimeSeconds: 0, endingType: null, characterArchetypes: [], ngPlusCycle: newCycle },
+      // Store bonus items to be given at adventure start (cycle >= 2)
+      // This is handled via a flag — the actual items are added in startAdventure
+      // We use notification as a marker: the startAdventure functions check ngPlusCycle
     });
   },
 });

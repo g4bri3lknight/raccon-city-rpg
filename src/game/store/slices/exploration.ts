@@ -82,7 +82,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       try { playEncounter(); } catch {}
 
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
-      // Spawn enemies scaled by party size
+      // Spawn enemies scaled by party size and NG+ cycle
+      const ngMult = state.ngPlusEnemyMultiplier || 1;
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
       const enemies: EnemyInstance[] = [];
       if (enemyPool.length === 0) {
@@ -91,7 +92,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
       for (let i = 0; i < numEnemies; i++) {
         const enemyId = enemyPool[Math.floor(Math.random() * enemyPool.length)];
-        enemies.push(createEnemyInstance(enemyId, diff.statMult));
+        enemies.push(createEnemyInstance(enemyId, diff.statMult * ngMult));
       }
 
       const enemyNames = enemies.map(e => e.name).join(', ');
@@ -99,7 +100,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       // ── SECRET BOSS CHECK (proto_tyrant) ──
       const defeatedTyrant = state.bestiary.some(b => b.enemyId === 'tyrant_boss' && b.defeated);
       if (defeatedTyrant && state.currentLocationId === 'laboratory_entrance' && Math.random() < 0.15) {
-        const protoBoss = createEnemyInstance('proto_tyrant', diff.statMult);
+        const protoBoss = createEnemyInstance('proto_tyrant', diff.statMult * ngMult);
         enemies.length = 0;
         enemies.push(protoBoss);
       }
@@ -270,6 +271,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         tickLog.push(`[${state.turnCount}] ✅ ${evt!.onEndMessage}`);
         // Track run stats: dynamic events survived
         try { get().incrementRunStat('dynamicEventsSurvived'); } catch {}
+        const completedEventId = evt!.id;
         set({
           activeDynamicEvent: null,
           dynamicEventTurnsLeft: 0,
@@ -278,6 +280,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           turnCount: state.turnCount + 1,
           isExploring: false,
         });
+        get().checkEventChain(completedEventId);
       } else {
         set({
           dynamicEventTurnsLeft: newTurnsLeft,
@@ -552,6 +555,13 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
     // Track run stats: turns survived
     try { get().incrementRunStat('turnsSurvived'); } catch {}
+
+    // Check pending chain events
+    const pending = get().pendingChainEvent;
+    if (pending && get().turnCount >= pending.triggerTurn) {
+      get().triggerDynamicEvent(pending.eventId);
+      set({ pendingChainEvent: null });
+    }
   },
 
   travelTo: (locationId: string) => {
