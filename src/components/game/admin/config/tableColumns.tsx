@@ -48,6 +48,7 @@ function SoundPreviewButton({ soundId, hasFile }: { soundId: string; hasFile: bo
 
   return (
     <button
+      type="button"
       onClick={togglePlay}
       disabled={!hasFile}
       className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${

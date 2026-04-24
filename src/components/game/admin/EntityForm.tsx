@@ -5,6 +5,7 @@ import type { TabId } from './config/tabGroups';
 import type { FieldDef } from './config/fieldDefinitions';
 import { MEDIA_UPLOADS } from './shared';
 import { getFieldColClass } from './fields';
+import { AdminTooltip } from './fields/AdminTooltip';
 
 // Field editor components
 import {
@@ -54,7 +55,7 @@ function FieldContainer({ field, children }: { field: FieldDef; children: React.
     <div className={colClass}>
       <label className="text-[12px] text-white/50 mb-0.5 block font-medium">
         {field.label} {field.required && <span className="text-red-400">*</span>}
-        {field.helpText && <span className="text-[11px] text-white/25 ml-1" title={field.helpText}>(?)</span>}
+        {field.helpText && <AdminTooltip text={field.helpText} showIcon={false} className="ml-1" />}
       </label>
       {children}
     </div>

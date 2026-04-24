@@ -11,7 +11,7 @@
  * Format: { version, date, description }
  */
 
-export const APP_VERSION = '1.21.1' as const;
+export const APP_VERSION = '1.21.5' as const;
 
 export const VERSION_HISTORY: Array<{
   version: string;
@@ -453,6 +453,53 @@ export const VERSION_HISTORY: Array<{
       '[ADMIN] Campo "Prossimo Evento" ora usa entity-search con ricerca su eventi esistenti (titolo + icona)',
       '[IMPOSTAZIONI] Nuova sezione 🔄 New Game+ con 7 campi (moltiplicatori, craft points %, bonus item)',
       '[IMPOSTAZIONI] Nuova sezione 💬 Reputazione NPC con 6 campi (soglie sconto, rep per quest, soglia sospetto)',
+    ],
+  },
+  {
+    version: '1.21.2',
+    date: '2026-04-24',
+    changes: [
+      '[FIX] Quest Chain Steps: targetId da testo libero a Entity Search dinamico (fetch→items, kill→nemici, explore→locations, talk→NPCs)',
+      '[FIX] Quest Chain Steps: rewardItems da JSON raw a editor visuale con MiniEntitySearch e tabella strutturata',
+      '[FIX] Quest Chain Steps: rewardDialogue mancante nell\'editor visuale — aggiunto editor con righe editabili singole',
+      '[FIX] Quest Chain Steps: nextStepId da testo libero a dropdown select popolato con gli step della catena',
+      '[FIX] Quest Chain Steps: branch nextStepId da testo libero a dropdown select',
+      '[FIX] Quest Chain Steps: campi non necessari nascosti per tipo step (targetId/targetCount per choose, targetCount per talk/explore)',
+      '[UX] Aggiunti tooltip esplicativi a tutti i campi degli steps (Step ID, Tipo, Target, Count, Descrizione, Next Step, Rewards, Branching, Flag)',
+      '[UX] Aggiunti tooltip alla Ricompensa Finale e a tutti i suoi campi (EXP, Items, Dialoghi)',
+      '[UX] Banner informativi per comportamento specifico per tipo step (explore/talk ignorano targetCount, choose non usa target)',
+      '[UX] Items Ricompensa Finale: da JSON raw a editor visuale con MiniEntitySearch',
+      '[FIX] Tooltip Quest Chain: sostituiti componenti Radix Tooltip (non funzionanti) con attributo title HTML nativo — ora i tooltip (?) appaiono correttamente',
+    ],
+  },
+  {
+    version: '1.21.3',
+    date: '2026-04-24',
+    changes: [
+      '[UX] Tooltip stilizzati: sostituiti tutti i tooltip nativi HTML title con AdminTooltip — bubble visuale con sfondo scuro, bordo, freccia e animazione fade-in',
+      '[UX] AdminTooltip: componente riutilizzabile con supporto posizioni (top/bottom/left/right), icona Info o testo (?), dimensioni sm/md',
+      '[UX] Tooltip applicati a tutto il pannello admin: FieldWrapper, FieldContainer (EntityForm), QuestChainsEditor, EffectsArrayEditor, StatusEditors, MediaUploadBox',
+      '[FIX] Tooltip ora funzionano correttamente dentro container con overflow (scroll) grazie al posizionamento assoluto CSS puro senza portal Radix',
+    ],
+  },
+  {
+    version: '1.21.4',
+    date: '2026-04-24',
+    changes: [
+      '[FIX] AdminTooltip: riscritto con React Portal — il tooltip viene renderizzato nel document.body e non viene più tagliato dai container con overflow:hidden/auto',
+      '[FIX] AdminTooltip: risolto problema z-index — tooltip sempre in primo piano (z-index: 99999) rispetto a qualsiasi contenitore',
+      '[UX] AdminTooltip: larghezza aumentata da 220px a 340px per testi più leggibili',
+      '[UX] AdminTooltip: aggiunta animazione fade-in con blur per apparizione più fluida',
+      '[UX] AdminTooltip: padding aumentato per migliore leggibilità',
+    ],
+  },
+  {
+    version: '1.21.5',
+    date: '2026-04-25',
+    changes: [
+      '[FIX] Upload suoni: rimosso il middleware dalle rotte upload (che imponeva il limite di 10MB) — i file audio grandi ora vengono caricati correttamente',
+      '[FIX] Upload: aggiunto controllo auth diretto nelle route handler sound/image — le rotte upload rimangono protette anche senza middleware',
+      '[FIX] SoundPreviewButton: aggiunto type="button" al pulsante play — senza questo, dentro un <form> il click faceva submit del form e chiudeva il dialog invece di riprodurre il suono',
     ],
   },
 ];

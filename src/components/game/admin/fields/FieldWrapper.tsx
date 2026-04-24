@@ -1,6 +1,7 @@
 'use client';
 
 import type { FieldDef } from '../config/fieldDefinitions';
+import { AdminTooltip } from './AdminTooltip';
 
 // ═══════════════════════════════════════════════════════════════
 // FieldWrapper — shared label + grid width wrapper for all fields
@@ -56,7 +57,7 @@ export function FieldWrapper({ field, children, dimmed }: FieldWrapperProps) {
     <div className={colClass}>
       <label className={`text-[12px] mb-0.5 block font-medium ${dimmed ? 'text-white/50' : 'text-white/50'}`}>
         {field.label} {field.required && !dimmed && <span className="text-red-400">*</span>}
-        {field.helpText && <span className="text-[11px] text-white/25 ml-1" title={field.helpText}>(?)</span>}
+        {field.helpText && <AdminTooltip text={field.helpText} showIcon={false} className="ml-1" />}
       </label>
       {children}
     </div>

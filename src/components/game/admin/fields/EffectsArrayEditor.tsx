@@ -8,6 +8,7 @@ import {
   EFFECT_TARGET_OPTIONS,
   parseEffectsArray, getDefaultEffect, TRIGGER_OPTIONS,
 } from '../config/effectTypes';
+import { AdminTooltip } from './AdminTooltip';
 
 // ═══════════════════════════════════════════════════════════════
 // Effects Array Editor — atomic effects for special abilities / items
@@ -135,7 +136,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                             <div>
                               <div className="flex items-center gap-1">
                                 <label className="text-[10px] text-white/30">Trigger</label>
-                                <span className="text-[10px] text-white/20 cursor-help" title="Quando si attiva l'effetto in base al tipo di oggetto.">(?)</span>
+                                <AdminTooltip text="Quando si attiva l'effetto in base al tipo di oggetto." showIcon={false} />
                               </div>
                               <select
                                 value={String(effect.trigger ?? '')}
@@ -153,7 +154,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                           <div>
                             <div className="flex items-center gap-1">
                               <label className="text-[10px] text-white/30">Bersaglio</label>
-                              <span className="text-[10px] text-white/20 cursor-help" title="Chi riceve l'effetto. Sé Stesso = il personaggio che usa l'abilità.">(?)</span>
+                              <AdminTooltip text="Chi riceve l'effetto. Sé Stesso = il personaggio che usa l'abilità." showIcon={false} />
                             </div>
                             <select
                               value={targetStr}
@@ -178,7 +179,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                                         <div key={field.key} className="col-span-2">
                                           <div className="flex items-center gap-1">
                                             <label className="text-[10px] text-white/30">{field.label}</label>
-                                            <span className="text-[10px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                            <AdminTooltip text={field.tooltip} showIcon={false} />
                                           </div>
                                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-0.5">
                                             {(field.options ?? []).map(opt => {
@@ -205,7 +206,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                                         <div key={field.key}>
                                           <div className="flex items-center gap-1">
                                             <label className="text-[10px] text-white/30">{field.label}</label>
-                                            <span className="text-[10px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                            <AdminTooltip text={field.tooltip} showIcon={false} />
                                           </div>
                                           <select
                                             value={String(effect[field.key] ?? field.defaultValue)}
@@ -225,7 +226,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                                       <div key={field.key}>
                                         <div className="flex items-center gap-1">
                                           <label className="text-[10px] text-white/30">{field.label}</label>
-                                          <span className="text-[10px] text-white/20 cursor-help" title={field.tooltip}>(?)</span>
+                                          <AdminTooltip text={field.tooltip} showIcon={false} />
                                         </div>
                                         <input
                                           type="number"
@@ -257,7 +258,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                                           className="w-3 h-3 rounded bg-white/[0.04] border-white/[0.2] accent-emerald-500"
                                         />
                                         <span className={`text-[12px] ${checked ? 'text-white/80' : 'text-white/40'} transition-colors`}>{field.label}</span>
-                                        <span className="text-[10px] text-white/20 group-hover:text-white/40 transition-colors cursor-help" title={field.tooltip}>(?)</span>
+                                        <AdminTooltip text={field.tooltip} showIcon={false} />
                                       </label>
                                     );
                                   })}

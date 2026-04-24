@@ -2,10 +2,28 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { safeErrorResponse } from '@/lib/api-utils';
 
+const ADMIN_KEY = process.env.ADMIN_KEY || 'raccoon_admin_2024';
+
+function checkAuth(request: NextRequest): NextResponse | null {
+  const providedKey =
+    request.headers.get('x-admin-key') ||
+    new URL(request.url).searchParams.get('admin_key');
+  if (providedKey !== ADMIN_KEY) {
+    return NextResponse.json(
+      { error: 'Non autorizzato. Fornisci l\'header x-admin-key o il parametro admin_key.' },
+      { status: 401 }
+    );
+  }
+  return null;
+}
+
 // POST /api/admin/upload/sound — upload a sound file + create/update GameSound record
 // FormData fields: file, id, name, category, associatedId, volume, loopable
 export async function POST(request: NextRequest) {
   try {
+    const authError = checkAuth(request);
+    if (authError) return authError;
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const id = formData.get('id') as string; // unique ID for the sound
@@ -67,6 +85,9 @@ export async function POST(request: NextRequest) {
 // DELETE /api/admin/upload/sound?id=xxx — remove BLOB data from a sound (keep metadata)
 export async function DELETE(request: NextRequest) {
   try {
+    const authError = checkAuth(request);
+    if (authError) return authError;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) {

@@ -5,6 +5,7 @@ import { ImageIcon, Volume2, CheckCircle2, Trash, Loader2, CloudUpload, AlertCir
 import type { MediaUploadDef } from './shared';
 import { SoundPreviewButton } from './SoundPreviewButton';
 import { adminFetch } from '@/lib/admin-fetch';
+import { AdminTooltip } from './fields/AdminTooltip';
 
 export function MediaUploadBox({
   config,
@@ -126,7 +127,7 @@ export function MediaUploadBox({
           )}
           <span className="text-[13px] font-semibold text-white/70">{config.label}</span>
           {config.helpText && (
-            <span className="text-[11px] text-white/25 ml-1" title={config.helpText}>(?)</span>
+            <AdminTooltip text={config.helpText} showIcon={false} className="ml-1" />
           )}
         </div>
         <div className="flex items-center gap-2">

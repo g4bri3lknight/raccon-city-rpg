@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { AdminTooltip } from './AdminTooltip';
 
 // ═══════════════════════════════════════════════════════════════
 // Status Apply Editor — for special ability status effects {type, chance}
@@ -253,7 +254,7 @@ export function SpecialEffectEditor({ value, onChange }: { value: unknown; onCha
             <div>
               <div className="flex items-center gap-1">
                 <label className="text-[10px] text-white/30 mb-0.5 block">Valore</label>
-                <span className="text-[10px] text-white/20 cursor-help" title={currentTooltip}>(?)</span>
+                <AdminTooltip text={currentTooltip} showIcon={false} />
               </div>
               <input
                 type="number"
