@@ -4,7 +4,7 @@
  */
 
 import type { CombatLogEntry, Character, ItemInstance } from '@/game/types';
-import { audio, playEnemyAttack } from '@/game/engine/sounds';
+import { audio } from '@/game/engine/sounds';
 import { ALL_SPECIAL_ABILITIES, ITEMS, ENEMY_ABILITIES_DATA } from '@/game/data/loader';
 import { getWeaponAmmoType } from '@/game/engine/combat';
 import type { AnimResult } from './types';
@@ -35,12 +35,8 @@ export function getCombatSpeed(): 1 | 2 | 3 {
 export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
   const action = entry.action;
 
-  // Entity basic attack → entity-specific sound: attack_{definitionId}
+  // Entity basic attack → player attacks — no hardcoded sound (silence unless entity-specific weapon sound is added)
   if (action === 'Attacco' || action === 'Colpo corpo a corpo') {
-    if (entry.actorType === 'enemy' && entry.actorDefinitionId) {
-      return () => playEnemyAttack(entry.actorDefinitionId, entry.actorName, entry.action);
-    }
-    // Player attacks — no hardcoded sound (silence unless entity-specific weapon sound is added)
     return null;
   }
 
@@ -51,7 +47,6 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
   }
 
   // Look up item by name — no hardcoded sound for items (admin can upload entity-specific sounds)
-  // Just return null for all item actions
   const itemDef = Object.values(ITEMS).find(i => i.name === action);
   if (itemDef) {
     return null;
@@ -61,14 +56,6 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
   const enemyAbility = Object.values(ENEMY_ABILITIES_DATA).find(a => a.name === action);
   if (enemyAbility) {
     return () => audio.playEntityEnemyAbility(enemyAbility.id);
-  }
-
-  // Any remaining enemy damage action → try entity-specific attack sound
-  if (entry.damage && entry.damage > 0 && entry.actorType === 'enemy') {
-    const defId = entry.actorDefinitionId || entry.actorName?.toLowerCase().replace(/\s+/g, '_');
-    if (defId) {
-      return () => playEnemyAttack(defId, entry.actorName, entry.action);
-    }
   }
 
   return null;

@@ -61,7 +61,7 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
       messageLog: [...state.messageLog, `[${state.turnCount}] 🏠 Entrate nella Safe Room. È un luogo sicuro — nessun nemico può attaccarvi qui.`],
     });
     // Play safe room ambient sound (through AudioEngine — respects volume/mute)
-    try { playSafeRoomAmbient(); } catch {}
+    try { playSafeRoomAmbient(locId); } catch {}
   },
 
   exitSafeRoom: () => {

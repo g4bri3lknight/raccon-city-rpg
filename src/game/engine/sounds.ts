@@ -3,7 +3,6 @@
 // If no audio is found in the DB, no sound is played (no fallback, no synthesized audio).
 //
 // Entity-specific sounds (auto-matched by ID, uploaded in their respective admin sections):
-//   - Enemy attacks:    attack_{definitionId}      → uploaded in Enemies tab
 //   - Enemy deaths:     death_{definitionId}       → uploaded in Enemies tab
 //   - Special abilities: sfx_special_{specialId}   → uploaded in Specials tab
 //   - Enemy abilities:  sfx_eability_{abilityId}   → uploaded in Enemy Abilities tab
@@ -224,23 +223,6 @@ class AudioEngine {
   // ======== ENTITY-SPECIFIC PLAY METHODS ========
   // These look up dynamic refKeys based on entity IDs uploaded via admin.
 
-  /** Play entity-specific enemy attack sound — refKey: attack_{definitionId} */
-  playEnemyAttack(definitionId: string, _enemyName?: string, _action?: string): void {
-    if (!definitionId) return;
-    const entityRefKey = `attack_${definitionId}`;
-
-    if (this._cache.has(entityRefKey)) {
-      this.playBuffer(this._cache.get(entityRefKey)!, 0.6);
-      return;
-    }
-
-    if (!this.ensureContext()) return;
-    this.resume();
-    this.loadSfx(entityRefKey).then(audioBuf => {
-      if (audioBuf) this.playBuffer(audioBuf, 0.6);
-    });
-  }
-
   /** Play entity-specific enemy death sound — refKey: death_{enemyId} */
   playEntityEnemyDeath(enemyId: string): void {
     const entityRefKey = `death_${enemyId}`;
@@ -352,18 +334,31 @@ class AudioEngine {
     });
   }
 
-  /** Play safe room ambient — refKey: playAmbientSafeRoom */
-  playSafeRoomAmbient(): void {
+  /** Play safe room ambient — refKey: ambient_{locationId}_safe (per-location customizable) */
+  playSafeRoomAmbient(locationId: string): void {
+    const safeRef = `ambient_${locationId}_safe`;
+
+    if (this._currentAmbientRef === safeRef && this._ambientSource) {
+      if (this._ambientSuspended && this._ambientGainNode) {
+        this._ambientSuspended = false;
+        this._ambientGainNode.gain.value = 0.25;
+      }
+      return;
+    }
+
     this._stopAmbientSource();
 
-    this._currentAmbientRef = 'playAmbientSafeRoom';
+    this._currentAmbientRef = safeRef;
     this._ambientSuspended = false;
 
     if (!this.ensureContext()) return;
     this.resume();
 
-    this.loadSfx('playAmbientSafeRoom').then(audioBuf => {
-      if (!audioBuf || !this.ctx || this._currentAmbientRef !== 'playAmbientSafeRoom') return;
+    this.loadSfx(safeRef).then(audioBuf => {
+      if (!audioBuf || !this.ctx || this._currentAmbientRef !== safeRef) return;
+
+      this.stopBgm();
+
       try {
         const source = this.ctx.createBufferSource();
         source.buffer = audioBuf;
@@ -539,8 +534,18 @@ class AudioEngine {
     if (this._currentAmbientRef === refKey) {
       const savedRef = this._currentAmbientRef;
       this._stopAmbientSource();
-      const locationId = savedRef.replace(/^ambient_/, '');
-      if (locationId) this.playLocationAmbient(locationId);
+      // Handle both ambient_{locationId} and ambient_{locationId}_safe patterns
+      const isSafeRoom = savedRef.endsWith('_safe');
+      const locationId = isSafeRoom
+        ? savedRef.replace(/^ambient_/, '').replace(/_safe$/, '')
+        : savedRef.replace(/^ambient_/, '');
+      if (locationId) {
+        if (isSafeRoom) {
+          this.playSafeRoomAmbient(locationId);
+        } else {
+          this.playLocationAmbient(locationId);
+        }
+      }
     }
   }
 
@@ -557,9 +562,8 @@ export const audioEngine = audio;
 // ── Standalone exports (only entity-specific + BGM + ambient) ──
 
 export function playLocationAmbient(locationId: string): void { audioEngine.playLocationAmbient(locationId); }
-export function playSafeRoomAmbient(): void { audioEngine.playSafeRoomAmbient(); }
+export function playSafeRoomAmbient(locationId: string): void { audioEngine.playSafeRoomAmbient(locationId); }
 export function stopSafeRoomAmbient(): void { audioEngine.stopSafeRoomAmbient(); }
-export function playEnemyAttack(definitionId: string, enemyName?: string, action?: string): void { audioEngine.playEnemyAttack(definitionId, enemyName, action); }
 export function playEntityEnemyDeath(enemyId: string): void { audioEngine.playEntityEnemyDeath(enemyId); }
 export function playEntitySpecial(specialId: string, category: string): void { audioEngine.playEntitySpecial(specialId, category); }
 export function playEntityEnemyAbility(abilityId: string): void { audioEngine.playEntityEnemyAbility(abilityId); }

@@ -130,6 +130,16 @@ export const MEDIA_UPLOADS: Record<MediaTabId, MediaUploadDef[]> = {
       nameTemplate: 'Ambient: {entityId}',
       helpText: 'Suono ambientale in loop riprodotto quando il giocatore è in questa location',
     },
+    {
+      key: 'safe_room_ambient',
+      label: '🔊 Suono Safe Room',
+      mediaType: 'sound' as const,
+      category: 'ambient',
+      accept: 'audio/wav,audio/mpeg,audio/ogg,audio/mp4',
+      idTemplate: 'ambient_{entityId}_safe',
+      nameTemplate: 'Safe Room Ambient: {entityId}',
+      helpText: 'Suono ambientale in loop riprodotto quando il giocatore è nella Safe Room di questa location. Se non caricato, non verrà riprodotto alcun suono.',
+    },
   ],
   npcs: [
     {
@@ -189,16 +199,6 @@ export const MEDIA_UPLOADS: Record<MediaTabId, MediaUploadDef[]> = {
       helpText: 'Immagine sprite del nemico mostrata in combattimento (256×256 consigliato)',
     },
     {
-      key: 'attack_sfx',
-      label: '🔊 Suono Attacco',
-      mediaType: 'sound' as const,
-      category: 'enemy',
-      accept: 'audio/wav,audio/mpeg,audio/ogg,audio/mp4',
-      idTemplate: 'attack_{entityId}',
-      nameTemplate: 'Attack: {entityId}',
-      helpText: 'Suono riprodotto quando questo nemico attacca. Se non caricato, viene usato il suono generico basato sul tipo di nemico',
-    },
-    {
       key: 'death_sfx',
       label: '🔊 Suono Morte',
       mediaType: 'sound' as const,
@@ -218,7 +218,7 @@ export const MEDIA_UPLOADS: Record<MediaTabId, MediaUploadDef[]> = {
       accept: 'audio/wav,audio/mpeg,audio/ogg,audio/mp4',
       idTemplate: 'sfx_eability_{entityId}',
       nameTemplate: 'Ability SFX: {entityId}',
-      helpText: 'Suono riprodotto quando il nemico usa questa abilità. Se non caricato, viene usato il suono generico di attacco',
+      helpText: 'Suono riprodotto quando il nemico usa questa abilità. Se non caricato, non verrà riprodotto alcun suono',
     },
   ],
   'boss-phases': [

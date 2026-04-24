@@ -23,7 +23,7 @@ import QTEPanel from '@/components/game/QTEPanel';
 import AdminPanel from '@/components/game/AdminPanel';
 import SettingsPanel from '@/components/game/SettingsPanel';
 import { ErrorBoundary } from '@/components/game/ErrorBoundary';
-import { playBgm, stopBgm, resumeAmbient } from '@/game/engine/sounds';
+import { playBgm, stopBgm, resumeAmbient, playLocationAmbient, playSafeRoomAmbient } from '@/game/engine/sounds';
 import type { BgmType } from '@/game/engine/sounds';
 
 export default function GamePage() {
@@ -63,13 +63,22 @@ export default function GamePage() {
         playBgm('title');
         break;
       case 'exploration':
-      case 'event':
-        // Location ambient is handled by playLocationAmbient() called from exploration.ts
+      case 'event': {
         // When returning from combat, resume the ambient that was suspended
         if (prevPhase === 'combat' || prevPhase === 'qte') {
           try { resumeAmbient(); } catch {}
+        } else {
+          // Entering exploration for the first time (from character-select, title, etc.)
+          // Start the appropriate ambient sound and stop any playing BGM
+          const state = useGameStore.getState();
+          if (state.currentSubArea === 'safe_room' && state.currentLocationId) {
+            try { playSafeRoomAmbient(state.currentLocationId); } catch {}
+          } else if (state.currentLocationId) {
+            try { playLocationAmbient(state.currentLocationId); } catch {}
+          }
         }
         break;
+      }
       case 'combat':
         playBgm('combat');
         break;

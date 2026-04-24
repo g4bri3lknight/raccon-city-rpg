@@ -2,6 +2,7 @@ import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { SaveSlotInfo } from '../types';
 import { LOCATIONS, NGPLUS_CONFIG } from '../../data/loader';
+import { playSafeRoomAmbient } from '../../engine/sounds';
 
 export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   saveGame: (slot: number) => {
@@ -344,6 +345,11 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         masterQualityCrafted: data.masterQualityCrafted || 0,
         runStats: data.runStats || getDefaultState().runStats,
       });
+      // Play correct ambient after loading (page.tsx useEffect handles normal case,
+      // but safe room needs explicit handling since phase is always 'exploration')
+      if (data.currentSubArea === 'safe_room' && data.currentLocationId) {
+        try { playSafeRoomAmbient(data.currentLocationId); } catch {}
+      }
       // Auto-save after loading
       setTimeout(() => { try { get().autoSave(); } catch {} }, 200);
       return true;
