@@ -28,17 +28,7 @@ import {
 import { getMaxInventorySlots } from '../settings-cache';
 import { getAddSlotsAmount } from '../../utils/item-effects';
 import { rollVictoryCondition } from '../../data/victory-conditions';
-import {
-  playLocationAmbient,
-  playTravel,
-  playSearch,
-  playLevelUp,
-  playEncounter,
-  playDocumentFound,
-  playItemPickup,
-  playMenuOpen,
-  playMenuClose,
-} from '../../engine/sounds';
+import { playLocationAmbient } from '../../engine/sounds';
 
 export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   explore: () => {
@@ -78,9 +68,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     }
 
     if (Math.random() * 100 < encounterRate) {
-      // Play encounter sound (#36)
-      try { playEncounter(); } catch {}
-
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Spawn enemies scaled by party size and NG+ cycle
       const ngMult = state.ngPlusEnemyMultiplier || 1;
@@ -195,9 +182,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
 
     // Invasion chance scales with pursuit level (8% base + 3% per level)
     if (canNemesisAppear && Math.random() < (0.08 + nemesisPursuitLevel * 0.03)) {
-      // Play encounter sound for Nemesis invasion (#36)
-      try { playEncounter(); } catch {}
-
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Stronger Nemesis based on pursuit level
       const nemesisStatMult = diff.statMult * (0.8 + 0.1 * nemesisPursuitLevel);
@@ -316,10 +300,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         const foundEntry = availableItems[Math.floor(Math.random() * availableItems.length)];
         const itemDef = ITEMS[foundEntry.itemId];
         if (itemDef) {
-          // ── Play item pickup sound (#36) ──
-          if (itemDef.type !== 'collectible') {
-            try { playItemPickup(); } catch {}
-          }
           if (itemDef.type === 'collectible') {
             if (state.collectedRibbons >= 10) {
               set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
@@ -532,7 +512,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
         return;
       }
-      try { playDocumentFound(); } catch {}
       const newDocs = [...state.collectedDocuments, doc.id];
       // Track run stats: documents found
       try { get().incrementRunStat('documentsFound'); } catch {}
@@ -580,7 +559,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
     }
 
-    try { playTravel(); } catch {}
     try { playLocationAmbient(locationId); } catch {}
 
     const effectiveCurrentLoc = getEffectiveLocation(state.currentLocationId, state.randomizedLocationData);
@@ -657,8 +635,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
 
     const effectiveLoc = getEffectiveLocation(locId, state.randomizedLocationData);
     const effectiveItemPool = effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity }));
-
-    try { playSearch(); } catch {}
 
     // Track run stats: searches performed
     try { get().incrementRunStat('searchesPerformed'); } catch {}
@@ -750,7 +726,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     if (searchDocs.length > 0 && Math.random() * 100 < effectiveDocChance) {
       const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
       const newDocs = [...state.collectedDocuments, doc.id];
-      try { playDocumentFound(); } catch {}
       // Some documents reveal hidden recipes
       const RECIPE_HINT_DOCS: Record<string, string[]> = {
         'doc_rpd_diary': ['craft_spray_super', 'craft_mega_bandage'],
@@ -922,9 +897,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
     }
 
-    if (foundNotifItems.length > 0) {
-      try { playItemPickup(); } catch {}
-    }
     const finderChar = updatedParty.find(p => p.id === targetId);
     if (!lastNotif && foundNotifItems.length > 0) {
       if (foundNotifItems.length === 1) {
@@ -1160,10 +1132,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
   },
 
   toggleInventory: () => {
-    try {
-      const isOpen = get().inventoryOpen;
-      if (!isOpen) playMenuOpen(); else playMenuClose();
-    } catch {}
     set(state => ({ inventoryOpen: !state.inventoryOpen }));
   },
 

@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { SettingDef, START_SCREEN_FIELDS } from '../config';
 import { adminFetch } from '@/lib/admin-fetch';
+import { notifySoundUpdated } from '@/game/engine/sounds';
 
 export function StartScreenEditor() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -121,6 +122,8 @@ export function StartScreenEditor() {
       if (!res.ok) throw new Error(await res.text());
       setBgmHasFile(true);
       setSaveMsg({ ok: true, text: `✅ BGM caricato! (${(f.size / 1024 / 1024).toFixed(1)} MB)` });
+      // Notify audio engine to invalidate cached BGM
+      notifySoundUpdated('bgm_title');
       setTimeout(() => setSaveMsg(null), 4000);
     } catch (err) {
       setSaveMsg({ ok: false, text: `❌ Errore upload BGM: ${err}` });

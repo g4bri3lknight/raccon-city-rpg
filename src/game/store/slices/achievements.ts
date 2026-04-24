@@ -2,24 +2,15 @@ import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { ACHIEVEMENTS } from '../../data/loader';
 import { getKeyItemIds } from '../helpers';
-import { playMenuOpen, playMenuClose, playAchievement } from '../../engine/sounds';
 
 let achievementNotifTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   toggleAchievements: () => {
-    try {
-      const isOpen = get().achievementsOpen;
-      if (!isOpen) playMenuOpen(); else playMenuClose();
-    } catch {}
     set(state => ({ achievementsOpen: !state.achievementsOpen }));
   },
 
   toggleBestiary: () => {
-    try {
-      const isOpen = get().bestiaryOpen;
-      if (!isOpen) playMenuOpen(); else playMenuClose();
-    } catch {}
     set(state => ({ bestiaryOpen: !state.bestiaryOpen }));
   },
 
@@ -28,8 +19,6 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
     if (state.achievements.unlockedIds.includes(id)) return;
     const ach = ACHIEVEMENTS[id];
     const name = ach?.name || id;
-    // Play achievement sound (#36)
-    try { playAchievement(); } catch {}
     set({
       achievements: {
         unlockedIds: [...state.achievements.unlockedIds, id],

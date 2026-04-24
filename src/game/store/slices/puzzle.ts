@@ -2,7 +2,6 @@ import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { ITEMS } from '../../data/loader';
 import { addItemToParty } from '../helpers';
-import { playPuzzleSuccess, playPuzzleFail } from '../../engine/sounds';
 
 export const createPuzzleSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   startPuzzle: (puzzle, title, description) => {
@@ -103,9 +102,6 @@ export const createPuzzleSlice: StateCreator<GameStore, [], [], GameStore> = (se
         ? state.completedEvents
         : [...state.completedEvents, state.puzzleSourceLocationId || ''];
 
-      // Play puzzle success sound (#36)
-      try { playPuzzleSuccess(); } catch {}
-
       set({
         phase: 'exploration',
         puzzleState: { ...ps, isSolved: true, feedback: newFeedback, attemptsLeft },
@@ -119,9 +115,6 @@ export const createPuzzleSlice: StateCreator<GameStore, [], [], GameStore> = (se
     }
 
     if (isFailed) {
-      // Play puzzle fail sound (#36)
-      try { playPuzzleFail(); } catch {}
-
       set({
         puzzleState: { ...ps, isFailed: true, feedback: newFeedback, attemptsLeft: 0 },
         messageLog: [...state.messageLog, `[${state.turnCount}] 🧩 ${ps.failMessage}`],
@@ -206,9 +199,6 @@ export const createPuzzleSlice: StateCreator<GameStore, [], [], GameStore> = (se
       const completedEvents = state.completedEvents.includes(state.puzzleSourceLocationId || '')
         ? state.completedEvents
         : [...state.completedEvents, state.puzzleSourceLocationId || ''];
-
-      // Play puzzle success sound for sequence puzzle (#36)
-      try { playPuzzleSuccess(); } catch {}
 
       set({
         phase: 'exploration',

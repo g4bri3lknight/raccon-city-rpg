@@ -11,7 +11,7 @@
  * Format: { version, date, description }
  */
 
-export const APP_VERSION = '1.21.7' as const;
+export const APP_VERSION = '1.22.2' as const;
 
 export const VERSION_HISTORY: Array<{
   version: string;
@@ -527,6 +527,63 @@ export const VERSION_HISTORY: Array<{
       '[FIX] 11 log entry nel combat engine e combat store slice aggiornati con actorDefinitionId',
       '[AUDIO] I suoni attacco/morte caricati per nemici ora vengono riprodotti correttamente usando il definitionId',
       '[AUDIO] I suoni ambientali delle location ora vengono riprodotti con le ref key corrette',
+    ],
+  },
+  {
+    version: '1.21.8',
+    date: '2026-04-25',
+    changes: [
+      '[CRITICO] Fix cache audio: l\'AudioEngine manteneva in cache i buffer decodificati — dopo un upload di un nuovo suono via admin, il vecchio suono continuava a essere riprodotto perché la cache non veniva invalidata',
+      '[CRITICO] Fix doppi suoni location: durante l\'esplorazione venivano riprodotti simultaneamente BGM (sintetico dal seed) e ambient (caricato) — ora se un ambient personalizzato esiste nel DB, il BGM generico viene soppresso automaticamente',
+      '[FIX] HTTP cache: fetch dei suoni ora usa cache: "no-store" — il browser non serve più versioni obsolete dei suoni caricati',
+      '[FIX] API Cache-Control: cambiato da "public, max-age=3600" a "no-store" — il server non istruisce più il browser a cachare i suoni',
+      '[AUDIO] invalidateSound(refKey): nuovo metodo per invalidare una specifica entry dalla cache SFX e BGM — se il suono è in riproduzione viene fermato e riavviato con il nuovo audio',
+      '[AUDIO] invalidateAllSounds(): nuovo metodo per svuotare completamente tutte le cache audio',
+      '[AUDIO] notifySoundUpdated(refKey): export che dispatcha un CustomEvent "sound-updated" — i componenti admin lo chiamano dopo ogni upload di successo',
+      '[AUDIO] L\'AudioEngine ascolta automaticamente "sound-updated" e invalida la cache corrispondente',
+      '[AUDIO] playBgm(): se un ambient personalizzato è attivo, i BGM di tipo location vengono saltati — combat/gameover/victory BGM hanno sempre priorità',
+    ],
+  },
+  {
+    version: '1.22.0',
+    date: '2026-04-25',
+    changes: [
+      '[AUDIO] Rimozione completa di tutti i suoni sintetici/seeded — il gioco usa SOLO audio caricati dal DB tramite il pannello admin',
+      '[AUDIO] Eliminati 47+ metodi play hardcoded da sounds.ts (playAttack, playMiss, playCritical, playZombieMoan, playMenuOpen, ecc.) — nessun suono pre-impostato, solo suoni entity-specific',
+      '[AUDIO] Rimasti solo metodi entity-specific: playEnemyAttack, playEntityEnemyDeath, playEntitySpecial, playEntityEnemyAbility, playEntityBossPhase, playLocationAmbient',
+      '[AUDIO] Sistema BGM preservato — funziona solo con audio caricati dal DB (bgm_title, bgm_combat, ecc.)',
+      '[AUDIO] Sistema Cache invalidation preservato (invalidateSound, notifySoundUpdated)',
+      '[SEED] Rimosso array SOUND_SEEDS (52 definizioni) dal seed route — il seed ora cancella solo i record sound esistenti senza ricrearli',
+      '[COMBAT] combat-utils.ts: getSoundForEntry() ora restituisce null per azioni senza suono entity-specific — nessun fallback hardcoded',
+      '[COMBAT] useCombatAnimations.ts: rimosso import playEnemyDeath (generico) — usa solo audio.playEntityEnemyDeath con definitionId',
+      '[UI] GameNotification: rimosso import audio e tutti i suoni hardcoded (encounter, victory, defeat, item_found)',
+      '[STORE] Rimossi ~28 try/catch blocks con play*() da 10 store slices (achievements, events, puzzle, inventory, safe-room, npc, documents, settings, exploration, combat)',
+      '[STORE] exploration.ts: import ridotto a solo playLocationAmbient (rimossi 8 altri suoni importati)',
+      '[STORE] combat.ts: import ridotto a solo audio (rimossi playLevelUp, playVictory, playDefeat)',
+    ],
+  },
+  {
+    version: '1.22.1',
+    date: '2026-04-25',
+    changes: [
+      '[CRITICO] Fix doppio audio location: playBgm() veniva chiamato anche durante l\'esplorazione sovraponendosi a playLocationAmbient() — ora playBgm() si usa SOLO per stati non-location (title, combat, gameover, victory)',
+      '[AUDIO] Rimossi 6 location entries da BGM_REF_KEYS (city_outskirts, rpd_station, hospital, sewers, laboratory, clock_tower) — le location usano solo playLocationAmbient()',
+      '[AUDIO] BgmType ridotto da 10 a 4 tipi: title, combat, gameover, victory',
+      '[AUDIO] Nuovo export resumeAmbient(): riprende l\'ambient sospeso quando si torna dal combat all\'esplorazione',
+      '[AUDIO] Rimosso flag _customAmbientActive (dead code — non più controllato da playBgm)',
+      '[AUDIO] page.tsx: rimosso locationBgmMap e tutti i riferimenti a currentLocationId — BGM effect ora gestisce solo fasi gioco, non location',
+    ],
+  },
+  {
+    version: '1.22.2',
+    date: '2026-04-25',
+    changes: [
+      '[AUDIO] Sistema audio 100% DB-only — zero suoni hardcoded o sintetizzati, tutto caricabile dal pannello admin',
+      '[AUDIO] Nuovo metodo playSfx(refKey): riproduce qualsiasi suono dal DB tramite refKey — usato per audio entity-specific e notifiche',
+      '[AUDIO] BGM combat/gameover/victory sono caricati da DB tramite playBgm() — nessun fallback hardcoded',
+      '[ADMIN] Sezione "Audio Combattimento" aggiunta in Impostazioni con upload per bgm_combat, bgm_gameover, bgm_victory',
+      '[ADMIN] Ogni suono è caricabile dalla sua sezione: nemici (attacco/morte), abilità PG, abilità nemici, boss, location (ambient), notifiche, oggetti, eventi, missioni',
+      '[UI] GameNotification: usa playSfx() con notif_sfx_{id} — se la notifica ha un suono caricato lo riproduce, altrimenti silenzio',
     ],
   },
 ];

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { audio } from '@/game/engine/sounds';
 import ItemIcon from '@/components/game/ItemIcon';
+import { playSfx } from '@/game/engine/sounds';
 
 // ── Theme config per notification type ──
 const THEMES = {
@@ -114,18 +114,11 @@ export default function GameNotification() {
     setState(prev => ({ ...prev, visible: false }));
   }, []);
 
-  // Play sound on new notification
-  const playSound = useCallback((type: string) => {
-    try {
-      switch (type) {
-        case 'encounter': audio.playEncounter(); break;
-        case 'victory': audio.playVictory(); break;
-        case 'defeat': audio.playDefeat(); break;
-        case 'item_found': audio.playItemPickup(); break;
-        case 'bag_expand': audio.playItemPickup(); break;
-        case 'collectible_found': audio.playItemPickup(); break;
-      }
-    } catch { /* audio not available */ }
+  // Notifications have their own audio field uploaded per-entity (notif_sfx_{entityId})
+  // If a notification has a specific sound ID, play it; otherwise silent (no fallback)
+  const playSound = useCallback((notifId: string) => {
+    const refKey = `notif_sfx_${notifId}`;
+    try { playSfx(refKey, 0.6); } catch {}
   }, []);
 
   // Detect new notification via ref to avoid re-triggering on re-renders
@@ -134,7 +127,7 @@ export default function GameNotification() {
     if (notification && notification.id !== notifIdRef.current) {
       notifIdRef.current = notification.id;
       setState(prev => ({ visible: true, key: prev.key + 1, clearing: false }));
-      playSound(notification.type);
+      playSound(notification.id);
       const duration = getDuration(notification.type);
       const notifId = notification.id;
 

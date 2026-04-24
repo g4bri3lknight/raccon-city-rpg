@@ -6,6 +6,7 @@ import type { MediaUploadDef } from './shared';
 import { SoundPreviewButton } from './SoundPreviewButton';
 import { adminFetch } from '@/lib/admin-fetch';
 import { AdminTooltip } from './fields/AdminTooltip';
+import { notifySoundUpdated } from '@/game/engine/sounds';
 
 export function MediaUploadBox({
   config,
@@ -75,6 +76,10 @@ export function MediaUploadBox({
       setUploadResult({ success: true, msg: `Caricato: ${(result.size / 1024).toFixed(1)} KB` });
       setFile(null);
       setHasExisting(true);
+      // Notify audio engine to invalidate cache so fresh audio plays
+      if (config.mediaType === 'sound' && mediaId) {
+        notifySoundUpdated(mediaId);
+      }
     } catch (err) {
       setUploadResult({ success: false, msg: `Errore: ${err}` });
     } finally {

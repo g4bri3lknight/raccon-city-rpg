@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': mimeType,
         'Content-Length': String(sound.data.length),
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'no-store',
       },
     });
   } catch (error) {

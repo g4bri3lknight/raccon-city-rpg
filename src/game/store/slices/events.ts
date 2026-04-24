@@ -4,7 +4,6 @@ import { StoryChoiceTag } from '../../types';
 import { ITEMS, DYNAMIC_EVENTS, SECRET_ROOMS } from '../../data/loader';
 import { ENDINGS } from '../../data/endings';
 import { addItemToParty, nextNotifId } from '../helpers';
-import { playItemPickup, playMenuOpen, playMenuClose } from '../../engine/sounds';
 
 export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   triggerDynamicEvent: (eventId: string) => {
@@ -102,8 +101,6 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     const state = get();
     const secret = SECRET_ROOMS[roomId];
     if (!secret || state.discoveredSecretRooms.includes(roomId)) return;
-    // Play item pickup sound for secret room discovery (#36)
-    try { playItemPickup(); } catch {}
     // Track run stats: secret rooms discovered
     get().incrementRunStat('secretRoomsDiscovered');
     const newDiscovered = [...state.discoveredSecretRooms, roomId];
@@ -149,8 +146,6 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
   discoverRecipe: (recipeId: string) => {
     const state = get();
     if (state.discoveredRecipes.includes(recipeId)) return;
-    // Play item pickup sound
-    try { playItemPickup(); } catch {}
     // Track run stats: recipes discovered
     get().incrementRunStat('recipesDiscovered');
     set({
@@ -219,10 +214,6 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
   },
 
   toggleMap: () => {
-    try {
-      const isOpen = get().mapOpen;
-      if (!isOpen) playMenuOpen(); else playMenuClose();
-    } catch {}
     set(state => ({ mapOpen: !state.mapOpen }));
   },
 

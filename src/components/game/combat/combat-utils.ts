@@ -29,59 +29,46 @@ export function getCombatSpeed(): 1 | 2 | 3 {
 
 /**
  * Data-driven sound lookup for combat log entries.
- * Uses item/special metadata (weaponType, type, category) instead of
- * hardcoded Italian name strings to determine the appropriate sound effect.
- * New weapons/specials automatically get sounds based on their category.
- *
- * Entity-specific sounds: if a custom sound has been uploaded via the admin
- * panel for a special ability (sfx_special_{id}) or enemy ability, it will
- * be used instead of the generic category-based sound.
+ * Uses entity-specific sounds only — no hardcoded/seeded fallbacks.
+ * If the admin has uploaded a sound for the entity, it plays; otherwise silence.
  */
 export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
-  // 1. Entry-level flags (highest priority)
-  if (entry.isMiss) return audio.playMiss;
-  if (entry.isCritical && entry.damage && entry.damage > 0) return audio.playCritical;
-
   const action = entry.action;
 
-  // 2. System-generated combat actions (not from game data)
-  if (action === 'Difesa') return audio.playDefend;
-  if (action === 'Avvelenamento') return audio.playPoisonTick;
-  if (action === 'Sanguinamento') return audio.playBleedTick;
+  // Entity basic attack → entity-specific sound: attack_{definitionId}
   if (action === 'Attacco' || action === 'Colpo corpo a corpo') {
-    if (entry.actorType === 'player') return audio.playAttack;
-    // Enemy basic attack → try entity-specific sound first, then generic
-    if (entry.actorDefinitionId) {
+    if (entry.actorType === 'enemy' && entry.actorDefinitionId) {
       return () => playEnemyAttack(entry.actorDefinitionId, entry.actorName, entry.action);
     }
+    // Player attacks — no hardcoded sound (silence unless entity-specific weapon sound is added)
     return null;
   }
 
-  // 3. Look up special ability by name → entity-specific sound (DB only)
+  // Look up special ability by name → entity-specific sound: sfx_special_{id}
   const special = ALL_SPECIAL_ABILITIES.find(s => s.name === action);
   if (special) {
-    // Use entity-specific sound: sfx_special_{id} from DB — no fallback
     return () => audio.playEntitySpecial(special.id, special.category);
   }
 
-  // 4. Look up item by name → weaponType/type-based sound
+  // Look up item by name — no hardcoded sound for items (admin can upload entity-specific sounds)
+  // Just return null for all item actions
   const itemDef = Object.values(ITEMS).find(i => i.name === action);
   if (itemDef) {
-    if (itemDef.weaponType === 'ranged') return audio.playRangedAttack;
-    if (itemDef.weaponType === 'melee') return audio.playAttack;
-    if (itemDef.type === 'healing' || itemDef.type === 'antidote') return audio.playHeal;
+    return null;
   }
 
-  // 5. Look up enemy ability by name → entity-specific sound (DB only)
+  // Look up enemy ability by name → entity-specific sound: sfx_eability_{abilityId}
   const enemyAbility = Object.values(ENEMY_ABILITIES_DATA).find(a => a.name === action);
   if (enemyAbility) {
     return () => audio.playEntityEnemyAbility(enemyAbility.id);
   }
 
-  // 6. Any remaining enemy damage action → try entity-specific attack sound from DB
+  // Any remaining enemy damage action → try entity-specific attack sound
   if (entry.damage && entry.damage > 0 && entry.actorType === 'enemy') {
-    const defId = entry.actorDefinitionId || entry.actorName.toLowerCase().replace(/\s+/g, '_');
-    return () => playEnemyAttack(defId, entry.actorName, entry.action);
+    const defId = entry.actorDefinitionId || entry.actorName?.toLowerCase().replace(/\s+/g, '_');
+    if (defId) {
+      return () => playEnemyAttack(defId, entry.actorName, entry.action);
+    }
   }
 
   return null;
@@ -92,13 +79,11 @@ export function getSoundForEntry(entry: CombatLogEntry): (() => void) | null {
 /** Derive animation info for a specific entity from the last few log entries */
 export function getAnimForTarget(lastEntries: CombatLogEntry[], id: string, name: string): AnimResult | null {
   for (const entry of lastEntries) {
-    // Check if this entity is a target: match single targetId OR multi-target targetIds array
     const isTarget = (entry.targetId && entry.targetId === id) || (entry.targetIds && entry.targetIds.includes(id));
     if (isTarget) {
       if (entry.isMiss) return { type: 'miss' as const, isMiss: true, isCritical: false };
       if (entry.damage && entry.damage > 0) return { type: 'damage' as const, value: entry.damage, isCritical: !!entry.isCritical, isMiss: false };
       if (entry.heal) {
-        // For multi-target heals, show per-target heal value if available
         const perTargetHeal = entry.healPerTarget?.[id];
         return { type: 'heal' as const, value: perTargetHeal ?? entry.heal, isCritical: false, isMiss: false };
       }

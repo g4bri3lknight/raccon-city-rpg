@@ -23,12 +23,11 @@ import QTEPanel from '@/components/game/QTEPanel';
 import AdminPanel from '@/components/game/AdminPanel';
 import SettingsPanel from '@/components/game/SettingsPanel';
 import { ErrorBoundary } from '@/components/game/ErrorBoundary';
-import { playBgm, stopBgm, preloadCriticalSounds } from '@/game/engine/sounds';
+import { playBgm, stopBgm, resumeAmbient } from '@/game/engine/sounds';
 import type { BgmType } from '@/game/engine/sounds';
 
 export default function GamePage() {
   const phase = useGameStore(s => s.phase);
-  const currentLocationId = useGameStore(s => s.currentLocationId);
   const prevPhaseRef = useRef(phase);
   const [dataReady, setDataReady] = useState(false);
 
@@ -65,15 +64,11 @@ export default function GamePage() {
         break;
       case 'exploration':
       case 'event':
-        const locationBgmMap: Record<string, string> = {
-          city_outskirts: 'city_outskirts',
-          rpd_station: 'rpd_station',
-          hospital_district: 'hospital',
-          sewers: 'sewers',
-          laboratory_entrance: 'laboratory',
-          clock_tower: 'clock_tower',
-        };
-        playBgm((locationBgmMap[currentLocationId] || 'city_outskirts') as BgmType);
+        // Location ambient is handled by playLocationAmbient() called from exploration.ts
+        // When returning from combat, resume the ambient that was suspended
+        if (prevPhase === 'combat' || prevPhase === 'qte') {
+          try { resumeAmbient(); } catch {}
+        }
         break;
       case 'combat':
         playBgm('combat');
@@ -96,28 +91,16 @@ export default function GamePage() {
 
     const handleInteraction = () => {
       try {
-        preloadCriticalSounds(); // preload critical SFX in background
         if (phase === 'combat') playBgm('combat');
         else if (phase === 'title' || phase === 'character-select' || phase === 'character-creator') playBgm('title');
-        else if (phase === 'exploration' || phase === 'event') {
-          const locationBgmMap: Record<string, string> = {
-            city_outskirts: 'city_outskirts',
-            rpd_station: 'rpd_station',
-            hospital_district: 'hospital',
-            sewers: 'sewers',
-            laboratory_entrance: 'laboratory',
-            clock_tower: 'clock_tower',
-          };
-          playBgm((locationBgmMap[currentLocationId] || 'city_outskirts') as BgmType);
-        }
-        else playBgm('city_outskirts');
+        // Location ambient is handled by playLocationAmbient() — no BGM during exploration
       } catch { /* ok */ }
       window.removeEventListener('click', handleInteraction);
       window.removeEventListener('keydown', handleInteraction);
     };
     window.addEventListener('click', handleInteraction, { once: true });
     window.addEventListener('keydown', handleInteraction, { once: true });
-  }, [phase, currentLocationId, dataReady]);
+  }, [phase, dataReady]);
 
   // Show loading screen while data is initializing
   if (!dataReady) {

@@ -5,7 +5,7 @@ import { ITEMS, LOCATIONS, RECIPES_DATA } from '../../data/loader';
 import { QUALITY_LABELS, RARITY_POINTS } from '../../data/crafting';
 import { getDefaultItemBoxItems } from '../settings-cache';
 import { getKeyItemIds } from '../helpers';
-import { playSearch, playSafeRoomAmbient, stopSafeRoomAmbient } from '../../engine/sounds';
+import { playSafeRoomAmbient, stopSafeRoomAmbient } from '../../engine/sounds';
 
 // ── Crafting quality roll ──
 function rollQuality(): ItemQuality {
@@ -86,9 +86,6 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
     if (!location || !location.subAreas?.some(sa => sa.id === 'safe_room')) return;
     // Guard: already searched this safe room
     if (state.searchedSafeRooms.includes(locId)) return;
-
-    // Play search sound
-    try { playSearch(); } catch {}
 
     const searcherName = state.party.find(p => p.id === state.selectedCharacterId)?.name || 'Qualcuno';
     const newLog = [...state.messageLog, `[${state.turnCount}] 🔍 ${searcherName} cerca nella Safe Room...`];

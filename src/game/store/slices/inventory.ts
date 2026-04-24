@@ -7,7 +7,6 @@ import { createModItemInstance } from '../../data/equipment';
 import { getMaxInventorySlots } from '../settings-cache';
 import { mergeInventoryStacks, applyAddSlotsToCharacter } from '../helpers';
 import { getAddSlotsAmount } from '../../utils/item-effects';
-import { playMenuOpen, playMenuClose } from '../../engine/sounds';
 
 export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   equipItem: (characterId: string, itemUid: string) => {

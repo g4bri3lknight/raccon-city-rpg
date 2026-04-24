@@ -3,7 +3,6 @@ import { GameStore } from '../types';
 import { ITEMS, NPCS, QUESTS, REPUTATION_CONFIG } from '../../data/loader';
 import { getFirstAvailableQuest } from '../../data/quest-helper';
 import { addItemToParty, canAddItemToParty, nextNotifId } from '../helpers';
-import { playNPCEncounter, playMenuOpen, playMenuClose } from '../../engine/sounds';
 
 export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
 
@@ -21,11 +20,6 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
 
     const state = get();
     const alreadyEncountered = state.npcsEncountered.includes(npcId);
-
-    // Play NPC encounter sound only on first encounter
-    if (!alreadyEncountered) {
-      try { playNPCEncounter(); } catch {}
-    }
 
     // If a specific quest ID is provided (e.g. from MissionsPanel completed quest click),
     // show that exact quest even if completed
@@ -316,10 +310,6 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
   },
 
   toggleMissions: () => {
-    try {
-      const isOpen = get().missionsOpen;
-      if (!isOpen) playMenuOpen(); else playMenuClose();
-    } catch {}
     set(state => ({ missionsOpen: !state.missionsOpen }));
   },
 });

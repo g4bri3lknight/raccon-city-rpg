@@ -51,12 +51,7 @@ import {
   nextNotifId,
 } from '../helpers';
 import { getMaxInventorySlots } from '../settings-cache';
-import {
-  playLevelUp,
-  playVictory,
-  playDefeat,
-  audio,
-} from '../../engine/sounds';
+import { audio } from '../../engine/sounds';
 
 /** Calculate combo bonus percentage based on combo count.
  *  Linear interpolation between thresholds:
@@ -910,8 +905,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           const result = addExp(char, totalExp);
           updatedParty = updatedParty.map(p => p.id === result.updated.id ? result.updated : p);
           if (result.leveledUp) {
-            // Play level up sound (#36)
-            try { playLevelUp(); } catch {}
             levelUpMessages.push(`⬆️ ${result.updated.name} sale al livello ${result.updated.level}!`);
           }
         }
@@ -936,7 +929,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
               const result = addExp(char, bonusExp);
               updatedParty = updatedParty.map(p => p.id === result.updated.id ? result.updated : p);
               if (result.leveledUp) {
-                try { playLevelUp(); } catch {}
                 levelUpMessages.push(`⬆️ ${result.updated.name} sale al livello ${result.updated.level}!`);
               }
             }
@@ -1036,9 +1028,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
 
       if (updatedEnemies.some(e => e.isBoss)) {
-        // Play victory sound for boss kill (#36)
-        try { playVictory(); } catch {}
-
         set({
           notification: {
             id: nextNotifId(),
@@ -1069,9 +1058,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }, 3500);
         return;
       }
-
-      // Play victory sound for regular combat (#36)
-      try { playVictory(); } catch {}
 
       set({
         notification: {
@@ -1158,7 +1144,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
     }
     if (aliveParty.length === 0) {
       // All party dead but defeat not declared — force game over
-      try { playDefeat(); } catch {}
       set({ phase: 'game-over', combat: null, enemies: [], messageLog: [...state.messageLog, `[${state.turnCount}] 💀 Game Over`] });
       return;
     }
@@ -1714,7 +1699,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
             const result = addExp(char, dotBonusExp);
             finalParty = finalParty.map(p => p.id === result.updated.id ? result.updated : p);
             if (result.leveledUp) {
-              try { playLevelUp(); } catch {}
               levelUpMessages.push(`⬆️ ${char.name} è salito al livello ${result.updated.level}!`);
             }
           }
@@ -1722,7 +1706,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
       }
       const isBoss = updatedEnemiesForStatus.some(e => e.isBoss);
-      try { playVictory(); } catch {}
       set({
         notification: {
           id: nextNotifId(),
@@ -1943,8 +1926,6 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
 
       if (afterEnemyAttack.every(p => p.currentHp <= 0)) {
-        try { playDefeat(); } catch {}
-
         set({
           phase: 'game-over',
           party: afterEnemyAttack,

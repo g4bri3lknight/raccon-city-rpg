@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DifficultyConfigEditor } from './DifficultyConfigEditor';
 import { adminFetch } from '@/lib/admin-fetch';
 import { ItemBoxDefaultsEditor } from '../EntityForm';
 import type { GameplaySettingDef } from '../config';
 import { GAMEPLAY_SETTINGS_FIELDS } from '../config';
+import { MediaUploadBox } from '../MediaUploadBox';
+import type { MediaUploadDef } from '../shared';
 
 export function GameSettingsEditor() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -16,6 +18,40 @@ export function GameSettingsEditor() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
+
+  // BGM upload definitions for combat ambient
+  const bgmUploads: MediaUploadDef[] = [
+    {
+      key: 'bgm_combat',
+      label: '🎵 BGM Combattimento',
+      mediaType: 'sound',
+      category: 'bgm',
+      accept: 'audio/wav,audio/mpeg,audio/ogg,audio/mp4',
+      idTemplate: 'bgm_combat',
+      nameTemplate: 'BGM Combattimento',
+      helpText: 'Musica di sottofondo riprodotta durante il combattimento. Usa un file audio ripetibile (loop).',
+    },
+    {
+      key: 'bgm_gameover',
+      label: '💀 BGM Game Over',
+      mediaType: 'sound',
+      category: 'bgm',
+      accept: 'audio/wav,audio/mpeg,audio/ogg,audio/mp4',
+      idTemplate: 'bgm_gameover',
+      nameTemplate: 'BGM Game Over',
+      helpText: 'Musica riprodotta nella schermata di sconfitta.',
+    },
+    {
+      key: 'bgm_victory',
+      label: '🏆 BGM Vittoria',
+      mediaType: 'sound',
+      category: 'bgm',
+      accept: 'audio/wav,audio/mpeg,audio/ogg,audio/mp4',
+      idTemplate: 'bgm_victory',
+      nameTemplate: 'BGM Vittoria',
+      helpText: 'Musica riprodotta nella schermata di vittoria.',
+    },
+  ];
 
   // Load settings
   useEffect(() => {
@@ -231,6 +267,20 @@ export function GameSettingsEditor() {
             settings={settings}
             onChange={handleChange}
           />
+        </div>
+
+        {/* Combat BGM Upload Section */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-3.5 h-3.5 text-white/30" />
+            <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">Audio Combattimento</h4>
+            <span className="text-[11px] text-white/15">— BGM e musiche di sottofondo caricate da DB</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {bgmUploads.map(mu => (
+              <MediaUploadBox key={mu.key} config={mu} entityId="bgm" />
+            ))}
+          </div>
         </div>
 
         {/* Save Button */}

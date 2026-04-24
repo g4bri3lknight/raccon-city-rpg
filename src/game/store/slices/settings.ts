@@ -1,14 +1,9 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { DifficultyLevel } from '../../types';
-import { playMenuOpen, playMenuClose } from '../../engine/sounds';
 
 export const createSettingsSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   toggleSettings: () => {
-    try {
-      const isOpen = get().settingsOpen;
-      if (!isOpen) playMenuOpen(); else playMenuClose();
-    } catch {}
     set(state => ({ settingsOpen: !state.settingsOpen }));
   },
 
