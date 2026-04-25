@@ -131,6 +131,12 @@ export const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
   { key: 'combat.defaultCooldown', label: 'Cooldown Speciale Default', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 10, step: 1, helpText: 'Cooldown in turni delle abilità speciali (se non specificato)' },
   { key: 'combat.speed', label: 'Velocità Combattimento', type: 'range', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0.5, max: 3.0, step: 0.1, helpText: 'Velocità delle animazioni di combattimento. 0.5 = lento, 1.0 = normale, 3.0 = veloce' },
   { key: 'combat.summaryDisplayTime', label: 'Tempo Summary (s)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 15, step: 0.5, helpText: 'Durata schermata riassuntiva post-combattimento in secondi prima della transizione (default: 3.5)' },
+  { key: 'combat.enemyScalingPerLevel', label: 'Scaling x Livello (%)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 20, step: 0.5, helpText: 'Bonus % stat nemici per livello party sopra 1 (es. 2 = +2% per livello)' },
+  { key: 'combat.enemyScalingCap', label: 'Cap Scaling (%)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 200, step: 5, helpText: 'Bonus massimo % dallo scaling livello (es. 40 = max +40%)' },
+  { key: 'combat.fleeBaseChance', label: 'Fuga: Chance Base (%)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 100, step: 1, helpText: 'Probabilità base di fuga dal combattimento' },
+  { key: 'combat.fleeSpdWeight', label: 'Fuga: Peso SPD', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 20, step: 1, helpText: '% fuga per ogni punto SPD di differenza con il nemico' },
+  { key: 'combat.fleeMinChance', label: 'Fuga: Min (%)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 100, step: 1, helpText: 'Probabilità minima di fuga anche con nemici molto più veloci' },
+  { key: 'combat.fleeMaxChance', label: 'Fuga: Max (%)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 100, step: 1, helpText: 'Probabilità massima di fuga anche con party molto più veloce' },
   { key: 'combat.autoUseItems', label: 'AI usa oggetti', type: 'toggle', group: 'combat', groupLabel: '⚔️ Combattimento', helpText: 'Se attivo, il combattimento automatico usa pozze e oggetti di cura quando necessario' },
 
   // ── New Game+ ──

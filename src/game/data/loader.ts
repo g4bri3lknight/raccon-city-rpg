@@ -75,6 +75,12 @@ export let COMBAT_CONFIG: Record<string, number> = {
   defaultStatusDuration: 3, defaultCooldown: 2,
   speed: 1.0,
   summaryDisplayTime: 3.5,
+  enemyScalingPerLevel: 2,
+  enemyScalingCap: 40,
+  fleeBaseChance: 30,
+  fleeSpdWeight: 5,
+  fleeMinChance: 10,
+  fleeMaxChance: 80,
 };
 
 // Game info config — loaded from GameSetting DB

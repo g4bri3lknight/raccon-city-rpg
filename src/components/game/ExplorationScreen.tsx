@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { useShallow } from 'zustand/react/shallow';
-import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS } from '@/game/data/loader';
+import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS, QUESTS } from '@/game/data/loader';
 import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
 import { CompactHpPanel } from './HpBar';
@@ -13,10 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import {
   Compass, Search, Package, MapPin, ChevronRight,
   Skull, ArrowRightLeft, AlertTriangle, Users, Map, Trophy, BookOpen,
-  FileText, Zap, Dices, Home, ScrollText, MessageSquare, Settings
+  FileText, Zap, Dices, Home, ScrollText, MessageSquare, Settings, Pill, ChevronDown, HelpCircle
 } from 'lucide-react';
 import SafeRoomPanel from './SafeRoomPanel';
 import MissionsPanel from './MissionsPanel';
+import MiniMap from './MiniMap';
 import { getEffectiveLocation } from '@/game/data/randomizer';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { getArchetypeEmoji, getArchetypeLabel, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
@@ -63,8 +64,10 @@ export default function ExplorationScreen() {
     toggleDocuments: s.toggleDocuments,
     toggleMissions: s.toggleMissions,
     toggleSettings: s.toggleSettings,
+    toggleHelp: s.toggleHelp,
     handleDynamicEventChoice: s.handleDynamicEventChoice,
     enterSafeRoom: s.enterSafeRoom,
+    quickHeal: s.quickHeal,
   })));
 
   const {
@@ -78,7 +81,7 @@ export default function ExplorationScreen() {
     explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
-    toggleSettings, handleDynamicEventChoice, enterSafeRoom,
+    toggleSettings, toggleHelp, handleDynamicEventChoice, enterSafeRoom, quickHeal,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
@@ -99,6 +102,31 @@ export default function ExplorationScreen() {
     });
   }, [messageLog.length, activeEvent]);
 
+  const [questTrackerOpen, setQuestTrackerOpen] = useState(false);
+
+  // Quest tracker data (before early returns — hooks must be unconditional)
+  const activeQuests = useMemo(() => {
+    return Object.entries(npcQuestProgress)
+      .filter(([_, progress]) => !progress.completed)
+      .slice(0, 3)
+      .map(([questId, progress]) => {
+        const quest = QUESTS[questId];
+        const typeLabel = quest?.type === 'kill' ? 'uccisi' : quest?.type === 'fetch' ? 'trovati' : 'esplorati';
+        return { questId, quest, progress, typeLabel };
+      });
+  }, [npcQuestProgress]);
+
+  // Quick-heal availability (before early returns — hooks must be unconditional)
+  const selectedChar = party.find(p => p.id === selectedCharacterId);
+  const canQuickHeal = useMemo(() => {
+    if (!selectedChar || selectedChar.currentHp <= 0 || selectedChar.currentHp >= selectedChar.maxHp) return false;
+    return (selectedChar.inventory || []).some(item =>
+      item.usable && (item.effects || []).some(e =>
+        e.type === 'heal' && (!e.trigger || e.trigger === 'on_use')
+      )
+    );
+  }, [selectedChar]);
+
   if (!location) return null;
   // searchMax: DB config (null=random 1-3, 0=unlimited) → searchMaxes: runtime state
   const effectiveMax = searchMaxes[currentLocationId]
@@ -118,6 +146,10 @@ export default function ExplorationScreen() {
     n => n.locationId === currentLocationId && npcsEncountered.includes(n.id)
   );
 
+  // Search counter display
+  const searchCount = searchCounts[currentLocationId] || 0;
+  const searchBadge = effectiveMax === Infinity ? '∞' : `${searchCount}/${effectiveMax}`;
+
   // If in safe room, show SafeRoomPanel instead of exploration
   if (currentSubArea === 'safe_room') {
     return (
@@ -133,9 +165,11 @@ export default function ExplorationScreen() {
   
 
   return (
-    <div className="h-dvh sm:h-screen game-horror flex flex-col overflow-hidden">
+    <div className="h-dvh sm:h-screen game-horror flex flex-col overflow-hidden" role="main" aria-label="Schermata esplorazione">
       {/* Location Header with Background */}
       <div className="relative h-28 sm:h-44 shrink-0 overflow-hidden border-b border-white/[0.06]">
+        {/* Mini Map Widget */}
+        <MiniMap />
         <div
           className="absolute inset-0 bg-cover bg-center transition-all duration-700"
           style={{ backgroundImage: `url('${location.backgroundImage}')` }}
@@ -144,6 +178,16 @@ export default function ExplorationScreen() {
         
         {/* Settings + Save/Load + Collectibles — top right */}
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 flex items-center gap-2">
+          {/* Help button — keyboard shortcuts */}
+          <button
+            onClick={toggleHelp}
+            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] hover:border-white/25 text-white/60 hover:text-white transition-all duration-200 backdrop-blur-sm"
+            title="Scorciatoie tastiera (H)"
+            aria-label="Scorciatoie tastiera"
+          >
+            <HelpCircle className="w-4 h-4 sm:w-3.5 sm:h-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline text-xs font-medium">?</span>
+          </button>
           {/* Settings button — always in header */}
           <button
             onClick={toggleSettings}
@@ -201,7 +245,7 @@ export default function ExplorationScreen() {
         {/* Left Panel: Party Status — scrollable if needed */}
         <div className="lg:w-80 xl:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-white/[0.06] lg:overflow-y-auto lg:inventory-scrollbar lg:max-h-none">
           <div className="px-2 py-1.5 sm:p-3">
-            <h3 className="text-[10px] sm:text-xs uppercase tracking-wider text-white/40 mb-1 sm:mb-2 flex items-center gap-1.5 sm:gap-2">
+            <h3 className="text-[10px] sm:text-xs uppercase tracking-wider text-white/40 mb-1 sm:mb-2 flex items-center gap-1.5 sm:gap-2" aria-label="Salute gruppo">
               <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Gruppo
             </h3>
             {/* MOBILE: horizontal row — all chars always visible */}
@@ -216,7 +260,7 @@ export default function ExplorationScreen() {
                     className={`flex-1 flex flex-col items-center gap-0.5 p-1.5 rounded-lg border cursor-pointer transition-all ${
                       char.id === selectedCharacterId
                         ? 'border-red-500/30 bg-red-500/[0.06]'
-                        : 'border-white/[0.06] bg-white/[0.03]'
+                        : 'border-white/[0.06] bg-white/[0.06]'
                     } ${char.currentHp <= 0 ? 'opacity-40' : ''}`}
                     onClick={() => selectCharacter(char.id)}
                   >
@@ -277,7 +321,7 @@ export default function ExplorationScreen() {
                   className={`p-2.5 rounded-lg border cursor-pointer transition-all duration-200 ${
                     char.id === selectedCharacterId
                       ? 'border-red-500/30 bg-red-500/[0.06]'
-                      : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] hover:border-white/[0.1]'
+                      : 'border-white/[0.06] bg-white/[0.06] hover:bg-white/[0.05] hover:border-white/[0.1]'
                   } ${char.currentHp <= 0 ? 'opacity-40' : ''}`}
                   onClick={() => selectCharacter(char.id)}
                 >
@@ -485,20 +529,24 @@ export default function ExplorationScreen() {
                 onClick={explore}
                 disabled={aliveParty.length === 0 || isActionBlocked || isExploring}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+                aria-label="Esplora area"
               >
                 <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Esplora
               </Button>
               <Button
                 onClick={searchArea}
                 disabled={aliveParty.length === 0 || searchExhausted || isActionBlocked}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Cerca oggetti"
               >
                 <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Cerca
+                <span className="ml-1 text-[9px] sm:text-[10px] font-mono font-bold text-amber-300/70">{searchBadge}</span>
               </Button>
               <Button
                 onClick={toggleInventory}
                 disabled={isActionBlocked}
                 className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+                aria-label="Apri inventario"
               >
                 <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Inventario</span><span className="sm:hidden">Invent.</span>
               </Button>
@@ -560,6 +608,13 @@ export default function ExplorationScreen() {
                   <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Safe Room</span><span className="sm:hidden">Safe</span>
                 </Button>
               )}
+              <Button
+                onClick={quickHeal}
+                disabled={!canQuickHeal || isActionBlocked}
+                className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Pill className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Cura Rapida</span><span className="sm:hidden">Cura</span>
+              </Button>
               {location.isBossArea && (
                 <Button
                   onClick={startBossFight}
@@ -612,6 +667,53 @@ export default function ExplorationScreen() {
                 </div>
               );
             })()}
+
+            {/* Quest Tracker — collapsible */}
+            {activeMissions > 0 && (
+              <div className="mt-2">
+                <button
+                  onClick={() => setQuestTrackerOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-[10px] sm:text-xs text-cyan-400/70 hover:text-cyan-300 transition-colors"
+                >
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${questTrackerOpen ? 'rotate-180' : ''}`} />
+                  📋 {activeMissions} mission{activeMissions === 1 ? 'e' : 'i'} attiv{activeMissions === 1 ? 'a' : 'e'}
+                </button>
+                <AnimatePresence>
+                  {questTrackerOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-1.5 space-y-1">
+                        {activeQuests.map(({ questId, quest, progress, typeLabel }) => {
+                          if (!quest) return null;
+                          const pct = quest.targetCount > 0 ? Math.min(100, (progress.currentCount / quest.targetCount) * 100) : 0;
+                          return (
+                            <div key={questId} className="glass-dark rounded-md px-2.5 py-1.5 border border-white/[0.06]">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] sm:text-xs text-white/70 font-medium truncate">{quest.name}</span>
+                                <span className="text-[9px] sm:text-[10px] font-mono text-cyan-300/70 shrink-0">
+                                  {progress.currentCount}/{quest.targetCount} {typeLabel}
+                                </span>
+                              </div>
+                              <div className="mt-1 w-full h-1 rounded-full overflow-hidden bg-white/[0.08]">
+                                <div
+                                  className="h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #06b6d4, #22d3ee)', boxShadow: '0 0 4px rgba(6,182,212,0.4)' }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </div>
       </div>

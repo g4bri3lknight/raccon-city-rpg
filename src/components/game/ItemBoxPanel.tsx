@@ -16,6 +16,7 @@ import {
   Package, ArrowDownToLine, ArrowUpFromLine,
   ShieldOff, Minus, Plus
 } from 'lucide-react';
+import ItemTooltip from './ItemTooltip';
 
 type SelectedItem = { item: ItemInstance; source: 'inventory' | 'itembox'; index: number };
 
@@ -146,36 +147,38 @@ export default function ItemBoxPanel() {
     }
 
     return (
-      <motion.button
-        key={item?.uid || `empty_${source}_${index}`}
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: index * 0.015 }}
-        onClick={() => {
-          if (item) {
-            setSelected(isSelected ? null : { item, source, index });
-            setTransferQty(1);
-          }
-        }}
-        className={slotClass}
-      >
-        {item ? (
-          <span className="relative w-full h-full flex items-center justify-center p-1.5">
-            <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
-            {item.quantity > 1 && (
-              <span className="absolute -top-2 -right-2 text-xs bg-black/70 text-white/90 rounded-full w-5 h-5 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
-                {item.quantity}
-              </span>
-            )}
-            <span className={`absolute bottom-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
-            {item.isEquipped && (
-              <span className="absolute -top-1 -left-1 text-[10px] bg-amber-600/90 text-white rounded px-1 py-0.5 font-bold leading-none">E</span>
-            )}
-          </span>
-        ) : (
-          <span className="text-white/10 text-lg">+</span>
-        )}
-      </motion.button>
+      <ItemTooltip item={item} disabled={!item}>
+        <motion.button
+          key={item?.uid || `empty_${source}_${index}`}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: index * 0.015 }}
+          onClick={() => {
+            if (item) {
+              setSelected(isSelected ? null : { item, source, index });
+              setTransferQty(1);
+            }
+          }}
+          className={slotClass}
+        >
+          {item ? (
+            <span className="relative w-full h-full flex items-center justify-center p-1.5">
+              <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
+              {item.quantity > 1 && (
+                <span className="absolute -top-2 -right-2 text-xs bg-black/70 text-white/90 rounded-full w-5 h-5 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
+                  {item.quantity}
+                </span>
+              )}
+              <span className={`absolute bottom-1 right-1 w-2 h-2 rounded-full ${RARITY_DOT[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
+              {item.isEquipped && (
+                <span className="absolute -top-1 -left-1 text-[10px] bg-amber-600/90 text-white rounded px-1 py-0.5 font-bold leading-none">E</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-white/10 text-lg">+</span>
+          )}
+        </motion.button>
+      </ItemTooltip>
     );
   };
 

@@ -110,7 +110,7 @@ export default function EquipmentPanel() {
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-all ${
                 char.id === selectedChar.id
                   ? 'bg-amber-900/40 text-amber-300 border border-amber-700/30'
-                  : 'bg-white/[0.04] text-white/50 hover:text-white/70 border border-white/[0.06]'
+                  : 'bg-white/[0.06] text-white/50 hover:text-white/70 border border-white/[0.06]'
               }`}
             >
               {char.name}

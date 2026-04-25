@@ -2407,8 +2407,12 @@ export function calculateFleeChance(party: Character[], enemies: EnemyInstance[]
   if (aliveParty.length === 0) return false;
   const avgSpd = aliveParty.reduce((sum, p) => sum + getCharacterSpd(p), 0) / aliveParty.length;
   const enemyAvgSpd = enemies.reduce((sum, e) => sum + e.spd, 0) / enemies.length;
-  const fleeChance = 30 + (avgSpd - enemyAvgSpd) * 5;
-  return chance(Math.min(Math.max(fleeChance, 10), 80));
+  const base = COMBAT_CONFIG.fleeBaseChance ?? 30;
+  const weight = COMBAT_CONFIG.fleeSpdWeight ?? 5;
+  const min = COMBAT_CONFIG.fleeMinChance ?? 10;
+  const max = COMBAT_CONFIG.fleeMaxChance ?? 80;
+  const fleeChance = base + (avgSpd - enemyAvgSpd) * weight;
+  return chance(Math.min(Math.max(fleeChance, min), max));
 }
 
 // ==========================================

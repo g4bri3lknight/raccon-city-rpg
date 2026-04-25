@@ -167,6 +167,8 @@ export default function CombatLogPanel({
           ref={logRef}
           onScroll={handleScroll}
           className="h-full overflow-y-auto rounded-lg border border-white/[0.06] glass-dark-inner p-2.5 sm:p-3 inventory-scrollbar"
+          aria-live="polite"
+          aria-label="Registro combattimento"
         >
           <div className="space-y-0.5">
             {filteredEntries.map((item, i) => {

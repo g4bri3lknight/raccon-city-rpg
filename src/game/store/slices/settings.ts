@@ -7,6 +7,10 @@ export const createSettingsSlice: StateCreator<GameStore, [], [], GameStore> = (
     set(state => ({ settingsOpen: !state.settingsOpen }));
   },
 
+  toggleHelp: () => {
+    set(state => ({ helpOpen: !state.helpOpen }));
+  },
+
   setAutoCombatPreference: (val: boolean) => {
     set({ autoCombat: val });
     // Persist in localStorage so combat start respects this default

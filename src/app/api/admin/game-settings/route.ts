@@ -41,9 +41,9 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'difficulty.incubo':        { value: '{"label":"Incubo","color":"#ef4444","icon":"💀","statMult":1.4,"lootMult":0.6,"minEnemies":2,"maxEnemies":4,"expMult":0.8,"enemyCritChance":20,"description":"Nemici potenti, poco bottino. Solo per i più coraggiosi."}', label: 'Difficoltà: Incubo', group: 'difficulty', sortOrder: 202 },
 
   // ── Game Info ──
-  'game.version':              { value: '1.23.0', label: 'Versione Gioco',                       group: 'game', sortOrder: 50 },
+  'game.version':              { value: '1.24.0', label: 'Versione Gioco',                       group: 'game', sortOrder: 50 },
   'game.versionDate':          { value: new Date().toISOString().slice(0, 10), label: 'Data Versione', group: 'game', sortOrder: 51 },
-  'game.versionChangelog':       { value: 'Versione DB-driven, tempo summary configurabile, sezione Info Gioco nell\'admin', label: 'Modifiche Versione', group: 'game', sortOrder: 52 },
+  'game.versionChangelog':       { value: '13 miglioramenti UI/UX: loading screen branded, HP party safe room, quest tracker, minimap, coda notifiche, quick-heal, contatore ricerche, drag&drop inventario, tooltip item, fix contrasto, accessibilità, scorciatoie tastiera con overlay (H)', label: 'Modifiche Versione', group: 'game', sortOrder: 52 },
 
   // ── Combat Constants ──
   'combat.missChance':             { value: '8',    label: '% Probabilità Mancata Base',           group: 'combat', sortOrder: 300 },
@@ -65,6 +65,12 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'combat.defaultCooldown':        { value: '2',    label: 'Cooldown Speciale Default (turni)',   group: 'combat', sortOrder: 316 },
   'combat.speed':                  { value: '1.0',  label: 'Velocità Combattimento',             group: 'combat', sortOrder: 320 },
   'combat.summaryDisplayTime':    { value: '3.5',  label: 'Tempo Summary (secondi)',            group: 'combat', sortOrder: 322, helpText: 'Durata schermata riassuntiva post-combattimento prima della transizione' },
+  'combat.enemyScalingPerLevel':  { value: '2',    label: 'Scaling Nemici x Livello (%)',       group: 'combat', sortOrder: 330, helpText: 'Bonus % statistiche nemici per ogni livello party sopra 1 (es. 2 = +2% per livello)' },
+  'combat.enemyScalingCap':       { value: '40',   label: 'Cap Scaling Nemici (%)',              group: 'combat', sortOrder: 331, helpText: 'Bonus massimo % statistiche nemici dallo scaling livello (es. 40 = max +40% a livello 21)' },
+  'combat.fleeBaseChance':        { value: '30',   label: 'Fuga: Chance Base (%)',               group: 'combat', sortOrder: 340, helpText: 'Probabilità base di fuga dal combattimento' },
+  'combat.fleeSpdWeight':         { value: '5',    label: 'Fuga: Peso Velocità',                group: 'combat', sortOrder: 341, helpText: 'Punti % fuga per ogni punto SPD in più/meno del nemico' },
+  'combat.fleeMinChance':         { value: '10',   label: 'Fuga: Chance Minima (%)',             group: 'combat', sortOrder: 342, helpText: 'Probabilità minima di fuga anche se i nemici sono molto più veloci' },
+  'combat.fleeMaxChance':         { value: '80',   label: 'Fuga: Chance Massima (%)',            group: 'combat', sortOrder: 343, helpText: 'Probabilità massima di fuga anche se il party è molto più veloce' },
   'combat.autoUseItems':           { value: 'true', label: 'AI usa oggetti',                     group: 'combat', sortOrder: 321 },
 
   // ── New Game+ ──

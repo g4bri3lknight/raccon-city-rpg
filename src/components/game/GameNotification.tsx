@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import ItemIcon from '@/components/game/ItemIcon';
 import { playSfx } from '@/game/engine/sounds';
+import type { GameNotification } from '@/game/types';
 
 // ── Theme config per notification type ──
 const THEMES = {
@@ -103,15 +104,40 @@ export default function GameNotification() {
   const notification = useGameStore(s => s.notification);
   const [state, setState] = useState<{ visible: boolean; key: number; clearing: boolean }>({ visible: false, key: 0, clearing: false });
 
+  // ── Notification queue ──
+  // Local queue so rapid-fire notifications are shown sequentially instead of overriding each other.
+  // When a new notification arrives while one is still visible, the previous one is pushed here.
+  // When the current notification finishes, the next one is dequeued into the store.
+  const [queuedNotifications, setQueuedNotifications] = useState<GameNotification[]>([]);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const isVisibleRef = useRef(false);
+  const prevStoreNotifRef = useRef<GameNotification | null>(null);
+  const notifIdRef = useRef<string | null>(null);
+
   // Check if user prefers reduced motion
   const prefersReducedMotion = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }, []);
 
-  // Dismiss the notification early
-  const dismissNotification = useCallback(() => {
-    setState(prev => ({ ...prev, visible: false }));
+  // Clear all pending timers
+  const clearAllTimers = useCallback(() => {
+    timersRef.current.forEach(t => clearTimeout(t));
+    timersRef.current = [];
+  }, []);
+
+  // Dequeue the next notification from the local queue into the store,
+  // or clear the store notification if the queue is empty.
+  const dequeueNext = useCallback(() => {
+    setQueuedNotifications(prev => {
+      if (prev.length === 0) {
+        useGameStore.setState({ notification: null });
+        return prev;
+      }
+      const [next, ...rest] = prev;
+      useGameStore.setState({ notification: next });
+      return rest;
+    });
   }, []);
 
   // Notifications have their own audio field uploaded per-entity (notif_sfx_{entityId})
@@ -121,32 +147,75 @@ export default function GameNotification() {
     try { playSfx(refKey, 0.6); } catch {}
   }, []);
 
-  // Detect new notification via ref to avoid re-triggering on re-renders
-  const notifIdRef = useRef<string | null>(null);
+  // Dismiss the notification early (user click)
+  const dismissNotification = useCallback(() => {
+    if (!isVisibleRef.current) return;
+    clearAllTimers();
+    isVisibleRef.current = false;
+    setState(p => ({ ...p, visible: false }));
+    // After exit animation, clear refs and show next queued notification
+    const t = setTimeout(() => {
+      notifIdRef.current = null;
+      prevStoreNotifRef.current = null;
+      dequeueNext();
+    }, 350);
+    timersRef.current.push(t);
+  }, [clearAllTimers, dequeueNext]);
+
+  // Detect new notification via ref to avoid re-triggering on re-renders.
+  // Queue logic: when a new notification replaces one that is still visible,
+  // the previous one is pushed to the local queue so it is shown after the new one.
   useEffect(() => {
-    if (notification && notification.id !== notifIdRef.current) {
+    const prevStoreNotif = prevStoreNotifRef.current;
+    prevStoreNotifRef.current = notification;
+
+    // External code (e.g. restartGame) cleared the notification — reset everything
+    if (!notification) {
+      if (notifIdRef.current) {
+        notifIdRef.current = null;
+        clearAllTimers();
+        setQueuedNotifications([]);
+        setState(p => ({ ...p, visible: false }));
+        isVisibleRef.current = false;
+      }
+      return;
+    }
+
+    // New notification arrived (different ID from what we're currently showing)
+    if (notification.id !== notifIdRef.current) {
+      // If a previous notification was still being shown, queue it
+      if (prevStoreNotif && notifIdRef.current && isVisibleRef.current) {
+        setQueuedNotifications(q => [...q, prevStoreNotif]);
+      }
+
+      // Show the new notification
       notifIdRef.current = notification.id;
+      isVisibleRef.current = true;
       setState(prev => ({ visible: true, key: prev.key + 1, clearing: false }));
       playSound(notification.id);
-      const duration = getDuration(notification.type);
-      const notifId = notification.id;
 
-      const hideTimer = setTimeout(() => setState(prev => ({ ...prev, visible: false })), duration);
+      const duration = getDuration(notification.type);
+      clearAllTimers();
+
+      const hideTimer = setTimeout(() => {
+        isVisibleRef.current = false;
+        setState(prev => ({ ...prev, visible: false }));
+      }, duration);
+
       const clearTimer = setTimeout(() => {
-        setState(prev => ({ ...prev, clearing: false }));
         notifIdRef.current = null;
-        const current = useGameStore.getState();
-        if (current.notification?.id === notifId) {
-          useGameStore.setState({ notification: null });
-        }
+        prevStoreNotifRef.current = null;
+        dequeueNext();
       }, duration + 400);
 
-      return () => {
-        clearTimeout(hideTimer);
-        clearTimeout(clearTimer);
-      };
+      timersRef.current.push(hideTimer, clearTimer);
     }
-  }, [notification, playSound]);
+  }, [notification, playSound, clearAllTimers, dequeueNext]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => clearAllTimers();
+  }, [clearAllTimers]);
 
   // Memoize particle data to prevent jitter on re-renders
   const victoryParticles = useMemo(() => {

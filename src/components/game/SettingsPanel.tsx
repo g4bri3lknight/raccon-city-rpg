@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { audioEngine } from '@/game/engine/sounds';
 import { Button } from '@/components/ui/button';
-import { X, Volume2, VolumeX, Music, Gamepad2, Settings, Gauge, Bug, ShieldCheck } from 'lucide-react';
+import { X, Volume2, VolumeX, Music, Gamepad2, Settings, Gauge, Bug, ShieldCheck, Keyboard, HelpCircle } from 'lucide-react';
+import { SHORTCUT_GROUPS } from './keyboard-shortcuts-data';
 
 const SETTINGS_KEY = 'raccoon_city_settings';
 
@@ -381,6 +382,38 @@ export default function SettingsPanel() {
                       />
                     </div>
                   </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="h-px bg-white/[0.06]" />
+
+              {/* ── Keyboard Shortcuts Section ── */}
+              <div>
+                <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Keyboard className="w-3.5 h-3.5" />
+                  Scorciatoie Tastiera
+                  <button
+                    onClick={() => useGameStore.setState(s => ({ helpOpen: true }))}
+                    className="ml-auto flex items-center justify-center w-6 h-6 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-white/30 hover:text-white/60 transition-colors"
+                    title="Apri overlay scorciatoie (H)"
+                    aria-label="Apri overlay scorciatoie"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
+                </h3>
+                <div className="space-y-1.5">
+                  {SHORTCUT_GROUPS.flatMap(g => g.shortcuts).map(s => (
+                    <div key={`${s.key}-${s.action}`} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/[0.02]">
+                      <span className="text-xs text-white/50">{s.action}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-white/20">{s.ctx}</span>
+                        <kbd className="text-[10px] font-mono text-amber-400/80 bg-white/[0.06] border border-white/[0.1] px-1.5 py-0.5 rounded">
+                          {s.key}
+                        </kbd>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

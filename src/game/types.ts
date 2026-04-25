@@ -790,6 +790,8 @@ export interface GameState {
   dataVersion: number;
   // Settings panel
   settingsOpen: boolean;
+  // Help overlay
+  helpOpen: boolean;
   // Achievement tracking
   herbCombineCount: number; // total herb combination actions
   // Auto-save

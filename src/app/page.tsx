@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/game/store';
 import { initGameData } from '@/game/data/loader';
 import TitleScreen from '@/components/game/TitleScreen';
+import LoadingScreen from '@/components/game/LoadingScreen';
 import CharacterSelect from '@/components/game/CharacterSelect';
 import CharacterCreator from '@/components/game/CharacterCreator';
 import ExplorationScreen from '@/components/game/ExplorationScreen';
@@ -22,6 +23,7 @@ import PuzzlePanel from '@/components/game/PuzzlePanel';
 import QTEPanel from '@/components/game/QTEPanel';
 import AdminPanel from '@/components/game/AdminPanel';
 import SettingsPanel from '@/components/game/SettingsPanel';
+import { KeyboardShortcutsOverlay } from '@/components/game/KeyboardShortcutsOverlay';
 import { ErrorBoundary } from '@/components/game/ErrorBoundary';
 import { playBgm, stopBgm, resumeAmbient, playLocationAmbient, playSafeRoomAmbient } from '@/game/engine/sounds';
 import type { BgmType } from '@/game/engine/sounds';
@@ -30,11 +32,22 @@ export default function GamePage() {
   const phase = useGameStore(s => s.phase);
   const prevPhaseRef = useRef(phase);
   const [dataReady, setDataReady] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
 
   // ── Initialize game data from DB (fallback to static) ──
   useEffect(() => {
-    initGameData().then(() => setDataReady(true)).catch(() => setDataReady(true));
+    initGameData()
+      .then(() => setFadeOut(true))
+      .catch(() => setFadeOut(true));
   }, []);
+
+  // After fade-out animation completes, show game
+  useEffect(() => {
+    if (fadeOut) {
+      const timer = setTimeout(() => setDataReady(true), 700);
+      return () => clearTimeout(timer);
+    }
+  }, [fadeOut]);
 
   // F2 key toggles debug panel (dev mode only)
   useEffect(() => {
@@ -43,6 +56,21 @@ export default function GamePage() {
       if (e.key === 'F2') {
         e.preventDefault();
         useGameStore.setState(s => ({ debugOpen: !s.debugOpen }));
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  // H key toggles keyboard shortcuts overlay
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'h' || e.key === 'H') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        useGameStore.setState(s => ({ helpOpen: !s.helpOpen }));
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -111,16 +139,9 @@ export default function GamePage() {
     window.addEventListener('keydown', handleInteraction, { once: true });
   }, [phase, dataReady]);
 
-  // Show loading screen while data is initializing
+  // Show branded loading screen while data is initializing
   if (!dataReady) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl animate-pulse mb-4">🧟</div>
-          <p className="text-white/60 text-sm">Caricamento dati...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen fadeOut={fadeOut} />;
   }
 
   return (
@@ -205,6 +226,7 @@ export default function GamePage() {
       <ErrorBoundary name="Admin">
         <AdminPanel />
       </ErrorBoundary>
+      <KeyboardShortcutsOverlay />
     </div>
   );
 }

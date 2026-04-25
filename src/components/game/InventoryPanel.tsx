@@ -15,6 +15,7 @@ import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, 
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
 import { RARITY_LABEL, TYPE_LABELS } from '@/game/utils/rarity-helpers';
+import ItemTooltip from './ItemTooltip';
 
 export default function InventoryPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
@@ -41,6 +42,11 @@ export default function InventoryPanel() {
   const combat = useGameStore(s => s.combat);
   const inCombat = !!combat;
   const discoveredRecipes = useGameStore(s => s.discoveredRecipes);
+
+  // Drag-and-drop state (must be before early returns for hooks rules)
+  const [draggedItemUid, setDraggedItemUid] = useState<string | null>(null);
+  const [dragSourceCharId, setDragSourceCharId] = useState<string | null>(null);
+  const [dragOverCharId, setDragOverCharId] = useState<string | null>(null);
 
   if (!inventoryOpen) return null;
 
@@ -114,22 +120,51 @@ export default function InventoryPanel() {
 
         {/* Character Tabs */}
         <div className="flex border-b border-white/[0.06] bg-white/[0.03]">
-          {party.map(char => (
-            <button
-              key={char.id}
-              onClick={() => { selectCharacter(char.id); setSelectedItem(null); }}
-              className={`flex-1 px-3 md:px-5 py-2.5 md:py-3.5 text-sm md:text-base transition-all border-b-2 ${
-                char.id === selectedChar?.id
-                  ? 'border-white/20 text-white bg-white/[0.08]'
-                  : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.05]'
-              }`}
-            >
-              <span className="mr-1.5">
-                {getArchetypeEmoji(char.archetype)}
-              </span>
-              {char.name}
-            </button>
-          ))}
+          {party.map(char => {
+            const isValidDropTarget = !!draggedItemUid && char.id !== dragSourceCharId;
+            const isDragOver = dragOverCharId === char.id;
+            return (
+              <button
+                key={char.id}
+                onClick={() => { selectCharacter(char.id); setSelectedItem(null); }}
+                onDragOver={(e) => {
+                  if (isValidDropTarget) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDragOverCharId(char.id);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverCharId === char.id) setDragOverCharId(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverCharId(null);
+                  if (!draggedItemUid || !dragSourceCharId || char.id === dragSourceCharId) return;
+                  const success = transferItem(dragSourceCharId, draggedItemUid, char.id);
+                  if (success) {
+                    setSelectedItem(null);
+                    selectCharacter(char.id);
+                  }
+                  setDraggedItemUid(null);
+                  setDragSourceCharId(null);
+                }}
+                className={`flex-1 px-3 md:px-5 py-2.5 md:py-3.5 text-sm md:text-base transition-all border-b-2 ${
+                  char.id === selectedChar?.id
+                    ? 'border-white/20 text-white bg-white/[0.08]'
+                    : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.05]'
+                } ${isDragOver && isValidDropTarget
+                  ? 'ring-2 ring-green-500/60 bg-green-500/10 border-green-500/40'
+                  : ''
+                }`}
+              >
+                <span className="mr-1.5">
+                  {getArchetypeEmoji(char.archetype)}
+                </span>
+                {char.name}
+              </button>
+            );
+          })}
         </div>
 
         {/* Character Stats — full HP panel */}
@@ -212,13 +247,13 @@ export default function InventoryPanel() {
             </div>
 
             {/* Icon Grid */}
-            <div className="flex-1 min-h-0 px-3 md:px-6 pb-3 md:pb-6">
+            <div className="flex-1 min-h-0 px-3 md:px-6 pb-3 md:pb-6" role="listbox" aria-label="Inventario oggetti">
               <div className="grid grid-cols-6 gap-2 md:gap-3">
                 {slots.map((item, index) => {
                   const isSelected = item && selectedItem?.uid === item.uid;
                   let slotClass = 'aspect-square rounded-lg md:rounded-xl border-2 flex items-center justify-center text-2xl transition-all duration-200 relative ';
                   if (item) {
-                    slotClass += 'bg-white/[0.04] cursor-pointer ';
+                    slotClass += 'bg-white/[0.06] cursor-pointer ';
                     if (isSelected) {
                       slotClass += 'border-red-800 bg-red-950/30 shadow-[0_0_12px_rgba(153,27,27,0.3)] scale-105';
                     } else {
@@ -227,32 +262,52 @@ export default function InventoryPanel() {
                     if (item.isEquipped) {
                       slotClass += ' ring-1 ring-amber-500/40';
                     }
+                    // Ghost opacity when this item is being dragged
+                    if (draggedItemUid === item.uid) {
+                      slotClass += ' opacity-40';
+                    }
                   } else {
                     slotClass += 'border-white/[0.04] bg-white/[0.02] cursor-default';
                   }
                   return (
-                    <motion.button
-                      key={item?.uid || `empty_${index}`}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.03 }}
-                      onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
-                      className={slotClass}
-                    >
-                      {item ? (
-                        <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
-                          <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
-                          {item.quantity > 1 && (
-                            <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
-                              {item.quantity}
-                            </span>
-                          )}
-                          <span className={`absolute bottom-1 right-1 md:bottom-1.5 md:right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${rarityDotColor[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
-                        </span>
-                      ) : (
-                        <span className="text-white/10 text-lg md:text-2xl">+</span>
-                      )}
-                    </motion.button>
+                    <ItemTooltip key={item?.uid || `empty_${index}`} item={item} disabled={!item}>
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.03 }}
+                        onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
+                        draggable={!!item}
+                        onDragStart={(e) => {
+                          if (!item || !selectedChar) return;
+                          e.dataTransfer.setData('text/plain', item.uid);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggedItemUid(item.uid);
+                          setDragSourceCharId(selectedChar.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedItemUid(null);
+                          setDragSourceCharId(null);
+                          setDragOverCharId(null);
+                        }}
+                        className={slotClass}
+                        aria-label={item ? `Oggetto: ${item.name}` : 'Slot inventario vuoto'}
+                        role="option"
+                      >
+                        {item ? (
+                          <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
+                            <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
+                            {item.quantity > 1 && (
+                              <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
+                                {item.quantity}
+                              </span>
+                            )}
+                            <span className={`absolute bottom-1 right-1 md:bottom-1.5 md:right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${rarityDotColor[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
+                          </span>
+                        ) : (
+                          <span className="text-white/10 text-lg md:text-2xl">+</span>
+                        )}
+                      </motion.button>
+                    </ItemTooltip>
                   );
                 })}
               </div>
@@ -642,7 +697,7 @@ function InventoryRecipesTab({
               <Badge className={`text-[9px] md:text-[10px] shrink-0 border-0 ${
                 canCraft
                   ? 'bg-green-900/50 text-green-300'
-                  : 'bg-white/[0.04] text-white/30'
+                  : 'bg-white/[0.06] text-white/30'
               }`}>
                 {canCraft ? '✓ Pronto' : '✗ Mancano'}
               </Badge>
@@ -701,7 +756,7 @@ function InventoryRecipesTab({
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white/20">???</div>
-                    <div className="text-[10px] text-white/10">Cerca nei documenti o esplora per scoprire...</div>
+                    <div className="text-[10px] text-white/25">Cerca nei documenti o esplora per scoprire...</div>
                   </div>
                 </div>
               </div>

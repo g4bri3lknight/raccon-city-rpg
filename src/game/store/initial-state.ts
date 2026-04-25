@@ -125,6 +125,7 @@ export function getDefaultState() {
     bossPhases: {} as Record<string, any>,
     notification: null as GameNotification | null,
     settingsOpen: false,
+    helpOpen: false,
     lastAutoSaveTurn: 0,
     questChainProgress: {} as Record<string, QuestChainProgress & { currentStep?: number }>,
     npcReputation: {} as Record<string, number>,

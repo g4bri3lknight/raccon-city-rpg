@@ -109,6 +109,7 @@ export interface GameStore extends GameState {
   installMod: (characterId: string, modItemUid: string) => void;
   removeMod: (characterId: string, modIndex: number) => void;
   consumeItemOutsideCombat: (characterId: string, itemUid: string) => void;
+  quickHeal: () => void;
   combineHerbs: (characterId: string, redHerbUid: string) => boolean;
   selectCharacter: (characterId: string) => void;
   transferItem: (fromCharacterId: string, itemUid: string, toCharacterId: string, quantity?: number) => boolean;
@@ -122,6 +123,8 @@ export interface GameStore extends GameState {
 
   // Settings
   toggleSettings: () => void;
+  // Help overlay
+  toggleHelp: () => void;
   setAutoCombatPreference: (val: boolean) => void;
   unlockAchievement: (id: string) => void;
   checkAchievements: () => void;

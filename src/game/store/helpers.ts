@@ -15,6 +15,7 @@ import {
   ENEMIES,
   BOSS_PHASES,
   LOCATIONS,
+  COMBAT_CONFIG,
 } from '../data/loader';
 import { getMaxInventorySlots, getStartingInventorySlots } from './settings-cache';
 
@@ -255,8 +256,10 @@ export function createCustomCharacter(config: CustomCharacterConfig): Character 
 // ── Create enemy instance ──
 export function createEnemyInstance(enemyId: string, statMult: number = 1, avgPartyLevel: number = 1): EnemyInstance {
   const def = ENEMIES[enemyId];
-  // Apply level scaling: enemies get +2% per level above 1, capped at +40% at level 20
-  const levelMult = avgPartyLevel <= 1 ? 1 : 1 + Math.min(0.4, (avgPartyLevel - 1) * 0.02);
+  // Apply level scaling: enemies scale with party level (configurable from DB)
+  const scalingPerLevel = (COMBAT_CONFIG.enemyScalingPerLevel || 2) / 100;
+  const scalingCap = (COMBAT_CONFIG.enemyScalingCap || 40) / 100;
+  const levelMult = avgPartyLevel <= 1 ? 1 : 1 + Math.min(scalingCap, (avgPartyLevel - 1) * scalingPerLevel);
   const finalMult = statMult * levelMult;
   const round = (v: number) => Math.round(v * finalMult);
   const hp = round(def.maxHp);

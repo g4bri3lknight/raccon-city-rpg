@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
-import { ItemInstance, WeaponInstance, Character } from '../../types';
+import { ItemInstance, WeaponInstance, Character, SpecialEffect } from '../../types';
 import { ITEMS } from '../../data/loader';
 import { WEAPON_MODS } from '../../data/weapon-mods';
 import { createModItemInstance } from '../../data/equipment';
@@ -464,5 +464,44 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
     });
 
     return transferred;
+  },
+
+  quickHeal: () => {
+    const state = get();
+    const char = state.party.find(p => p.id === state.selectedCharacterId);
+    if (!char || char.currentHp <= 0 || char.currentHp >= char.maxHp) return;
+
+    // Find usable healing items with on_use trigger
+    const healingItems = char.inventory.filter(item => {
+      if (!item.usable) return false;
+      return (item.effects || []).some(e =>
+        e.type === 'heal' && (!e.trigger || e.trigger === 'on_use')
+      );
+    });
+
+    if (healingItems.length === 0) return;
+
+    // Estimate heal amount for each item and sort descending
+    const missingHp = char.maxHp - char.currentHp;
+    const sorted = healingItems.map(item => {
+      const healEffect = (item.effects || []).find(e =>
+        e.type === 'heal' && (!e.trigger || e.trigger === 'on_use')
+      );
+      let estimated = 0;
+      if (healEffect && healEffect.type === 'heal') {
+        if (healEffect.percent) {
+          estimated = Math.floor(char.maxHp * (healEffect.percent / 100));
+        } else {
+          estimated = healEffect.amount || 0;
+        }
+        estimated = Math.min(estimated, missingHp);
+      }
+      return { item, estimated };
+    }).sort((a, b) => b.estimated - a.estimated);
+
+    const best = sorted[0];
+    if (!best || best.estimated <= 0) return;
+
+    get().consumeItemOutsideCombat(char.id, best.item.uid);
   },
 });
