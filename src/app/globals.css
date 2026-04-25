@@ -201,11 +201,15 @@
   box-shadow: 0 0 30px rgba(220, 38, 38, 0.1), inset 0 0 30px rgba(0, 0, 0, 0.5);
 }
 
-/* ═══ Inventory Scrollbar ═══ */
+/* ═══ Inventory Scrollbar — hidden by default, visible on hover ═══ */
 .inventory-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #991b1b #1a1a1a !important;
-  overflow-y: scroll !important;
+  scrollbar-color: transparent transparent !important;
+  overflow-y: auto !important;
+}
+
+.inventory-scrollbar:hover {
+  scrollbar-color: #991b1b transparent !important;
 }
 
 .inventory-scrollbar::-webkit-scrollbar {
@@ -213,16 +217,21 @@
 }
 
 .inventory-scrollbar::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: transparent;
   border-radius: 3px;
 }
 
 .inventory-scrollbar::-webkit-scrollbar-thumb {
-  background: #991b1b;
+  background: transparent;
   border-radius: 3px;
+  transition: background 0.2s;
 }
 
-.inventory-scrollbar::-webkit-scrollbar-thumb:hover {
+.inventory-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: #991b1b;
+}
+
+.inventory-scrollbar:hover::-webkit-scrollbar-thumb:hover {
   background: #b91c1c;
 }
 

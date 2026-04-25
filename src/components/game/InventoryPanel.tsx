@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, getMaxInventorySlots } from '@/game/store';
 import { ItemInstance, Character } from '@/game/types';
@@ -11,7 +11,7 @@ import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, ITEMS, RECIPES_DATA, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star, Hammer, Lock, BookOpen, AlertCircle } from 'lucide-react';
+import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, Hammer, Lock, BookOpen, AlertCircle, Minus, Plus } from 'lucide-react';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
 import { RARITY_LABEL, TYPE_LABELS } from '@/game/utils/rarity-helpers';
@@ -37,7 +37,6 @@ export default function InventoryPanel() {
   const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
   const [showTransferPicker, setShowTransferPicker] = useState(false);
   const [transferQty, setTransferQty] = useState(1);
-  const [sortMode, setSortMode] = useState<'name' | 'type' | 'rarity'>('name');
   const [activeTab, setActiveTab] = useState<'inventory' | 'recipes'>('inventory');
   const craftItem = useGameStore(s => s.craftItem);
   const combat = useGameStore(s => s.combat);
@@ -50,9 +49,11 @@ export default function InventoryPanel() {
   const [dragOverCharId, setDragOverCharId] = useState<string | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  const [dragQtyPicker, setDragQtyPicker] = useState<{ targetCharId: string; targetCharName: string; sourceCharId: string; itemUid: string; itemQty: number } | null>(null);
+  const [dragTransferQty, setDragTransferQty] = useState(1);
 
   // Auto-dismiss drop error after 2s
-  useMemo(() => {
+  useEffect(() => {
     if (!dropError) return;
     const t = setTimeout(() => setDropError(null), 2000);
     return () => clearTimeout(t);
@@ -97,24 +98,8 @@ export default function InventoryPanel() {
     legendary: 'bg-white/10 text-amber-300/80 border-0',
   };
 
-  const rarityOrder: Record<string, number> = { common: 0, uncommon: 1, rare: 2, legendary: 3 };
-  const typeOrder: Record<string, number> = { weapon: 0, armor: 1, accessory: 2, weapon_mod: 3, healing: 4, antidote: 5, ammo: 6, utility: 7, bag: 8, collectible: 9 };
-
-  const sortedItems = [...(selectedChar?.inventory || [])].sort((a, b) => {
-    if (sortMode === 'name') return a.name.localeCompare(b.name);
-    if (sortMode === 'type') {
-      const diff = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
-      return diff !== 0 ? diff : a.name.localeCompare(b.name);
-    }
-    if (sortMode === 'rarity') {
-      const diff = (rarityOrder[a.rarity] ?? 0) - (rarityOrder[b.rarity] ?? 0);
-      return diff !== 0 ? diff : a.name.localeCompare(b.name);
-    }
-    return 0;
-  });
-
   const totalSlots = selectedChar?.maxInventorySlots || 6;
-  const items = sortedItems;
+  const items = selectedChar?.inventory || [];
   const slots = Array.from({ length: totalSlots }, (_, i) => items[i] || null);
 
   return (
@@ -170,15 +155,22 @@ export default function InventoryPanel() {
                   e.preventDefault();
                   setDragOverCharId(null);
                   if (!draggedItemUid || !dragSourceCharId || char.id === dragSourceCharId) return;
-                  const success = transferItem(dragSourceCharId, draggedItemUid, char.id);
-                  if (success) {
-                    setSelectedItem(null);
-                    selectCharacter(char.id);
+                  // Check if item is stackable with qty > 1 → show quantity picker
+                  const isStackable = draggedItem && (draggedItem.type === 'ammo' || draggedItem.type === 'healing' || draggedItem.type === 'antidote');
+                  if (isStackable && draggedItem.quantity > 1) {
+                    setDragTransferQty(1);
+                    setDragQtyPicker({ targetCharId: char.id, targetCharName: char.name, sourceCharId: dragSourceCharId, itemUid: draggedItemUid, itemQty: draggedItem.quantity });
                   } else {
-                    setDropError(`Inventario di ${char.name} pieno!`);
+                    const success = transferItem(dragSourceCharId, draggedItemUid, char.id);
+                    if (success) {
+                      setSelectedItem(null);
+                      selectCharacter(char.id);
+                    } else {
+                      setDropError(`Inventario di ${char.name} pieno!`);
+                    }
+                    setDraggedItemUid(null);
+                    setDragSourceCharId(null);
                   }
-                  setDraggedItemUid(null);
-                  setDragSourceCharId(null);
                 }}
                 className={`flex-1 px-3 md:px-5 py-2.5 md:py-3.5 text-sm md:text-base transition-all border-b-2 ${
                   char.id === selectedChar?.id
@@ -270,32 +262,8 @@ export default function InventoryPanel() {
               )}
             </AnimatePresence>
 
-            {/* Sort Controls */}
-            <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-4 pb-1 flex items-center gap-1">
-              <span className="text-[10px] md:text-xs text-white/30 mr-1">Ordina:</span>
-              {([
-                { key: 'name' as const, label: 'Nome', Icon: ArrowDownAZ },
-                { key: 'type' as const, label: 'Tipo', Icon: Layers },
-                { key: 'rarity' as const, label: 'Rarità', Icon: Star },
-              ]).map(({ key, label, Icon }) => (
-                <button
-                  key={key}
-                  onClick={() => setSortMode(key)}
-                  title={label}
-                  className={`flex items-center gap-1 px-2 md:px-2.5 py-1 rounded-md text-[10px] md:text-xs transition-all border ${
-                    sortMode === key
-                      ? 'bg-red-900/40 border-red-800/60 text-red-300 shadow-[0_0_8px_rgba(153,27,27,0.2)]'
-                      : 'bg-white/[0.03] border-white/[0.06] text-white/40 hover:text-white/60 hover:bg-white/[0.06] hover:border-white/10'
-                  }`}
-                >
-                  <Icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              ))}
-            </div>
-
             {/* Icon Grid — scrollable */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-3 md:px-6 pb-3 md:pb-4 inventory-scrollbar" role="listbox" aria-label="Inventario oggetti">
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 md:px-6 py-3 md:py-4 inventory-scrollbar" role="listbox" aria-label="Inventario oggetti">
               <div className="grid grid-cols-6 gap-2 md:gap-3">
                 {slots.map((item, index) => {
                   const isSelected = item && selectedItem?.uid === item.uid;
@@ -363,7 +331,7 @@ export default function InventoryPanel() {
                         <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
                           <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
                           {item.quantity > 1 && (
-                            <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
+                            <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-sm md:text-base bg-black/70 text-white/90 rounded-full w-6 h-6 md:w-8 md:h-8 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
                               {item.quantity}
                             </span>
                           )}
@@ -389,13 +357,10 @@ export default function InventoryPanel() {
         )}
 
         {/* Detail Panel — always visible, fixed height, scrollable overflow */}
-        <div className="shrink-0 h-48 md:h-56 border-t border-white/[0.06] bg-white/[0.03] overflow-y-auto inventory-scrollbar">
+        <div className="shrink-0 h-40 md:h-44 border-t border-white/[0.06] bg-white/[0.03] overflow-y-auto inventory-scrollbar">
           {selectedItem ? (
             <div className="p-3 md:p-4">
-              <div className="flex items-start gap-3 mb-2">
-                <div className="w-10 h-10 md:w-14 md:h-14 rounded-lg md:rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0 p-1.5 md:p-2">
-                  <ItemIcon itemId={selectedItem.itemId} rarity={selectedItem.rarity} className="!w-full !h-full" />
-                </div>
+              <div className="mb-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="font-bold text-white text-sm md:text-lg truncate">{selectedItem.name}</span>
@@ -545,13 +510,70 @@ export default function InventoryPanel() {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 p-3 border-t border-white/[0.04] text-center">
-          <Button variant="ghost" size="sm" onClick={closePanel} className="text-white/40 hover:text-white hover:bg-white/[0.05] text-xs md:text-sm">
-            Chiudi Inventario
-          </Button>
-        </div>
       </motion.div>
+
+      {/* Drag & Drop Quantity Picker */}
+      <AnimatePresence>
+        {dragQtyPicker && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-10 flex items-center justify-center p-4 glass-overlay"
+            onClick={() => setDragQtyPicker(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-xs glass-dark rounded-xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-white/[0.06]">
+                <h3 className="text-sm font-bold text-white mb-1">Sposta a {dragQtyPicker.targetCharName}</h3>
+                <p className="text-xs text-white/50">Quanti oggetti spostare?</p>
+              </div>
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-4 justify-center">
+                  <button
+                    onClick={() => setDragTransferQty(q => Math.max(1, q - 1))}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-white/60 hover:text-white transition-colors"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-lg font-bold text-white min-w-[3ch] text-center tabular-nums">{dragTransferQty}</span>
+                  <button
+                    onClick={() => setDragTransferQty(q => Math.min(dragQtyPicker.itemQty, q + 1))}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-white/60 hover:text-white transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDragTransferQty(dragQtyPicker.itemQty)}
+                    className="flex-1 text-xs text-white/50 hover:text-white/70 py-2 rounded-lg hover:bg-white/[0.06] transition-colors"
+                  >Tutto ({dragQtyPicker.itemQty})</button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const success = transferItem(dragQtyPicker.sourceCharId, dragQtyPicker.itemUid, dragQtyPicker.targetCharId, dragTransferQty);
+                      if (success) {
+                        setSelectedItem(null);
+                        selectCharacter(dragQtyPicker.targetCharId);
+                      } else {
+                        setDropError(`Inventario di ${dragQtyPicker.targetCharName} pieno!`);
+                      }
+                      setDragQtyPicker(null);
+                    }}
+                    className="flex-1 bg-cyan-700/40 hover:bg-cyan-700/60 text-white text-xs"
+                  >Conferma</Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Transfer Picker Overlay */}
       <AnimatePresence>
