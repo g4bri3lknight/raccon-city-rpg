@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { GAME_CONFIG } from '@/game/data/loader';
 
+const DEFAULT_TITLE = 'RACCOON CITY';
+
 /** Animated loading screen shown while initGameData() resolves. */
 export default function LoadingScreen({ fadeOut = false }: { fadeOut?: boolean }) {
   const [dots, setDots] = useState(0);
+  const [title, setTitle] = useState(DEFAULT_TITLE);
 
   // Animate the "Caricamento" dots
   useEffect(() => {
@@ -13,6 +16,16 @@ export default function LoadingScreen({ fadeOut = false }: { fadeOut?: boolean }
       setDots(prev => (prev + 1) % 4);
     }, 500);
     return () => clearInterval(interval);
+  }, []);
+
+  // Load title from DB settings
+  useEffect(() => {
+    fetch('/api/game-settings')
+      .then(r => r.json())
+      .then(map => {
+        if (map?.['titleScreen.title']) setTitle(map['titleScreen.title']);
+      })
+      .catch(() => {});
   }, []);
 
   const version = GAME_CONFIG.version || '1.0.0';
@@ -49,7 +62,7 @@ export default function LoadingScreen({ fadeOut = false }: { fadeOut?: boolean }
             textShadow: '0 0 40px rgba(220,38,38,0.5), 0 0 80px rgba(220,38,38,0.25), 0 0 120px rgba(220,38,38,0.1), 3px 3px 0 #000',
           }}
         >
-          RACCOON CITY
+          {title}
         </h1>
 
         {/* Separator line */}

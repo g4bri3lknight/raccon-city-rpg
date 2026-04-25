@@ -16,7 +16,7 @@ import {
   Package, ArrowDownToLine, ArrowUpFromLine,
   ShieldOff, Minus, Plus
 } from 'lucide-react';
-import ItemTooltip from './ItemTooltip';
+
 
 type SelectedItem = { item: ItemInstance; source: 'inventory' | 'itembox'; index: number };
 
@@ -147,7 +147,6 @@ export default function ItemBoxPanel() {
     }
 
     return (
-      <ItemTooltip item={item} disabled={!item}>
         <motion.button
           key={item?.uid || `empty_${source}_${index}`}
           initial={{ opacity: 0, scale: 0.8 }}
@@ -178,7 +177,6 @@ export default function ItemBoxPanel() {
             <span className="text-white/10 text-lg">+</span>
           )}
         </motion.button>
-      </ItemTooltip>
     );
   };
 

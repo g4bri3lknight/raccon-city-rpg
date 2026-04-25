@@ -171,9 +171,9 @@ export function AvatarManager() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto admin-scrollbar p-6">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Header — sticky */}
+      <div className="shrink-0 px-6 py-4 border-b border-white/[0.06] flex items-start justify-between">
         <div>
           <h3 className="text-sm font-bold text-white/80 flex items-center gap-2">
             <Users className="w-4 h-4 text-emerald-400/60" />
@@ -191,6 +191,9 @@ export function AvatarManager() {
           <Plus className="w-4 h-4" /> Nuovo Avatar
         </button>
       </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto admin-scrollbar p-6">
 
       {/* Avatar Grid */}
       <div className="grid grid-cols-3 gap-3">
@@ -274,6 +277,8 @@ export function AvatarManager() {
             </div>
           </div>
         ))}
+      </div>
+
       </div>
 
       {/* Create/Edit Dialog */}

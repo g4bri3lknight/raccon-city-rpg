@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, getMaxInventorySlots } from '@/game/store';
 import { ItemInstance, Character } from '@/game/types';
@@ -11,11 +11,11 @@ import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, ITEMS, RECIPES_DATA, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star, Hammer, Lock, BookOpen } from 'lucide-react';
+import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, ArrowDownAZ, Layers, Star, Hammer, Lock, BookOpen, AlertCircle } from 'lucide-react';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
 import { RARITY_LABEL, TYPE_LABELS } from '@/game/utils/rarity-helpers';
-import ItemTooltip from './ItemTooltip';
+
 
 export default function InventoryPanel() {
   const dataVersion = useGameStore(s => s.dataVersion);
@@ -33,6 +33,7 @@ export default function InventoryPanel() {
   const combineHerbs = useGameStore(s => s.combineHerbs);
   const selectCharacter = useGameStore(s => s.selectCharacter);
   const transferItem = useGameStore(s => s.transferItem);
+  const swapInventoryItems = useGameStore(s => s.swapInventoryItems);
   const [selectedItem, setSelectedItem] = useState<ItemInstance | null>(null);
   const [showTransferPicker, setShowTransferPicker] = useState(false);
   const [transferQty, setTransferQty] = useState(1);
@@ -43,15 +44,44 @@ export default function InventoryPanel() {
   const inCombat = !!combat;
   const discoveredRecipes = useGameStore(s => s.discoveredRecipes);
 
-  // Drag-and-drop state (must be before early returns for hooks rules)
+  // Drag-and-drop state
   const [draggedItemUid, setDraggedItemUid] = useState<string | null>(null);
   const [dragSourceCharId, setDragSourceCharId] = useState<string | null>(null);
   const [dragOverCharId, setDragOverCharId] = useState<string | null>(null);
+  const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
+
+  // Auto-dismiss drop error after 2s
+  useMemo(() => {
+    if (!dropError) return;
+    const t = setTimeout(() => setDropError(null), 2000);
+    return () => clearTimeout(t);
+  }, [dropError]);
+
+  const closePanel = useCallback(() => {
+    toggleInventory();
+    setSelectedItem(null);
+  }, [toggleInventory]);
 
   if (!inventoryOpen) return null;
 
   const selectedChar = party.find(p => p.id === selectedCharacterId) || party[0];
   if (!selectedChar) return null;
+
+  function handleSlotDrop(targetItem: ItemInstance | null) {
+    if (!draggedItemUid || !dragSourceCharId || !selectedChar) {
+      setDragOverSlotIndex(null);
+      return;
+    }
+    if (dragSourceCharId === selectedChar.id && draggedItemUid !== targetItem?.uid) {
+      if (targetItem) {
+        swapInventoryItems(selectedChar.id, draggedItemUid, targetItem.uid);
+      }
+    }
+    setDragOverSlotIndex(null);
+    setDraggedItemUid(null);
+    setDragSourceCharId(null);
+  }
 
   const rarityDotColor: Record<string, string> = {
     common: 'bg-gray-400',
@@ -67,9 +97,6 @@ export default function InventoryPanel() {
     legendary: 'bg-white/10 text-amber-300/80 border-0',
   };
 
-  // rarityLabel and typeLabels now imported from shared rarity-helpers
-
-  // Sort items based on current sort mode
   const rarityOrder: Record<string, number> = { common: 0, uncommon: 1, rare: 2, legendary: 3 };
   const typeOrder: Record<string, number> = { weapon: 0, armor: 1, accessory: 2, weapon_mod: 3, healing: 4, antidote: 5, ammo: 6, utility: 7, bag: 8, collectible: 9 };
 
@@ -86,7 +113,6 @@ export default function InventoryPanel() {
     return 0;
   });
 
-  // Build icon grid (always show all slots)
   const totalSlots = selectedChar?.maxInventorySlots || 6;
   const items = sortedItems;
   const slots = Array.from({ length: totalSlots }, (_, i) => items[i] || null);
@@ -97,7 +123,7 @@ export default function InventoryPanel() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) { toggleInventory(); setSelectedItem(null); } }}
+      onClick={(e) => { if (e.target === e.currentTarget) { closePanel(); } }}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -106,22 +132,25 @@ export default function InventoryPanel() {
         className="w-full max-w-lg md:max-w-3xl max-h-[90vh] md:max-h-[95vh] glass-dark rounded-xl flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+        <div className="shrink-0 flex items-center justify-between p-4 border-b border-white/[0.04]">
           <div className="flex items-center gap-3">
             <h2 className="text-lg md:text-2xl font-bold text-white">Inventario</h2>
             <Badge className="bg-white/10 text-white/60 border-0 text-xs md:text-sm">
-              {items.length}/{totalSlots} (max 12)
+              {items.length}/{totalSlots} (max {getMaxInventorySlots()})
             </Badge>
           </div>
-          <Button variant="ghost" onClick={() => { toggleInventory(); setSelectedItem(null); }} className="text-white/60 hover:text-white hover:bg-white/[0.05]">
+          <Button variant="ghost" onClick={closePanel} className="text-white/60 hover:text-white hover:bg-white/[0.05]">
             <X className="w-5 h-5" />
           </Button>
         </div>
 
         {/* Character Tabs */}
-        <div className="flex border-b border-white/[0.06] bg-white/[0.03]">
+        <div className="shrink-0 flex border-b border-white/[0.06] bg-white/[0.03]">
           {party.map(char => {
-            const isValidDropTarget = !!draggedItemUid && char.id !== dragSourceCharId;
+            // Check if target char has space (bag items auto-equip so always ok)
+            const draggedItem = selectedChar.inventory.find(i => i.uid === draggedItemUid);
+            const targetHasSpace = !draggedItem || draggedItem.type === 'bag' || char.inventory.length < char.maxInventorySlots;
+            const isValidDropTarget = !!draggedItemUid && char.id !== dragSourceCharId && targetHasSpace;
             const isDragOver = dragOverCharId === char.id;
             return (
               <button
@@ -145,6 +174,8 @@ export default function InventoryPanel() {
                   if (success) {
                     setSelectedItem(null);
                     selectCharacter(char.id);
+                  } else {
+                    setDropError(`Inventario di ${char.name} pieno!`);
                   }
                   setDraggedItemUid(null);
                   setDragSourceCharId(null);
@@ -155,7 +186,9 @@ export default function InventoryPanel() {
                     : 'border-transparent text-white/40 hover:text-white/60 hover:bg-white/[0.05]'
                 } ${isDragOver && isValidDropTarget
                   ? 'ring-2 ring-green-500/60 bg-green-500/10 border-green-500/40'
-                  : ''
+                  : isDragOver && !isValidDropTarget
+                    ? 'ring-2 ring-red-500/60 bg-red-500/10 border-red-500/40'
+                    : ''
                 }`}
               >
                 <span className="mr-1.5">
@@ -222,6 +255,21 @@ export default function InventoryPanel() {
         {/* Tab Content */}
         {activeTab === 'inventory' ? (
           <>
+            {/* Drop error toast */}
+            <AnimatePresence>
+              {dropError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="shrink-0 mx-3 md:mx-6 mt-2 px-3 py-1.5 rounded-lg bg-red-950/60 border border-red-800/50 flex items-center gap-2 text-red-300 text-xs"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {dropError}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Sort Controls */}
             <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-4 pb-1 flex items-center gap-1">
               <span className="text-[10px] md:text-xs text-white/30 mr-1">Ordina:</span>
@@ -246,68 +294,85 @@ export default function InventoryPanel() {
               ))}
             </div>
 
-            {/* Icon Grid */}
-            <div className="flex-1 min-h-0 px-3 md:px-6 pb-3 md:pb-6" role="listbox" aria-label="Inventario oggetti">
+            {/* Icon Grid — scrollable */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 md:px-6 pb-3 md:pb-4 inventory-scrollbar" role="listbox" aria-label="Inventario oggetti">
               <div className="grid grid-cols-6 gap-2 md:gap-3">
                 {slots.map((item, index) => {
                   const isSelected = item && selectedItem?.uid === item.uid;
+                  const isDragOverSlot = dragOverSlotIndex === index && !!item && draggedItemUid !== item.uid;
                   let slotClass = 'aspect-square rounded-lg md:rounded-xl border-2 flex items-center justify-center text-2xl transition-all duration-200 relative ';
                   if (item) {
-                    slotClass += 'bg-white/[0.06] cursor-pointer ';
+                    slotClass += 'bg-white/[0.06] cursor-pointer cursor-grab active:cursor-grabbing ';
                     if (isSelected) {
                       slotClass += 'border-red-800 bg-red-950/30 shadow-[0_0_12px_rgba(153,27,27,0.3)] scale-105';
+                    } else if (isDragOverSlot) {
+                      slotClass += 'border-cyan-400/60 bg-cyan-950/30 shadow-[0_0_10px_rgba(34,211,238,0.2)] scale-105';
                     } else {
                       slotClass += 'border-white/[0.08] hover:border-red-800 hover:bg-white/[0.06] hover:shadow-[0_0_8px_rgba(153,27,27,0.15)] hover:scale-105';
                     }
                     if (item.isEquipped) {
                       slotClass += ' ring-1 ring-amber-500/40';
                     }
-                    // Ghost opacity when this item is being dragged
                     if (draggedItemUid === item.uid) {
-                      slotClass += ' opacity-40';
+                      slotClass += ' opacity-30';
                     }
                   } else {
                     slotClass += 'border-white/[0.04] bg-white/[0.02] cursor-default';
                   }
                   return (
-                    <ItemTooltip key={item?.uid || `empty_${index}`} item={item} disabled={!item}>
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.03 }}
-                        onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
-                        draggable={!!item}
-                        onDragStart={(e) => {
-                          if (!item || !selectedChar) return;
-                          e.dataTransfer.setData('text/plain', item.uid);
-                          e.dataTransfer.effectAllowed = 'move';
-                          setDraggedItemUid(item.uid);
-                          setDragSourceCharId(selectedChar.id);
-                        }}
-                        onDragEnd={() => {
-                          setDraggedItemUid(null);
-                          setDragSourceCharId(null);
-                          setDragOverCharId(null);
-                        }}
-                        className={slotClass}
-                        aria-label={item ? `Oggetto: ${item.name}` : 'Slot inventario vuoto'}
-                        role="option"
-                      >
-                        {item ? (
-                          <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
-                            <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
-                            {item.quantity > 1 && (
-                              <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
-                                {item.quantity}
-                              </span>
-                            )}
-                            <span className={`absolute bottom-1 right-1 md:bottom-1.5 md:right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${rarityDotColor[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
-                          </span>
-                        ) : (
-                          <span className="text-white/10 text-lg md:text-2xl">+</span>
-                        )}
-                      </motion.button>
-                    </ItemTooltip>
+                    <motion.button
+                      key={item?.uid || `empty_${index}`}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.03 }}
+                      onClick={() => setSelectedItem(item ? (isSelected ? null : item) : null)}
+                      draggable={!!item}
+                      onDragStart={(e) => {
+                        if (!item || !selectedChar) return;
+                        e.dataTransfer.setData('text/plain', item.uid);
+                        e.dataTransfer.effectAllowed = 'move';
+                        setDraggedItemUid(item.uid);
+                        setDragSourceCharId(selectedChar.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedItemUid(null);
+                        setDragSourceCharId(null);
+                        setDragOverCharId(null);
+                        setDragOverSlotIndex(null);
+                      }}
+                      onDragOver={(e) => {
+                        if (item && draggedItemUid && draggedItemUid !== item.uid) {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setDragOverSlotIndex(index);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverSlotIndex === index) setDragOverSlotIndex(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSlotDrop(item);
+                      }}
+                      className={slotClass}
+                      aria-label={item ? `Oggetto: ${item.name}` : 'Slot inventario vuoto'}
+                      role="option"
+                    >
+                      {item ? (
+                        <span className="relative w-full h-full flex items-center justify-center p-1.5 md:p-2">
+                          <ItemIcon itemId={item.itemId} rarity={item.rarity} className="!w-full !h-full" />
+                          {item.quantity > 1 && (
+                            <span className="absolute -top-2 -right-2 md:-top-2.5 md:-right-2.5 text-xs md:text-sm bg-black/70 text-white/90 rounded-full w-5 h-5 md:w-7 md:h-7 flex items-center justify-center font-bold border border-white/[0.15] shadow-lg">
+                              {item.quantity}
+                            </span>
+                          )}
+                          <span className={`absolute bottom-1 right-1 md:bottom-1.5 md:right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${rarityDotColor[item.rarity] || 'bg-gray-400'} opacity-80 shadow-sm`} />
+                        </span>
+                      ) : (
+                        <span className="text-white/10 text-lg md:text-2xl">+</span>
+                      )}
+                    </motion.button>
                   );
                 })}
               </div>
@@ -323,12 +388,12 @@ export default function InventoryPanel() {
           />
         )}
 
-        {/* Detail Panel - always visible, no animation */}
-        <div className="shrink-0 border-t border-white/[0.06] bg-white/[0.03]">
+        {/* Detail Panel — always visible, fixed height, scrollable overflow */}
+        <div className="shrink-0 h-48 md:h-56 border-t border-white/[0.06] bg-white/[0.03] overflow-y-auto inventory-scrollbar">
           {selectedItem ? (
-            <div className="p-4 md:p-6">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="w-12 h-12 md:w-20 md:h-20 rounded-lg md:rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0 p-1.5 md:p-2">
+            <div className="p-3 md:p-4">
+              <div className="flex items-start gap-3 mb-2">
+                <div className="w-10 h-10 md:w-14 md:h-14 rounded-lg md:rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0 p-1.5 md:p-2">
                   <ItemIcon itemId={selectedItem.itemId} rarity={selectedItem.rarity} className="!w-full !h-full" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -338,7 +403,7 @@ export default function InventoryPanel() {
                       <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>x{selectedItem.quantity}</Badge>
                     )}
                   </div>
-                  <div className="flex gap-1.5 md:gap-2">
+                  <div className="flex gap-1.5 md:gap-2 flex-wrap">
                     <Badge className={`${rarityBadge[selectedItem.rarity]} border-0 text-[10px] md:text-xs`}>
                       {TYPE_LABELS[selectedItem.type] || selectedItem.type}
                     </Badge>
@@ -352,11 +417,11 @@ export default function InventoryPanel() {
                 </div>
               </div>
 
-              <p className="text-xs md:text-sm text-white/60 mb-3 md:mb-4 leading-relaxed">{selectedItem.description}</p>
+              <p className="text-xs md:text-sm text-white/60 mb-2 leading-relaxed line-clamp-2">{selectedItem.description}</p>
 
               {/* Item stats */}
               {selectedItem.weaponStats && (
-                <div className="flex gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm">
+                <div className="flex gap-3 md:gap-4 mb-2 text-xs md:text-sm">
                   <span className="text-amber-400/80">⚔️ ATK +{getEquipStatBonus(selectedItem.weaponStats.effects, 'atk')}</span>
                   <span className="text-white/40">{selectedItem.weaponStats.type === 'melee' ? 'Corpo a Corpo' : 'A Distanza'}</span>
                   {selectedItem.weaponStats.modSlots && selectedItem.weaponStats.modSlots.length > 0 && (
@@ -364,9 +429,8 @@ export default function InventoryPanel() {
                   )}
                 </div>
               )}
-              {/* #29 Equipment stats */}
               {selectedItem.equipmentStats && (
-                <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4 text-xs md:text-sm">
+                <div className="flex flex-wrap gap-2 md:gap-3 mb-2 text-xs md:text-sm">
                   {getEquipStatBonus(selectedItem.equipmentStats.effects, 'def') && <span className="text-blue-400/80">🛡️ +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'def')} DEF</span>}
                   {getEquipStatBonus(selectedItem.equipmentStats.effects, 'hp') && <span className="text-green-400/80">❤️ +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'hp')} HP</span>}
                   {getEquipStatBonus(selectedItem.equipmentStats.effects, 'spd') && <span className="text-yellow-400/80">💨 +{getEquipStatBonus(selectedItem.equipmentStats.effects, 'spd')} SPD</span>}
@@ -377,9 +441,8 @@ export default function InventoryPanel() {
                   ) : null; })()}
                 </div>
               )}
-              {/* #3 Mod stats */}
               {selectedItem.modStats && (
-                <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4 text-xs md:text-sm">
+                <div className="flex flex-wrap gap-2 md:gap-3 mb-2 text-xs md:text-sm">
                   {getEquipStatBonus(selectedItem.modStats.effects, 'atk') && <span className="text-amber-400/80">⚔️ +{getEquipStatBonus(selectedItem.modStats.effects, 'atk')} ATK</span>}
                   {getEquipStatBonus(selectedItem.modStats.effects, 'crit') && <span className="text-orange-400/80">💥 +{getEquipStatBonus(selectedItem.modStats.effects, 'crit')}% Crit</span>}
                   {getStatusChanceBoost(selectedItem.modStats.effects) && <span className="text-purple-400/80">☠️ +{getStatusChanceBoost(selectedItem.modStats.effects)}% Status</span>}
@@ -391,7 +454,7 @@ export default function InventoryPanel() {
                 const effectDescs = getItemEffectDescriptions(selectedItem);
                 if (effectDescs.length === 0) return null;
                 return (
-                  <div className="flex flex-wrap gap-3 md:gap-4 mb-3 md:mb-4 text-xs md:text-sm text-white/60">
+                  <div className="flex flex-wrap gap-3 md:gap-4 mb-2 text-xs md:text-sm text-white/60">
                     {effectDescs.map((d, i) => (
                       <span key={i} className={d.color}>{d.emoji} {d.text}</span>
                     ))}
@@ -407,7 +470,6 @@ export default function InventoryPanel() {
                     variant="ghost"
                     onClick={() => {
                       if (selectedItem.isEquipped) {
-                        // Unequip based on item type
                         if (selectedItem.type === 'armor') {
                           unequipArmor(selectedChar.id);
                         } else if (selectedItem.type === 'accessory') {
@@ -416,7 +478,6 @@ export default function InventoryPanel() {
                           unequipItem(selectedChar.id, selectedItem.uid);
                         }
                       } else {
-                        // Equip based on item type
                         if (selectedItem.type === 'armor') {
                           equipArmor(selectedChar.id, selectedItem.uid);
                         } else if (selectedItem.type === 'accessory') {
@@ -462,7 +523,6 @@ export default function InventoryPanel() {
                     <Blend className="w-3.5 h-3.5 mr-1.5" /> Combina con Erba Verde
                   </Button>
                 )}
-                {/* Transfer item to another character */}
                 {party.length > 1 && (
                   <Button
                     size="sm"
@@ -476,16 +536,18 @@ export default function InventoryPanel() {
               </div>
             </div>
           ) : (
-            <div className="py-3 md:py-4 px-4 md:px-6 flex items-center gap-2 text-white/40 text-xs md:text-sm">
-              <Backpack className="w-3.5 h-3.5 md:w-5 md:h-5" />
-              Seleziona un oggetto per visualizzarne i dettagli
+            <div className="h-full flex items-center justify-center">
+              <div className="flex items-center gap-2 text-white/40 text-xs md:text-sm">
+                <Backpack className="w-3.5 h-3.5 md:w-5 md:h-5" />
+                Seleziona un oggetto per visualizzarne i dettagli
+              </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-white/[0.04] text-center">
-          <Button variant="ghost" size="sm" onClick={() => { toggleInventory(); setSelectedItem(null); }} className="text-white/40 hover:text-white hover:bg-white/[0.05] text-xs md:text-sm">
+        <div className="shrink-0 p-3 border-t border-white/[0.04] text-center">
+          <Button variant="ghost" size="sm" onClick={closePanel} className="text-white/40 hover:text-white hover:bg-white/[0.05] text-xs md:text-sm">
             Chiudi Inventario
           </Button>
         </div>
@@ -521,7 +583,6 @@ export default function InventoryPanel() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                {/* Quantity selector for stackable items */}
                 {(selectedItem.type === 'ammo' || selectedItem.type === 'healing' || selectedItem.type === 'antidote') && selectedItem.quantity > 1 && (
                   <div className="mt-3 flex items-center gap-2">
                     <span className="text-xs text-white/40">Quantità:</span>
@@ -629,7 +690,6 @@ function InventoryRecipesTab({
   const discoveredCount = hiddenCount - recipes.filter(r => r.hidden && !discoveredRecipes.includes(r.id)).length;
   const undiscoveredCount = recipes.filter(r => r.hidden && !discoveredRecipes.includes(r.id)).length;
 
-  // Filter: show non-hidden recipes + discovered hidden recipes
   const visibleRecipes = useMemo(() => {
     return recipes
       .map((recipe, originalIndex) => ({ recipe, originalIndex }))
@@ -638,8 +698,6 @@ function InventoryRecipesTab({
 
   const ingredientAvailability = useMemo(() => {
     const counts: Record<string, number> = {};
-    // Count items from all party inventories ONLY (not item box)
-    // The player must take items from the item box into their inventory first
     const allSources = party.flatMap(p => p.inventory);
     for (const item of allSources) {
       counts[item.itemId] = (counts[item.itemId] || 0) + item.quantity;
@@ -667,7 +725,6 @@ function InventoryRecipesTab({
         </div>
       )}
 
-      {/* Recipe count badge */}
       <div className="flex items-center gap-2 mb-3">
         <BookOpen className="w-3.5 h-3.5 text-amber-400/60" />
         <Badge className="text-[10px] md:text-xs bg-amber-900/40 text-amber-300 border-amber-700/30">
@@ -703,7 +760,6 @@ function InventoryRecipesTab({
               </Badge>
             </div>
 
-            {/* Ingredients */}
             <div className="flex flex-wrap gap-1 md:gap-1.5 mb-2">
               {ingredientStatus.map((ing, ingIdx) => (
                 <span
@@ -719,7 +775,6 @@ function InventoryRecipesTab({
               ))}
             </div>
 
-            {/* Craft button */}
             <Button
               size="sm"
               onClick={() => craftItem(originalIndex)}
@@ -736,7 +791,6 @@ function InventoryRecipesTab({
           </div>
         ))}
 
-        {/* Undiscovered recipe placeholders */}
         {undiscoveredCount > 0 && (
           <>
             <div className="flex items-center gap-2 mt-3 mb-1 px-1">
@@ -756,7 +810,7 @@ function InventoryRecipesTab({
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white/20">???</div>
-                    <div className="text-[10px] text-white/25">Cerca nei documenti o esplora per scoprire...</div>
+                    <div className="text-[10px] text-white/25">Cerca nei documenti...</div>
                   </div>
                 </div>
               </div>

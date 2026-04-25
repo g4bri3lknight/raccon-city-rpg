@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import SafeRoomPanel from './SafeRoomPanel';
 import MissionsPanel from './MissionsPanel';
-import MiniMap from './MiniMap';
 import { getEffectiveLocation } from '@/game/data/randomizer';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { getArchetypeEmoji, getArchetypeLabel, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
@@ -168,8 +167,6 @@ export default function ExplorationScreen() {
     <div className="h-dvh sm:h-screen game-horror flex flex-col overflow-hidden" role="main" aria-label="Schermata esplorazione">
       {/* Location Header with Background */}
       <div className="relative h-28 sm:h-44 shrink-0 overflow-hidden border-b border-white/[0.06]">
-        {/* Mini Map Widget */}
-        <MiniMap />
         <div
           className="absolute inset-0 bg-cover bg-center transition-all duration-700"
           style={{ backgroundImage: `url('${location.backgroundImage}')` }}
@@ -186,7 +183,7 @@ export default function ExplorationScreen() {
             aria-label="Scorciatoie tastiera"
           >
             <HelpCircle className="w-4 h-4 sm:w-3.5 sm:h-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline text-xs font-medium">?</span>
+            <span className="hidden sm:inline text-xs font-medium">Scorciatoie</span>
           </button>
           {/* Settings button — always in header */}
           <button

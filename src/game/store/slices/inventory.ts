@@ -466,6 +466,25 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
     return transferred;
   },
 
+  swapInventoryItems: (characterId: string, uid1: string, uid2: string) => {
+    if (uid1 === uid2) return;
+    set(state => {
+      const party = state.party.map(p => {
+        if (p.id !== characterId) return p;
+        const inv = p.inventory;
+        const idx1 = inv.findIndex(i => i.uid === uid1);
+        const idx2 = inv.findIndex(i => i.uid === uid2);
+        if (idx1 === -1 || idx2 === -1) return p;
+        const updated = [...inv];
+        const temp = updated[idx1];
+        updated[idx1] = updated[idx2];
+        updated[idx2] = temp;
+        return { ...p, inventory: updated };
+      });
+      return { party };
+    });
+  },
+
   quickHeal: () => {
     const state = get();
     const char = state.party.find(p => p.id === state.selectedCharacterId);

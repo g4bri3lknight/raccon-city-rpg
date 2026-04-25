@@ -158,12 +158,15 @@ export function StartScreenEditor() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto admin-scrollbar">
-      {/* Banner */}
-      <div className="px-6 py-4 border-b border-white/[0.06]">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Banner — sticky header */}
+      <div className="shrink-0 px-6 py-4 border-b border-white/[0.06]">
         <h3 className="text-sm font-bold text-emerald-400 mb-1">🎮 Schermata Iniziale</h3>
         <p className="text-[13px] text-white/40">Personalizza testi, colori, sfondo e musica della schermata del titolo. Il BGM viene riprodotto anche nella selezione personaggi.</p>
       </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto admin-scrollbar">
 
       {/* ── Media Uploads Section ── */}
       <div className="px-6 py-4 border-b border-white/[0.06] space-y-4">
@@ -332,9 +335,10 @@ export function StartScreenEditor() {
           </div>
         ))}
       </div>
+      </div>
 
-      {/* Save button */}
-      <div className="px-6 py-4 border-t border-white/[0.06] sticky bottom-0 bg-black/95 backdrop-blur">
+      {/* Sticky footer with save button */}
+      <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur">
         <Button
           onClick={handleSave}
           disabled={saving}

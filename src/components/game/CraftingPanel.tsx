@@ -7,7 +7,7 @@ import { QUALITY_LABELS, RARITY_POINTS } from '@/game/data/crafting';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Hammer, Check, AlertCircle, Lock, BookOpen, Wrench, Coins, Zap } from 'lucide-react';
-import ItemTooltip from './ItemTooltip';
+
 
 type CraftingTab = 'craft' | 'breakdown';
 
@@ -169,17 +169,16 @@ export default function CraftingPanel() {
                     </>
                   ) : (
                     ingredientStatus.map((ing, ingIdx) => (
-                      <ItemTooltip key={ingIdx} item={ing.itemDef || null}>
-                        <span
-                          className={`inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[11px] sm:text-xs border ${
-                            ing.enough
-                              ? 'border-green-700/30 bg-green-950/20 text-green-300'
-                              : 'border-red-700/30 bg-red-950/20 text-red-300'
-                          }`}
-                        >
-                          {ing.itemDef?.icon} {ing.itemDef?.name} {ing.have}/{ing.qty}
-                        </span>
-                      </ItemTooltip>
+                      <span
+                        key={ingIdx}
+                        className={`inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[11px] sm:text-xs border ${
+                          ing.enough
+                            ? 'border-green-700/30 bg-green-950/20 text-green-300'
+                            : 'border-red-700/30 bg-red-950/20 text-red-300'
+                        }`}
+                      >
+                        {ing.itemDef?.icon} {ing.itemDef?.name} {ing.have}/{ing.qty}
+                      </span>
                     ))
                   )}
                 </div>

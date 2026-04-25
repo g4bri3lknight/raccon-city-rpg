@@ -113,6 +113,7 @@ export interface GameStore extends GameState {
   combineHerbs: (characterId: string, redHerbUid: string) => boolean;
   selectCharacter: (characterId: string) => void;
   transferItem: (fromCharacterId: string, itemUid: string, toCharacterId: string, quantity?: number) => boolean;
+  swapInventoryItems: (characterId: string, uid1: string, uid2: string) => void;
 
   // Map
   toggleMap: () => void;
