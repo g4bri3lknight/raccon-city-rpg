@@ -71,6 +71,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Spawn enemies scaled by party size and NG+ cycle
       const ngMult = state.ngPlusEnemyMultiplier || 1;
+      const avgLevel = state.party.length > 0 ? Math.round(state.party.reduce((s, p) => s + p.level, 0) / state.party.length) : 1;
       const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
       const enemies: EnemyInstance[] = [];
       if (enemyPool.length === 0) {
@@ -79,7 +80,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
       for (let i = 0; i < numEnemies; i++) {
         const enemyId = enemyPool[Math.floor(Math.random() * enemyPool.length)];
-        enemies.push(createEnemyInstance(enemyId, diff.statMult * ngMult));
+        enemies.push(createEnemyInstance(enemyId, diff.statMult * ngMult, avgLevel));
       }
 
       const enemyNames = enemies.map(e => e.name).join(', ');
@@ -87,7 +88,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       // ── SECRET BOSS CHECK (proto_tyrant) ──
       const defeatedTyrant = state.bestiary.some(b => b.enemyId === 'tyrant_boss' && b.defeated);
       if (defeatedTyrant && state.currentLocationId === 'laboratory_entrance' && Math.random() < 0.15) {
-        const protoBoss = createEnemyInstance('proto_tyrant', diff.statMult * ngMult);
+        const protoBoss = createEnemyInstance('proto_tyrant', diff.statMult * ngMult, avgLevel);
         enemies.length = 0;
         enemies.push(protoBoss);
       }
@@ -185,7 +186,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       const diff = getDifficultyConfig(state.difficulty, state.partySize);
       // Stronger Nemesis based on pursuit level
       const nemesisStatMult = diff.statMult * (0.8 + 0.1 * nemesisPursuitLevel);
-      const nemesis = createEnemyInstance('nemesis_boss', nemesisStatMult);
+      const avgLevel = state.party.length > 0 ? Math.round(state.party.reduce((s, p) => s + p.level, 0) / state.party.length) : 1;
+      const nemesis = createEnemyInstance('nemesis_boss', nemesisStatMult, avgLevel);
 
       const pursuitLabel = nemesisPursuitLevel === 0 ? 'Primo Incontro' :
         nemesisPursuitLevel === 1 ? 'Inseguimento' :
@@ -1030,7 +1032,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
 
     if (outcome.triggerCombat && outcome.combatEnemyIds) {
       const eventDiff = getDifficultyConfig(state.difficulty, state.partySize);
-      const enemies = outcome.combatEnemyIds.map(id => createEnemyInstance(id, eventDiff.statMult));
+      const avgLevel = state.party.length > 0 ? Math.round(state.party.reduce((s, p) => s + p.level, 0) / state.party.length) : 1;
+      const enemies = outcome.combatEnemyIds.map(id => createEnemyInstance(id, eventDiff.statMult, avgLevel));
       const allActors = [
         ...updatedParty.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
         ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),

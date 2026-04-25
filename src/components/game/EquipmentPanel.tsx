@@ -7,6 +7,30 @@ import { WEAPON_MODS } from '@/game/data/weapon-mods';
 import { EQUIPMENT_STATS } from '@/game/data/equipment';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp, getCharacterCritBonus } from '@/game/engine/combat';
 import { getEquipStatBonus, getStatusResistLabel, getHotValue, getReflectValue, getStatusChanceBoost, getEffectSpecialLabel } from '@/game/utils/effect-helpers';
+import type { Character } from '@/game/types';
+
+/** Compute the stats a character would have if equipped with the given item */
+function simulateEquipStats(character: Character, itemUid: string, slot: 'armor' | 'accessory') {
+  const item = character.inventory.find(i => i.uid === itemUid);
+  if (!item?.equipmentStats) return null;
+  const sim: Character = {
+    ...character,
+    [slot]: item as any,
+  };
+  return {
+    atk: getCharacterAtk(sim),
+    def: getCharacterDef(sim),
+    spd: getCharacterSpd(sim),
+    hp: getCharacterMaxHp(sim),
+    crit: getCharacterCritBonus(sim),
+  };
+}
+
+function StatDiffArrow({ current, next }: { current: number; next: number }) {
+  if (next > current) return <span className="text-emerald-400 font-bold ml-0.5">▲+{next - current}</span>;
+  if (next < current) return <span className="text-red-400 font-bold ml-0.5">▼{next - current}</span>;
+  return null;
+}
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, Wrench, Plus, Minus, Shield, Shirt, Gem, Swords, ChevronRight, AlertTriangle } from 'lucide-react';
@@ -466,6 +490,14 @@ function ArmorSection({
                     Equipaggia
                   </button>
                 </div>
+                {(() => { const sim = simulateEquipStats(character, item.uid, 'armor'); return sim && (
+                  <div className="flex gap-3 mt-1.5 text-[10px]">
+                    <span className="text-white/50">DEF {getCharacterDef(character)}{sim.def !== getCharacterDef(character) && <StatDiffArrow current={getCharacterDef(character)} next={sim.def} />}</span>
+                    <span className="text-white/50">HP {getCharacterMaxHp(character)}{sim.hp !== getCharacterMaxHp(character) && <StatDiffArrow current={getCharacterMaxHp(character)} next={sim.hp} />}</span>
+                    <span className="text-white/50">SPD {getCharacterSpd(character)}{sim.spd !== getCharacterSpd(character) && <StatDiffArrow current={getCharacterSpd(character)} next={sim.spd} />}</span>
+                    <span className="text-white/50">ATK {getCharacterAtk(character)}{sim.atk !== getCharacterAtk(character) && <StatDiffArrow current={getCharacterAtk(character)} next={sim.atk} />}</span>
+                  </div>
+                ); })()}
                 {(() => { const lbl = getEffectSpecialLabel(eq.effects); return lbl ? (
                   <div className="text-[10px] text-purple-300/70 mt-1">
                     ✨ {lbl}
@@ -561,6 +593,15 @@ function AccessorySection({
                     Equipaggia
                   </button>
                 </div>
+                {(() => { const sim = simulateEquipStats(character, item.uid, 'accessory'); return sim && (
+                  <div className="flex flex-wrap gap-3 mt-1.5 text-[10px]">
+                    <span className="text-white/50">DEF {getCharacterDef(character)}{sim.def !== getCharacterDef(character) && <StatDiffArrow current={getCharacterDef(character)} next={sim.def} />}</span>
+                    <span className="text-white/50">HP {getCharacterMaxHp(character)}{sim.hp !== getCharacterMaxHp(character) && <StatDiffArrow current={getCharacterMaxHp(character)} next={sim.hp} />}</span>
+                    <span className="text-white/50">SPD {getCharacterSpd(character)}{sim.spd !== getCharacterSpd(character) && <StatDiffArrow current={getCharacterSpd(character)} next={sim.spd} />}</span>
+                    <span className="text-white/50">ATK {getCharacterAtk(character)}{sim.atk !== getCharacterAtk(character) && <StatDiffArrow current={getCharacterAtk(character)} next={sim.atk} />}</span>
+                    {sim.crit !== getCharacterCritBonus(character) && <span className="text-white/50">CRIT {getCharacterCritBonus(character)}%<StatDiffArrow current={getCharacterCritBonus(character)} next={sim.crit} /></span>}
+                  </div>
+                ); })()}
                 {(() => { const lbl = getEffectSpecialLabel(eq.effects); return lbl ? (
                   <div className="text-[10px] text-purple-300/70 mt-1">
                     ✨ {lbl}

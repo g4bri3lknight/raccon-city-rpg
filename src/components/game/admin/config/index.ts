@@ -100,6 +100,11 @@ export interface GameplaySettingDef {
 }
 
 export const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
+  // ── Game Info ──
+  { key: 'game.version', label: 'Versione Gioco', type: 'text', group: 'gameinfo', groupLabel: '🎮 Info Gioco', helpText: 'Versione visualizzata nel footer e nella schermata titolo (es. 1.23.0)' },
+  { key: 'game.versionDate', label: 'Data Versione', type: 'text', group: 'gameinfo', groupLabel: '🎮 Info Gioco', helpText: 'Data di rilascio della versione corrente (YYYY-MM-DD)' },
+  { key: 'game.versionChangelog', label: 'Modifiche Versione', type: 'textarea', group: 'gameinfo', groupLabel: '🎮 Info Gioco', rows: 4, helpText: 'Note di rilascio della versione corrente (mostrate nel changelog in-game)', colSpan: 3 },
+
   // Inventory
   { key: 'gameplay.startingInventorySlots', label: 'Slot Iniziali', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', min: 2, max: 20, helpText: 'Numero di slot quando il personaggio viene creato' },
   { key: 'gameplay.maxInventorySlots', label: 'Slot Massimi', type: 'number', group: 'inventory', groupLabel: '📦 Inventario', min: 6, max: 30, helpText: 'Limite massimo di slot espandibili con le borse' },
@@ -125,6 +130,7 @@ export const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
   { key: 'combat.defaultStatusDuration', label: 'Durata Status Default', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 10, step: 1, helpText: 'Durata in turni degli status inflitti in combattimento (se non specificata)' },
   { key: 'combat.defaultCooldown', label: 'Cooldown Speciale Default', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 10, step: 1, helpText: 'Cooldown in turni delle abilità speciali (se non specificato)' },
   { key: 'combat.speed', label: 'Velocità Combattimento', type: 'range', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0.5, max: 3.0, step: 0.1, helpText: 'Velocità delle animazioni di combattimento. 0.5 = lento, 1.0 = normale, 3.0 = veloce' },
+  { key: 'combat.summaryDisplayTime', label: 'Tempo Summary (s)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 1, max: 15, step: 0.5, helpText: 'Durata schermata riassuntiva post-combattimento in secondi prima della transizione (default: 3.5)' },
   { key: 'combat.autoUseItems', label: 'AI usa oggetti', type: 'toggle', group: 'combat', groupLabel: '⚔️ Combattimento', helpText: 'Se attivo, il combattimento automatico usa pozze e oggetti di cura quando necessario' },
 
   // ── New Game+ ──

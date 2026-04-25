@@ -253,9 +253,12 @@ export function createCustomCharacter(config: CustomCharacterConfig): Character 
 }
 
 // ── Create enemy instance ──
-export function createEnemyInstance(enemyId: string, statMult: number = 1): EnemyInstance {
+export function createEnemyInstance(enemyId: string, statMult: number = 1, avgPartyLevel: number = 1): EnemyInstance {
   const def = ENEMIES[enemyId];
-  const round = (v: number) => Math.round(v * statMult);
+  // Apply level scaling: enemies get +2% per level above 1, capped at +40% at level 20
+  const levelMult = avgPartyLevel <= 1 ? 1 : 1 + Math.min(0.4, (avgPartyLevel - 1) * 0.02);
+  const finalMult = statMult * levelMult;
+  const round = (v: number) => Math.round(v * finalMult);
   const hp = round(def.maxHp);
   return {
     id: newEnemyId(),

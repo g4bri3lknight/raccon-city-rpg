@@ -126,34 +126,54 @@ export default function GamePage() {
   return (
     <div className="game-root">
       <ErrorBoundary name="Title">
-        {phase === 'title' && <TitleScreen />}
+        <div key={phase === 'title' ? 'title' : undefined} className={phase === 'title' ? 'phase-enter' : ''}>
+          {phase === 'title' && <TitleScreen />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="CharacterSelect">
-        {phase === 'character-select' && <CharacterSelect />}
+        <div key={phase === 'character-select' ? 'char-sel' : undefined} className={phase === 'character-select' ? 'phase-enter' : ''}>
+          {phase === 'character-select' && <CharacterSelect />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="CharacterCreator">
-        {phase === 'character-creator' && <CharacterCreator onComplete={() => useGameStore.getState().goToCharacterSelect()} onCancel={() => useGameStore.getState().goToCharacterSelect()} />}
+        <div key={phase === 'character-creator' ? 'char-cre' : undefined} className={phase === 'character-creator' ? 'phase-enter' : ''}>
+          {phase === 'character-creator' && <CharacterCreator onComplete={() => useGameStore.getState().goToCharacterSelect()} onCancel={() => useGameStore.getState().goToCharacterSelect()} />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="Exploration">
-        {phase === 'exploration' && <ExplorationScreen />}
+        <div key={phase === 'exploration' ? 'explo' : undefined} className={phase === 'exploration' ? 'phase-enter' : ''}>
+          {phase === 'exploration' && <ExplorationScreen />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="Combat">
-        {phase === 'combat' && <CombatScreen />}
+        <div key={phase === 'combat' ? 'combat' : undefined} className={phase === 'combat' ? 'phase-enter' : ''}>
+          {phase === 'combat' && <CombatScreen />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="EventExploration">
-        {phase === 'event' && <ExplorationScreen />}
+        <div key={phase === 'event' ? 'event' : undefined} className={phase === 'event' ? 'phase-enter' : ''}>
+          {phase === 'event' && <ExplorationScreen />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="GameOver">
-        {phase === 'game-over' && <GameOverScreen />}
+        <div key={phase === 'game-over' ? 'go' : undefined} className={phase === 'game-over' ? 'phase-enter' : ''}>
+          {phase === 'game-over' && <GameOverScreen />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="Victory">
-        {phase === 'victory' && <VictoryScreen />}
+        <div key={phase === 'victory' ? 'victory' : undefined} className={phase === 'victory' ? 'phase-enter' : ''}>
+          {phase === 'victory' && <VictoryScreen />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="Puzzle">
-        {phase === 'puzzle' && <PuzzlePanel />}
+        <div key={phase === 'puzzle' ? 'puzzle' : undefined} className={phase === 'puzzle' ? 'phase-enter' : ''}>
+          {phase === 'puzzle' && <PuzzlePanel />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="QTE">
-        {phase === 'qte' && <QTEPanel />}
+        <div key={phase === 'qte' ? 'qte' : undefined} className={phase === 'qte' ? 'phase-enter' : ''}>
+          {phase === 'qte' && <QTEPanel />}
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="Inventory">
         <InventoryPanel />

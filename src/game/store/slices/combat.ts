@@ -19,6 +19,7 @@ import {
   NPCS,
   getSpecialById as getSpecialByIdFromLoader,
   getCombatDelay,
+  COMBAT_CONFIG,
   COMBAT_BOOL_CONFIG,
 } from '../../data/loader';
 import { WEAPON_MODS } from '../../data/weapon-mods';
@@ -1067,7 +1068,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           // Auto-save after boss victory before transitioning
           try { get().autoSave(); } catch {}
           get().victory();
-        }, 3500);
+        }, (COMBAT_CONFIG.summaryDisplayTime || 3.5) * 1000);
         return;
       }
 
@@ -1101,7 +1102,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           get().checkPerfectCombat();
           get().checkAutoCombatVictory();
         }, 100);
-      }, 3500);
+      }, (COMBAT_CONFIG.summaryDisplayTime || 3.5) * 1000);
       return;
     }
 
@@ -1741,7 +1742,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           set({ phase: 'exploration', combat: null, enemies: [], notification: null });
           setTimeout(() => get().checkAchievements(), 100);
         }
-      }, 3500);
+      }, (COMBAT_CONFIG.summaryDisplayTime || 3.5) * 1000);
       return;
     }
 

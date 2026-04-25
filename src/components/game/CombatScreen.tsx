@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
@@ -11,7 +11,7 @@ import {
   getAiPrediction, getWeaponAmmoCount, getUsableItems, getAnimForTarget,
 } from './combat';
 
-import type { TurnOrderEntry, CombatLogEntry } from '@/game/types';
+import type { TurnOrderEntry, CombatLogEntry, EnemyInstance } from '@/game/types';
 
 // ── Floating damage number ──
 interface FloatNumber {
@@ -303,6 +303,11 @@ export default function CombatScreen() {
         />
       )}
 
+      {/* ── Combat Summary Card ── */}
+      {combat.isVictory && combat.log.length > 0 && (
+        <CombatSummaryCard log={combat.log} turn={combat.turn} enemies={enemies} />
+      )}
+
       {/* ═══════════════════════════════════════════════════════
            DESKTOP: 2-column layout with horizontal splitter
            ═══════════════════════════════════════════════════════ */}
@@ -408,5 +413,78 @@ export default function CombatScreen() {
         />
       </div>
     </div>
+  );
+}
+
+/** Post-combat summary card showing key stats computed from the combat log */
+function CombatSummaryCard({ log, turn, enemies }: { log: CombatLogEntry[]; turn: number; enemies: EnemyInstance[] }) {
+  const stats = useMemo(() => {
+    let totalDamageDealt = 0;
+    let totalDamageReceived = 0;
+    let totalHealing = 0;
+    let maxCombo = 0;
+    let crits = 0;
+    let misses = 0;
+
+    for (const entry of log) {
+      if (entry.damage && entry.damage > 0) {
+        if (entry.actorType === 'player') {
+          totalDamageDealt += entry.damage;
+          if (entry.isCritical) crits++;
+          if (entry.isMiss) misses++;
+        } else if (entry.actorType === 'enemy') {
+          totalDamageReceived += entry.damage;
+        }
+      }
+      if (entry.heal && entry.heal > 0) totalHealing += entry.heal;
+      if (entry.action === 'Combo' && entry.damage) {
+        const comboMatch = entry.message.match(/x(\d+)/);
+        if (comboMatch) maxCombo = Math.max(maxCombo, parseInt(comboMatch[1]));
+      }
+    }
+    return { totalDamageDealt, totalDamageReceived, totalHealing, maxCombo, crits, misses, turns: turn };
+  }, [log, turn]);
+
+  const defeatedBosses = enemies.filter(e => e.isBoss).length;
+  const defeatedEnemies = enemies.filter(e => e.currentHp <= 0).length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.3 }}
+      className="absolute bottom-16 left-1/2 -translate-x-1/2 z-[60] pointer-events-none"
+    >
+      <div className="bg-black/80 backdrop-blur-sm border border-amber-900/30 rounded-lg px-4 py-2.5 flex gap-4 sm:gap-6 text-center">
+        <div>
+          <div className="text-xs text-white/40">Turni</div>
+          <div className="text-sm font-bold text-white/90">{stats.turns}</div>
+        </div>
+        <div>
+          <div className="text-xs text-white/40">Danni</div>
+          <div className="text-sm font-bold text-red-400">{stats.totalDamageDealt}</div>
+        </div>
+        <div>
+          <div className="text-xs text-white/40">Ricevuti</div>
+          <div className="text-sm font-bold text-orange-400">{stats.totalDamageReceived}</div>
+        </div>
+        <div>
+          <div className="text-xs text-white/40">Cure</div>
+          <div className="text-sm font-bold text-emerald-400">{stats.totalHealing}</div>
+        </div>
+        {stats.maxCombo > 1 && (
+          <div>
+            <div className="text-xs text-white/40">Combo Max</div>
+            <div className="text-sm font-bold text-yellow-400">🔥×{stats.maxCombo}</div>
+          </div>
+        )}
+        {stats.crits > 0 && (
+          <div>
+            <div className="text-xs text-white/40">Critici</div>
+            <div className="text-sm font-bold text-yellow-300">{stats.crits}</div>
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }

@@ -74,6 +74,14 @@ export let COMBAT_CONFIG: Record<string, number> = {
   noMissDmgVarianceMin: 90, noMissDmgVarianceMax: 110,
   defaultStatusDuration: 3, defaultCooldown: 2,
   speed: 1.0,
+  summaryDisplayTime: 3.5,
+};
+
+// Game info config — loaded from GameSetting DB
+export let GAME_CONFIG: { version: string; versionDate: string; versionChangelog: string } = {
+  version: '1.23.0',
+  versionDate: '',
+  versionChangelog: '',
 };
 
 // Combat boolean settings — loaded from GameSetting DB
@@ -988,6 +996,14 @@ async function loadGameSettings(): Promise<void> {
         }
       } catch { /* keep default */ }
     }
+
+    // Game info config
+    const rawVersion = settings['game.version'];
+    if (rawVersion) GAME_CONFIG.version = rawVersion;
+    const rawVersionDate = settings['game.versionDate'];
+    if (rawVersionDate) GAME_CONFIG.versionDate = rawVersionDate;
+    const rawChangelog = settings['game.versionChangelog'];
+    if (rawChangelog) GAME_CONFIG.versionChangelog = rawChangelog;
 
     // Combat constants
     for (const [key, defaultValue] of Object.entries(COMBAT_CONFIG)) {

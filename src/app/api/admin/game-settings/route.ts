@@ -40,6 +40,11 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'difficulty.normale':       { value: '{"label":"Normale","color":"#eab308","icon":"⚔️","statMult":0.85,"lootMult":1.1,"minEnemies":1,"maxEnemies":3,"expMult":1.0,"enemyCritChance":10,"description":"Bilanciato. La vera esperienza di Raccoon City."}', label: 'Difficoltà: Normale', group: 'difficulty', sortOrder: 201 },
   'difficulty.incubo':        { value: '{"label":"Incubo","color":"#ef4444","icon":"💀","statMult":1.4,"lootMult":0.6,"minEnemies":2,"maxEnemies":4,"expMult":0.8,"enemyCritChance":20,"description":"Nemici potenti, poco bottino. Solo per i più coraggiosi."}', label: 'Difficoltà: Incubo', group: 'difficulty', sortOrder: 202 },
 
+  // ── Game Info ──
+  'game.version':              { value: '1.23.0', label: 'Versione Gioco',                       group: 'game', sortOrder: 50 },
+  'game.versionDate':          { value: new Date().toISOString().slice(0, 10), label: 'Data Versione', group: 'game', sortOrder: 51 },
+  'game.versionChangelog':       { value: 'Versione DB-driven, tempo summary configurabile, sezione Info Gioco nell\'admin', label: 'Modifiche Versione', group: 'game', sortOrder: 52 },
+
   // ── Combat Constants ──
   'combat.missChance':             { value: '8',    label: '% Probabilità Mancata Base',           group: 'combat', sortOrder: 300 },
   'combat.baseCritChance':         { value: '10',   label: '% Probabilità Critico Base',          group: 'combat', sortOrder: 301 },
@@ -59,6 +64,7 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'combat.defaultStatusDuration':  { value: '3',    label: 'Durata Status Default (turni)',       group: 'combat', sortOrder: 315 },
   'combat.defaultCooldown':        { value: '2',    label: 'Cooldown Speciale Default (turni)',   group: 'combat', sortOrder: 316 },
   'combat.speed':                  { value: '1.0',  label: 'Velocità Combattimento',             group: 'combat', sortOrder: 320 },
+  'combat.summaryDisplayTime':    { value: '3.5',  label: 'Tempo Summary (secondi)',            group: 'combat', sortOrder: 322, helpText: 'Durata schermata riassuntiva post-combattimento prima della transizione' },
   'combat.autoUseItems':           { value: 'true', label: 'AI usa oggetti',                     group: 'combat', sortOrder: 321 },
 
   // ── New Game+ ──
