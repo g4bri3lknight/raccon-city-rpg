@@ -1045,6 +1045,12 @@ async function loadGameSettings(): Promise<void> {
         if (!isNaN(parsed)) NGPLUS_CONFIG[key] = parsed;
       }
     }
+
+    // Apply theme settings as CSS variables on .game-root
+    try {
+      const { applyThemeSettings } = await import('@/game/store/settings-cache');
+      applyThemeSettings(settings);
+    } catch { /* theme application is optional */ }
   } catch {
     /* keep defaults */
   }

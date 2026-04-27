@@ -7,6 +7,9 @@ import {
   listGameDbFiles,
 } from '@/lib/game-db';
 import { getGameEntry, setGameEntry, removeGameEntry } from '@/lib/game-registry';
+import { resetEditorDb } from '@/lib/editor-db';
+
+export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -93,13 +96,19 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext) {
   }
 
   try {
+    // Reset editor DB connection first to avoid stale Prisma client issues
+    resetEditorDb();
+
     const deleted = await deleteGameDb(id);
     if (!deleted) {
-      return jsonResponse({ error: 'Failed to delete game' }, 500);
+      return jsonResponse({ error: 'Failed to delete game database file' }, 500);
     }
 
     // Remove from editor DB registry
-    await removeGameEntry(id);
+    const removed = await removeGameEntry(id);
+    if (!removed) {
+      console.warn(`[DELETE /api/games/${id}] DB file deleted but registry entry removal may have failed`);
+    }
 
     // If deleted game was active, switch to default
     if (id === getActiveGameId()) {
@@ -109,6 +118,6 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext) {
     return jsonResponse({ success: true, message: `Game "${id}" deleted` });
   } catch (error) {
     console.error(`[DELETE /api/games/${id}]`, error);
-    return jsonResponse({ error: 'Failed to delete game' }, 500);
+    return jsonResponse({ error: `Failed to delete game: ${error instanceof Error ? error.message : String(error)}` }, 500);
   }
 }

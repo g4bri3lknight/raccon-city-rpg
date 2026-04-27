@@ -89,6 +89,30 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'reputation.discountAmount2':     { value: '2',    label: 'Sconto 2 (prezzo -N)',              group: 'reputation', sortOrder: 503 },
   'reputation.questRepGain':        { value: '2',    label: 'Reputazione per Quest',             group: 'reputation', sortOrder: 504 },
   'reputation.suspiciousThreshold': { value: '-2',   label: 'Soglia Sospetto',                   group: 'reputation', sortOrder: 505 },
+
+  // ── Theme ──
+  'theme.primaryColor':     { value: '#dc2626', label: 'Colore Primario',          group: 'theme.colors',       sortOrder: 600 },
+  'theme.secondaryColor':   { value: '#ef4444', label: 'Colore Secondario',        group: 'theme.colors',       sortOrder: 601 },
+  'theme.accentColor':      { value: '#f87171', label: 'Colore Accento',          group: 'theme.colors',       sortOrder: 602 },
+  'theme.backgroundColor':  { value: '#0a0a0a', label: 'Sfondo',                  group: 'theme.colors',       sortOrder: 603 },
+  'theme.fontFamily':       { value: 'Courier New', label: 'Font Family',          group: 'theme.typography',   sortOrder: 610 },
+  'theme.headingWeight':    { value: 'extrabold', label: 'Peso Titoli',            group: 'theme.typography',   sortOrder: 611 },
+  'theme.fontSizeScale':    { value: '1.0',     label: 'Scala Font',              group: 'theme.typography',   sortOrder: 612 },
+  'theme.cardStyle':        { value: 'solid',   label: 'Stile Card',              group: 'theme.interface',    sortOrder: 620 },
+  'theme.cardOpacity':      { value: '0.6',     label: 'Opacità Card',            group: 'theme.interface',    sortOrder: 621 },
+  'theme.borderRadius':     { value: '12',      label: 'Border Radius',           group: 'theme.interface',    sortOrder: 622 },
+  'theme.borderColor':      { value: '#dc262620', label: 'Colore Bordo',          group: 'theme.interface',    sortOrder: 623 },
+  'theme.buttonStyle':      { value: 'rounded', label: 'Forma Pulsanti',          group: 'theme.buttons',      sortOrder: 630 },
+  'theme.buttonVariant':    { value: 'filled',  label: 'Variante Pulsanti',       group: 'theme.buttons',      sortOrder: 631 },
+  'theme.tableStyle':       { value: 'clean',   label: 'Stile Tabella',           group: 'theme.tables',       sortOrder: 640 },
+  'theme.hoverHighlight':   { value: 'strong',  label: 'Evidenziazione Hover',    group: 'theme.tables',       sortOrder: 641 },
+  'theme.glowEnabled':      { value: 'true',    label: 'Effetto Glow',            group: 'theme.effects',      sortOrder: 650 },
+  'theme.glowColor':        { value: '#dc2626', label: 'Colore Glow',             group: 'theme.effects',      sortOrder: 651 },
+  'theme.glowIntensity':    { value: '0.6',     label: 'Intensità Glow',          group: 'theme.effects',      sortOrder: 652 },
+  'theme.scanlineEnabled':  { value: 'false',   label: 'Effetto Scanline',        group: 'theme.effects',      sortOrder: 653 },
+  'theme.titleColor':       { value: '#e5e5e5', label: 'Colore Titolo',           group: 'theme.titleScreen',  sortOrder: 660 },
+  'theme.titleGlow':        { value: '#dc2626', label: 'Glow Titolo',              group: 'theme.titleScreen',  sortOrder: 661 },
+  'theme.subtitleColor':    { value: '#f87171', label: 'Colore Sottotitolo',       group: 'theme.titleScreen',  sortOrder: 662 },
 };
 
 async function ensureDefaults() {

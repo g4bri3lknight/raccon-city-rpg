@@ -20,7 +20,7 @@ import { createQuestChainsSlice } from './slices/quest-chains';
 
 // Re-export for backward compatibility
 export { getDifficultyConfig } from '../data/difficulty';
-export { fetchGameSettings, getMaxInventorySlots, getMaxItemBoxSlots, getStartingInventorySlots, getDefaultItemBoxItems, DEFAULT_GAME_SETTINGS } from './settings-cache';
+export { fetchGameSettings, getMaxInventorySlots, getMaxItemBoxSlots, getStartingInventorySlots, getDefaultItemBoxItems, DEFAULT_GAME_SETTINGS, applyThemeSettings } from './settings-cache';
 export type { SaveSlotInfo } from './types';
 
 const defaultState = getDefaultState();

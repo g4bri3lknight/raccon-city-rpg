@@ -29,6 +29,7 @@ import { TableSkeleton } from './admin/TableSkeleton';
 import { AvatarManager } from './admin/tabs/AvatarManager';
 import { StartScreenEditor } from './admin/tabs/StartScreenEditor';
 import { GameSettingsEditor } from './admin/tabs/GameSettingsEditor';
+import ThemeEditor from './admin/tabs/ThemeEditor';
 import GameManager from './admin/tabs/GameManager';
 import MapEditor from './admin/tabs/MapEditor';
 
@@ -560,7 +561,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
           {/* ── Content Area ── */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {tabConfig.custom ? (
-              activeTab === 'games' ? <GameManager /> : activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
+              activeTab === 'games' ? <GameManager /> : activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'theme' ? <ThemeEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
             ) : (
             <>
             {/* Status message */}

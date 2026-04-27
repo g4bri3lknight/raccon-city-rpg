@@ -168,6 +168,79 @@
   text-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
 }
 
+/* ── Theme Variable Overrides ──
+   When the theme engine sets --rpg-* CSS variables on .game-root,
+   the following rules apply them to game UI elements. 
+   Uses var() with fallbacks so the game still works without theme data. */
+.game-root {
+  /* Defaults match original hardcoded .game-horror values (Raccoon City red theme).
+     Theme engine overrides these via JS when settings are loaded. */
+  --rpg-primary: #dc2626;
+  --rpg-secondary: #ef4444;
+  --rpg-accent: #f87171;
+  --rpg-bg: #0a0a0a;
+  --rpg-font: 'Courier New', monospace;
+  --rpg-radius: 12px;
+  --rpg-glow-color: #dc2626;
+  --rpg-glow-intensity: 0.6;
+  --rpg-title-color: #e5e5e5;
+  --rpg-title-glow: #dc2626;
+  --rpg-subtitle-color: rgba(248, 113, 113, 0.8);
+}
+
+.game-horror {
+  background: var(--rpg-bg, #0a0a0a);
+  font-family: var(--rpg-font, 'Courier New', monospace);
+}
+
+/* Theme-driven glow for headings and title elements */
+.game-horror .theme-glow,
+.game-horror .horror-glow {
+  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 20px) var(--rpg-primary, #10b981);
+}
+
+/* Theme-driven title screen elements */
+.game-root .title-text,
+.game-root .game-title {
+  color: var(--rpg-title-color, #ffffff);
+}
+
+.game-root .title-glow-text {
+  color: var(--rpg-title-color, #ffffff);
+  text-shadow: 0 0 20px var(--rpg-title-glow, #94a3b8);
+}
+
+.game-root .subtitle-text,
+.game-root .game-subtitle {
+  color: var(--rpg-subtitle-color, rgba(255, 255, 255, 0.5));
+}
+
+/* Theme-driven primary accent color (buttons, links, highlights) */
+.game-root .theme-primary { color: var(--rpg-primary, #10b981); }
+.game-root .theme-secondary { color: var(--rpg-secondary, #06b6d4); }
+.game-root .theme-accent { color: var(--rpg-accent, #f59e0b); }
+
+.game-root .theme-primary-bg { background-color: var(--rpg-primary, #10b981); }
+.game-root .theme-secondary-bg { background-color: var(--rpg-secondary, #06b6d4); }
+.game-root .theme-accent-bg { background-color: var(--rpg-accent, #f59e0b); }
+
+.game-root .theme-primary-border { border-color: var(--rpg-primary, #10b981); }
+.game-root .theme-secondary-border { border-color: var(--rpg-secondary, #06b6d4); }
+.game-root .theme-accent-border { border-color: var(--rpg-accent, #f59e0b); }
+
+.game-root .theme-radius {
+  border-radius: var(--rpg-radius, 12px);
+}
+
+/* Theme-driven glow effect for active elements */
+.game-root .theme-glow-effect {
+  box-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #10b981);
+}
+
+.game-root .theme-text-glow {
+  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #10b981);
+}
+
 .horror-border {
   border: 1px solid rgba(220, 38, 38, 0.3);
   box-shadow: 0 0 15px rgba(220, 38, 38, 0.1);

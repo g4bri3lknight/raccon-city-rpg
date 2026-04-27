@@ -238,7 +238,9 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                 {mode === 'game' ? (
                   <div className="space-y-1">
                     <p className="text-[13px] text-white/70 font-medium">{displayName}</p>
-                    <p className="text-[12px] text-white/30 font-mono">{gameId ?? '—'}</p>
+                    {gameName && gameName !== gameId && (
+                      <p className="text-[12px] text-white/30 font-mono">{gameId}</p>
+                    )}
                   </div>
                 ) : (
                   <p className="text-[13px] text-white/60">

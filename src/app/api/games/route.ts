@@ -9,6 +9,8 @@ import {
 } from '@/lib/game-db';
 import { listGames, setGameEntry } from '@/lib/game-registry';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/games — List all games with metadata (from editor DB)
  * POST /api/games — Create a new game

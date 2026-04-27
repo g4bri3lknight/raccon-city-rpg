@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { Suspense, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 // Lazy-load heavy views to keep dashboard fast
 const GameManager = dynamic(
@@ -20,7 +21,7 @@ const PlayShell = dynamic(
 
 type ViewType = 'dashboard' | 'editor' | 'play';
 
-export default function RootPage() {
+function RootPageInner() {
   const searchParams = useSearchParams();
 
   // Electron game-only mode: ?mode=play&gameId=xxx
@@ -68,5 +69,17 @@ export default function RootPage() {
     <div className="h-full" style={{ background: '#0a0a0f' }}>
       <GameManager onOpenEditor={openEditor} onPlay={openPlay} />
     </div>
+  );
+}
+
+export default function RootPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-full" style={{ background: '#0a0a0f' }}>
+        <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
+      </div>
+    }>
+      <RootPageInner />
+    </Suspense>
   );
 }

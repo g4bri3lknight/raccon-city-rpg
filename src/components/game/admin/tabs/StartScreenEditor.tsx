@@ -339,14 +339,17 @@ export function StartScreenEditor() {
 
       {/* Sticky footer with save button */}
       <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur">
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200 text-xs gap-2"
-        >
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-          Salva Impostazioni Schermata Iniziale
-        </Button>
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            className="text-xs gap-2 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {saving ? 'Salvando...' : 'Salva Schermata Iniziale'}
+          </Button>
+        </div>
       </div>
     </div>
   );
