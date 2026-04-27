@@ -96,8 +96,8 @@ const THEME_GROUPS: ThemeGroupDef[] = [
     label: 'Schermata Titolo',
     icon: '🎭',
     settings: [
-      { key: 'theme.titleColor', label: 'Colore Titolo', type: 'color', default: '#ef4444' },
-      { key: 'theme.titleGlow', label: 'Glow Titolo', type: 'color', default: '#dc2626' },
+      { key: 'theme.titleColor', label: 'Colore Titolo', type: 'color', default: '#ffffff' },
+      { key: 'theme.titleGlow', label: 'Glow Titolo', type: 'color', default: '#94a3b8' },
       { key: 'theme.subtitleColor', label: 'Colore Sottotitolo', type: 'color', default: '#ffffff80' },
     ],
   },

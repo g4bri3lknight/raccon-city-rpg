@@ -49,18 +49,8 @@ export default function PlayPage() {
     }
   }, [fadeOut]);
 
-  // F2 key toggles debug panel (dev mode only)
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'F2') {
-        e.preventDefault();
-        useGameStore.setState(s => ({ debugOpen: !s.debugOpen }));
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
+  // F2 key — disabled in standalone mode (debug panel not available)
+  // DebugPanel and AdminPanel are rendered with isStandalone=true to block them
 
   // H key toggles keyboard shortcuts overlay
   useEffect(() => {
@@ -221,10 +211,10 @@ export default function PlayPage() {
         <SettingsPanel />
       </ErrorBoundary>
       <ErrorBoundary name="Debug">
-        <DebugPanel />
+        <DebugPanel isStandalone />
       </ErrorBoundary>
       <ErrorBoundary name="Admin">
-        <AdminPanel />
+        <AdminPanel isStandalone />
       </ErrorBoundary>
       <KeyboardShortcutsOverlay />
     </div>

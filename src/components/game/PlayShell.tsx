@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/game/store';
-import { initGameData } from '@/game/data/loader';
+import { refreshGameData } from '@/game/data/loader';
+import { X } from 'lucide-react';
 import TitleScreen from '@/components/game/TitleScreen';
 import LoadingScreen from '@/components/game/LoadingScreen';
 import CharacterSelect from '@/components/game/CharacterSelect';
@@ -31,6 +32,7 @@ import { playBgm, stopBgm, resumeAmbient, playLocationAmbient, playSafeRoomAmbie
 interface PlayShellProps {
   gameId: string;
   onBack: () => void;
+  isStandalone?: boolean;
 }
 
 // Phases where the game is "in progress" and should prompt before exiting
@@ -38,18 +40,22 @@ const IN_PROGRESS_PHASES = new Set([
   'exploration', 'combat', 'event', 'puzzle', 'qte',
 ]);
 
-export default function PlayShell({ gameId, onBack }: PlayShellProps) {
+export default function PlayShell({ gameId, onBack, isStandalone = false }: PlayShellProps) {
   const phase = useGameStore(s => s.phase);
   const prevPhaseRef = useRef(phase);
   const [dataReady, setDataReady] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  // ── Initialize game data from DB (fallback to static) ──
+  // ── Set activeGameId cookie so API routes use the correct game DB ──
   useEffect(() => {
-    initGameData()
+    document.cookie = `activeGameId=${encodeURIComponent(gameId)}; path=/; SameSite=Lax`;
+    refreshGameData()
       .then(() => setFadeOut(true))
       .catch(() => setFadeOut(true));
-  }, []);
+    return () => {
+      document.cookie = 'activeGameId=; path=/; max-age=0';
+    };
+  }, [gameId]);
 
   // After fade-out animation completes, show game
   useEffect(() => {
@@ -77,9 +83,9 @@ export default function PlayShell({ gameId, onBack }: PlayShellProps) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [phase, onBack]);
 
-  // F2 key toggles debug panel (dev mode only)
+  // F2 key toggles debug panel (editor mode only — not in standalone)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return;
+    if (isStandalone) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
         e.preventDefault();
@@ -174,6 +180,22 @@ export default function PlayShell({ gameId, onBack }: PlayShellProps) {
 
   return (
     <div className="game-root">
+      {!isStandalone && dataReady && (
+        <button
+          onClick={() => {
+            if (IN_PROGRESS_PHASES.has(phase)) {
+              const confirmed = window.confirm('Are you sure you want to exit? Unsaved progress will be lost.');
+              if (!confirmed) return;
+            }
+            onBack();
+          }}
+          className="fixed top-3 right-3 z-50 flex items-center justify-center w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/[0.1] text-white/40 hover:text-white hover:bg-black/80 hover:border-white/[0.25] transition-all cursor-pointer"
+          title="Exit Game (Esc)"
+          aria-label="Exit Game"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
       <ErrorBoundary name="Title">
         <div key={phase === 'title' ? 'title' : undefined} className={phase === 'title' ? 'phase-enter' : ''}>
           {phase === 'title' && <TitleScreen />}
@@ -249,13 +271,13 @@ export default function PlayShell({ gameId, onBack }: PlayShellProps) {
         <SettingsPanel />
       </ErrorBoundary>
       <ErrorBoundary name="Debug">
-        <DebugPanel />
+        <DebugPanel isStandalone={isStandalone} />
       </ErrorBoundary>
       <ErrorBoundary name="Admin">
-        <AdminPanel />
+        <AdminPanel isStandalone={isStandalone} />
       </ErrorBoundary>
       <KeyboardShortcutsOverlay />
-      <Footer />
+      {isStandalone && <Footer />}
     </div>
   );
 }

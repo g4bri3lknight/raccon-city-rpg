@@ -504,7 +504,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
       </div>
 
       {/* Info footer */}
-      <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] text-[12px] text-white/20 flex items-center justify-between">
+      <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur text-[12px] text-white/25 flex items-center justify-between">
         <span>{games.length} gioco{games.length !== 1 ? 'i' : ''}</span>
         <span>Ogni gioco ha il proprio database indipendente</span>
       </div>

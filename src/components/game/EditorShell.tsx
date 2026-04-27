@@ -31,7 +31,7 @@ import { StartScreenEditor } from '@/components/game/admin/tabs/StartScreenEdito
 import { GameSettingsEditor } from '@/components/game/admin/tabs/GameSettingsEditor';
 import ThemeEditor from '@/components/game/admin/tabs/ThemeEditor';
 import MapEditor from '@/components/game/admin/tabs/MapEditor';
-import Footer from '@/components/Footer';
+
 
 // Filter out the 'hub' group (games tab) since game management lives on the dashboard
 const EDITOR_TAB_GROUPS = TAB_GROUPS.filter(g => g.id !== 'hub');
@@ -125,6 +125,14 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
       setLoading(false);
     }
   }, [tabConfig.endpoint, activeTab, showStatus]);
+
+  // ── Set activeGameId cookie so API routes use the correct game DB ──
+  useEffect(() => {
+    document.cookie = `activeGameId=${encodeURIComponent(gameId)}; path=/; SameSite=Lax`;
+    return () => {
+      document.cookie = 'activeGameId=; path=/; max-age=0';
+    };
+  }, [gameId]);
 
   // Fetch data when tab changes
   useEffect(() => {
@@ -666,7 +674,6 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
           </DialogContent>
         </Dialog>
       )}
-      <Footer />
     </div>
   );
 }

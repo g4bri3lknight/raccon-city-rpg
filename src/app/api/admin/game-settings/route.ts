@@ -5,29 +5,29 @@ import { safeErrorResponse } from '@/lib/api-utils';
 // Default settings — seeded on first GET if table is empty
 const DEFAULTS: Record<string, { value: string; label: string; group: string; sortOrder: number }> = {
   // ── Title Screen ──
-  'titleScreen.umbrellaText':    { value: 'Umbrella Corporation Presenta', label: 'Testo Umbrella Corp',           group: 'titleScreen.texts',  sortOrder: 0 },
+  'titleScreen.umbrellaText':    { value: '',                               label: 'Sottotitolo Superiore',           group: 'titleScreen.texts',  sortOrder: 0 },
   'titleScreen.title':           { value: 'RPG GAME',                     label: 'Titolo Principale',              group: 'titleScreen.texts',  sortOrder: 1 },
-  'titleScreen.subtitle':        { value: 'Escape from Horror',            label: 'Sottotitolo',                    group: 'titleScreen.texts',  sortOrder: 2 },
-  'titleScreen.description':     { value: 'Il virus T ha trasformato la città in un incubo. Siete gli ultimi sopravvissuti. Trovate una via d\'uscita... prima che sia troppo tardi.', label: 'Descrizione', group: 'titleScreen.texts',  sortOrder: 3 },
+  'titleScreen.subtitle':        { value: 'Un\'avventura indimenticabile', label: 'Sottotitolo',                    group: 'titleScreen.texts',  sortOrder: 2 },
+  'titleScreen.description':     { value: 'Esplora un mondo di mistero e avventura. Scegli saggiamente le tue azioni per sopravvivere.', label: 'Descrizione', group: 'titleScreen.texts',  sortOrder: 3 },
   'titleScreen.newGameBtn':      { value: 'Nuova partita',                 label: 'Tasto Nuova Partita',            group: 'titleScreen.buttons', sortOrder: 10 },
   'titleScreen.loadGameBtn':     { value: 'Carica partita',                label: 'Tasto Carica Partita',           group: 'titleScreen.buttons', sortOrder: 11 },
-  'titleScreen.warningText':     { value: '⚠ CONTENUTO HORROR — Gioco a turni per 1-3 giocatori', label: 'Testo Avvertenza', group: 'titleScreen.texts', sortOrder: 4 },
+  'titleScreen.warningText':     { value: 'Gioco a turni per 1-3 giocatori', label: 'Testo Avvertenza', group: 'titleScreen.texts', sortOrder: 4 },
   // Visual style
-  'titleScreen.umbrellaColor':   { value: '#dc2626',   label: 'Colore Testo Umbrella',    group: 'titleScreen.style',   sortOrder: 20 },
-  'titleScreen.titleColor':      { value: '#e5e5e5',   label: 'Colore Titolo',            group: 'titleScreen.style',   sortOrder: 21 },
-  'titleScreen.titleGlow':       { value: '0 0 40px rgba(220,38,38,0.6), 0 0 80px rgba(220,38,38,0.3), 0 0 120px rgba(220,38,38,0.1), 3px 3px 0 #000', label: 'Ombra Titolo (text-shadow)', group: 'titleScreen.style', sortOrder: 22 },
-  'titleScreen.subtitleColor':   { value: '#f87171',   label: 'Colore Sottotitolo',       group: 'titleScreen.style',   sortOrder: 23 },
+  'titleScreen.umbrellaColor':   { value: '#94a3b8',   label: 'Colore Sottotitolo Superiore', group: 'titleScreen.style',   sortOrder: 20 },
+  'titleScreen.titleColor':      { value: '#ffffff',   label: 'Colore Titolo',            group: 'titleScreen.style',   sortOrder: 21 },
+  'titleScreen.titleGlow':       { value: '0 0 40px rgba(148,163,184,0.4), 0 0 80px rgba(148,163,184,0.2), 0 0 120px rgba(148,163,184,0.1)', label: 'Ombra Titolo (text-shadow)', group: 'titleScreen.style', sortOrder: 22 },
+  'titleScreen.subtitleColor':   { value: '#94a3b8',   label: 'Colore Sottotitolo',       group: 'titleScreen.style',   sortOrder: 23 },
   'titleScreen.overlayOpacity':  { value: '0.7',       label: 'Opacità Overlay Sfondo',   group: 'titleScreen.style',   sortOrder: 24 },
-  'titleScreen.btnBg':           { value: '#7f1d1d',   label: 'Sfondo Pulsanti (hex)',    group: 'titleScreen.style',   sortOrder: 30 },
-  'titleScreen.btnBorder':       { value: '#b91c1c',   label: 'Bordo Pulsanti (hex)',     group: 'titleScreen.style',   sortOrder: 31 },
-  'titleScreen.btnHoverBg':      { value: '#991b1b',   label: 'Sfondo Pulsanti Hover (hex)', group: 'titleScreen.style', sortOrder: 32 },
-  'titleScreen.btnHoverBorder':  { value: '#ef4444',   label: 'Bordo Pulsanti Hover (hex)', group: 'titleScreen.style', sortOrder: 33 },
-  'titleScreen.btnTextColor':    { value: '#fee2e2',   label: 'Testo Pulsanti (hex)',     group: 'titleScreen.style',   sortOrder: 34 },
-  'titleScreen.btnGlowHover':    { value: 'rgba(220,38,38,0.4)', label: 'Glow Hover Pulsanti (rgba)', group: 'titleScreen.style', sortOrder: 35 },
+  'titleScreen.btnBg':           { value: '#1e293b',   label: 'Sfondo Pulsanti (hex)',    group: 'titleScreen.style',   sortOrder: 30 },
+  'titleScreen.btnBorder':       { value: '#334155',   label: 'Bordo Pulsanti (hex)',     group: 'titleScreen.style',   sortOrder: 31 },
+  'titleScreen.btnHoverBg':      { value: '#334155',   label: 'Sfondo Pulsanti Hover (hex)', group: 'titleScreen.style', sortOrder: 32 },
+  'titleScreen.btnHoverBorder':  { value: '#475569',   label: 'Bordo Pulsanti Hover (hex)', group: 'titleScreen.style', sortOrder: 33 },
+  'titleScreen.btnTextColor':    { value: '#e2e8f0',   label: 'Testo Pulsanti (hex)',     group: 'titleScreen.style',   sortOrder: 34 },
+  'titleScreen.btnGlowHover':    { value: 'rgba(100,116,139,0.4)', label: 'Glow Hover Pulsanti (rgba)', group: 'titleScreen.style', sortOrder: 35 },
 
   // ── Custom Character ──
   'customCharacter.statBudget':     { value: '{"totalPoints":50,"minPerStat":5,"maxPerStat":25,"defaults":{"hp":10,"atk":12,"def":10,"spd":8}}', label: 'Budget Punti Stat Personalizzato', group: 'customCharacter', sortOrder: 50 },
-  'customCharacter.startingItems':  { value: '[{"itemId":"pipe","quantity":1},{"itemId":"bandage","quantity":2},{"itemId":"herb_green","quantity":2}]', label: 'Oggetti Iniziali Personalizzato (JSON)', group: 'customCharacter', sortOrder: 51 },
+  'customCharacter.startingItems':  { value: '[]', label: 'Oggetti Iniziali Personalizzato (JSON)', group: 'customCharacter', sortOrder: 51 },
 
   // ── Gameplay ──
   'gameplay.maxInventorySlots':     { value: '12',  label: 'Slot Massimi Inventario',          group: 'gameplay.inventory', sortOrder: 100 },

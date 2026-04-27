@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGameDb, listGameDbFiles } from '@/lib/game-db';
+import { setGameEntry } from '@/lib/game-registry';
 
 /** Check if buffer starts with a valid image magic number */
 function isValidImageMagic(buf: Buffer): boolean {
@@ -20,14 +21,9 @@ function isValidImageMagic(buf: Buffer): boolean {
 /**
  * POST /api/upload-game-cover
  *
- * Uploads a cover image for a game. The image is stored in the
- * game's own DB (game_images table) with id = 'cover'.
- *
- * Body: FormData with:
- *   - gameId: string
- *   - file: File (image)
- *
- * Also updates the Game record's coverImage field to 'cover'.
+ * Uploads a cover image for a game.
+ * - Image binary is stored in the game's own DB (game_images table, id = 'cover')
+ * - coverImage reference is stored in the EDITOR DB (custom.db, games table)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -55,9 +51,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid image format (corrupted or not an image)' }, { status: 400 });
     }
 
+    // Store binary image in the game's own DB
     const client = getGameDb(gameId);
-
-    // Upsert the cover image in game_images
     await client.gameImage.upsert({
       where: { id: 'cover' },
       update: {
@@ -77,10 +72,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update Game record's coverImage field
-    await client.game.updateMany({
-      data: { coverImage: 'cover' },
-    });
+    // Update coverImage reference in EDITOR DB (custom.db)
+    await setGameEntry(gameId, { coverImage: 'cover' });
 
     return NextResponse.json({
       success: true,
@@ -96,7 +89,7 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/upload-game-cover?gameId=xxx
  *
- * Removes the cover image for a game.
+ * Removes the cover image for a game (binary + registry reference).
  */
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -107,15 +100,12 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
+    // Delete binary image from game DB
     const client = getGameDb(gameId);
-
-    // Delete the cover image
     await client.gameImage.deleteMany({ where: { id: 'cover' } });
 
-    // Clear the coverImage field on Game record
-    await client.game.updateMany({
-      data: { coverImage: '' },
-    });
+    // Clear coverImage reference in EDITOR DB (custom.db)
+    await setGameEntry(gameId, { coverImage: '' });
 
     return NextResponse.json({
       success: true,

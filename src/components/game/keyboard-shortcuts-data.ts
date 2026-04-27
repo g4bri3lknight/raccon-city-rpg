@@ -45,8 +45,8 @@ export const SHORTCUT_GROUPS: { label: string; icon: string; shortcuts: Shortcut
     shortcuts: [
       { key: 'H', action: 'Scorciatoie tastiera', ctx: 'Ovunque' },
       { key: 'Esc', action: 'Chiudi pannello', ctx: 'Ovunque' },
-      { key: 'F2', action: 'Debug Panel', ctx: 'Solo sviluppo' },
-      { key: 'F3', action: 'Admin Panel', ctx: 'Ovunque' },
+      { key: 'F2', action: 'Debug Panel', ctx: 'Solo editor' },
+      { key: 'F3', action: 'Admin Panel', ctx: 'Solo editor' },
     ],
   },
 ];

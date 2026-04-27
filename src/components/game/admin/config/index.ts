@@ -38,16 +38,16 @@ export interface SettingDef {
 
 export const START_SCREEN_FIELDS: SettingDef[] = [
   // Texts
-  { key: 'titleScreen.umbrellaText',  label: 'Testo Umbrella Corp',     type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Umbrella Corporation Presenta' },
+  { key: 'titleScreen.umbrellaText',  label: 'Sottotitolo Superiore',    type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Presenta...' },
   { key: 'titleScreen.title',         label: 'Titolo Principale',        type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Il mio GDR' },
-  { key: 'titleScreen.subtitle',      label: 'Sottotitolo',              type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Escape from Horror' },
-  { key: 'titleScreen.description',   label: 'Descrizione',              type: 'textarea', group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Testo descrittivo...', rows: 3 },
-  { key: 'titleScreen.warningText',   label: 'Testo Avvertenza',         type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: '⚠ CONTENUTO HORROR...' },
+  { key: 'titleScreen.subtitle',      label: 'Sottotitolo',              type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: "Un'avventura indimenticabile" },
+  { key: 'titleScreen.description',   label: 'Descrizione',              type: 'textarea', group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Esplora un mondo di mistero e avventura...', rows: 3 },
+  { key: 'titleScreen.warningText',   label: 'Testo Avvertenza',         type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Gioco a turni per 1-3 giocatori' },
   // Buttons
   { key: 'titleScreen.newGameBtn',    label: 'Tasto "Nuova Partita"',    type: 'text',     group: 'buttons', groupLabel: '🎮 Tasti',        placeholder: 'Nuova partita' },
   { key: 'titleScreen.loadGameBtn',   label: 'Tasto "Carica Partita"',   type: 'text',     group: 'buttons', groupLabel: '🎮 Tasti',        placeholder: 'Carica partita' },
   // Style — Colors
-  { key: 'titleScreen.umbrellaColor', label: 'Colore Umbrella',          type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
+  { key: 'titleScreen.umbrellaColor', label: 'Colore Sottotitolo Sup.',   type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
   { key: 'titleScreen.titleColor',    label: 'Colore Titolo',            type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
   { key: 'titleScreen.subtitleColor', label: 'Colore Sottotitolo',       type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
   { key: 'titleScreen.btnTextColor',  label: 'Testo Pulsanti',           type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
@@ -56,8 +56,8 @@ export const START_SCREEN_FIELDS: SettingDef[] = [
   { key: 'titleScreen.btnHoverBg',    label: 'Sfondo Pulsanti Hover',    type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
   { key: 'titleScreen.btnHoverBorder',label: 'Bordo Pulsanti Hover',     type: 'color',    group: 'colors', groupLabel: '🎨 Colori' },
   // Style — Effects
-  { key: 'titleScreen.titleGlow',     label: 'Ombra Titolo (text-shadow)', type: 'text',   group: 'effects', groupLabel: '✨ Effetti',      placeholder: '0 0 40px rgba(220,38,38,0.6)...' },
-  { key: 'titleScreen.btnGlowHover',  label: 'Glow Hover Pulsanti (rgba)', type: 'text',   group: 'effects', groupLabel: '✨ Effetti',      placeholder: 'rgba(220,38,38,0.4)' },
+  { key: 'titleScreen.titleGlow',     label: 'Ombra Titolo (text-shadow)', type: 'text',   group: 'effects', groupLabel: '✨ Effetti',      placeholder: '0 0 40px rgba(148,163,184,0.4)...' },
+  { key: 'titleScreen.btnGlowHover',  label: 'Glow Hover Pulsanti (rgba)', type: 'text',   group: 'effects', groupLabel: '✨ Effetti',      placeholder: 'rgba(100,116,139,0.4)' },
   { key: 'titleScreen.overlayOpacity',label: 'Opacità Overlay Sfondo',   type: 'range',    group: 'effects', groupLabel: '✨ Effetti',      min: 0, max: 1, step: 0.05 },
 ];
 

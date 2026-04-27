@@ -441,16 +441,6 @@ export default function MapEditor() {
               </Button>
               <Button
                 size="sm"
-                onClick={handleSavePositions}
-                disabled={saving}
-                className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
-                title="Salva solo le posizioni sulla griglia"
-              >
-                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                Salva Posizioni
-              </Button>
-              <Button
-                size="sm"
                 variant="ghost"
                 disabled={seeding}
                 onClick={handleSeedDefault}
@@ -778,6 +768,23 @@ export default function MapEditor() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Sticky footer with save */}
+        <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur flex items-center justify-between">
+          <span className="text-[12px] text-white/25">
+            {locations.length} location{locations.length !== 1 ? 's' : ''} · {unplaced.length} non posizionat{unplaced.length === 1 ? 'a' : 'e'}
+          </span>
+          <Button
+            size="sm"
+            onClick={handleSavePositions}
+            disabled={saving}
+            className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
+            title="Salva solo le posizioni sulla griglia"
+          >
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            Salva Posizioni
+          </Button>
         </div>
       </div>
 

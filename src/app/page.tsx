@@ -61,7 +61,7 @@ export default function RootPage() {
   }
 
   if (view === 'play' && gameId) {
-    return <PlayShell gameId={gameId} onBack={goBack} />;
+    return <PlayShell gameId={gameId} onBack={goBack} isStandalone={!!electronMode} />;
   }
 
   return (

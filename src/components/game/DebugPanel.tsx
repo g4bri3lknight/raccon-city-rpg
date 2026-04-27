@@ -124,7 +124,7 @@ function SearchablePicker<T extends { id: string; name: string }>({
   );
 }
 
-export default function DebugPanel() {
+export default function DebugPanel({ isStandalone = false }: { isStandalone?: boolean }) {
   const debugOpen = useGameStore(s => s.debugOpen);
   const godMode = useGameStore(s => s.godMode);
   const party = useGameStore(s => s.party);
@@ -200,8 +200,8 @@ export default function DebugPanel() {
 
   const close = () => useGameStore.setState({ debugOpen: false });
 
-  // Gate behind dev mode — never render in production
-  if (process.env.NODE_ENV === 'production') return null;
+  // Gate behind editor mode — never render in standalone builds
+  if (isStandalone) return null;
   if (!debugOpen) return null;
 
   return (

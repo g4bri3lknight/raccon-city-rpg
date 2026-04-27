@@ -3,52 +3,26 @@ import { jsonResponse } from '@/lib/api-game';
 import {
   listGameDbFiles,
   initGameDb,
-  deleteGameDb,
   cloneGameDb,
   getActiveGameId,
   setActiveGameId,
-  getGameDb,
 } from '@/lib/game-db';
+import { listGames, setGameEntry } from '@/lib/game-registry';
 
 /**
- * GET /api/games — List all games with metadata
+ * GET /api/games — List all games with metadata (from editor DB)
  * POST /api/games — Create a new game
  */
 export async function GET() {
   try {
-    const gameIds = listGameDbFiles();
     const activeGameId = getActiveGameId();
-    
-    const games = await Promise.all(
-      gameIds.map(async (id) => {
-        try {
-          const client = getGameDb(id);
-          const gameRecord = await client.game.findFirst();
-          return {
-            id,
-            name: gameRecord?.name || id,
-            description: gameRecord?.description || '',
-            coverImage: gameRecord?.coverImage || '',
-            status: gameRecord?.status || 'active',
-            active: id === activeGameId,
-            createdAt: gameRecord?.createdAt,
-            updatedAt: gameRecord?.updatedAt,
-          };
-        } catch {
-          return {
-            id,
-            name: id,
-            description: '',
-            coverImage: '',
-            status: 'active',
-            active: id === activeGameId,
-            createdAt: null,
-            updatedAt: null,
-          };
-        }
-      })
-    );
-    
+    const entries = await listGames({ sync: true });
+
+    const games = entries.map(entry => ({
+      ...entry,
+      active: entry.id === activeGameId,
+    }));
+
     return jsonResponse({ games });
   } catch (error) {
     console.error('[GET /api/games]', error);
@@ -88,19 +62,12 @@ export async function POST(req: NextRequest) {
       if (!cloned) {
         return jsonResponse({ error: `Failed to clone game "${cloneFrom}"` }, 500);
       }
-      // Update name in cloned DB
-      const client = getGameDb(gameId);
-      await client.game.updateMany({
-        data: { name, description, id: gameId },
-        where: { id: cloneFrom },
-      });
     } else {
-      // Create fresh game DB
-      const client = await initGameDb(gameId);
-      await client.game.create({
-        data: { id: gameId, name, description },
-      });
+      await initGameDb(gameId);
     }
+
+    // Add to editor DB registry (metadata lives in custom.db, NOT in the game DB)
+    await setGameEntry(gameId, { name, description, status: 'active' });
 
     return jsonResponse({
       success: true,

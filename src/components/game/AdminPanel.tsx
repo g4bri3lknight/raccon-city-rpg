@@ -36,7 +36,7 @@ import MapEditor from './admin/tabs/MapEditor';
 // ═══════════════════════════════════════════════════════════════
 // Main AdminPanel
 // ═══════════════════════════════════════════════════════════════
-export default function AdminPanel() {
+export default function AdminPanel({ isStandalone = false }: { isStandalone?: boolean }) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('items');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
@@ -174,8 +174,9 @@ export default function AdminPanel() {
     }
   }, [loginKey]);
 
-  // F3 key — opens admin panel
+  // F3 key — opens admin panel (editor mode only — not in standalone)
   useEffect(() => {
+    if (isStandalone) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'F3') {
         e.preventDefault();

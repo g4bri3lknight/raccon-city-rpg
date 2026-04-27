@@ -200,7 +200,7 @@ export async function cloneGameDb(sourceId: string, targetId: string): Promise<b
       clientCache.delete(targetId);
     }
     
-    // Update the cloned DB's game name in the games table
+    // Update the Game record ID in the cloned DB (needed for SaveGame FK)
     const targetClient = getGameDb(targetId);
     await targetClient.game.updateMany({
       data: { id: targetId },

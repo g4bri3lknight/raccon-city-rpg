@@ -194,7 +194,6 @@ export function AvatarManager() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto admin-scrollbar p-6">
-
       {/* Avatar Grid */}
       <div className="grid grid-cols-3 gap-3">
         {avatars.map(avatar => (
@@ -279,6 +278,12 @@ export function AvatarManager() {
         ))}
       </div>
 
+      </div>
+
+      {/* Sticky footer */}
+      <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur text-[12px] text-white/25 flex items-center justify-between">
+        <span>{avatars.length} avatar{avatars.length !== 1 ? 'i' : ''}</span>
+        <span>Gestione avatar per la creazione personaggio</span>
       </div>
 
       {/* Create/Edit Dialog */}

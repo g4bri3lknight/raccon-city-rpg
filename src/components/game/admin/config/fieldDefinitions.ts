@@ -271,6 +271,7 @@ export const FIELD_MAP: Record<TabId, FieldDef[]> = {
   'avatars': [],
   'start-screen': [],
   settings:     [],
+  theme:        [],
   'quest-chains': [
     { key: 'id', label: 'ID', type: 'text', required: true, placeholder: 'es: chain_sangue_infetto' },
     { key: 'npcId', label: 'NPC ID', type: 'entity-search', entitySearchEndpoint: '/api/admin/npcs', entitySearchLabelKey: 'name', placeholder: 'es: npc_dr_chen', required: true, colSpan: 2 },
