@@ -29,3 +29,17 @@ export function getEditorDb(): PrismaClient {
   }
   return _editorClient;
 }
+
+/**
+ * Reset the editor DB client singleton.
+ * Call this when a query fails due to a stale/broken connection.
+ * The next call to getEditorDb() will create a fresh client.
+ */
+export function resetEditorDb(): void {
+  if (_editorClient) {
+    _editorClient.$disconnect().catch(() => {
+      // ignore — connection may already be dead
+    });
+    _editorClient = null;
+  }
+}

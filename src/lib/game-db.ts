@@ -161,25 +161,41 @@ export function listGameDbFiles(): string[] {
 }
 
 /**
- * Delete a game DB file and remove from cache
+ * Delete a game DB file and remove from cache.
+ * Disconnects the cached Prisma client first, then removes the file.
+ * Retries file deletion up to 3 times with a short delay (handles SQLite WAL locks).
  */
 export async function deleteGameDb(gameId: string): Promise<boolean> {
   if (gameId === 'raccoon-city') return false; // Can't delete the default game
   
-  // Disconnect client
+  // Disconnect the cached client for this game (may hold WAL/SHM file locks)
   if (clientCache.has(gameId)) {
-    await clientCache.get(gameId)!.$disconnect();
+    try {
+      await clientCache.get(gameId)!.$disconnect();
+    } catch {
+      // connection may already be dead
+    }
     clientCache.delete(gameId);
   }
   
-  // Delete file
+  // Delete the DB file with retries (handles transient file locks)
   const dbPath = getGameDbPath(gameId);
-  try {
-    unlinkSync(dbPath);
-    return true;
-  } catch {
-    return false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      unlinkSync(dbPath);
+      // Also clean up WAL/SHM files if they exist
+      for (const ext of ['-wal', '-shm']) {
+        try { unlinkSync(dbPath + ext); } catch { /* ignore */ }
+      }
+      return true;
+    } catch {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+      }
+    }
   }
+  console.error(`[deleteGameDb] Failed to delete DB file after 3 attempts: ${dbPath}`);
+  return false;
 }
 
 /**

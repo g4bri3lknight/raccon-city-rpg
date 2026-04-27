@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Palette, Loader2, Save, RotateCcw, Eye } from 'lucide-react';
+import { Palette, Loader2, Save, RotateCcw, Eye, EyeOff } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -112,6 +112,196 @@ for (const s of ALL_SETTINGS) {
   DEFAULTS[s.key] = s.default;
 }
 
+// ── Preview Panel (side-by-side, always visible) ──────────────────
+function PreviewPanel({ styles }: { styles: ReturnType<typeof usePreviewStyles> }) {
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 overflow-hidden h-fit">
+      <div className="flex items-center gap-2 mb-3">
+        <Eye className="w-3.5 h-3.5 text-emerald-400/60" />
+        <h4 className="text-xs font-bold text-white/70 uppercase tracking-wider">Anteprima Live</h4>
+      </div>
+      <div
+        className="rounded-lg p-5 relative transition-all duration-300"
+        style={{
+          backgroundColor: styles.bgColor,
+          fontFamily: styles.fontFamily,
+          borderWidth: '1px',
+          borderStyle: 'solid',
+          borderColor: styles.borderColor,
+        }}
+      >
+        {/* Scanline overlay */}
+        {styles.scanlineEnabled && (
+          <div
+            className="absolute inset-0 pointer-events-none rounded-lg"
+            style={{
+              background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)',
+              zIndex: 10,
+            }}
+          />
+        )}
+
+        {/* Sample Heading */}
+        <h3
+          className="mb-3 transition-all duration-200"
+          style={{
+            color: styles.primary,
+            fontSize: `${20 * styles.fontScale}px`,
+            fontWeight: styles.hWeight,
+            textShadow: styles.glowEnabled
+              ? `0 0 ${styles.glowIntensity * 20}px ${styles.glowColor}`
+              : 'none',
+          }}
+        >
+          Hero Quest
+        </h3>
+
+        {/* Sample Card */}
+        <div
+          className="mb-3 p-3 transition-all duration-200"
+          style={{
+            backgroundColor: styles.cardBg,
+            borderRadius: `${styles.borderRadius}px`,
+            borderWidth: '1px',
+            borderStyle: 'solid',
+            borderColor: styles.borderColor,
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0"
+              style={{ backgroundColor: `${styles.secondary}33`, color: styles.secondary }}
+            >
+              ⚔️
+            </div>
+            <div className="flex-1 min-w-0">
+              <p
+                className="font-semibold truncate transition-all duration-200"
+                style={{
+                  color: '#fff',
+                  fontSize: `${13 * styles.fontScale}px`,
+                }}
+              >
+                Guerriero
+              </p>
+              <p className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                Spada del Destino · ATK +45
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-[11px] font-mono" style={{ color: styles.accent }}>Lv. 12</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sample Button Row */}
+        <div className="flex items-center gap-2">
+          <button
+            className="px-4 py-1.5 text-[11px] font-semibold transition-all duration-200"
+            style={{
+              backgroundColor: styles.btnBg,
+              borderColor: styles.btnBorder,
+              color: styles.btnText,
+              borderWidth: '1px',
+              borderStyle: 'solid',
+              borderRadius: styles.btnBorderRadius,
+            }}
+          >
+            Esplora
+          </button>
+          <button
+            className="px-4 py-1.5 text-[11px] font-semibold transition-all duration-200"
+            style={{
+              backgroundColor: `${styles.secondary}22`,
+              borderColor: styles.secondary,
+              color: styles.secondary,
+              borderWidth: '1px',
+              borderStyle: 'solid',
+              borderRadius: styles.btnBorderRadius,
+            }}
+          >
+            Inventario
+          </button>
+        </div>
+
+        {/* Sample Table */}
+        <div
+          className="mt-3 rounded overflow-hidden transition-all duration-200"
+          style={{ borderRadius: `${styles.borderRadius}px`, borderWidth: '1px', borderStyle: 'solid', borderColor: styles.borderColor }}
+        >
+          <div className="px-3 py-1" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+            <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>Oggetti</p>
+          </div>
+          {['Pozione Cura', 'Pergamena Fuoco', 'Scudo Magico'].map((name, i) => (
+            <div
+              key={name}
+              className="px-3 py-1.5 flex items-center justify-between text-[11px]"
+              style={{
+                backgroundColor: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+              }}
+            >
+              <span style={{ color: 'rgba(255,255,255,0.6)' }}>{name}</span>
+              <span className="font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>×{3 - i}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Preview styles hook (shared logic) ────────────────────────────
+function usePreviewStyles(get: (key: string) => string) {
+  return useMemo(() => {
+    const primary = get('theme.primaryColor');
+    const secondary = get('theme.secondaryColor');
+    const accent = get('theme.accentColor');
+    const bgColor = get('theme.backgroundColor');
+    const fontFamily = get('theme.fontFamily');
+    const headingWeight = get('theme.headingWeight');
+    const fontScale = parseFloat(get('theme.fontSizeScale')) || 1.0;
+    const cardStyle = get('theme.cardStyle');
+    const cardOpacity = parseFloat(get('theme.cardOpacity')) || 0.6;
+    const borderRadius = parseInt(get('theme.borderRadius')) || 12;
+    const borderColor = get('theme.borderColor');
+    const buttonStyle = get('theme.buttonStyle');
+    const buttonVariant = get('theme.buttonVariant');
+    const glowEnabled = get('theme.glowEnabled') === 'true';
+    const glowColor = get('theme.glowColor');
+    const glowIntensity = parseFloat(get('theme.glowIntensity')) || 0.3;
+    const scanlineEnabled = get('theme.scanlineEnabled') === 'true';
+
+    let cardBg = `rgba(255,255,255,${cardOpacity * 0.06})`;
+    if (cardStyle === 'solid') {
+      cardBg = `rgba(255,255,255,${cardOpacity * 0.12})`;
+    }
+
+    const br = buttonStyle === 'pill' ? '9999px' : buttonStyle === 'square' ? `${borderRadius / 2}px` : `${borderRadius}px`;
+    let btnBg = primary;
+    let btnBorder = 'transparent';
+    let btnText = '#fff';
+    if (buttonVariant === 'outlined') {
+      btnBg = 'transparent';
+      btnBorder = primary;
+      btnText = primary;
+    } else if (buttonVariant === 'ghost') {
+      btnBg = `${primary}22`;
+      btnBorder = 'transparent';
+      btnText = primary;
+    }
+
+    const weightMap: Record<string, number> = { bold: 700, extrabold: 800, black: 900 };
+    const hWeight = weightMap[headingWeight] || 700;
+
+    return {
+      bgColor, fontFamily, fontScale, hWeight, cardBg, cardOpacity, borderRadius,
+      borderColor, primary, secondary, accent, btnBg, btnBorder, btnText,
+      btnBorderRadius: br, glowEnabled, glowColor, glowIntensity, scanlineEnabled,
+    };
+  }, [get]);
+}
+
 // ── Component ──────────────────────────────────────────────────────
 export default function ThemeEditor() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -179,73 +369,7 @@ export default function ThemeEditor() {
     setTimeout(() => setStatusMsg(null), 3000);
   }, []);
 
-  // Compute live preview styles
-  const previewStyles = useMemo(() => {
-    const primary = get('theme.primaryColor');
-    const secondary = get('theme.secondaryColor');
-    const accent = get('theme.accentColor');
-    const bgColor = get('theme.backgroundColor');
-    const fontFamily = get('theme.fontFamily');
-    const headingWeight = get('theme.headingWeight');
-    const fontScale = parseFloat(get('theme.fontSizeScale')) || 1.0;
-    const cardStyle = get('theme.cardStyle');
-    const cardOpacity = parseFloat(get('theme.cardOpacity')) || 0.6;
-    const borderRadius = parseInt(get('theme.borderRadius')) || 12;
-    const borderColor = get('theme.borderColor');
-    const buttonStyle = get('theme.buttonStyle');
-    const buttonVariant = get('theme.buttonVariant');
-    const glowEnabled = get('theme.glowEnabled') === 'true';
-    const glowColor = get('theme.glowColor');
-    const glowIntensity = parseFloat(get('theme.glowIntensity')) || 0.3;
-    const scanlineEnabled = get('theme.scanlineEnabled') === 'true';
-
-    // Card background based on style
-    let cardBg = `rgba(255,255,255,${cardOpacity * 0.06})`;
-    if (cardStyle === 'solid') {
-      cardBg = `rgba(255,255,255,${cardOpacity * 0.12})`;
-    }
-
-    // Button styles
-    const br = buttonStyle === 'pill' ? '9999px' : buttonStyle === 'square' ? `${borderRadius / 2}px` : `${borderRadius}px`;
-    let btnBg = primary;
-    let btnBorder = 'transparent';
-    let btnText = '#fff';
-    if (buttonVariant === 'outlined') {
-      btnBg = 'transparent';
-      btnBorder = primary;
-      btnText = primary;
-    } else if (buttonVariant === 'ghost') {
-      btnBg = `${primary}22`;
-      btnBorder = 'transparent';
-      btnText = primary;
-    }
-
-    // Font weight map
-    const weightMap: Record<string, number> = { bold: 700, extrabold: 800, black: 900 };
-    const hWeight = weightMap[headingWeight] || 700;
-
-    return {
-      bgColor,
-      fontFamily,
-      fontScale,
-      hWeight,
-      cardBg,
-      cardOpacity,
-      borderRadius,
-      borderColor,
-      primary,
-      secondary,
-      accent,
-      btnBg,
-      btnBorder,
-      btnText,
-      btnBorderRadius: br,
-      glowEnabled,
-      glowColor,
-      glowIntensity,
-      scanlineEnabled,
-    };
-  }, [get]);
+  const previewStyles = usePreviewStyles(get);
 
   if (loading) {
     return (
@@ -256,7 +380,7 @@ export default function ThemeEditor() {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       {/* ── Header ── */}
       <div className="shrink-0 px-6 py-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between">
@@ -274,8 +398,8 @@ export default function ThemeEditor() {
               onClick={() => setShowPreview(prev => !prev)}
               className={`text-xs gap-1.5 border ${showPreview ? 'border-emerald-500/30 bg-emerald-600/10 text-emerald-300' : 'border-white/10 text-white/40 hover:text-white/60'}`}
             >
-              <Eye className="w-3.5 h-3.5" />
-              Anteprima
+              {showPreview ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              {showPreview ? 'Nascondi Anteprima' : 'Mostra Anteprima'}
             </Button>
             <Button
               variant="ghost"
@@ -292,7 +416,7 @@ export default function ThemeEditor() {
 
       {/* ── Status Message ── */}
       {statusMsg && (
-        <div className={`mx-4 mt-3 px-3 py-2 rounded-lg text-[13px] font-medium ${
+        <div className={`mx-4 mt-3 px-3 py-2 rounded-lg text-[13px] font-medium shrink-0 ${
           statusMsg.type === 'success'
             ? 'bg-green-500/10 text-green-300 border border-green-500/20'
             : 'bg-red-500/10 text-red-300 border border-red-500/20'
@@ -301,171 +425,43 @@ export default function ThemeEditor() {
         </div>
       )}
 
-      {/* ── Scrollable Content ── */}
-      <div className="flex-1 overflow-y-auto admin-scrollbar">
-        <div className="p-6 space-y-8">
-          {THEME_GROUPS.map(group => (
-            <div key={group.id} className="space-y-4">
-              {/* Group header */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm">{group.icon}</span>
-                <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">{group.label}</h4>
-              </div>
+      {/* ── Split Layout: Settings + Preview ── */}
+      <div className={`flex-1 min-h-0 overflow-hidden ${showPreview ? 'flex' : 'block'}`}>
+        {/* ── Left: Scrollable Settings ── */}
+        <div className={`overflow-y-auto admin-scrollbar ${showPreview ? 'flex-1 min-w-0' : ''}`}>
+          <div className="p-6 space-y-8">
+            {THEME_GROUPS.map(group => (
+              <div key={group.id} className="space-y-4">
+                {/* Group header */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{group.icon}</span>
+                  <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">{group.label}</h4>
+                </div>
 
-              {/* Settings grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {group.settings.map(def => (
-                  <SettingControl
-                    key={def.key}
-                    def={def}
-                    value={get(def.key)}
-                    onChange={handleChange}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {/* ── Live Preview ── */}
-          {showPreview && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Eye className="w-3.5 h-3.5 text-white/30" />
-                <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">Anteprima Live</h4>
-              </div>
-              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 overflow-hidden">
-                <div
-                  className="rounded-lg p-6 relative transition-all duration-300"
-                  style={{
-                    backgroundColor: previewStyles.bgColor,
-                    fontFamily: previewStyles.fontFamily,
-                    minHeight: '260px',
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    borderColor: previewStyles.borderColor,
-                  }}
-                >
-                  {/* Scanline overlay */}
-                  {previewStyles.scanlineEnabled && (
-                    <div
-                      className="absolute inset-0 pointer-events-none rounded-lg"
-                      style={{
-                        background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)',
-                        zIndex: 10,
-                      }}
+                {/* Settings grid — single column when preview is visible, two columns when hidden */}
+                <div className={`grid gap-4 ${showPreview ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+                  {group.settings.map(def => (
+                    <SettingControl
+                      key={def.key}
+                      def={def}
+                      value={get(def.key)}
+                      onChange={handleChange}
                     />
-                  )}
-
-                  {/* Sample Heading */}
-                  <h3
-                    className="mb-3 transition-all duration-200"
-                    style={{
-                      color: previewStyles.primary,
-                      fontSize: `${24 * previewStyles.fontScale}px`,
-                      fontWeight: previewStyles.hWeight,
-                      textShadow: previewStyles.glowEnabled
-                        ? `0 0 ${previewStyles.glowIntensity * 20}px ${previewStyles.glowColor}`
-                        : 'none',
-                    }}
-                  >
-                    Hero Quest
-                  </h3>
-
-                  {/* Sample Card */}
-                  <div
-                    className="mb-4 p-4 transition-all duration-200"
-                    style={{
-                      backgroundColor: previewStyles.cardBg,
-                      borderRadius: `${previewStyles.borderRadius}px`,
-                      borderWidth: '1px',
-                      borderStyle: 'solid',
-                      borderColor: previewStyles.borderColor,
-                      backdropFilter: 'blur(8px)',
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0"
-                        style={{ backgroundColor: `${previewStyles.secondary}33`, color: previewStyles.secondary }}
-                      >
-                        ⚔️
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className="font-semibold truncate transition-all duration-200"
-                          style={{
-                            color: '#fff',
-                            fontSize: `${14 * previewStyles.fontScale}px`,
-                          }}
-                        >
-                          Guerriero
-                        </p>
-                        <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                          Spada del Destino · ATK +45
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-xs font-mono" style={{ color: previewStyles.accent }}>Lv. 12</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Sample Button Row */}
-                  <div className="flex items-center gap-3">
-                    <button
-                      className="px-5 py-2 text-xs font-semibold transition-all duration-200"
-                      style={{
-                        backgroundColor: previewStyles.btnBg,
-                        borderColor: previewStyles.btnBorder,
-                        color: previewStyles.btnText,
-                        borderWidth: '1px',
-                        borderStyle: 'solid',
-                        borderRadius: previewStyles.btnBorderRadius,
-                      }}
-                    >
-                      Esplora
-                    </button>
-                    <button
-                      className="px-5 py-2 text-xs font-semibold transition-all duration-200"
-                      style={{
-                        backgroundColor: `${previewStyles.secondary}22`,
-                        borderColor: previewStyles.secondary,
-                        color: previewStyles.secondary,
-                        borderWidth: '1px',
-                        borderStyle: 'solid',
-                        borderRadius: previewStyles.btnBorderRadius,
-                      }}
-                    >
-                      Inventario
-                    </button>
-                  </div>
-
-                  {/* Sample Table */}
-                  <div
-                    className="mt-4 rounded overflow-hidden transition-all duration-200"
-                    style={{ borderRadius: `${previewStyles.borderRadius}px`, borderWidth: '1px', borderStyle: 'solid', borderColor: previewStyles.borderColor }}
-                  >
-                    <div className="px-3 py-1.5" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>Oggetti</p>
-                    </div>
-                    {['Pozione Cura', 'Pergamena Fuoco', 'Scudo Magico'].map((name, i) => (
-                      <div
-                        key={name}
-                        className="px-3 py-2 flex items-center justify-between text-xs"
-                        style={{
-                          backgroundColor: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                        }}
-                      >
-                        <span style={{ color: 'rgba(255,255,255,0.6)' }}>{name}</span>
-                        <span className="font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>×{3 - i}</span>
-                      </div>
-                    ))}
-                  </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
+
+        {/* ── Right: Sticky Preview Panel ── */}
+        {showPreview && (
+          <div className="w-[380px] shrink-0 border-l border-white/[0.06] bg-white/[0.01] overflow-y-auto admin-scrollbar">
+            <div className="p-5">
+              <PreviewPanel styles={previewStyles} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Sticky Footer ── */}

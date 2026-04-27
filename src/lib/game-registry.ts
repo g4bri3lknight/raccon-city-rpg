@@ -9,7 +9,7 @@
  * any DB file without a registry entry gets one with the file ID as name.
  */
 
-import { getEditorDb } from './editor-db';
+import { getEditorDb, resetEditorDb } from './editor-db';
 import { listGameDbFiles } from './game-db';
 
 export interface GameRegistryEntry {
@@ -148,27 +148,35 @@ export async function setGameEntry(
 /**
  * Remove a game entry from the editor DB.
  *
- * Tries `delete` first. If it fails (e.g. FK constraint from SaveGame),
- * falls back to `deleteMany` which bypasses relational checks in SQLite.
- * Logs errors for debugging.
+ * Tries `delete` first. On failure, resets the Prisma connection and retries.
+ * If still failing, falls back to `deleteMany` which bypasses FK checks in SQLite.
  */
 export async function removeGameEntry(gameId: string): Promise<boolean> {
-  const db = getEditorDb();
+  let db = getEditorDb();
   try {
     await db.game.delete({ where: { id: gameId } });
     return true;
   } catch (primaryErr) {
-    console.error(`[removeGameEntry] delete failed for "${gameId}", trying deleteMany fallback:`, primaryErr);
+    console.error(`[removeGameEntry] delete failed for "${gameId}":`, primaryErr);
+
+    // Stale connection — reset and retry with a fresh client
+    resetEditorDb();
+    db = getEditorDb();
     try {
-      const result = await db.game.deleteMany({ where: { id: gameId } });
-      if (result.count > 0) {
-        return true;
+      await db.game.delete({ where: { id: gameId } });
+      console.log(`[removeGameEntry] retry succeeded for "${gameId}"`);
+      return true;
+    } catch (retryErr) {
+      console.error(`[removeGameEntry] retry failed for "${gameId}", trying deleteMany:`, retryErr);
+      try {
+        const result = await db.game.deleteMany({ where: { id: gameId } });
+        if (result.count > 0) return true;
+        console.error(`[removeGameEntry] deleteMany found 0 rows for "${gameId}"`);
+        return false;
+      } catch (fallbackErr) {
+        console.error(`[removeGameEntry] deleteMany also failed for "${gameId}":`, fallbackErr);
+        return false;
       }
-      console.error(`[removeGameEntry] deleteMany found 0 rows for "${gameId}"`);
-      return false;
-    } catch (fallbackErr) {
-      console.error(`[removeGameEntry] deleteMany also failed for "${gameId}":`, fallbackErr);
-      return false;
     }
   }
 }

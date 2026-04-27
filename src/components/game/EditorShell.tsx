@@ -343,7 +343,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
       </div>
 
       {/* ── Body: Sidebar + Content ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ── Vertical Sidebar with Groups ── */}
         <div className="w-[200px] shrink-0 border-r border-white/[0.06] bg-white/[0.01] flex flex-col py-2 overflow-y-auto admin-scrollbar">
           {EDITOR_TAB_GROUPS.map(group => {
@@ -403,7 +403,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
         </div>
 
         {/* ── Content Area ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {tabConfig.custom ? (
             activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'theme' ? <ThemeEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
           ) : (
