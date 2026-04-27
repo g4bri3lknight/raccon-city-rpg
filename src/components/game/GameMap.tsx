@@ -333,7 +333,7 @@ export default function GameMap() {
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-red-400" />
                 <h3 className="text-sm sm:text-lg font-bold text-white">
-                  Mappa di Raccoon City
+                  Mappa del Mondo
                 </h3>
               </div>
               <Button

@@ -2,8 +2,6 @@ import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { safeErrorResponse } from '@/lib/api-utils';
 
-const ADMIN_KEY = process.env.ADMIN_KEY || 'raccoon_admin_2024';
-
 // Seed data — extracted from the existing seed-data/quest-chains.ts
 const CHAINS = [
   {
@@ -61,11 +59,6 @@ const FINAL_REWARDS = [
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get('x-admin-key');
-    if (authHeader !== ADMIN_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     let created = 0;
     let skipped = 0;
 

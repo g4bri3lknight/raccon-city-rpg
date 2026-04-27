@@ -5,7 +5,7 @@ import type { GameDocument, DocumentType } from '@/game/types';
 
 // ==========================================
 // AI-Generated Procedural Documents / Lore
-// Raccoon City RPG — Survival Horror
+// RPG Game Engine — Procedural Content Generator
 // ==========================================
 
 // --- Icon mapping ---
@@ -98,7 +98,8 @@ function buildSystemPrompt(req: GenerateDocumentRequest): string {
     ? req.storyChoices.join(', ')
     : 'nessuna scelta ancora';
 
-  return `Sei il narratore e lore-master di "Raccoon City RPG", un gioco di ruolo survival horror ambientato durante l'epidemia di Raccoon City nel settembre 1998. Il tuo compito è generare documenti di gioco immersivi e atmosferici che il giocatore può trovare esplorando.
+  const gameTitle = 'RPG Game';
+  return `Sei il narratore e lore-master di "${gameTitle}", un gioco di ruolo. Il tuo compito è generare documenti di gioco immersivi e atmosferici che il giocatore può trovare esplorando.
 
 CONTESTO ATTUALE:
 - Luogo: ${req.locationName} — ${req.locationDescription}

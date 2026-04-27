@@ -39,7 +39,7 @@ export interface SettingDef {
 export const START_SCREEN_FIELDS: SettingDef[] = [
   // Texts
   { key: 'titleScreen.umbrellaText',  label: 'Testo Umbrella Corp',     type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Umbrella Corporation Presenta' },
-  { key: 'titleScreen.title',         label: 'Titolo Principale',        type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'RACCOON CITY' },
+  { key: 'titleScreen.title',         label: 'Titolo Principale',        type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Il mio GDR' },
   { key: 'titleScreen.subtitle',      label: 'Sottotitolo',              type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Escape from Horror' },
   { key: 'titleScreen.description',   label: 'Descrizione',              type: 'textarea', group: 'texts',  groupLabel: '📝 Testi',         placeholder: 'Testo descrittivo...', rows: 3 },
   { key: 'titleScreen.warningText',   label: 'Testo Avvertenza',         type: 'text',     group: 'texts',  groupLabel: '📝 Testi',         placeholder: '⚠ CONTENUTO HORROR...' },
@@ -80,7 +80,7 @@ export interface DiffConfig {
 
 export const DIFFICULTY_DEFAULTS: Record<DiffLevel, DiffConfig> = {
   sopravvissuto: { label: 'Sopravvissuto', color: '#22c55e', icon: '🏃', statMult: 0.6, lootMult: 1.5, minEnemies: 1, maxEnemies: 2, expMult: 1.4, enemyCritChance: 5, description: 'Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia.' },
-  normale: { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 0.85, lootMult: 1.1, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 10, description: 'Bilanciato. La vera esperienza di Raccoon City.' },
+  normale: { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 0.85, lootMult: 1.1, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 10, description: "Bilanciato. L'esperienza RPG completa." },
   incubo: { label: 'Incubo', color: '#ef4444', icon: '💀', statMult: 1.4, lootMult: 0.6, minEnemies: 2, maxEnemies: 4, expMult: 0.8, enemyCritChance: 20, description: 'Nemici potenti, poco bottino. Solo per i più coraggiosi.' },
 };
 

@@ -1,4 +1,4 @@
-// Raccoon City RPG — Audio Engine (DB-only)
+// RPG Game Engine — Audio Engine (DB-only)
 // Plays audio files loaded exclusively from the database.
 // If no audio is found in the DB, no sound is played (no fallback, no synthesized audio).
 //

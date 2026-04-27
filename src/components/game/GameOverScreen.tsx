@@ -7,46 +7,38 @@ import { Button } from '@/components/ui/button';
 import { Skull, Upload, MapPin, Clock, Users, ChevronLeft } from 'lucide-react';
 import { getArchetypeEmoji, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 
-function readSlotMeta(slot: number): SaveSlotInfo | null {
-  try {
-    if (typeof window === 'undefined') return null;
-    const raw = localStorage.getItem(`raccoon_city_save_meta_${slot}`);
-    if (!raw) return null;
-    return JSON.parse(raw) as SaveSlotInfo;
-  } catch {
-    return null;
-  }
-}
-
 export default function GameOverScreen() {
   const party = useGameStore(s => s.party);
   const turnCount = useGameStore(s => s.turnCount);
   const restartGame = useGameStore(s => s.restartGame);
   const loadGame = useGameStore(s => s.loadGame);
+  const getSaveInfo = useGameStore(s => s.getSaveInfo);
+  const refreshSaveSlots = useGameStore(s => s.refreshSaveSlots);
 
   const [showLoadMenu, setShowLoadMenu] = useState(false);
-  const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>(() => [
-    readSlotMeta(1), readSlotMeta(2), readSlotMeta(3),
-  ]);
+  const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>([null, null, null]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [loadingSlot, setLoadingSlot] = useState<number | null>(null);
 
   const refreshSlots = useCallback(() => {
-    setSlots([readSlotMeta(1), readSlotMeta(2), readSlotMeta(3)]);
-  }, []);
+    setSlots([getSaveInfo(1), getSaveInfo(2), getSaveInfo(3)]);
+  }, [getSaveInfo]);
 
-  const openLoadMenu = () => {
-    refreshSlots();
+  const openLoadMenu = async () => {
+    setLoadingSlots(true);
+    await refreshSaveSlots();
+    setSlots([getSaveInfo(1), getSaveInfo(2), getSaveInfo(3)]);
+    setLoadingSlots(false);
     setShowLoadMenu(true);
   };
 
-  const handleLoad = (slot: number) => {
+  const handleLoad = async (slot: number) => {
     setLoadingSlot(slot);
-    const success = loadGame(slot);
+    const success = await loadGame(slot);
     if (!success) {
       setLoadingSlot(null);
       refreshSlots();
     }
-    // If successful, the phase changes and this component unmounts
   };
 
   return (

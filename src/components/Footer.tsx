@@ -7,7 +7,7 @@ export default function Footer() {
     <footer className="w-full shrink-0">
       <div className="flex items-center justify-center gap-2 py-1.5 px-4 bg-black/80 border-t border-white/5">
         <span className="text-[10px] sm:text-xs font-mono text-zinc-500 tracking-wider select-none">
-          RACCOON CITY: ESCAPE FROM HORROR
+          RPG GAME ENGINE
         </span>
         {GAME_CONFIG.version && (
           <>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, Loader2, Volume2 } from 'lucide-react';
+import { Save, Loader2, Volume2, Database, Link2, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DifficultyConfigEditor } from './DifficultyConfigEditor';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -18,6 +18,8 @@ export function GameSettingsEditor() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
+  const [migrationLoading, setMigrationLoading] = useState<string | null>(null);
+  const [migrationResult, setMigrationResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   // BGM upload definitions for combat ambient
   const bgmUploads: MediaUploadDef[] = [
@@ -269,6 +271,171 @@ export function GameSettingsEditor() {
             settings={settings}
             onChange={handleChange}
           />
+        </div>
+
+        {/* ── Database Maintenance Section ── */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Database className="w-3.5 h-3.5 text-white/30" />
+            <h4 className="text-xs font-bold text-white/80 uppercase tracking-wider">Manutenzione Database</h4>
+            <span className="text-[11px] text-white/15">— strumenti per aggiornare lo schema e i dati</span>
+          </div>
+
+          {migrationResult && (
+            <div className={`rounded-lg px-4 py-3 text-[13px] font-medium ${
+              migrationResult.ok
+                ? 'bg-green-500/10 text-green-300 border border-green-500/20'
+                : 'bg-red-500/10 text-red-300 border border-red-500/20'
+            }`}>
+              {migrationResult.text}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Migrate Schema (active game) */}
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+              <div>
+                <label className="text-[13px] font-semibold text-white/60 block">Aggiorna Schema (gioco attivo)</label>
+                <p className="text-[12px] text-white/30 mt-1">Applica le modifiche allo schema Prisma solo al gioco attualmente selezionato.</p>
+              </div>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (!confirm('Vuoi aggiornare lo schema del database del gioco attivo?')) return;
+                  setMigrationLoading('schema');
+                  setMigrationResult(null);
+                  try {
+                    const res = await adminFetch('/api/admin/migrate-schema', { method: 'POST' });
+                    const data = await res.json();
+                    setMigrationResult({
+                      ok: data.success,
+                      text: data.success
+                        ? `✅ ${data.message}\n${data.output || ''}`
+                        : `❌ ${data.error}\n${data.details || ''}`,
+                    });
+                  } catch (err) {
+                    setMigrationResult({ ok: false, text: `❌ Errore: ${err}` });
+                  } finally {
+                    setMigrationLoading(null);
+                  }
+                }}
+                disabled={migrationLoading !== null}
+                className="text-xs gap-2 bg-amber-600/15 border border-amber-500/25 text-amber-300 hover:bg-amber-600/25 hover:text-amber-200 w-full"
+              >
+                {migrationLoading === 'schema' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                {migrationLoading === 'schema' ? 'Aggiornando...' : 'Aggiorna Schema'}
+              </Button>
+            </div>
+
+            {/* Migrate All Schema */}
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+              <div>
+                <label className="text-[13px] font-semibold text-white/60 block">Aggiorna Schema (tutti i giochi)</label>
+                <p className="text-[12px] text-white/30 mt-1">Propaga lo schema Prisma a tutti i database dei giochi esistenti. Utile dopo aver aggiunto tabelle o colonne.</p>
+              </div>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (!confirm('Vuoi aggiornare lo schema di TUTTI i giochi?\n\nQuesto eseguirà prisma db push su ogni database.')) return;
+                  setMigrationLoading('all-schema');
+                  setMigrationResult(null);
+                  try {
+                    const res = await adminFetch('/api/admin/migrate-all-schema', { method: 'POST' });
+                    const data = await res.json();
+                    const migratedList = (data.migrated || []).map((m: { gameId: string; output: string }) =>
+                      `  ✓ ${m.gameId}: ${m.output}`
+                    ).join('\n');
+                    const failedList = (data.failed || []).map((m: { gameId: string; error?: string }) =>
+                      `  ✗ ${m.gameId}: ${m.error || 'errore'}`
+                    ).join('\n');
+                    setMigrationResult({
+                      ok: data.success,
+                      text: `${data.message}\n${migratedList ? '\n' + migratedList : ''}${failedList ? '\n\nErrori:\n' + failedList : ''}`,
+                    });
+                  } catch (err) {
+                    setMigrationResult({ ok: false, text: `❌ Errore: ${err}` });
+                  } finally {
+                    setMigrationLoading(null);
+                  }
+                }}
+                disabled={migrationLoading !== null}
+                className="text-xs gap-2 bg-red-600/15 border border-red-500/25 text-red-300 hover:bg-red-600/25 hover:text-red-200 w-full"
+              >
+                {migrationLoading === 'all-schema' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5" />}
+                {migrationLoading === 'all-schema' ? 'Aggiornando tutti...' : 'Aggiorna Tutti'}
+              </Button>
+            </div>
+
+            {/* Link Archetypes */}
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+              <div>
+                <label className="text-[13px] font-semibold text-white/60 block">Collega Personaggi → Archetipi</label>
+                <p className="text-[12px] text-white/30 mt-1">Collega personaggi agli archetipi (match per ID/nome). Usa Anteprima prima.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    setMigrationLoading('link-preview');
+                    setMigrationResult(null);
+                    try {
+                      const res = await adminFetch('/api/admin/link-archetypes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ dryRun: true }),
+                      });
+                      const data = await res.json();
+                      const ops = (data.operations || []).map((op: { characterName: string; archetypeName: string; method: string }) =>
+                        `  ${op.characterName} → ${op.archetypeName} (${op.method})`
+                      ).join('\n');
+                      setMigrationResult({
+                        ok: true,
+                        text: data.message + (ops ? '\n\n' + ops : ''),
+                      });
+                    } catch (err) {
+                      setMigrationResult({ ok: false, text: `❌ Errore: ${err}` });
+                    } finally {
+                      setMigrationLoading(null);
+                    }
+                  }}
+                  disabled={migrationLoading !== null}
+                  className="text-xs gap-1.5 border-white/10 text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
+                >
+                  {migrationLoading === 'link-preview' ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  Anteprima
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    if (!confirm('Vuoi collegare i personaggi agli archetipi?')) return;
+                    setMigrationLoading('link-apply');
+                    setMigrationResult(null);
+                    try {
+                      const res = await adminFetch('/api/admin/link-archetypes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                      });
+                      const data = await res.json();
+                      setMigrationResult({
+                        ok: data.success,
+                        text: data.message,
+                      });
+                    } catch (err) {
+                      setMigrationResult({ ok: false, text: `❌ Errore: ${err}` });
+                    } finally {
+                      setMigrationLoading(null);
+                    }
+                  }}
+                  disabled={migrationLoading !== null}
+                  className="text-xs gap-2 bg-amber-600/15 border border-amber-500/25 text-amber-300 hover:bg-amber-600/25 hover:text-amber-200 flex-1"
+                >
+                  {migrationLoading === 'link-apply' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                  {migrationLoading === 'link-apply' ? 'Collegando...' : 'Collega'}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Combat BGM Upload Section */}

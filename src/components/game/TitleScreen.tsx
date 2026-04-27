@@ -11,7 +11,7 @@ import SaveLoadPanel from './SaveLoadPanel';
 // Default values (used until settings load)
 const DEFAULTS: Record<string, string> = {
   'titleScreen.umbrellaText':    'Umbrella Corporation Presenta',
-  'titleScreen.title':           'RACCOON CITY',
+  'titleScreen.title':           'RPG GAME',
   'titleScreen.subtitle':        'Escape from Horror',
   'titleScreen.description':     'Il virus T ha trasformato la città in un incubo. Siete gli ultimi sopravvissuti. Trovate una via d\'uscita... prima che sia troppo tardi.',
   'titleScreen.newGameBtn':      'Nuova partita',

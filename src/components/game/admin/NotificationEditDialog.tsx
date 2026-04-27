@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CloudUpload, Eye, Save } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { CloudUpload, Eye } from 'lucide-react';
 import { MEDIA_UPLOADS } from './shared';
 import { MediaUploadBox } from './MediaUploadBox';
 import { NotificationPreviewCard } from './NotificationPreviewCard';
@@ -32,7 +31,7 @@ export function NotificationEditDialog({
   const mediaUploads = MEDIA_UPLOADS.notifications;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form id="notif-form" onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         {/* Row 1: ID (read-only) + Type */}
         <div>
@@ -279,24 +278,6 @@ export function NotificationEditDialog({
         </div>
       </div>
 
-      {/* ═══ Save / Cancel ═══ */}
-      <div className="flex gap-3 pt-3">
-        <Button
-          type="submit"
-          className="flex-1 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
-        >
-          <Save className="w-3.5 h-3.5" />
-          {isEdit ? 'Salva Modifiche' : 'Crea Notifica'}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onCancel}
-          className="flex-1 text-white/50 hover:text-white/70 hover:bg-white/[0.06]"
-        >
-          Annulla
-        </Button>
-      </div>
     </form>
   );
 }

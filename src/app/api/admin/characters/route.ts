@@ -20,7 +20,8 @@ export async function GET() {
 
     const characters = rows.map(row => ({
       id: row.id,
-      archetype: row.archetype,
+      archetypeId: row.archetypeId,
+      archetype: row.archetypeFallback,
       name: row.name,
       displayName: row.displayName,
       description: row.description,
@@ -61,7 +62,8 @@ export async function POST(request: NextRequest) {
     const character = await db.gameCharacter.create({
       data: {
         id: body.id,
-        archetype: body.archetype ?? 'custom',
+        archetypeId: body.archetypeId || null,
+        archetypeFallback: body.archetype ?? 'custom',
         name: body.name,
         displayName: body.displayName,
         description: body.description ?? '',
@@ -94,10 +96,15 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, ...data } = body;
+    const { id, archetype, ...data } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    }
+
+    // Map frontend 'archetype' (string) back to DB 'archetypeFallback'
+    if (archetype !== undefined) {
+      data.archetypeFallback = archetype;
     }
 
     // Coerce number fields from string to number

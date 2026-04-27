@@ -164,9 +164,49 @@ model GameNPC {
   @@map("game_npcs")
 }
 
+model GameArchetype {
+  id              String   @id @default(cuid())
+  name            String   @unique                        // e.g. "Guerriero", "Mago", "Tank"
+  displayName     String   @default("")                    // e.g. "Guerriero Vichingo"
+  description     String   @default("")
+
+  // Stat Template
+  maxHp           Int      @default(100)
+  atk             Int      @default(15)
+  def             Int      @default(10)
+  spd             Int      @default(10)
+
+  // Stat Growth Rates (multiplier per level)
+  hpGrowth        Float    @default(1.0)
+  atkGrowth       Float    @default(1.0)
+  defGrowth       Float    @default(1.0)
+  spdGrowth       Float    @default(1.0)
+
+  // Abilities
+  specialId       String   @default("")
+  special2Id      String   @default("")
+  passiveName     String   @default("")
+  passiveDescription String @default("")
+
+  // Initial Equipment
+  startingItems   String   @default("[]")                 // JSON array of item IDs
+
+  // Display
+  portraitEmoji   String   @default("⚔️")
+  sortOrder       Int      @default(0)
+
+  // Relationships
+  characters      GameCharacter[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 model GameCharacter {
   id                    String   @id
-  archetype             String   @default("custom")  // tank | healer | dps | control | custom
+  archetypeId           String?
+  archetype             GameArchetype? @relation(fields: [archetypeId], references: [id])
+  archetypeFallback     String   @default("custom")  // tank | healer | dps | control | custom (legacy fallback)
   name                  String                      // role name (e.g. "Tank")
   displayName           String                      // character name (e.g. "Viktor Stahl")
   description           String   @default("")
@@ -394,6 +434,30 @@ model QuestChainFinalReward {
   dialogue    String   @default("[]")     // JSON: ["line1","line2"]
   chain       QuestChain @relation(fields: [chainId], references: [id], onDelete: Cascade)
   @@map("quest_chain_final_rewards")
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  coverImage  String   @default("")
+  status      String   @default("active")  // active | archived | draft
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  saves       SaveGame[]
+  @@map("games")
+}
+
+model SaveGame {
+  id        String   @id @default(cuid())
+  slot      Int      @unique  // 1-3 for manual saves, -1 for autosave
+  data      String   // Full save state JSON
+  meta      String   @default("{}") // SaveSlotInfo JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  gameId    String
+  @@map("save_games")
 }
 
 

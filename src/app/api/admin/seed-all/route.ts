@@ -294,41 +294,38 @@ export async function POST() {
       seedSecretRooms(),
     ]);
 
-    const adminKey = process.env.ADMIN_KEY || 'raccoon_admin_2024';
-    const adminHeaders = { headers: { 'x-admin-key': adminKey } };
-
     // Seed enemy-abilities after enemies (it also updates enemy ability references)
-    const abilitiesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-enemy-abilities`, { method: 'POST', ...adminHeaders });
+    const abilitiesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-enemy-abilities`, { method: 'POST' });
     const abilitiesData = await abilitiesRes.json();
     results.push({ entity: 'enemy-abilities', total: abilitiesData.abilitiesCount ?? 0, created: abilitiesData.result?.created ?? 0, updated: abilitiesData.result?.updated ?? 0 });
 
     // Seed recipes
-    const recipesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-recipes`, { method: 'POST', ...adminHeaders });
+    const recipesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-recipes`, { method: 'POST' });
     const recipesData = await recipesRes.json();
     results.push({ entity: 'recipes', total: SEED_RECIPES.length, created: 0, updated: 0 });
 
     // Seed boss phases (after enemy-abilities since they reference ability IDs)
-    const bossPhasesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-boss-phases`, { method: 'POST', ...adminHeaders });
+    const bossPhasesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-boss-phases`, { method: 'POST' });
     const bossPhasesData = await bossPhasesRes.json();
     results.push({ entity: 'boss-phases', total: bossPhasesData.result?.total ?? 0, created: bossPhasesData.result?.created ?? 0, updated: bossPhasesData.result?.updated ?? 0 });
 
     // Seed achievements
-    const achievementsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-achievements`, { method: 'POST', ...adminHeaders });
+    const achievementsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-achievements`, { method: 'POST' });
     const achievementsData = await achievementsRes.json();
     results.push({ entity: 'achievements', total: achievementsData.result?.total ?? 0, created: achievementsData.result?.created ?? 0, updated: achievementsData.result?.updated ?? 0 });
 
     // Seed endings
-    const endingsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-endings`, { method: 'POST', ...adminHeaders });
+    const endingsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-endings`, { method: 'POST' });
     const endingsData = await endingsRes.json();
     results.push({ entity: 'endings', total: endingsData.result?.total ?? 0, created: endingsData.result?.created ?? 0, updated: endingsData.result?.updated ?? 0 });
 
     // Seed avatars
-    const avatarsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-avatars`, { method: 'POST', ...adminHeaders });
+    const avatarsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-avatars`, { method: 'POST' });
     const avatarsData = await avatarsRes.json();
     results.push({ entity: 'avatars', total: avatarsData.result?.total ?? 9, created: 0, updated: 0 });
 
     // Seed quest chains
-    const questChainsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-quest-chains`, { method: 'POST', ...adminHeaders });
+    const questChainsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/admin/seed-quest-chains`, { method: 'POST' });
     const questChainsData = await questChainsRes.json();
     results.push({ entity: 'quest-chains', total: questChainsData.total ?? 0, created: questChainsData.created ?? 0, updated: 0 });
 

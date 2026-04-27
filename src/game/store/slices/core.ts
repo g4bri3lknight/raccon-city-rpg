@@ -99,7 +99,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const state = get();
     const party = selectedArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
-    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...'));
+    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate della città...'));
     // NG+ bonus: give bonus items if cycle >= configured threshold
     if ((state.ngPlusCycle || 0) >= Number(NGPLUS_CONFIG.bonusItemCycle)) {
       const postState = get();
@@ -116,7 +116,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const customParty = customCharacters.map(config => createCustomCharacter(config));
     const party = [...presetParty, ...customParty];
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
-    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate di Raccoon City...'));
+    set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate della città...'));
     // NG+ bonus: give bonus items if cycle >= configured threshold
     if ((state.ngPlusCycle || 0) >= Number(NGPLUS_CONFIG.bonusItemCycle)) {
       const postState = get();

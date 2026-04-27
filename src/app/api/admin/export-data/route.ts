@@ -112,7 +112,7 @@ export async function POST() {
     // Create ZIP file in temp directory (NOT public/)
     const tempDir = path.join(process.cwd(), 'tmp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-    const zipPath = path.join(tempDir, 'raccoon-city-rpg-data.zip');
+    const zipPath = path.join(tempDir, 'rpg-game-data.zip');
 
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(zipPath);
@@ -140,7 +140,7 @@ export async function POST() {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': 'attachment; filename="raccoon-city-rpg-data.zip"',
+        'Content-Disposition': 'attachment; filename="rpg-game-data.zip"',
         'Content-Length': String(zipBuffer.length),
       },
     });

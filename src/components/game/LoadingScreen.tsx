@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { GAME_CONFIG } from '@/game/data/loader';
 
-const DEFAULT_TITLE = 'RACCOON CITY';
+const DEFAULT_TITLE = 'RPG GAME';
 
 /** Animated loading screen shown while initGameData() resolves. */
 export default function LoadingScreen({ fadeOut = false }: { fadeOut?: boolean }) {

@@ -6,7 +6,7 @@ import { safeErrorResponse } from '@/lib/api-utils';
 const DEFAULTS: Record<string, { value: string; label: string; group: string; sortOrder: number }> = {
   // ── Title Screen ──
   'titleScreen.umbrellaText':    { value: 'Umbrella Corporation Presenta', label: 'Testo Umbrella Corp',           group: 'titleScreen.texts',  sortOrder: 0 },
-  'titleScreen.title':           { value: 'RACCOON CITY',                  label: 'Titolo Principale',              group: 'titleScreen.texts',  sortOrder: 1 },
+  'titleScreen.title':           { value: 'RPG GAME',                     label: 'Titolo Principale',              group: 'titleScreen.texts',  sortOrder: 1 },
   'titleScreen.subtitle':        { value: 'Escape from Horror',            label: 'Sottotitolo',                    group: 'titleScreen.texts',  sortOrder: 2 },
   'titleScreen.description':     { value: 'Il virus T ha trasformato la città in un incubo. Siete gli ultimi sopravvissuti. Trovate una via d\'uscita... prima che sia troppo tardi.', label: 'Descrizione', group: 'titleScreen.texts',  sortOrder: 3 },
   'titleScreen.newGameBtn':      { value: 'Nuova partita',                 label: 'Tasto Nuova Partita',            group: 'titleScreen.buttons', sortOrder: 10 },
@@ -37,7 +37,7 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
 
   // ── Difficulty ──
   'difficulty.sopravvissuto': { value: '{"label":"Sopravvissuto","color":"#22c55e","icon":"🏃","statMult":0.6,"lootMult":1.5,"minEnemies":1,"maxEnemies":2,"expMult":1.4,"enemyCritChance":5,"description":"Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia."}', label: 'Difficoltà: Sopravvissuto', group: 'difficulty', sortOrder: 200 },
-  'difficulty.normale':       { value: '{"label":"Normale","color":"#eab308","icon":"⚔️","statMult":0.85,"lootMult":1.1,"minEnemies":1,"maxEnemies":3,"expMult":1.0,"enemyCritChance":10,"description":"Bilanciato. La vera esperienza di Raccoon City."}', label: 'Difficoltà: Normale', group: 'difficulty', sortOrder: 201 },
+  'difficulty.normale':       { value: '{"label":"Normale","color":"#eab308","icon":"⚔️","statMult":0.85,"lootMult":1.1,"minEnemies":1,"maxEnemies":3,"expMult":1.0,"enemyCritChance":10,"description":"Bilanciato. L\'esperienza RPG completa."}', label: 'Difficoltà: Normale', group: 'difficulty', sortOrder: 201 },
   'difficulty.incubo':        { value: '{"label":"Incubo","color":"#ef4444","icon":"💀","statMult":1.4,"lootMult":0.6,"minEnemies":2,"maxEnemies":4,"expMult":0.8,"enemyCritChance":20,"description":"Nemici potenti, poco bottino. Solo per i più coraggiosi."}', label: 'Difficoltà: Incubo', group: 'difficulty', sortOrder: 202 },
 
   // ── Game Info ──

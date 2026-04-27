@@ -602,6 +602,46 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       },
     },
   ],
+  archetypes: [
+    { key: 'portraitEmoji', label: '', width: 'w-12', render: (row) => <span className="text-sm">{String(row.portraitEmoji ?? '⚔️')}</span> },
+    { key: 'name', label: 'Nome', width: 'w-40' },
+    { key: 'displayName', label: 'Display', width: 'w-40', render: (row) => {
+      const d = String(row.displayName ?? '');
+      return d ? <span className="text-[13px] text-white/50">{d}</span> : <span className="text-white/15 text-[12px]">—</span>;
+    }},
+    {
+      key: 'maxHp', label: 'HP', width: 'w-16',
+      render: (row) => <span className="text-[12px] text-green-400/70 font-mono">{row.maxHp}</span>,
+    },
+    {
+      key: 'atk', label: 'ATK', width: 'w-16',
+      render: (row) => <span className="text-[12px] text-red-400/70 font-mono">{row.atk}</span>,
+    },
+    {
+      key: 'def', label: 'DEF', width: 'w-16',
+      render: (row) => <span className="text-[12px] text-emerald-400/70 font-mono">{row.def}</span>,
+    },
+    {
+      key: 'spd', label: 'SPD', width: 'w-16',
+      render: (row) => <span className="text-[12px] text-emerald-400/70 font-mono">{row.spd}</span>,
+    },
+    {
+      key: 'growth', label: 'Growth', width: 'w-32',
+      render: (row) => {
+        const parts: string[] = [];
+        const hp = Number(row.hpGrowth);
+        const atk = Number(row.atkGrowth);
+        const def = Number(row.defGrowth);
+        const spd = Number(row.spdGrowth);
+        if (hp !== 1.0) parts.push(`HP×${hp}`);
+        if (atk !== 1.0) parts.push(`ATK×${atk}`);
+        if (def !== 1.0) parts.push(`DEF×${def}`);
+        if (spd !== 1.0) parts.push(`SPD×${spd}`);
+        if (parts.length === 0) return <span className="text-white/15 text-[12px]">—</span>;
+        return <span className="text-[12px] text-white/40 font-mono">{parts.join(' ')}</span>;
+      },
+    },
+  ],
   characters: [
     { key: 'id', label: 'ID', width: 'w-28' },
     { key: 'displayName', label: 'Nome', width: 'w-36' },

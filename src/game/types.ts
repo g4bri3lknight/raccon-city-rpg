@@ -1,5 +1,5 @@
 // ==========================================
-// RACCOON CITY ESCAPE - Game Types
+// RPG Game Engine - Game Types
 // ==========================================
 
 export type GamePhase = 'title' | 'character-select' | 'character-creator' | 'exploration' | 'combat' | 'event' | 'inventory' | 'game-over' | 'victory' | 'puzzle' | 'qte';

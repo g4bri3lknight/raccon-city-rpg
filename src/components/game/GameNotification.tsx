@@ -129,15 +129,18 @@ export default function GameNotification() {
   // Dequeue the next notification from the local queue into the store,
   // or clear the store notification if the queue is empty.
   const dequeueNext = useCallback(() => {
-    setQueuedNotifications(prev => {
-      if (prev.length === 0) {
-        useGameStore.setState({ notification: null });
-        return prev;
-      }
-      const [next, ...rest] = prev;
-      useGameStore.setState({ notification: next });
-      return rest;
-    });
+    // Use setTimeout(0) to avoid setState-during-render
+    setTimeout(() => {
+      setQueuedNotifications(prev => {
+        if (prev.length === 0) {
+          useGameStore.setState({ notification: null });
+          return prev;
+        }
+        const [next, ...rest] = prev;
+        useGameStore.setState({ notification: next });
+        return rest;
+      });
+    }, 0);
   }, []);
 
   // Notifications have their own audio field uploaded per-entity (notif_sfx_{entityId})

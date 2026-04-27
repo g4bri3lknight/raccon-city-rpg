@@ -55,7 +55,8 @@ function buildSystemPrompt(req: GenerateEventRequest): string {
     ? `- NON usare questi ID (già generati): ${req.existingEventIds.join(', ')}`
     : '';
 
-  return `Sei un generatore di eventi dinamici per il gioco di ruolo survival horror "Raccoon City RPG" ambientato durante l'epidemia di Raccoon City, settembre 1998.
+  const gameTitle = 'RPG Game';
+  return `Sei un generatore di eventi dinamici per il gioco di ruolo "${gameTitle}" ambientato nel mondo del gioco ${gameTitle}.
 
 CONTESTO ATTUALE:
 - Luogo: ${req.locationName} — ${req.locationDescription}

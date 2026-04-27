@@ -10,13 +10,16 @@ import { Button } from '@/components/ui/button';
 export interface FormActionsProps {
   submitLabel: string;
   onCancel: () => void;
+  /** HTML form id to associate the submit button with (for sticky footer pattern) */
+  formId?: string;
 }
 
-export function FormActions({ submitLabel, onCancel }: FormActionsProps) {
+export function FormActions({ submitLabel, onCancel, formId }: FormActionsProps) {
   return (
-    <div className="flex gap-3 pt-3">
+    <div className="flex gap-3">
       <Button
         type="submit"
+        form={formId}
         className="flex-1 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
       >
         <Save className="w-3.5 h-3.5" />

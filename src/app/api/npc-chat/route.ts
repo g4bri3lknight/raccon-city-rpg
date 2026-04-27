@@ -32,9 +32,10 @@ interface NpcChatRequest {
 function buildSystemPrompt(req: NpcChatRequest): string {
   // AI-1.8: Use personality from NPC data, with generic fallback
   const personality = req.npcPersonality
-    || `Sei ${req.npcName}, un sopravvissuto dell'epidemia di Raccoon City. Rispondi sempre nel character e in italiano.`;
+    || `Sei ${req.npcName}, un personaggio del gioco RPG. Rispondi sempre nel character e in italiano.`;
 
-  return `Sei un personaggio del gioco di ruolo survival horror "Raccoon City RPG" ambientato durante l'epidemia di Raccoon City nel settembre 1998.
+  const gameTitle = 'RPG Game';
+  return `Sei un personaggio del gioco di ruolo "${gameTitle}" ambientato nel mondo del gioco ${gameTitle}.
 
 IDENTITÀ:
 ${personality}

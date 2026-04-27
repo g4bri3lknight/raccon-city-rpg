@@ -643,7 +643,7 @@ function mapDbCharacter(row: DbCharacter): CharacterArchetype {
   }).filter(Boolean) as ItemInstance[];
 
   return {
-    id: row.archetype as CharacterArchetype['id'],
+    id: row.id as CharacterArchetype['id'],
     name: row.name,
     displayName: row.displayName,
     description: row.description,

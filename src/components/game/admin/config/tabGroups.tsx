@@ -3,13 +3,13 @@ import {
   MapPin, Users, Scroll, Zap, FileText, DoorOpen,
   Swords, Sparkles, Skull, Flame, Crown,
   Package, Wrench, Trophy, Flag, Volume2, ImageIcon, Bell,
-  Monitor, Settings, Link2,
+  Monitor, Settings, Link2, Gamepad2, Palette,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-export type TabId = 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'recipes' | 'quest-chains';
+export type TabId = 'games' | 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
 
 export interface TabConfig {
   id: TabId;
@@ -30,6 +30,9 @@ export interface TabGroupDef {
 }
 
 export const TAB_GROUPS: TabGroupDef[] = [
+  { id: 'hub', label: 'Giochi', icon: '🎮', defaultOpen: true, tabs: [
+    { id: 'games', label: 'Gestione Giochi', icon: <Gamepad2 className="w-4 h-4" />, endpoint: '/api/games', entityLabel: 'Gioco', custom: true, group: 'hub' },
+  ]},
   { id: 'world', label: 'Mondo', icon: '🌍', defaultOpen: true, tabs: [
     { id: 'locations', label: 'Location & Mappa', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location', custom: true, group: 'world' },
     { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC', group: 'world' },
@@ -40,6 +43,7 @@ export const TAB_GROUPS: TabGroupDef[] = [
     { id: 'secret-rooms', label: 'Stanze Segrete', icon: <DoorOpen className="w-4 h-4" />, endpoint: '/api/admin/secret-rooms', entityLabel: 'Stanza Segreta', group: 'world' },
   ]},
   { id: 'combat', label: 'Combattimento', icon: '⚔️', defaultOpen: true, tabs: [
+    { id: 'archetypes', label: 'Archetipi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/archetypes', entityLabel: 'Archetipo', group: 'combat' },
     { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio', group: 'combat' },
     { id: 'specials', label: 'Abilità PG', icon: <Sparkles className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità PG', group: 'combat' },
     { id: 'enemies', label: 'Nemici', icon: <Skull className="w-4 h-4" />, endpoint: '/api/admin/enemies', entityLabel: 'Nemico', group: 'combat' },
@@ -63,6 +67,7 @@ export const TAB_GROUPS: TabGroupDef[] = [
     { id: 'avatars', label: 'Avatar', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Avatar', custom: true, group: 'config' },
     { id: 'start-screen', label: 'Schermata Iniziale', icon: <Monitor className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
     { id: 'settings', label: 'Impostazioni', icon: <Settings className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
+    { id: 'theme', label: 'Tema', icon: <Palette className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
   ]},
 ];
 

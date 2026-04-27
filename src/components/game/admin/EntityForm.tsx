@@ -33,7 +33,6 @@ import {
   StoryEventEditor,
   RequirementsEditor,
   MediaUploadsSection,
-  FormActions,
   QuestChainsEditor,
   QuestChainFinalRewardEditor,
   JsonEditor,
@@ -323,7 +322,7 @@ export function EntityForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form id="entity-form" onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
         {fields.map(renderField)}
       </div>
@@ -332,8 +331,6 @@ export function EntityForm({
         mediaUploads={mediaUploads}
         entityId={typeof data.id === 'string' && data.id.trim() ? data.id.trim() : null}
       />
-
-      <FormActions submitLabel={submitLabel} onCancel={onCancel} />
     </form>
   );
 }

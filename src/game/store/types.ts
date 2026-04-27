@@ -141,8 +141,10 @@ export interface GameStore extends GameState {
   advanceToNextActor: (combatState?: GameStore['combat'] & { party?: Character[]; enemies?: EnemyInstance[] }) => void;
 
   // Save / Load
+  saveSlotsMeta: Record<number, SaveSlotInfo>;
+  refreshSaveSlots: () => Promise<void>;
   saveGame: (slot: number) => void;
-  loadGame: (slot: number) => boolean;
+  loadGame: (slot: number) => Promise<boolean>;
   autoSave: () => void;
   getSaveInfo: (slot: number) => SaveSlotInfo | null;
   deleteSave: (slot: number) => void;

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, SaveSlotInfo } from '@/game/store';
 import { Button } from '@/components/ui/button';
 import { MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 import { Badge } from '@/components/ui/badge';
 import {
-  X, Save, Upload, Trash2, MapPin, Users, Clock, Plus, FolderOpen
+  X, Save, Upload, Trash2, MapPin, Users, Clock, Plus, FolderOpen, Loader2
 } from 'lucide-react';
 
 type Mode = 'closed' | 'save' | 'load';
@@ -25,13 +25,14 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
   const loadGame = useGameStore(s => s.loadGame);
   const getSaveInfo = useGameStore(s => s.getSaveInfo);
   const deleteSave = useGameStore(s => s.deleteSave);
+  const refreshSaveSlots = useGameStore(s => s.refreshSaveSlots);
   const phase = useGameStore(s => s.phase);
-  const messageLog = useGameStore(s => s.messageLog);
   const [panelMode, setPanelMode] = useState<Mode>(defaultOpen || 'closed');
   const wasOpened = defaultOpen != null;
-  const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>(() => [
-    getSaveInfo(1), getSaveInfo(2), getSaveInfo(3),
-  ]);
+  const [slots, setSlots] = useState<(SaveSlotInfo | null)[]>([null, null, null]);
+  const [loading, setLoading] = useState(false);
+  const [savingSlot, setSavingSlot] = useState<number | null>(null);
+  const [loadingSlot, setLoadingSlot] = useState<number | null>(null);
   const [justSaved, setJustSaved] = useState<number | null>(null);
   const [justLoaded, setJustLoaded] = useState<number | null>(null);
 
@@ -39,10 +40,13 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
     setSlots([getSaveInfo(1), getSaveInfo(2), getSaveInfo(3)]);
   }, [getSaveInfo]);
 
-  const openPanel = (m: 'save' | 'load') => {
+  const openPanel = async (m: 'save' | 'load') => {
     setJustSaved(null);
     setJustLoaded(null);
+    setLoading(true);
+    await refreshSaveSlots();
     setSlots([getSaveInfo(1), getSaveInfo(2), getSaveInfo(3)]);
+    setLoading(false);
     setPanelMode(m);
   };
 
@@ -52,17 +56,24 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
   };
 
   const handleSave = (slot: number) => {
+    setSavingSlot(slot);
     saveGame(slot);
-    refreshSlots();
-    setJustSaved(slot);
+    // Optimistic: refresh after a short delay to allow API to complete
     setTimeout(() => {
-      setJustSaved(null);
-      if (!compact) closePanel();
-    }, 1500);
+      refreshSlots();
+      setSavingSlot(null);
+      setJustSaved(slot);
+      setTimeout(() => {
+        setJustSaved(null);
+        if (!compact) closePanel();
+      }, 1500);
+    }, 500);
   };
 
-  const handleLoad = (slot: number) => {
-    const success = loadGame(slot);
+  const handleLoad = async (slot: number) => {
+    setLoadingSlot(slot);
+    const success = await loadGame(slot);
+    setLoadingSlot(null);
     if (success) {
       setJustLoaded(slot);
       setTimeout(() => {
@@ -74,7 +85,7 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
 
   const handleDelete = (slot: number) => {
     deleteSave(slot);
-    refreshSlots();
+    setTimeout(() => refreshSlots(), 300);
   };
 
   if (panelMode === 'closed') {
@@ -156,7 +167,13 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
 
         {/* Slots */}
         <div className="p-4 space-y-2.5">
-          {slots.map((info, index) => {
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 text-white/30 animate-spin" />
+            </div>
+          ) : (
+            <>
+            {slots.map((info, index) => {
             const slotNum = index + 1;
             const isJustSaved = justSaved === slotNum;
             const isJustLoaded = justLoaded === slotNum;
@@ -251,26 +268,26 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
                       <Button
                         size="sm"
                         onClick={() => handleSave(slotNum)}
-                        disabled={isJustSaved}
+                        disabled={isJustSaved || savingSlot === slotNum}
                         className={`h-8 px-3 text-xs bg-transparent ${
                           info
                             ? 'border-amber-700/50 text-amber-400 hover:bg-amber-950/30 hover:text-amber-300'
                             : 'border-gray-700/50 text-gray-500 hover:bg-gray-800/50 hover:text-gray-300'
                         }`}
                       >
-                        <Save className="w-3 h-3 mr-1" />
-                        {info ? 'Sovrascrivi' : 'Salva'}
+                        {savingSlot === slotNum ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+                        {savingSlot === slotNum ? 'Salvataggio...' : info ? 'Sovrascrivi' : 'Salva'}
                       </Button>
                     )}
                     {!isSave && info && (
                       <Button
                         size="sm"
                         onClick={() => handleLoad(slotNum)}
-                        disabled={isJustLoaded}
+                        disabled={isJustLoaded || loadingSlot === slotNum}
                         className="h-8 px-3 text-xs bg-transparent border-cyan-700/50 text-cyan-400 hover:bg-cyan-950/30 hover:text-cyan-300"
                       >
-                        <Upload className="w-3 h-3 mr-1" />
-                        Carica
+                        {loadingSlot === slotNum ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+                        {loadingSlot === slotNum ? 'Caricamento...' : 'Carica'}
                       </Button>
                     )}
                     {info && (
@@ -289,12 +306,14 @@ export default function SaveLoadPanel({ mode = 'both', compact = false, defaultO
               </motion.div>
             );
           })}
+            </>
+          )}
         </div>
 
         {/* Footer hint */}
         <div className="px-4 py-3 border-t border-gray-800/30 bg-gray-900/20">
           <p className="text-[10px] text-gray-600 text-center">
-            🎞️ I salvataggi sono memorizzati localmente nel browser. La cancellazione della cache del browser eliminerà i salvataggi.
+            💾 I salvataggi sono memorizzati nel database del gioco.
           </p>
         </div>
       </motion.div>

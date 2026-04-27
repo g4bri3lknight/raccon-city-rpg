@@ -19,7 +19,7 @@ export async function POST() {
       await db.gameCharacter.upsert({
         where: { id: arch.id },
         update: {
-          archetype: arch.id,
+          archetypeFallback: arch.name,
           name: arch.name,
           displayName: arch.displayName,
           description: arch.description,
@@ -40,7 +40,7 @@ export async function POST() {
         },
         create: {
           id: arch.id,
-          archetype: arch.id,
+          archetypeFallback: arch.name,
           name: arch.name,
           displayName: arch.displayName,
           description: arch.description,

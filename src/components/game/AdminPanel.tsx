@@ -29,6 +29,7 @@ import { TableSkeleton } from './admin/TableSkeleton';
 import { AvatarManager } from './admin/tabs/AvatarManager';
 import { StartScreenEditor } from './admin/tabs/StartScreenEditor';
 import { GameSettingsEditor } from './admin/tabs/GameSettingsEditor';
+import GameManager from './admin/tabs/GameManager';
 import MapEditor from './admin/tabs/MapEditor';
 
 
@@ -48,7 +49,7 @@ export default function AdminPanel() {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState<Record<TabId, number>>({
-    items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'boss-phases': 0, achievements: 0, endings: 0, 'secret-rooms': 0, recipes: 0, avatars: 0, 'start-screen': 0, settings: 0, 'quest-chains': 0,
+    games: 0, items: 0, quests: 0, events: 0, documents: 0, sounds: 0, images: 0, notifications: 0, locations: 0, npcs: 0, characters: 0, specials: 0, enemies: 0, 'enemy-abilities': 0, 'boss-phases': 0, achievements: 0, endings: 0, 'secret-rooms': 0, recipes: 0, avatars: 0, 'start-screen': 0, settings: 0, 'quest-chains': 0,
   });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -558,7 +559,7 @@ export default function AdminPanel() {
           {/* ── Content Area ── */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {tabConfig.custom ? (
-              activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
+              activeTab === 'games' ? <GameManager /> : activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
             ) : (
             <>
             {/* Status message */}

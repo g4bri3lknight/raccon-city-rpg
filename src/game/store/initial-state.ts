@@ -126,6 +126,7 @@ export function getDefaultState() {
     notification: null as GameNotification | null,
     settingsOpen: false,
     helpOpen: false,
+    saveSlotsMeta: {},
     lastAutoSaveTurn: 0,
     questChainProgress: {} as Record<string, QuestChainProgress & { currentStep?: number }>,
     npcReputation: {} as Record<string, number>,

@@ -5,258 +5,204 @@ import { LOCATIONS, NGPLUS_CONFIG } from '../../data/loader';
 import { playSafeRoomAmbient } from '../../engine/sounds';
 import { getDefaultState } from '../initial-state';
 
+// ─── Helper: build the save data blob ─────────────────────────────────
+function buildSaveData(state: ReturnType<GameStore['getState']>, isAutoSave = false) {
+  const d = state;
+  return {
+    version: 1,
+    ...(isAutoSave ? { isAutoSave: true } : {}),
+    timestamp: new Date().toISOString(),
+    party: d.party,
+    currentLocationId: d.currentLocationId,
+    combat: null,
+    enemies: [],
+    activeEvent: null,
+    eventOutcome: null,
+    messageLog: d.messageLog.slice(-50),
+    turnCount: d.turnCount,
+    difficulty: d.difficulty,
+    selectedDifficulty: d.selectedDifficulty,
+    selectedCharacterId: d.selectedCharacterId,
+    searchCounts: d.searchCounts,
+    searchMaxes: d.searchMaxes,
+    partySize: d.partySize,
+    unlockedPaths: d.unlockedPaths,
+    visitedLocations: d.visitedLocations,
+    completedEvents: d.completedEvents || [],
+    collectedRibbons: d.collectedRibbons || 0,
+    persistentRibbons: d.persistentRibbons || 0,
+    isNewGamePlus: d.isNewGamePlus || false,
+    gameStartTime: d.gameStartTime || Date.now(),
+    collectedDocuments: d.collectedDocuments,
+    activeNpc: null,
+    npcQuestProgress: d.npcQuestProgress,
+    npcsEncountered: d.npcsEncountered,
+    activeDynamicEvent: null,
+    dynamicEventTurnsLeft: 0,
+    storyChoices: d.storyChoices,
+    discoveredSecretRooms: d.discoveredSecretRooms,
+    discoveredRecipes: d.discoveredRecipes,
+    herbCombineCount: d.herbCombineCount,
+    endingType: isAutoSave ? null : d.endingType,
+    exploredSubAreas: d.exploredSubAreas,
+    randomizerMode: d.randomizerMode,
+    randomizedLocationData: d.randomizedLocationData,
+    currentSubArea: d.currentSubArea,
+    itemBoxItems: d.itemBoxItems,
+    readDocuments: d.readDocuments,
+    nemesisPursuitLevel: d.nemesisPursuitLevel,
+    nemesisLastSeenLocation: d.nemesisLastSeenLocation,
+    nemesisLastSeenTurn: d.nemesisLastSeenTurn,
+    bossPhases: d.bossPhases,
+    searchedSafeRooms: d.searchedSafeRooms || [],
+    lastAutoSaveTurn: d.lastAutoSaveTurn,
+    bestiary: d.bestiary || [],
+    achievements: d.achievements || { unlockedIds: [], unlockTimestamps: {} },
+    autoCombat: d.autoCombat ?? false,
+    dataVersion: d.dataVersion ?? 0,
+    settingsOpen: false,
+    helpOpen: false,
+    npcReputation: d.npcReputation || {},
+    questChainProgress: d.questChainProgress || {},
+    completedPermanentEvents: d.completedPermanentEvents || [],
+    activePermanentEffects: d.activePermanentEffects || [],
+    pendingChainEvent: d.pendingChainEvent || null,
+    completedChains: d.completedChains || [],
+    ngPlusCycle: d.ngPlusCycle || 0,
+    ngPlusEnemyMultiplier: d.ngPlusEnemyMultiplier || 1,
+    craftingPoints: d.craftingPoints || 0,
+    totalCrafted: d.totalCrafted || 0,
+    masterQualityCrafted: d.masterQualityCrafted || 0,
+    runStats: d.runStats,
+  };
+}
+
+// ─── Helper: build save meta ──────────────────────────────────────────
+function buildMeta(state: ReturnType<GameStore['getState']>, slot: number, phase?: string): SaveSlotInfo {
+  const location = LOCATIONS[state.currentLocationId];
+  return {
+    slot,
+    timestamp: new Date().toISOString(),
+    turnCount: state.turnCount,
+    locationName: location?.name || (phase === 'victory' ? 'Vittoria' : 'Sconosciuto'),
+    partySummary: state.party.map(p => `${p.name} (Lv.${p.level})`).join(', '),
+    phase: phase || state.phase,
+    isNewGamePlus: state.isNewGamePlus || false,
+    persistentRibbons: state.persistentRibbons || 0,
+    collectedRibbons: state.collectedRibbons || 0,
+  };
+}
+
+// ─── Helper: trim save data if too large ──────────────────────────────
+function trimIfLarge(saveData: Record<string, unknown>) {
+  if (saveData.randomizedLocationData !== null) {
+    const json = JSON.stringify(saveData);
+    if (json.length > 4_000_000) {
+      console.warn(`[save] Save data is ${(json.length / 1024).toFixed(0)}KB, trimming randomizedLocationData`);
+      saveData.randomizedLocationData = null;
+    }
+  }
+}
+
+// ─── Helper: POST save to API ────────────────────────────────────────
+async function apiSave(slot: number, saveData: Record<string, unknown>, meta: SaveSlotInfo) {
+  const res = await fetch('/api/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slot, data: saveData, meta }),
+  });
+  if (!res.ok) throw new Error(`Save API error: ${res.status}`);
+}
+
+// ─── Helper: GET save from API ───────────────────────────────────────
+async function apiLoad(slot: number): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`/api/save?slot=${slot}`);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.data;
+}
+
+// ─── Helper: DELETE save from API ────────────────────────────────────
+async function apiDelete(slot: number) {
+  await fetch(`/api/save?slot=${slot}`, { method: 'DELETE' });
+}
+
+// ─── Helper: GET all save slots meta from API ────────────────────────
+async function apiFetchAllMeta(): Promise<Record<number, SaveSlotInfo>> {
+  const res = await fetch('/api/save');
+  if (!res.ok) return {};
+  const json = await res.json();
+  const map: Record<number, SaveSlotInfo> = {};
+  for (const s of (json.slots || [])) {
+    if (s.meta && typeof s.meta === 'object') {
+      map[s.slot as number] = s.meta as SaveSlotInfo;
+    }
+  }
+  return map;
+}
+
 export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
+  // Local cache for save slot metadata (sync access via getSaveInfo)
+  saveSlotsMeta: {},
+
+  // Fetch all save slots from API and update cache
+  refreshSaveSlots: async () => {
+    try {
+      const metaMap = await apiFetchAllMeta();
+      set({ saveSlotsMeta: metaMap });
+    } catch (err) {
+      console.warn('[refreshSaveSlots] Failed to fetch save slots:', err);
+    }
+  },
+
   saveGame: (slot: number) => {
     const state = get();
-
-    // Don't allow saving during combat
     if (state.phase === 'combat') return;
 
-    const saveData = {
-      version: 1,
-      timestamp: new Date().toISOString(),
-      party: state.party,
-      currentLocationId: state.currentLocationId,
-      combat: null,
-      enemies: [],
-      activeEvent: null,
-      eventOutcome: null,
-      messageLog: state.messageLog.slice(-50), // Keep last 50 messages
-      turnCount: state.turnCount,
-      difficulty: state.difficulty,
-      selectedDifficulty: state.selectedDifficulty,
-      selectedCharacterId: state.selectedCharacterId,
-      searchCounts: state.searchCounts,
-      searchMaxes: state.searchMaxes,
-      partySize: state.partySize,
-      unlockedPaths: state.unlockedPaths,
-      visitedLocations: state.visitedLocations,
-      completedEvents: state.completedEvents || [],
-      collectedRibbons: state.collectedRibbons || 0,
-      persistentRibbons: state.persistentRibbons || 0,
-      isNewGamePlus: state.isNewGamePlus || false,
-      gameStartTime: state.gameStartTime || Date.now(),
-      collectedDocuments: state.collectedDocuments,
-      activeNpc: null,
-      npcQuestProgress: state.npcQuestProgress,
-      npcsEncountered: state.npcsEncountered,
-      activeDynamicEvent: null,
-      dynamicEventTurnsLeft: 0,
-      storyChoices: state.storyChoices,
-      discoveredSecretRooms: state.discoveredSecretRooms,
-      discoveredRecipes: state.discoveredRecipes,
-      herbCombineCount: state.herbCombineCount,
-      endingType: null,
-      exploredSubAreas: state.exploredSubAreas,
-      randomizerMode: state.randomizerMode,
-      randomizedLocationData: state.randomizedLocationData,
-      currentSubArea: state.currentSubArea,
-      itemBoxItems: state.itemBoxItems,
-      readDocuments: state.readDocuments,
-      nemesisPursuitLevel: state.nemesisPursuitLevel,
-      nemesisLastSeenLocation: state.nemesisLastSeenLocation,
-      nemesisLastSeenTurn: state.nemesisLastSeenTurn,
-      bossPhases: state.bossPhases,
-      searchedSafeRooms: state.searchedSafeRooms || [],
-      lastAutoSaveTurn: state.lastAutoSaveTurn,
-      bestiary: state.bestiary || [],
-      achievements: state.achievements || { unlockedIds: [], unlockTimestamps: {} },
-      autoCombat: state.autoCombat ?? false,
-      dataVersion: state.dataVersion ?? 0,
-      settingsOpen: false,
-      helpOpen: false,
-      npcReputation: state.npcReputation || {},
-      questChainProgress: state.questChainProgress || {},
-      completedPermanentEvents: state.completedPermanentEvents || [],
-      activePermanentEffects: state.activePermanentEffects || [],
-      pendingChainEvent: state.pendingChainEvent || null,
-      completedChains: state.completedChains || [],
-      ngPlusCycle: state.ngPlusCycle || 0,
-      ngPlusEnemyMultiplier: state.ngPlusEnemyMultiplier || 1,
-      craftingPoints: state.craftingPoints || 0,
-      totalCrafted: state.totalCrafted || 0,
-      masterQualityCrafted: state.masterQualityCrafted || 0,
-      runStats: state.runStats,
-    };
+    const saveData = buildSaveData(state);
+    trimIfLarge(saveData);
+    const meta = buildMeta(state, slot);
 
-    const saveKey = `raccoon_city_save_${slot}`;
-    const saveMetaKey = `raccoon_city_save_meta_${slot}`;
-
-    const location = LOCATIONS[state.currentLocationId];
-
-    const meta: SaveSlotInfo = {
-      slot,
-      timestamp: saveData.timestamp,
-      turnCount: state.turnCount,
-      locationName: location?.name || 'Sconosciuto',
-      partySummary: state.party.map(p => `${p.name} (Lv.${p.level})`).join(', '),
-      phase: state.phase,
-      isNewGamePlus: state.isNewGamePlus || false,
-      persistentRibbons: state.persistentRibbons || 0,
-      collectedRibbons: state.collectedRibbons || 0,
-    };
-
-    try {
-      if (typeof window !== 'undefined') {
-        // Check size first; trim randomizedLocationData if too large, then stringify once
-        if (saveData.randomizedLocationData !== null) {
-          const json = JSON.stringify(saveData);
-          if (json.length > 4_000_000) {
-            // localStorage ~5MB limit; warn and trim randomizedLocationData
-            console.warn(`[saveGame] Save data is ${(json.length / 1024).toFixed(0)}KB, trimming randomizedLocationData`);
-            saveData.randomizedLocationData = null;
-          } else {
-            localStorage.setItem(saveKey, json);
-            localStorage.setItem(saveMetaKey, JSON.stringify(meta));
-            return;
-          }
-        }
-        localStorage.setItem(saveKey, JSON.stringify(saveData));
-        localStorage.setItem(saveMetaKey, JSON.stringify(meta));
-      }
-    } catch {
-      // Storage full or not available - silently fail
-    }
+    // Fire-and-forget API call
+    apiSave(slot, saveData, meta).then(() => {
+      // Refresh meta cache after save
+      get().refreshSaveSlots();
+    }).catch(err => {
+      console.warn('[saveGame] API save failed:', err);
+    });
   },
 
   autoSave: () => {
     const state = get();
-
-    // Don't auto-save during combat, game-over, or title screen
     if (state.phase === 'combat' || state.phase === 'game-over' || state.phase === 'title' || state.phase === 'victory') return;
-    // Don't auto-save if party is empty (not in adventure)
     if (!state.party || state.party.length === 0) return;
 
-    const saveData = {
-      version: 1,
-      isAutoSave: true,
-      timestamp: new Date().toISOString(),
-      party: state.party,
-      currentLocationId: state.currentLocationId,
-      combat: null,
-      enemies: [],
-      activeEvent: null,
-      eventOutcome: null,
-      messageLog: state.messageLog.slice(-50),
-      turnCount: state.turnCount,
-      difficulty: state.difficulty,
-      selectedDifficulty: state.selectedDifficulty,
-      selectedCharacterId: state.selectedCharacterId,
-      searchCounts: state.searchCounts,
-      searchMaxes: state.searchMaxes,
-      partySize: state.partySize,
-      unlockedPaths: state.unlockedPaths,
-      visitedLocations: state.visitedLocations,
-      completedEvents: state.completedEvents || [],
-      collectedRibbons: state.collectedRibbons || 0,
-      persistentRibbons: state.persistentRibbons || 0,
-      isNewGamePlus: state.isNewGamePlus || false,
-      gameStartTime: state.gameStartTime || Date.now(),
-      collectedDocuments: state.collectedDocuments,
-      activeNpc: null,
-      npcQuestProgress: state.npcQuestProgress,
-      npcsEncountered: state.npcsEncountered,
-      activeDynamicEvent: null,
-      dynamicEventTurnsLeft: 0,
-      storyChoices: state.storyChoices,
-      discoveredSecretRooms: state.discoveredSecretRooms,
-      discoveredRecipes: state.discoveredRecipes,
-      herbCombineCount: state.herbCombineCount,
-      endingType: null,
-      exploredSubAreas: state.exploredSubAreas,
-      randomizerMode: state.randomizerMode,
-      randomizedLocationData: state.randomizedLocationData,
-      currentSubArea: state.currentSubArea,
-      itemBoxItems: state.itemBoxItems,
-      readDocuments: state.readDocuments,
-      nemesisPursuitLevel: state.nemesisPursuitLevel,
-      nemesisLastSeenLocation: state.nemesisLastSeenLocation,
-      nemesisLastSeenTurn: state.nemesisLastSeenTurn,
-      bossPhases: state.bossPhases,
-      searchedSafeRooms: state.searchedSafeRooms || [],
-      lastAutoSaveTurn: state.turnCount,
-      bestiary: state.bestiary || [],
-      achievements: state.achievements || { unlockedIds: [], unlockTimestamps: {} },
-      autoCombat: state.autoCombat ?? false,
-      dataVersion: state.dataVersion ?? 0,
-      settingsOpen: false,
-      helpOpen: false,
-      npcReputation: state.npcReputation || {},
-      questChainProgress: state.questChainProgress || {},
-      completedPermanentEvents: state.completedPermanentEvents || [],
-      activePermanentEffects: state.activePermanentEffects || [],
-      pendingChainEvent: state.pendingChainEvent || null,
-      completedChains: state.completedChains || [],
-      ngPlusCycle: state.ngPlusCycle || 0,
-      ngPlusEnemyMultiplier: state.ngPlusEnemyMultiplier || 1,
-      craftingPoints: state.craftingPoints || 0,
-      totalCrafted: state.totalCrafted || 0,
-      masterQualityCrafted: state.masterQualityCrafted || 0,
-      runStats: state.runStats,
-    };
+    const saveData = buildSaveData(state, true);
+    trimIfLarge(saveData);
+    const meta = buildMeta(state, -1);
 
-    const saveKey = 'raccoon_city_autosave';
-    const saveMetaKey = 'raccoon_city_autosave_meta';
-
-    const location = LOCATIONS[state.currentLocationId];
-
-    const meta: SaveSlotInfo = {
-      slot: -1,
-      timestamp: saveData.timestamp,
-      turnCount: state.turnCount,
-      locationName: location?.name || 'Sconosciuto',
-      partySummary: state.party.map(p => `${p.name} (Lv.${p.level})`).join(', '),
-      phase: state.phase,
-      isNewGamePlus: state.isNewGamePlus || false,
-      persistentRibbons: state.persistentRibbons || 0,
-      collectedRibbons: state.collectedRibbons || 0,
-    };
-
-    try {
-      if (typeof window !== 'undefined') {
-        if (saveData.randomizedLocationData !== null) {
-          const json = JSON.stringify(saveData);
-          if (json.length > 4_000_000) {
-            saveData.randomizedLocationData = null;
-          } else {
-            localStorage.setItem(saveKey, json);
-            localStorage.setItem(saveMetaKey, JSON.stringify(meta));
-            set({ lastAutoSaveTurn: state.turnCount });
-            return;
-          }
-        }
-        localStorage.setItem(saveKey, JSON.stringify(saveData));
-        localStorage.setItem(saveMetaKey, JSON.stringify(meta));
-      }
-    } catch {
-      // Storage full or not available - silently fail
-    }
-
-    set({ lastAutoSaveTurn: state.turnCount });
+    apiSave(-1, saveData, meta).then(() => {
+      set({ lastAutoSaveTurn: state.turnCount });
+    }).catch(err => {
+      console.warn('[autoSave] Failed:', err);
+      set({ lastAutoSaveTurn: state.turnCount });
+    });
   },
 
-  loadGame: (slot: number) => {
-    const saveKey = `raccoon_city_save_${slot}`;
-
+  loadGame: async (slot: number) => {
     try {
-      if (typeof window === 'undefined') return false;
+      const data = await apiLoad(slot);
+      if (!data || (data as Record<string, unknown>).version !== 1) return false;
 
-      const raw = localStorage.getItem(saveKey);
-      if (!raw) return false;
-
-      const data = JSON.parse(raw);
-      if (!data || data.version !== 1) return false;
-
-      // Basic structural validation of saved data
-      // Note: phase is not validated because saves always set it to null/omit it
+      // Validate party structure
       if (
         !Array.isArray(data.party) ||
         typeof data.turnCount !== 'number'
       ) {
-        console.warn('[loadGame] Save data missing required top-level fields (party, turnCount). Aborting load.');
+        console.warn('[loadGame] Save data missing required fields. Aborting load.');
         return false;
       }
-      for (const member of data.party) {
+      for (const member of data.party as Array<Record<string, unknown>>) {
         if (
           !member.id ||
           !member.name ||
@@ -269,7 +215,6 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         }
       }
 
-      // Check if this is a New Game+ save (saved after victory)
       const isNGP = data.isNewGamePlus || false;
       const persistentRibs = data.persistentRibbons || 0;
 
@@ -282,14 +227,14 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         activeEvent: data.activeEvent,
         eventOutcome: data.eventOutcome,
         messageLog: [
-          ...data.messageLog,
+          ...(data.messageLog || []),
           `[Turno ${data.turnCount}] 💾 Partita caricata dallo Slot ${slot}.${isNGP ? ' 🎀 Nastri persistenti: ' + persistentRibs + '/10' : ''}`,
         ],
         turnCount: data.turnCount,
         difficulty: data.difficulty || 'normale',
         selectedDifficulty: data.selectedDifficulty || 'normale',
         inventoryOpen: false,
-        selectedCharacterId: data.selectedCharacterId || data.party[0]?.id || null,
+        selectedCharacterId: data.selectedCharacterId || (data.party as Array<Record<string, unknown>>)[0]?.id || null,
         searchCounts: data.searchCounts || {},
         searchMaxes: data.searchMaxes || {},
         partySize: data.partySize || 2,
@@ -349,43 +294,35 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
         masterQualityCrafted: data.masterQualityCrafted || 0,
         runStats: data.runStats || getDefaultState().runStats,
       });
-      // Play correct ambient after loading (page.tsx useEffect handles normal case,
-      // but safe room needs explicit handling since phase is always 'exploration')
+
+      // Play correct ambient after loading
       if (data.currentSubArea === 'safe_room' && data.currentLocationId) {
         try { playSafeRoomAmbient(data.currentLocationId); } catch {}
       }
+
+      // Refresh save slots meta cache
+      get().refreshSaveSlots();
+
       // Auto-save after loading
       setTimeout(() => { try { get().autoSave(); } catch {} }, 200);
       return true;
-    } catch {
+    } catch (err) {
+      console.warn('[loadGame] Failed to load save:', err);
       return false;
     }
   },
 
   getSaveInfo: (slot: number) => {
-    const saveMetaKey = `raccoon_city_save_meta_${slot}`;
-
-    try {
-      if (typeof window === 'undefined') return null;
-
-      const raw = localStorage.getItem(saveMetaKey);
-      if (!raw) return null;
-
-      return JSON.parse(raw) as SaveSlotInfo;
-    } catch {
-      return null;
-    }
+    const meta = get().saveSlotsMeta;
+    return meta[slot] || null;
   },
 
   deleteSave: (slot: number) => {
-    try {
-      if (typeof window === 'undefined') return;
-
-      localStorage.removeItem(`raccoon_city_save_${slot}`);
-      localStorage.removeItem(`raccoon_city_save_meta_${slot}`);
-    } catch {
-      // silently fail
-    }
+    apiDelete(slot).then(() => {
+      get().refreshSaveSlots();
+    }).catch(err => {
+      console.warn('[deleteSave] Failed:', err);
+    });
   },
 
   // Save at victory (New Game+ save): merges run ribbons into persistent, flags as NG+
@@ -393,131 +330,36 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const state = get();
     const totalPersistent = Math.min((state.persistentRibbons || 0) + (state.collectedRibbons || 0), 10);
 
-    const saveData = {
-      version: 1,
-      timestamp: new Date().toISOString(),
-      party: state.party,
-      currentLocationId: state.currentLocationId,
-      combat: null,
-      enemies: [],
-      activeEvent: null,
-      eventOutcome: null,
-      messageLog: state.messageLog.slice(-50),
-      turnCount: state.turnCount,
-      difficulty: state.difficulty,
-      selectedDifficulty: state.selectedDifficulty,
-      selectedCharacterId: state.selectedCharacterId,
-      searchCounts: state.searchCounts,
-      searchMaxes: state.searchMaxes,
-      partySize: state.partySize,
-      unlockedPaths: state.unlockedPaths,
-      visitedLocations: state.visitedLocations,
-      completedEvents: state.completedEvents || [],
-      collectedRibbons: 0, // reset for next run
-      persistentRibbons: totalPersistent,
-      isNewGamePlus: true,
-      gameStartTime: state.gameStartTime || Date.now(),
-      collectedDocuments: state.collectedDocuments,
-      activeNpc: null,
-      npcQuestProgress: state.npcQuestProgress,
-      npcsEncountered: state.npcsEncountered,
-      activeDynamicEvent: null,
-      dynamicEventTurnsLeft: 0,
-      storyChoices: state.storyChoices,
-      discoveredSecretRooms: state.discoveredSecretRooms,
-      discoveredRecipes: state.discoveredRecipes,
-      herbCombineCount: state.herbCombineCount,
-      endingType: state.endingType,
-      exploredSubAreas: state.exploredSubAreas,
-      randomizerMode: state.randomizerMode,
-      randomizedLocationData: state.randomizedLocationData,
-      currentSubArea: state.currentSubArea,
-      itemBoxItems: state.itemBoxItems,
-      readDocuments: state.readDocuments,
-      nemesisPursuitLevel: state.nemesisPursuitLevel,
-      nemesisLastSeenLocation: state.nemesisLastSeenLocation,
-      nemesisLastSeenTurn: state.nemesisLastSeenTurn,
-      bossPhases: state.bossPhases,
-      searchedSafeRooms: state.searchedSafeRooms || [],
-      lastAutoSaveTurn: state.lastAutoSaveTurn,
-      bestiary: state.bestiary || [],
-      achievements: state.achievements || { unlockedIds: [], unlockTimestamps: {} },
-      autoCombat: state.autoCombat ?? false,
-      dataVersion: state.dataVersion ?? 0,
-      settingsOpen: false,
-      helpOpen: false,
-      npcReputation: state.npcReputation || {},
-      questChainProgress: state.questChainProgress || {},
-      completedPermanentEvents: state.completedPermanentEvents || [],
-      activePermanentEffects: state.activePermanentEffects || [],
-      pendingChainEvent: state.pendingChainEvent || null,
-      completedChains: state.completedChains || [],
-      ngPlusCycle: state.ngPlusCycle || 0,
-      ngPlusEnemyMultiplier: state.ngPlusEnemyMultiplier || 1,
-      craftingPoints: state.craftingPoints || 0,
-      totalCrafted: state.totalCrafted || 0,
-      masterQualityCrafted: state.masterQualityCrafted || 0,
-      runStats: state.runStats,
-    };
+    const saveData = buildSaveData(state);
+    saveData.collectedRibbons = 0;
+    saveData.persistentRibbons = totalPersistent;
+    saveData.isNewGamePlus = true;
+    trimIfLarge(saveData);
 
-    const saveKey = `raccoon_city_save_${slot}`;
-    const saveMetaKey = `raccoon_city_save_meta_${slot}`;
-    const location = LOCATIONS[state.currentLocationId];
+    const meta = buildMeta(state, slot, 'victory');
+    meta.isNewGamePlus = true;
+    meta.persistentRibbons = totalPersistent;
+    meta.collectedRibbons = 0;
 
-    const meta: SaveSlotInfo = {
-      slot,
-      timestamp: saveData.timestamp,
-      turnCount: state.turnCount,
-      locationName: location?.name || 'Vittoria',
-      partySummary: state.party.map(p => `${p.name} (Lv.${p.level})`).join(', '),
-      phase: 'victory',
-      isNewGamePlus: true,
-      persistentRibbons: totalPersistent,
-      collectedRibbons: 0,
-    };
-
-    try {
-      if (typeof window !== 'undefined') {
-        // Check size first; trim randomizedLocationData if too large
-        if (saveData.randomizedLocationData !== null) {
-          const json = JSON.stringify(saveData);
-          if (json.length > 4_000_000) {
-            console.warn(`[saveGameVictory] Save data is ${(json.length / 1024).toFixed(0)}KB, trimming randomizedLocationData`);
-            saveData.randomizedLocationData = null;
-          } else {
-            localStorage.setItem(saveKey, json);
-            localStorage.setItem(saveMetaKey, JSON.stringify(meta));
-            return totalPersistent;
-          }
-        }
-        localStorage.setItem(saveKey, JSON.stringify(saveData));
-        localStorage.setItem(saveMetaKey, JSON.stringify(meta));
-      }
-    } catch {
-      // silently fail
-    }
+    apiSave(slot, saveData, meta).catch(err => {
+      console.warn('[saveGameVictory] Failed:', err);
+    });
 
     return totalPersistent;
   },
 
-  // Start a New Game+ from a victory save
+  // Start a New Game+ from a victory save (no localStorage needed — pure state reset)
   startNewGamePlus: (persistentRibbons: number) => {
     const state = get();
     const currentCycle = state.ngPlusCycle || 0;
     const newCycle = currentCycle + 1;
 
-    // ── Carry forward elements across NG+ ──
     const carriedBestiary = state.bestiary || [];
     const carriedAchievements = state.achievements || { unlockedIds: [], unlockTimestamps: {} };
     const carriedPersistentRibbons = Math.min(persistentRibbons, 10);
     const carriedDiscoveredRecipes = state.discoveredRecipes || [];
-    // Carry forward 30% of crafting points
     const carriedCraftingPoints = Math.floor((state.craftingPoints || 0) * (Number(NGPLUS_CONFIG.carriedCraftPointsPercent) / 100));
-
-    // ── NG+ enemy scaling multiplier ──
     const ngPlusEnemyMultiplier = newCycle === 1 ? Number(NGPLUS_CONFIG.cycle1Multiplier) : newCycle === 2 ? Number(NGPLUS_CONFIG.cycle2Multiplier) : Number(NGPLUS_CONFIG.cycle3PlusMultiplier);
-
-    // ── NG+ bonus items for cycle >= configured threshold ──
     const bonusItemCount = newCycle >= Number(NGPLUS_CONFIG.bonusItemCycle) ? Number(NGPLUS_CONFIG.bonusItemQuantity) : 0;
 
     set({
@@ -596,15 +438,11 @@ export const createSaveSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       craftingPoints: carriedCraftingPoints,
       totalCrafted: 0,
       masterQualityCrafted: 0,
-      // ── Carried-forward NG+ elements ──
       ngPlusCycle: newCycle,
       ngPlusEnemyMultiplier,
       bestiary: carriedBestiary,
       achievements: carriedAchievements,
       runStats: { ...(get().runStats), totalDamageDealt: 0, totalDamageReceived: 0, totalHealingDone: 0, enemiesDefeated: 0, bossesDefeated: 0, itemsCrafted: 0, itemsUsed: 0, documentsFound: 0, secretRoomsDiscovered: 0, recipesDiscovered: 0, questsCompleted: 0, questChainsCompleted: 0, distanceTraveled: 0, searchesPerformed: 0, combatTurnsTotal: 0, perfectCombats: 0, longestCombo: 0, turnsSurvived: 0, dynamicEventsSurvived: 0, playTimeSeconds: 0, endingType: null, characterArchetypes: [], ngPlusCycle: newCycle },
-      // Store bonus items to be given at adventure start (cycle >= 2)
-      // This is handled via a flag — the actual items are added in startAdventure
-      // We use notification as a marker: the startAdventure functions check ngPlusCycle
     });
   },
 });
