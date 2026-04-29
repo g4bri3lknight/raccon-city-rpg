@@ -54,6 +54,7 @@ server.log
 /skills/
 /dist-electron/*
 /neutralino/dist/*
+/neutralino/bin/*
 /neutralino/.tmp/*
 /.node-runtime-cache/*
 /.neutralino-binaries/*

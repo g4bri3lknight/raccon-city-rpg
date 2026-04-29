@@ -597,7 +597,7 @@ if (isGameOnly) {
 // ═══════════════════════════════════════════════════════════
 console.log('  ── Step 5/6: Preparing Neutralino resources + build...');
 
-// 5a. Clean previous build
+// 5a. Clean previous build COMPLETELY
 const prevDist = join(NEUTRALINO_DIR, 'dist');
 if (existsSync(prevDist)) rmSync(prevDist, { recursive: true });
 mkdirSync(prevDist, { recursive: true });
@@ -624,92 +624,50 @@ const config = generateNeutralinoConfig();
 writeFileSync(join(NEUTRALINO_DIR, 'neutralino.config.json'), JSON.stringify(config, null, 2), 'utf-8');
 console.log(`  ✅ Generated neutralino.config.json (binaryName: "${binaryName}")`);
 
-// 5e. Get Neutralino binary version from config (used by neu build)
+// 5e. Get Neutralino binary version from config
 const NL_VERSION = config.cli.binaryVersion || '5.4.0';
 console.log(`  📋 Neutralino version: ${NL_VERSION}`);
 
-// 5f. Download ALL Neutralino platform binaries from GitHub releases
-//     URL pattern: https://github.com/neutralinojs/neutralinojs/releases/download/v{ver}/neutralinojs-v{ver}.zip
-//     This ZIP contains: neutralino-win_x64.exe, neutralino-linux_x64, neutralino-mac_x64, etc.
+// 5f. Download Windows binary ONLY from GitHub releases
 const NEUTRALINO_CACHE_DIR = join(ROOT, '.neutralino-binaries');
 mkdirSync(NEUTRALINO_CACHE_DIR, { recursive: true });
 
-const releaseZipFile = join(NEUTRALINO_CACHE_DIR, `neutralinojs-v${NL_VERSION}.zip`);
-const allBinariesCached = join(NEUTRALINO_CACHE_DIR, `all-v${NL_VERSION}.extracted`);
-
-if (existsSync(allBinariesCached)) {
-  console.log(`  ✅ Neutralino binaries cached (v${NL_VERSION})`);
+const cachedExe = join(NEUTRALINO_CACHE_DIR, `neutralino-win_x64-v${NL_VERSION}.exe`);
+if (existsSync(cachedExe)) {
+  console.log(`  ✅ Neutralino binary cached (${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
 } else {
-  console.log('  ⬇️  Downloading Neutralino ALL-platform binaries from GitHub...');
+  console.log('  ⬇️  Downloading Neutralino Windows binary from GitHub...');
   const releaseUrl = `https://github.com/neutralinojs/neutralinojs/releases/download/v${NL_VERSION}/neutralinojs-v${NL_VERSION}.zip`;
+  const cacheZip = join(NEUTRALINO_CACHE_DIR, `neutralinojs-v${NL_VERSION}.zip`);
   try {
-    if (!existsSync(releaseZipFile)) {
-      await downloadFile(releaseUrl, releaseZipFile);
-    }
-    // Extract ALL binaries from the zip
-    console.log('  📦 Extracting all platform binaries...');
+    if (!existsSync(cacheZip)) await downloadFile(releaseUrl, cacheZip);
+    console.log('  📦 Extracting neutralino-win_x64.exe...');
     const AdmZip = require('adm-zip');
-    const zip = new AdmZip(releaseZipFile);
-    const entries = zip.getEntries();
-    let extractedCount = 0;
-    for (const entry of entries) {
-      if (entry.isDirectory) continue;
-      // Extract each binary to cache dir with versioned name
-      const rawName = basename(entry.entryName);
-      // Filter: only neutralino-* binaries (not README, etc.)
-      if (!rawName.startsWith('neutralino-')) continue;
-      const versionedName = rawName.replace('neutralino-', `neutralino-v${NL_VERSION}-`);
-      const destPath = join(NEUTRALINO_CACHE_DIR, versionedName);
-      const rawPath = join(NEUTRALINO_CACHE_DIR, rawName);
-      // Extract, then rename to versioned name
-      zip.extractEntryTo(entry, NEUTRALINO_CACHE_DIR, false, true);
-      if (rawPath !== destPath) {
-        if (existsSync(destPath)) unlinkSync(destPath);
-        cpSync(rawPath, destPath);
-        unlinkSync(rawPath);
-      }
-      const size = statSync(destPath).size;
-      console.log(`     ✅ ${versionedName} (${(size / 1024 / 1024).toFixed(1)} MB)`);
-      extractedCount++;
-    }
-    if (extractedCount === 0) {
-      console.error('  ❌ No neutralino binaries found in the zip!');
-      console.error('  Contents:');
-      entries.forEach(e => console.error('    ' + e.entryName));
+    const zip = new AdmZip(cacheZip);
+    const entry = zip.getEntry('neutralino-win_x64.exe');
+    if (!entry) {
+      console.error('  ❌ neutralino-win_x64.exe not found in the zip!');
       exit(1);
     }
-    // Write marker file so we know extraction is done
-    writeFileSync(allBinariesCached, new Date().toISOString(), 'utf-8');
-    console.log(`  ✅ ${extractedCount} platform binaries extracted`);
+    const rawPath = join(NEUTRALINO_CACHE_DIR, 'neutralino-win_x64.exe');
+    zip.extractEntryTo(entry, NEUTRALINO_CACHE_DIR, false, true);
+    if (rawPath !== cachedExe) {
+      if (existsSync(cachedExe)) unlinkSync(cachedExe);
+      cpSync(rawPath, cachedExe);
+      unlinkSync(rawPath);
+    }
+    if (!existsSync(cachedExe) || statSync(cachedExe).size < 1024 * 1024) {
+      console.error('  ❌ Failed to extract neutralino-win_x64.exe!');
+      exit(1);
+    }
+    console.log(`  ✅ Neutralino binary ready (${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
   } catch (err) {
-    console.error(`  ❌ Failed to download/extract Neutralino binaries: ${err.message}`);
-    console.error('');
-    console.error('  Possible fixes:');
-    console.error('  • Check your internet connection');
-    console.error('  • The Neutralino version (v' + NL_VERSION + ') may not exist on GitHub');
-    console.error('  • Try: cd neutralino && npx neu update && npx neu build --release');
-    console.error('');
+    console.error(`  ❌ Failed to download Neutralino binary: ${err.message}`);
     exit(1);
   }
 }
 
-// Map of platform binary names: original → product name
-const platformBinaries = [
-  { suffix: 'win_x64.exe',    ext: '.exe',       label: 'Windows x64' },
-  { suffix: 'linux_x64',      ext: '',            label: 'Linux x64' },
-  { suffix: 'mac_x64',        ext: '',            label: 'macOS x64' },
-  { suffix: 'mac_arm64',      ext: '',            label: 'macOS ARM64' },
-  { suffix: 'linux_arm64',    ext: '',            label: 'Linux ARM64' },
-  { suffix: 'win_arm64.exe',  ext: '.exe',       label: 'Windows ARM64' },
-];
-
-// Helper: get cached path for a platform binary
-function getCachedBinary(platform) {
-  return join(NEUTRALINO_CACHE_DIR, `neutralino-v${NL_VERSION}-${platform.suffix}`);
-}
-
-// 5g. Also try `neu build` to create resources.neu (the resource bundle)
-//     We do NOT use --embed-resources because of POSTJECT_SENTINEL errors
+// 5g. Try neu build for resources.neu (non-fatal)
 console.log('  📦 Running neu build --release (for resources.neu)...');
 console.log('');
 try {
@@ -718,175 +676,120 @@ try {
   console.warn('  ⚠️  neu update warning (non-fatal)');
 }
 try {
-  await runCommand('neu', ['build', '--release'], {
-    cwd: NEUTRALINO_DIR,
-  });
+  await runCommand('neu', ['build', '--release'], { cwd: NEUTRALINO_DIR });
   console.log('  ✅ neu build complete');
 } catch (err) {
-  console.warn('  ⚠️  neu build failed (non-fatal, will use fallback):');
+  console.warn('  ⚠️  neu build failed (non-fatal):');
   console.warn('  ' + String(err.message || err).split('\n')[0]);
 }
 
-// 5h. Ensure Node.js Windows runtime is available
+// 5h. Clean neu build output (we only need resources.neu from it)
+//     neu build creates .exe files for all platforms + release zips — all unnecessary
+const neuBuildOutput = join(prevDist, binaryName);
+if (existsSync(neuBuildOutput)) {
+  // Extract resources.neu if it exists
+  const neuRes = join(neuBuildOutput, 'resources.neu');
+  const neuResCached = join(NEUTRALINO_CACHE_DIR, `resources.neu`);
+  if (existsSync(neuRes)) {
+    cpSync(neuRes, neuResCached);
+    console.log('  ✅ Saved resources.neu from neu build');
+  }
+  // Remove entire neu build output — we'll assemble clean
+  rmSync(neuBuildOutput, { recursive: true });
+}
+// Also remove any release zips created by neu build
+const neuReleaseZips = readdirSync(prevDist).filter(f => f.endsWith('-release.zip'));
+for (const rz of neuReleaseZips) {
+  rmSync(join(prevDist, rz));
+  console.log(`  🗑️  Removed ${rz} (neu build artifact)`);
+}
+
+// 5i. Ensure Node.js Windows runtime is available
 await ensureNodeRuntime();
 
 console.log('  ✅ Neutralino resources prepared');
 
 // ═══════════════════════════════════════════════════════════
-//  STEP 6: ASSEMBLE DISTRIBUTABLE PACKAGE
+//  STEP 6: ASSEMBLE PACKAGE — ONE CLEAN ZIP
 // ═══════════════════════════════════════════════════════════
 console.log('  ── Step 6/6: Assembling distributable package...');
 
-// The output directory will contain everything needed to run
 const distDir = join(prevDist, binaryName);
 mkdirSync(distDir, { recursive: true });
 
-// 6a. Find resources.neu (from neu build) or use resources/ dir
-let resourcesNeuSrc = '';
-const findRes = (dir) => {
-  try {
-    const entries = readdirSync(dir, { withFileTypes: true });
-    for (const e of entries) {
-      const p = join(dir, e.name);
-      if (e.isDirectory()) {
-        const found = findRes(p);
-        if (found) return found;
-      } else if (e.name === 'resources.neu') {
-        return p;
-      }
-    }
-  } catch { /* skip */ }
-  return null;
-};
-resourcesNeuSrc = findRes(prevDist) || '';
+// 6a. Copy Windows binary → AppName.exe
+const winExeDest = join(distDir, `${binaryName}.exe`);
+cpSync(cachedExe, winExeDest);
+console.log(`  ✅ ${binaryName}.exe (${(statSync(winExeDest).size / 1024 / 1024).toFixed(1)} MB)`);
 
-// Helper: add directory contents to an AdmZip instance
-const addDirToZip = (dir, zipPath_prefix, zipInstance) => {
+// 6b. Copy resources.neu (from neu build or fallback to resources/ dir)
+const neuResCached = join(NEUTRALINO_CACHE_DIR, 'resources.neu');
+if (existsSync(neuResCached)) {
+  cpSync(neuResCached, join(distDir, 'resources.neu'));
+  console.log('  ✅ resources.neu');
+} else {
+  console.log('  ⚠️  resources.neu not found, copying resources/ directory...');
+  copyDir(NEUTRALINO_RES_DIR, join(distDir, 'resources'));
+  console.log('  ✅ resources/ directory');
+}
+
+// 6c. Copy game-config.json
+writeFileSync(join(distDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
+
+// 6d. Write start-server.bat (CRITICAL for correct CWD)
+const batContent = `@echo off\r\ncd /d "%~dp0standalone"\r\n"%~dp0node\\node.exe" server.js\r\n`;
+writeFileSync(join(distDir, 'start-server.bat'), batContent, 'utf-8');
+console.log('  ✅ start-server.bat');
+
+// 6e. Copy node.exe
+const distNodeDir = join(distDir, 'node');
+mkdirSync(distNodeDir, { recursive: true });
+cpSync(join(NODE_CACHE_DIR, 'node.exe'), join(distNodeDir, 'node.exe'));
+console.log(`  ✅ node.exe (${(statSync(join(distNodeDir, 'node.exe')).size / 1024 / 1024).toFixed(1)} MB)`);
+
+// 6f. Copy standalone server
+const distStandaloneDir = join(distDir, 'standalone');
+copyDir(STANDALONE_DIR, distStandaloneDir);
+const standaloneSize = calcDirSize(distStandaloneDir);
+console.log(`  ✅ standalone/ (${(standaloneSize / 1024 / 1024).toFixed(1)} MB)`);
+
+// Write game-config.json inside standalone/ too
+writeFileSync(join(distStandaloneDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
+
+// 6g. Create single ZIP
+console.log('');
+console.log('  📦 Creating ZIP...');
+
+const AdmZip = require('adm-zip');
+const addDirToZip = (dir, prefix, zipInstance) => {
   const entries = readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = join(dir, entry.name);
-    const zipEntry = zipPath_prefix + entry.name;
     if (entry.isDirectory()) {
-      addDirToZip(fullPath, zipEntry + '/', zipInstance);
+      addDirToZip(fullPath, prefix + entry.name + '/', zipInstance);
     } else {
-      zipInstance.addLocalFile(fullPath, zipPath_prefix.endsWith('/') ? zipPath_prefix : zipPath_prefix + '/');
+      zipInstance.addLocalFile(fullPath, prefix);
     }
   }
 };
 
-const AdmZip = require('adm-zip');
+const zipPath = join(prevDist, `${binaryName}.zip`);
+const zip = new AdmZip();
+addDirToZip(distDir, `${binaryName}/`, zip);
+zip.writeZip(zipPath);
 
-// ═══════════════════════════════════════════════════════════
-//  STEP 6B: CREATE ZIP 1 — Binaries only (all platforms)
-// ═══════════════════════════════════════════════════════════
+const zipSize = statSync(zipPath).size;
+
 console.log('');
-console.log('  📦 Creating ZIP 1 (binaries + resources, all platforms)...');
-
-const binDir = join(prevDist, binaryName);
-mkdirSync(binDir, { recursive: true });
-
-// Copy all available platform binaries
-let copiedBinaries = 0;
-for (const plat of platformBinaries) {
-  const cached = getCachedBinary(plat);
-  if (!existsSync(cached)) continue;
-  const destName = plat.ext ? `${binaryName}${plat.ext}` : `${binaryName}-${plat.suffix}`;
-  const dest = join(binDir, destName);
-  cpSync(cached, dest);
-  const size = statSync(dest).size;
-  console.log(`     ✅ ${destName} (${plat.label}) — ${(size / 1024 / 1024).toFixed(1)} MB`);
-  copiedBinaries++;
-}
-
-if (copiedBinaries === 0) {
-  console.error('  ❌ No platform binaries found in cache!');
-  exit(1);
-}
-
-// Copy resources.neu or resources/ into binDir
-if (resourcesNeuSrc) {
-  const neuDest = join(binDir, 'resources.neu');
-  if (resourcesNeuSrc === neuDest) {
-    // neu build already placed it in our binDir — skip
-    console.log('  ✅ resources.neu already in place (from neu build)');
-  } else {
-    cpSync(resourcesNeuSrc, neuDest);
-    console.log('  ✅ Copied resources.neu');
-  }
-} else {
-  console.log('  ⚠️  resources.neu not found, copying resources/ directory...');
-  const distResDir = join(binDir, 'resources');
-  copyDir(NEUTRALINO_RES_DIR, distResDir);
-  console.log('  ✅ Copied resources/ directory');
-}
-
-// Copy game-config.json
-writeFileSync(join(binDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
-console.log('  ✅ Copied game-config.json');
-
-// Create ZIP 1
-const binZipPath = join(prevDist, `${binaryName}-binaries.zip`);
-const binZip = new AdmZip();
-addDirToZip(binDir, `${binaryName}/`, binZip);
-binZip.writeZip(binZipPath);
-const binZipSize = statSync(binZipPath).size;
-console.log(`  ✅ ZIP 1: ${binaryName}-binaries.zip (${(binZipSize / 1024 / 1024).toFixed(1)} MB) — ${copiedBinaries} platform(s)`);
-
-// ═══════════════════════════════════════════════════════════
-//  STEP 6C: CREATE ZIP 2 — Full package (binaries + server)
-// ═══════════════════════════════════════════════════════════
-console.log('');
-console.log('  📦 Creating ZIP 2 (full package with server)...');
-
-// Copy Node.js Windows runtime
-const distNodeDir = join(binDir, 'node');
-if (existsSync(distNodeDir)) rmSync(distNodeDir, { recursive: true });
-mkdirSync(distNodeDir, { recursive: true });
-cpSync(join(NODE_CACHE_DIR, 'node.exe'), join(distNodeDir, 'node.exe'));
-const nodeExeSize = statSync(join(distNodeDir, 'node.exe')).size;
-console.log(`  ✅ Copied node.exe (${(nodeExeSize / 1024 / 1024).toFixed(1)} MB)`);
-
-// Copy standalone server
-const distStandaloneDir = join(binDir, 'standalone');
-if (existsSync(distStandaloneDir)) rmSync(distStandaloneDir, { recursive: true });
-copyDir(STANDALONE_DIR, distStandaloneDir);
-const standaloneSize = calcDirSize(distStandaloneDir);
-console.log(`  ✅ Copied standalone/ (${(standaloneSize / 1024 / 1024).toFixed(1)} MB)`);
-
-// Also write game-config.json inside standalone/ (Next.js server reads it from its CWD)
-writeFileSync(join(distStandaloneDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
-
-// Create ZIP 2
-const fullZipPath = join(prevDist, `${binaryName}.zip`);
-const fullZip = new AdmZip();
-addDirToZip(binDir, `${binaryName}/`, fullZip);
-fullZip.writeZip(fullZipPath);
-const fullZipSize = statSync(fullZipPath).size;
-
-console.log(`  ✅ ZIP 2: ${binaryName}.zip (${(fullZipSize / 1024 / 1024).toFixed(1)} MB) — full distributable`);
-
-// ═══════════════════════════════════════════════════════════
-//  SUMMARY
-// ═══════════════════════════════════════════════════════════
-console.log('');
-console.log('  ════════════════════════════════════════════════════════════');
+console.log('  ══════════════════════════════════════════════');
 console.log(`  ✅ Build complete: ${productName}`);
+console.log(`  📦 ${binaryName}.zip (${(zipSize / 1024 / 1024).toFixed(1)} MB)`);
+console.log(`  📂 Path: ${zipPath}`);
+console.log(`  📂 Unpacked: ${distDir}`);
 console.log('');
-console.log(`  📦 ZIP 1 (binaries only): ${binaryName}-binaries.zip`);
-console.log(`     Size: ${(binZipSize / 1024 / 1024).toFixed(1)} MB — ${copiedBinaries} platform(s)`);
-console.log(`     Contains: all Neutralino binaries + resources + game-config`);
-console.log('');
-console.log(`  📦 ZIP 2 (full package): ${binaryName}.zip`);
-console.log(`     Size: ${(fullZipSize / 1024 / 1024).toFixed(1)} MB`);
-console.log(`     Contains: ZIP 1 + standalone/ server + node.exe runtime`);
-console.log('');
-console.log(`  📂 Unpacked folder: ${binDir}`);
-console.log(`  📂 Path: ${prevDist}`);
-console.log('');
-console.log('  🚀 To distribute Windows: send ${binaryName}.zip');
-console.log('  📋 User extracts ZIP and runs the .exe');
+console.log('  🚀 Extract ZIP and run the .exe');
 console.log('  ⚠️  Requires WebView2 (preinstalled on Windows 10/11)');
-console.log('  ════════════════════════════════════════════════════════════');
+console.log('  ══════════════════════════════════════════════');
 console.log('');
 
 })().catch(err => {
