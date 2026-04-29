@@ -53,3 +53,7 @@ server.log
 # Skills directory
 /skills/
 /dist-electron/*
+/neutralino/dist/*
+/neutralino/.tmp/*
+/.node-runtime-cache/*
+/.neutralino-binaries/*

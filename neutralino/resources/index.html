@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Avvio...</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 20px;
+      overflow: hidden;
+    }
+    .icon { font-size: 56px; filter: drop-shadow(0 0 20px rgba(52, 211, 153, 0.3)); }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.88);
+      letter-spacing: -0.02em;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255, 255, 255, 0.08);
+      border-top-color: #34d399;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.35);
+      transition: opacity 0.3s;
+    }
+    .error {
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 13px;
+      max-width: 360px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">🎮</div>
+  <h1>RPG Editor</h1>
+  <div class="spinner" id="spinner"></div>
+  <p id="status">Avvio del server in corso...</p>
+
+  <script>
+    let attempts = 0;
+    const MAX_ATTEMPTS = 120; // 60 seconds max
+
+    function check() {
+      attempts++;
+      if (attempts > MAX_ATTEMPTS) {
+        document.getElementById('spinner').style.display = 'none';
+        document.getElementById('status').innerHTML =
+          '<div class="error">Impossibile avviare il server.<br>Controlla i log per dettagli.</div>';
+        return;
+      }
+
+      fetch('http://localhost:3000')
+        .then(function (r) {
+          if (r.ok) {
+            document.getElementById('status').textContent = 'Pronto!';
+            // Append game mode params if present
+            var params = new URLSearchParams(window.location.search);
+            var url = 'http://localhost:3000';
+            if (params.toString()) url += '?' + params.toString();
+            window.location.href = url;
+          } else {
+            setTimeout(check, 500);
+          }
+        })
+        .catch(function () {
+          if (attempts % 6 === 0) {
+            document.getElementById('status').textContent =
+              'Avvio del server... (' + Math.round(attempts * 500 / 1000) + 's)';
+          }
+          setTimeout(check, 500);
+        });
+    }
+
+    check();
+  </script>
+</body>
+</html>

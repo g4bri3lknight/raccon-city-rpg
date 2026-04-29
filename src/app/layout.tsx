@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RPG Game Engine",
+  title: "RPG Editor",
   description: "Crea, modifica e gioca ai tuoi giochi RPG a turni.",
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",

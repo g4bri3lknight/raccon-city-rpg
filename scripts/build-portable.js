@@ -1,29 +1,47 @@
 #!/usr/bin/env node
 
 /**
- * Build Script — RPG Game Portable Export
+ * Build Script — RPG Editor Portable Export (Neutralinojs)
  *
  * Usage:
  *   npm run export:game GAME_ID       → single game (build + package)
  *   npm run export:editor             → full editor + all games
  *   node scripts/build-portable.js --game=ID --no-build  → package only (skip next build)
  *
- * The --no-build flag is used by the web UI to skip `next build`
- * (avoids conflicts with the running dev server).
- * When --no-build is used, .next/standalone must already exist.
+ * Architecture:
+ *   The build produces a ZIP file containing:
+ *     AppName/
+ *       AppName.exe          → Neutralinojs binary (~2.6MB, downloaded from GitHub)
+ *       resources.neu        → UI resources bundle (index.html, icons, neutralino.js)
+ *       standalone/          → Next.js standalone server
+ *       node/node.exe        → Windows Node.js runtime (~67MB)
+ *       game-config.json     → game mode configuration
+ *       (DBs are inside standalone/db/)
+ *
+ *   Total: ~80-100MB (vs ~228MB with Electron!)
+ *
+ * Key design: Neutralino Windows binary is downloaded directly from GitHub releases
+ * (more reliable than `neu build` which has POSTJECT_SENTINEL issues).
+ * Resources are bundled as resources.neu (created by `neu build`) or as a resources/ dir.
+ * Heavy resources (standalone server, node.exe) are placed OUTSIDE alongside the .exe.
  *
  * Steps:
- *   1. Pre-flight checks (electron-builder, DBs, config)
+ *   1. Pre-flight checks (@neutralinojs/neu, adm-zip, DBs, Prisma)
  *   2. Run `next build` (standalone output) — SKIPPED with --no-build
  *   3. Copy static assets into standalone
  *   4. Copy game DB(s) into standalone
- *   5. Run electron-builder → portable executable
+ *   5. Download Neutralino binary from GitHub + create resources bundle
+ *   6. Assemble package + create distributable ZIP
  */
 
-const { execSync, cpSync, mkdirSync, existsSync, writeFileSync, readFileSync, unlinkSync, readdirSync, statSync, rmSync } = require('fs');
-const { join, dirname, resolve } = require('path');
-const { argv, env, exit } = require('process');
+const { execSync, cpSync, mkdirSync, existsSync, writeFileSync, readFileSync, unlinkSync, readdirSync, statSync, rmSync, createReadStream, createWriteStream } = require('fs');
+const { join, dirname, resolve, basename } = require('path');
+const { argv, env, exit, platform, arch } = require('process');
 const { spawn } = require('child_process');
+const { pipeline } = require('stream/promises');
+const { createInflateRaw } = require('zlib');
+const https = require('https');
+const http = require('http');
 
 // ═══════════════════════════════════════════════════════════
 //  ARG PARSING
@@ -51,7 +69,7 @@ const skipBuild = args.includes('--no-build');
 if (!isGameOnly && !isEditor) {
   console.log('');
   console.log('  ╔══════════════════════════════════════════════╗');
-  console.log('  ║   RPG Game — Portable Build Tool             ║');
+  console.log('  ║   RPG Editor — Portable Build (Neutralino)   ║');
   console.log('  ╠══════════════════════════════════════════════╣');
   console.log('  ║                                              ║');
   console.log('  ║  Usage:                                      ║');
@@ -70,22 +88,26 @@ if (!isGameOnly && !isEditor) {
 // productName: the display name shown in the EXE/window title
 const productName = customName || (isGameOnly
   ? `RPG ${gameId}`
-  : 'RPG Game Editor');
+  : 'RPG Editor');
 
-const projectName = isGameOnly
-  ? `RPG-${gameId}`
-  : 'RPG-Game-Editor';
+// Safe filename for the binary (no special chars)
+const binaryName = productName.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim() || 'RPG-Editor';
 
 console.log('');
-console.log(`  🎮 Building: ${projectName}`);
+console.log(`  🎮 Building: ${binaryName}`);
 console.log(`  📛 Product Name: ${productName}`);
 console.log(`  📦 Mode: ${isGameOnly ? `Game-only (${gameId})` : 'Full Editor'}`);
+console.log(`  ⚙️  Engine: Neutralinojs (lightweight, WebView2)`);
 if (skipBuild) console.log(`  ⏭️  Skipping Next.js build (--no-build)`);
 console.log('');
 
 const ROOT = process.cwd();
 const STANDALONE_DIR = join(ROOT, '.next', 'standalone');
 const GAMES_DIR = join(ROOT, 'db', 'games');
+const NEUTRALINO_DIR = join(ROOT, 'neutralino');
+const NEUTRALINO_RES_DIR = join(NEUTRALINO_DIR, 'resources');
+const NODE_CACHE_DIR = join(ROOT, '.node-runtime-cache');
+const NODE_VERSION = 'v20.18.1';
 
 // ═══════════════════════════════════════════════════════════
 //  HELPER: Run command with real-time output + error capture
@@ -93,20 +115,22 @@ const GAMES_DIR = join(ROOT, 'db', 'games');
 
 function runCommand(command, commandArgs, options = {}) {
   return new Promise((resolve, reject) => {
-    const { cwd = ROOT, extraEnv = {} } = options;
+    const { cwd = ROOT, extraEnv = {}, shellCmd } = options;
 
     const childEnv = {
       ...env,
       ...extraEnv,
     };
 
-    // Build a single command string and use shell:true for cross-platform support.
-    // Windows needs shell:true to resolve .cmd wrappers (npx.cmd, electron-builder.cmd).
-    const cmdString = 'npx ' + [command, ...commandArgs].map(a => {
-      // Quote args that contain spaces
-      if (a.includes(' ')) return `"${a}"`;
-      return a;
-    }).join(' ');
+    let cmdString;
+    if (shellCmd) {
+      cmdString = shellCmd;
+    } else {
+      cmdString = 'npx ' + [command, ...commandArgs].map(a => {
+        if (a.includes(' ')) return `"${a}"`;
+        return a;
+      }).join(' ');
+    }
 
     const child = spawn(cmdString, [], {
       cwd,
@@ -115,7 +139,6 @@ function runCommand(command, commandArgs, options = {}) {
       shell: true,
     });
 
-    // Capture output for error reporting
     const outputLines = [];
     const MAX_LINES = 200;
 
@@ -126,9 +149,7 @@ function runCommand(command, commandArgs, options = {}) {
       for (const line of newLines) {
         if (line.trim()) outputLines.push(line);
       }
-      while (outputLines.length > MAX_LINES) {
-        outputLines.shift();
-      }
+      while (outputLines.length > MAX_LINES) outputLines.shift();
     });
 
     child.stderr.on('data', (data) => {
@@ -138,9 +159,7 @@ function runCommand(command, commandArgs, options = {}) {
       for (const line of newLines) {
         if (line.trim()) outputLines.push(line);
       }
-      while (outputLines.length > MAX_LINES) {
-        outputLines.shift();
-      }
+      while (outputLines.length > MAX_LINES) outputLines.shift();
     });
 
     child.on('error', (err) => {
@@ -166,21 +185,154 @@ function runCommand(command, commandArgs, options = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  HELPER: Generate electron-builder config with dynamic productName
+//  HELPER: Download file with progress
 // ═══════════════════════════════════════════════════════════
 
-function generateBuilderConfig() {
-  // Read the base YAML and replace productName
-  const baseYaml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf-8');
-  // Replace the productName line (YAML: simple scalar or quoted string)
-  const newYaml = baseYaml.replace(
-    /^productName:\s*.*/m,
-    `productName: ${JSON.stringify(productName)}`
-  );
-  // Write a temp config file
-  const tempConfig = join(ROOT, '.electron-builder-build.yml');
-  writeFileSync(tempConfig, newYaml, 'utf-8');
-  return tempConfig;
+function downloadFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http;
+
+    const request = (currentUrl, redirects = 0) => {
+      protocol.get(currentUrl, (response) => {
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && redirects < 5) {
+          request(response.headers.location, redirects + 1);
+          return;
+        }
+        if (response.statusCode !== 200) {
+          reject(new Error(`HTTP ${response.statusCode} for ${url}`));
+          return;
+        }
+
+        const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+        let downloadedBytes = 0;
+        let lastPercent = -1;
+
+        const fileStream = createWriteStream(destPath);
+        response.pipe(fileStream);
+
+        response.on('data', (chunk) => {
+          downloadedBytes += chunk.length;
+          if (totalBytes > 0) {
+            const percent = Math.round(downloadedBytes / totalBytes * 100);
+            if (percent !== lastPercent && percent % 10 === 0) {
+              process.stdout.write(`    ${percent}%...`);
+              lastPercent = percent;
+            }
+          }
+        });
+
+        fileStream.on('finish', () => {
+          fileStream.close();
+          if (lastPercent >= 0) process.stdout.write(' 100%\n');
+          resolve();
+        });
+      }).on('error', reject);
+    };
+
+    request(url);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HELPER: Ensure Node.js Windows runtime is available
+// ═══════════════════════════════════════════════════════════
+
+async function ensureNodeRuntime() {
+  const nodeExePath = join(ROOT, '.node-runtime-cache', 'node.exe');
+  if (existsSync(nodeExePath)) {
+    const size = statSync(nodeExePath).size;
+    console.log(`  ✅ Node.js runtime cached (${(size / 1024 / 1024).toFixed(1)} MB)`);
+    return;
+  }
+
+  console.log('  ⬇️  Node.js Windows runtime not cached, downloading...');
+  mkdirSync(NODE_CACHE_DIR, { recursive: true });
+
+  const nodeUrl = `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-win-x64.zip`;
+  const cacheZip = join(NODE_CACHE_DIR, `node-${NODE_VERSION}-win-x64.zip`);
+
+  if (!existsSync(cacheZip)) {
+    console.log(`  ⬇️  Downloading Node.js ${NODE_VERSION} (Windows x64)...`);
+    await downloadFile(nodeUrl, cacheZip);
+  } else {
+    console.log(`  📦 Using cached download: ${basename(cacheZip)}`);
+  }
+
+  // Extract node.exe from the zip
+  console.log('  📦 Extracting node.exe...');
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip(cacheZip);
+  const prefix = `node-${NODE_VERSION}-win-x64/`;
+  const entry = zip.getEntry(prefix + 'node.exe');
+  if (!entry) {
+    console.error('  ❌ node.exe not found in the downloaded zip!');
+    exit(1);
+  }
+  zip.extractEntryTo(entry, NODE_CACHE_DIR, false, true);
+
+  if (existsSync(nodeExePath)) {
+    const size = statSync(nodeExePath).size;
+    console.log(`  ✅ Node.js runtime ready (${(size / 1024 / 1024).toFixed(1)} MB)`);
+  } else {
+    console.error('  ❌ Failed to extract node.exe!');
+    exit(1);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HELPER: Generate Neutralino config with dynamic product name
+// ═══════════════════════════════════════════════════════════
+
+function generateNeutralinoConfig() {
+  const baseConfig = JSON.parse(readFileSync(join(NEUTRALINO_DIR, 'neutralino.config.json'), 'utf-8'));
+
+  baseConfig.modes.window.title = productName;
+  baseConfig.cli.binaryName = binaryName;
+
+  const iconPath = join(NEUTRALINO_DIR, 'resources', 'icons', 'icon.png');
+  if (existsSync(iconPath)) {
+    baseConfig.modes.window.icon = '/resources/icons/icon.png';
+  }
+
+  return baseConfig;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HELPER: Recursively copy directory
+// ═══════════════════════════════════════════════════════════
+
+function copyDir(src, dest) {
+  mkdirSync(dest, { recursive: true });
+  const entries = readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else if (entry.isFile()) {
+      cpSync(srcPath, destPath);
+    } else {
+      // Symlinks, junctions, etc. — copy with recursive to handle on Windows
+      cpSync(srcPath, destPath, { recursive: true });
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HELPER: Calculate directory size
+// ═══════════════════════════════════════════════════════════
+
+function calcDirSize(dir) {
+  let total = 0;
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) total += calcDirSize(p);
+      else total += statSync(p).size;
+    }
+  } catch { /* ignore */ }
+  return total;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -192,35 +344,50 @@ function generateBuilderConfig() {
 // ═══════════════════════════════════════════════════════════
 //  STEP 1: PRE-FLIGHT CHECKS
 // ═══════════════════════════════════════════════════════════
-console.log('  ── Step 1/5: Pre-flight checks...');
+console.log('  ── Step 1/6: Pre-flight checks...');
 
-// 1a. electron-builder
+// 1a. @neutralinojs/neu
 try {
-  require('electron-builder');
-  console.log('  ✅ electron-builder found');
+  const neuPkg = require('@neutralinojs/neu/package.json');
+  console.log(`  ✅ @neutralinojs/neu v${neuPkg.version}`);
 } catch {
-  console.error('  ❌ electron-builder is not installed!');
-  console.error('');
-  console.error('  Install it with:');
-  console.error('    npm install -D electron electron-builder');
-  console.error('    (or: bun add -D electron electron-builder)');
-  console.error('');
+  console.error('  ❌ @neutralinojs/neu is not installed!');
+  console.error('  Install it with: npm install -D @neutralinojs/neu');
   exit(1);
 }
 
-// 1b. electron-builder.yml config
-if (!existsSync(join(ROOT, 'electron-builder.yml'))) {
-  console.error('  ❌ electron-builder.yml not found!');
+// 1b. adm-zip
+try {
+  require('adm-zip');
+  console.log('  ✅ adm-zip found');
+} catch {
+  console.log('  ⬇️  Installing adm-zip...');
+  try {
+    execSync('npm install -D adm-zip', { cwd: ROOT, stdio: 'inherit' });
+    console.log('  ✅ adm-zip installed');
+  } catch {
+    try {
+      execSync('bun add -D adm-zip', { cwd: ROOT, stdio: 'inherit' });
+      console.log('  ✅ adm-zip installed');
+    } catch {
+      console.error('  ❌ Failed to install adm-zip!');
+      exit(1);
+    }
+  }
+}
+
+// 1c. neutralino.config.json
+if (!existsSync(join(NEUTRALINO_DIR, 'neutralino.config.json'))) {
+  console.error('  ❌ neutralino/neutralino.config.json not found!');
   exit(1);
 }
-console.log('  ✅ electron-builder.yml found');
+console.log('  ✅ neutralino.config.json found');
 
-// 1c. Game DB
+// 1d. Game DB
 if (isGameOnly) {
   const gameDb = join(GAMES_DIR, `${gameId}.db`);
   if (!existsSync(gameDb)) {
     console.error(`  ❌ Game DB not found: ${gameDb}`);
-    console.error('  Make sure the game exists before exporting.');
     exit(1);
   }
   console.log(`  ✅ Game DB found: ${gameId}.db`);
@@ -237,7 +404,7 @@ if (isGameOnly) {
   console.log(`  ✅ Found ${dbs.length} game database(s)`);
 }
 
-// 1d. Prisma engine
+// 1e. Prisma engine
 const prismaDir = join(ROOT, 'node_modules', '.prisma');
 if (!existsSync(prismaDir)) {
   console.warn('  ⚠️  Prisma engine not found. Running prisma generate...');
@@ -252,13 +419,6 @@ if (!existsSync(prismaDir)) {
   console.log('  ✅ Prisma engine ready');
 }
 
-// 1e. electron/ directory
-if (!existsSync(join(ROOT, 'electron', 'main.js'))) {
-  console.error('  ❌ electron/main.js not found!');
-  exit(1);
-}
-console.log('  ✅ Electron main.js found');
-
 console.log('  ✅ All pre-flight checks passed');
 
 // ═══════════════════════════════════════════════════════════
@@ -266,34 +426,27 @@ console.log('  ✅ All pre-flight checks passed');
 // ═══════════════════════════════════════════════════════════
 
 if (skipBuild) {
-  console.log('  ── Step 2/5: Skipping Next.js build (--no-build)...');
+  console.log('  ── Step 2/6: Skipping Next.js build (--no-build)...');
 
-  // Verify standalone already exists
   if (!existsSync(join(STANDALONE_DIR, 'server.js'))) {
     console.error('');
     console.error('  ❌ .next/standalone/server.js not found!');
-    console.error('');
     console.error('  The --no-build flag requires a pre-existing build.');
     console.error('  Run this command first from the terminal:');
-    console.error('');
     console.error('    npm run build');
     console.error('');
     exit(1);
   }
   console.log('  ✅ Using existing standalone build');
 } else {
-  console.log('  ── Step 2/5: Building Next.js (standalone)...');
+  console.log('  ── Step 2/6: Building Next.js (standalone)...');
   console.log('');
 
-  // Retry loop — Next.js 16.x ha un bug non-deterministico di prerender
-  // (useContext null durante /_global-error SSG). Il retry spesso lo risolve.
   const MAX_BUILD_RETRIES = 3;
   let buildOk = false;
   for (let attempt = 1; attempt <= MAX_BUILD_RETRIES; attempt++) {
     try {
-      if (attempt > 1) {
-        console.log(`  🔄 Retry ${attempt}/${MAX_BUILD_RETRIES}...`);
-      }
+      if (attempt > 1) console.log(`  🔄 Retry ${attempt}/${MAX_BUILD_RETRIES}...`);
       await runCommand('next', ['build'], {
         cwd: ROOT,
         extraEnv: {
@@ -327,7 +480,6 @@ if (skipBuild) {
   }
   if (!buildOk) exit(1);
 
-  // Verify standalone was created
   if (!existsSync(join(STANDALONE_DIR, 'server.js'))) {
     console.error('  ❌ Standalone build not found at .next/standalone/server.js');
     console.error('  Make sure next.config.ts has: output: "standalone"');
@@ -338,11 +490,11 @@ if (skipBuild) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  STEP 3: COPY STATIC ASSETS
+//  STEP 3: COPY STATIC ASSETS INTO STANDALONE
 // ═══════════════════════════════════════════════════════════
-console.log('  ── Step 3/5: Copying static assets...');
+console.log('  ── Step 3/6: Copying static assets into standalone...');
 
-// Copy .next/static into standalone/.next/static
+// .next/static
 const staticFrom = join(ROOT, '.next', 'static');
 const staticTo = join(STANDALONE_DIR, '.next', 'static');
 if (existsSync(staticFrom)) {
@@ -354,7 +506,7 @@ if (existsSync(staticFrom)) {
   console.warn('  ⚠️  .next/static not found (may cause missing assets)');
 }
 
-// Copy public/ into standalone/public/
+// public/
 const publicFrom = join(ROOT, 'public');
 const publicTo = join(STANDALONE_DIR, 'public');
 if (existsSync(publicFrom)) {
@@ -363,7 +515,7 @@ if (existsSync(publicFrom)) {
   console.log('  ✅ Copied public/');
 }
 
-// Copy prisma engine into standalone for runtime DB access
+// Prisma engine
 const prismaNodeModules = join(ROOT, 'node_modules', '.prisma');
 const standalonePrisma = join(STANDALONE_DIR, 'node_modules', '.prisma');
 if (existsSync(prismaNodeModules)) {
@@ -373,7 +525,7 @@ if (existsSync(prismaNodeModules)) {
   console.log('  ✅ Copied Prisma engine');
 }
 
-// Ensure @prisma/client is in standalone node_modules
+// @prisma/client + @prisma/engines
 const packagesToCopy = ['@prisma/client', '@prisma/engines'];
 for (const pkg of packagesToCopy) {
   const from = join(ROOT, 'node_modules', pkg);
@@ -387,7 +539,7 @@ for (const pkg of packagesToCopy) {
   }
 }
 
-// Copy prisma/schema.prisma
+// prisma/schema.prisma
 const schemaFrom = join(ROOT, 'prisma', 'schema.prisma');
 const schemaTo = join(STANDALONE_DIR, 'prisma', 'schema.prisma');
 if (existsSync(schemaFrom)) {
@@ -398,43 +550,28 @@ if (existsSync(schemaFrom)) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  STEP 4: COPY GAME DATABASE(S)
+//  STEP 4: COPY GAME DATABASE(S) INTO STANDALONE
 // ═══════════════════════════════════════════════════════════
-console.log('  ── Step 4/5: Copying game database(s)...');
+console.log('  ── Step 4/6: Copying game database(s)...');
 
-// Ensure standalone db dirs exist
 const standaloneDbGames = join(STANDALONE_DIR, 'db', 'games');
 const standaloneDbBase = join(STANDALONE_DIR, 'db');
 mkdirSync(standaloneDbGames, { recursive: true });
 
 if (isGameOnly) {
-  // Copy the game DB
   const gameDb = join(GAMES_DIR, `${gameId}.db`);
   cpSync(gameDb, join(standaloneDbGames, `${gameId}.db`));
   console.log(`  ✅ Copied: ${gameId}.db (${(statSync(gameDb).size / 1024 / 1024).toFixed(1)} MB)`);
 
-  // Copy editor DB (custom.db) for save/load support
   const editorDb = join(ROOT, 'db', 'custom.db');
   if (existsSync(editorDb)) {
     cpSync(editorDb, join(standaloneDbBase, 'custom.db'));
     console.log('  ✅ Copied: custom.db (editor DB)');
   }
 
-  // Set active game
   writeFileSync(join(standaloneDbBase, '.active-game'), gameId, 'utf-8');
   console.log(`  ✅ Active game set: ${gameId}`);
-
-  // Write game config for Electron — this is the SOLE source of truth
-  // for the packaged EXE (no CLI args at runtime)
-  const gameConfig = {
-    productName: productName,
-    gameId: gameId,
-    isGameOnly: true,
-  };
-  writeFileSync(join(STANDALONE_DIR, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
-  console.log(`  ✅ Game config written → ${productName} (game-only mode)`);
 } else {
-  // Copy ALL game DBs
   const dbs = readdirSync(GAMES_DIR).filter(f => f.endsWith('.db'));
   for (const db of dbs) {
     const src = join(GAMES_DIR, db);
@@ -442,88 +579,314 @@ if (isGameOnly) {
     console.log(`  ✅ Copied: ${db} (${(statSync(src).size / 1024 / 1024).toFixed(1)} MB)`);
   }
 
-  // Copy active game file
   const activeFile = join(ROOT, 'db', '.active-game');
   if (existsSync(activeFile)) {
     cpSync(activeFile, join(standaloneDbBase, '.active-game'));
     console.log('  ✅ Copied .active-game');
   }
 
-  // Copy editor DB
   const editorDb = join(ROOT, 'db', 'custom.db');
   if (existsSync(editorDb)) {
     cpSync(editorDb, join(standaloneDbBase, 'custom.db'));
     console.log('  ✅ Copied: custom.db (editor DB)');
   }
-
-  // Write editor config for Electron
-  const editorConfig = {
-    productName: productName,
-    gameId: null,
-    isGameOnly: false,
-  };
-  writeFileSync(join(STANDALONE_DIR, 'game-config.json'), JSON.stringify(editorConfig, null, 2), 'utf-8');
-  console.log(`  ✅ Game config written → ${productName} (editor mode)`);
 }
 
 // ═══════════════════════════════════════════════════════════
-//  STEP 5: ELECTRON-BUILDER
+//  STEP 5: PREPARE NEUTRALINO RESOURCES + BUILD
 // ═══════════════════════════════════════════════════════════
-console.log('  ── Step 5/5: Building portable executable...');
-console.log('');
+console.log('  ── Step 5/6: Preparing Neutralino resources + build...');
 
-const platform = process.platform;
-let targetFlag = '';
-if (platform === 'win32') targetFlag = '--win';
-else if (platform === 'darwin') targetFlag = '--mac';
-else targetFlag = '--linux';
+// 5a. Clean previous build
+const prevDist = join(NEUTRALINO_DIR, 'dist');
+if (existsSync(prevDist)) rmSync(prevDist, { recursive: true });
+mkdirSync(prevDist, { recursive: true });
 
-console.log(`  Platform: ${platform} ${targetFlag}`);
-console.log(`  Product Name: ${productName}`);
-console.log('');
+// 5b. Write game-config.json INTO resources/
+const gameConfig = isGameOnly
+  ? { productName, gameName: customName || gameId, gameId, isGameOnly: true }
+  : { productName, gameName: null, gameId: null, isGameOnly: false };
+writeFileSync(join(NEUTRALINO_RES_DIR, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
+console.log('  ✅ Written game-config.json → resources/');
 
-// Generate temp config with the correct productName
-let tempConfigPath = null;
-try {
-  tempConfigPath = generateBuilderConfig();
-  console.log(`  Config: ${tempConfigPath} (productName: "${productName}")`);
-
-  await runCommand('electron-builder', [
-    '--config', tempConfigPath,
-    '--publish', 'never',
-    targetFlag,
-  ], {
-    cwd: ROOT,
-    extraEnv: {
-      GAME_ONLY: isGameOnly ? 'true' : 'false',
-      GAME_ID: gameId || '',
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false',
-    },
-  });
-} catch (err) {
-  console.error('');
-  console.error('  ══════════════════════════════════════════════');
-  console.error('  ❌ electron-builder failed!');
-  console.error('');
-  console.error('  ' + err.message);
-  console.error('');
-  console.error('  Common causes:');
-  console.error('  • Missing icon → build/icon.png');
-  console.error('  • electron-builder.yml syntax error');
-  console.error('  • Insufficient disk space');
-  console.error('  ══════════════════════════════════════════════');
-  console.error('');
-  exit(1);
-} finally {
-  // Clean up temp config
-  if (tempConfigPath) {
-    try { unlinkSync(tempConfigPath); } catch {}
+// 5c. Make sure ONLY lightweight files are in resources/
+const heavyDirs = ['standalone', 'node'];
+for (const d of heavyDirs) {
+  const heavyPath = join(NEUTRALINO_RES_DIR, d);
+  if (existsSync(heavyPath)) {
+    rmSync(heavyPath, { recursive: true });
+    console.log(`  🗑️  Removed ${d}/ from resources/ (will be placed alongside .exe)`);
   }
 }
 
+// 5d. Generate dynamic neutralino.config.json
+const config = generateNeutralinoConfig();
+writeFileSync(join(NEUTRALINO_DIR, 'neutralino.config.json'), JSON.stringify(config, null, 2), 'utf-8');
+console.log(`  ✅ Generated neutralino.config.json (binaryName: "${binaryName}")`);
+
+// 5e. Get Neutralino binary version from config (used by neu build)
+const NL_VERSION = config.cli.binaryVersion || '5.4.0';
+console.log(`  📋 Neutralino version: ${NL_VERSION}`);
+
+// 5f. Download ALL Neutralino platform binaries from GitHub releases
+//     URL pattern: https://github.com/neutralinojs/neutralinojs/releases/download/v{ver}/neutralinojs-v{ver}.zip
+//     This ZIP contains: neutralino-win_x64.exe, neutralino-linux_x64, neutralino-mac_x64, etc.
+const NEUTRALINO_CACHE_DIR = join(ROOT, '.neutralino-binaries');
+mkdirSync(NEUTRALINO_CACHE_DIR, { recursive: true });
+
+const releaseZipFile = join(NEUTRALINO_CACHE_DIR, `neutralinojs-v${NL_VERSION}.zip`);
+const allBinariesCached = join(NEUTRALINO_CACHE_DIR, `all-v${NL_VERSION}.extracted`);
+
+if (existsSync(allBinariesCached)) {
+  console.log(`  ✅ Neutralino binaries cached (v${NL_VERSION})`);
+} else {
+  console.log('  ⬇️  Downloading Neutralino ALL-platform binaries from GitHub...');
+  const releaseUrl = `https://github.com/neutralinojs/neutralinojs/releases/download/v${NL_VERSION}/neutralinojs-v${NL_VERSION}.zip`;
+  try {
+    if (!existsSync(releaseZipFile)) {
+      await downloadFile(releaseUrl, releaseZipFile);
+    }
+    // Extract ALL binaries from the zip
+    console.log('  📦 Extracting all platform binaries...');
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(releaseZipFile);
+    const entries = zip.getEntries();
+    let extractedCount = 0;
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      // Extract each binary to cache dir with versioned name
+      const rawName = basename(entry.entryName);
+      // Filter: only neutralino-* binaries (not README, etc.)
+      if (!rawName.startsWith('neutralino-')) continue;
+      const versionedName = rawName.replace('neutralino-', `neutralino-v${NL_VERSION}-`);
+      const destPath = join(NEUTRALINO_CACHE_DIR, versionedName);
+      const rawPath = join(NEUTRALINO_CACHE_DIR, rawName);
+      // Extract, then rename to versioned name
+      zip.extractEntryTo(entry, NEUTRALINO_CACHE_DIR, false, true);
+      if (rawPath !== destPath) {
+        if (existsSync(destPath)) unlinkSync(destPath);
+        cpSync(rawPath, destPath);
+        unlinkSync(rawPath);
+      }
+      const size = statSync(destPath).size;
+      console.log(`     ✅ ${versionedName} (${(size / 1024 / 1024).toFixed(1)} MB)`);
+      extractedCount++;
+    }
+    if (extractedCount === 0) {
+      console.error('  ❌ No neutralino binaries found in the zip!');
+      console.error('  Contents:');
+      entries.forEach(e => console.error('    ' + e.entryName));
+      exit(1);
+    }
+    // Write marker file so we know extraction is done
+    writeFileSync(allBinariesCached, new Date().toISOString(), 'utf-8');
+    console.log(`  ✅ ${extractedCount} platform binaries extracted`);
+  } catch (err) {
+    console.error(`  ❌ Failed to download/extract Neutralino binaries: ${err.message}`);
+    console.error('');
+    console.error('  Possible fixes:');
+    console.error('  • Check your internet connection');
+    console.error('  • The Neutralino version (v' + NL_VERSION + ') may not exist on GitHub');
+    console.error('  • Try: cd neutralino && npx neu update && npx neu build --release');
+    console.error('');
+    exit(1);
+  }
+}
+
+// Map of platform binary names: original → product name
+const platformBinaries = [
+  { suffix: 'win_x64.exe',    ext: '.exe',       label: 'Windows x64' },
+  { suffix: 'linux_x64',      ext: '',            label: 'Linux x64' },
+  { suffix: 'mac_x64',        ext: '',            label: 'macOS x64' },
+  { suffix: 'mac_arm64',      ext: '',            label: 'macOS ARM64' },
+  { suffix: 'linux_arm64',    ext: '',            label: 'Linux ARM64' },
+  { suffix: 'win_arm64.exe',  ext: '.exe',       label: 'Windows ARM64' },
+];
+
+// Helper: get cached path for a platform binary
+function getCachedBinary(platform) {
+  return join(NEUTRALINO_CACHE_DIR, `neutralino-v${NL_VERSION}-${platform.suffix}`);
+}
+
+// 5g. Also try `neu build` to create resources.neu (the resource bundle)
+//     We do NOT use --embed-resources because of POSTJECT_SENTINEL errors
+console.log('  📦 Running neu build --release (for resources.neu)...');
 console.log('');
+try {
+  await runCommand('neu', ['update'], { cwd: NEUTRALINO_DIR });
+} catch (err) {
+  console.warn('  ⚠️  neu update warning (non-fatal)');
+}
+try {
+  await runCommand('neu', ['build', '--release'], {
+    cwd: NEUTRALINO_DIR,
+  });
+  console.log('  ✅ neu build complete');
+} catch (err) {
+  console.warn('  ⚠️  neu build failed (non-fatal, will use fallback):');
+  console.warn('  ' + String(err.message || err).split('\n')[0]);
+}
+
+// 5h. Ensure Node.js Windows runtime is available
+await ensureNodeRuntime();
+
+console.log('  ✅ Neutralino resources prepared');
+
+// ═══════════════════════════════════════════════════════════
+//  STEP 6: ASSEMBLE DISTRIBUTABLE PACKAGE
+// ═══════════════════════════════════════════════════════════
+console.log('  ── Step 6/6: Assembling distributable package...');
+
+// The output directory will contain everything needed to run
+const distDir = join(prevDist, binaryName);
+mkdirSync(distDir, { recursive: true });
+
+// 6a. Find resources.neu (from neu build) or use resources/ dir
+let resourcesNeuSrc = '';
+const findRes = (dir) => {
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) {
+        const found = findRes(p);
+        if (found) return found;
+      } else if (e.name === 'resources.neu') {
+        return p;
+      }
+    }
+  } catch { /* skip */ }
+  return null;
+};
+resourcesNeuSrc = findRes(prevDist) || '';
+
+// Helper: add directory contents to an AdmZip instance
+const addDirToZip = (dir, zipPath_prefix, zipInstance) => {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    const zipEntry = zipPath_prefix + entry.name;
+    if (entry.isDirectory()) {
+      addDirToZip(fullPath, zipEntry + '/', zipInstance);
+    } else {
+      zipInstance.addLocalFile(fullPath, zipPath_prefix.endsWith('/') ? zipPath_prefix : zipPath_prefix + '/');
+    }
+  }
+};
+
+const AdmZip = require('adm-zip');
+
+// ═══════════════════════════════════════════════════════════
+//  STEP 6B: CREATE ZIP 1 — Binaries only (all platforms)
+// ═══════════════════════════════════════════════════════════
+console.log('');
+console.log('  📦 Creating ZIP 1 (binaries + resources, all platforms)...');
+
+const binDir = join(prevDist, binaryName);
+mkdirSync(binDir, { recursive: true });
+
+// Copy all available platform binaries
+let copiedBinaries = 0;
+for (const plat of platformBinaries) {
+  const cached = getCachedBinary(plat);
+  if (!existsSync(cached)) continue;
+  const destName = plat.ext ? `${binaryName}${plat.ext}` : `${binaryName}-${plat.suffix}`;
+  const dest = join(binDir, destName);
+  cpSync(cached, dest);
+  const size = statSync(dest).size;
+  console.log(`     ✅ ${destName} (${plat.label}) — ${(size / 1024 / 1024).toFixed(1)} MB`);
+  copiedBinaries++;
+}
+
+if (copiedBinaries === 0) {
+  console.error('  ❌ No platform binaries found in cache!');
+  exit(1);
+}
+
+// Copy resources.neu or resources/ into binDir
+if (resourcesNeuSrc) {
+  const neuDest = join(binDir, 'resources.neu');
+  if (resourcesNeuSrc === neuDest) {
+    // neu build already placed it in our binDir — skip
+    console.log('  ✅ resources.neu already in place (from neu build)');
+  } else {
+    cpSync(resourcesNeuSrc, neuDest);
+    console.log('  ✅ Copied resources.neu');
+  }
+} else {
+  console.log('  ⚠️  resources.neu not found, copying resources/ directory...');
+  const distResDir = join(binDir, 'resources');
+  copyDir(NEUTRALINO_RES_DIR, distResDir);
+  console.log('  ✅ Copied resources/ directory');
+}
+
+// Copy game-config.json
+writeFileSync(join(binDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
+console.log('  ✅ Copied game-config.json');
+
+// Create ZIP 1
+const binZipPath = join(prevDist, `${binaryName}-binaries.zip`);
+const binZip = new AdmZip();
+addDirToZip(binDir, `${binaryName}/`, binZip);
+binZip.writeZip(binZipPath);
+const binZipSize = statSync(binZipPath).size;
+console.log(`  ✅ ZIP 1: ${binaryName}-binaries.zip (${(binZipSize / 1024 / 1024).toFixed(1)} MB) — ${copiedBinaries} platform(s)`);
+
+// ═══════════════════════════════════════════════════════════
+//  STEP 6C: CREATE ZIP 2 — Full package (binaries + server)
+// ═══════════════════════════════════════════════════════════
+console.log('');
+console.log('  📦 Creating ZIP 2 (full package with server)...');
+
+// Copy Node.js Windows runtime
+const distNodeDir = join(binDir, 'node');
+if (existsSync(distNodeDir)) rmSync(distNodeDir, { recursive: true });
+mkdirSync(distNodeDir, { recursive: true });
+cpSync(join(NODE_CACHE_DIR, 'node.exe'), join(distNodeDir, 'node.exe'));
+const nodeExeSize = statSync(join(distNodeDir, 'node.exe')).size;
+console.log(`  ✅ Copied node.exe (${(nodeExeSize / 1024 / 1024).toFixed(1)} MB)`);
+
+// Copy standalone server
+const distStandaloneDir = join(binDir, 'standalone');
+if (existsSync(distStandaloneDir)) rmSync(distStandaloneDir, { recursive: true });
+copyDir(STANDALONE_DIR, distStandaloneDir);
+const standaloneSize = calcDirSize(distStandaloneDir);
+console.log(`  ✅ Copied standalone/ (${(standaloneSize / 1024 / 1024).toFixed(1)} MB)`);
+
+// Also write game-config.json inside standalone/ (Next.js server reads it from its CWD)
+writeFileSync(join(distStandaloneDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
+
+// Create ZIP 2
+const fullZipPath = join(prevDist, `${binaryName}.zip`);
+const fullZip = new AdmZip();
+addDirToZip(binDir, `${binaryName}/`, fullZip);
+fullZip.writeZip(fullZipPath);
+const fullZipSize = statSync(fullZipPath).size;
+
+console.log(`  ✅ ZIP 2: ${binaryName}.zip (${(fullZipSize / 1024 / 1024).toFixed(1)} MB) — full distributable`);
+
+// ═══════════════════════════════════════════════════════════
+//  SUMMARY
+// ═══════════════════════════════════════════════════════════
+console.log('');
+console.log('  ════════════════════════════════════════════════════════════');
 console.log(`  ✅ Build complete: ${productName}`);
-console.log(`  📦 Output: dist-electron/`);
+console.log('');
+console.log(`  📦 ZIP 1 (binaries only): ${binaryName}-binaries.zip`);
+console.log(`     Size: ${(binZipSize / 1024 / 1024).toFixed(1)} MB — ${copiedBinaries} platform(s)`);
+console.log(`     Contains: all Neutralino binaries + resources + game-config`);
+console.log('');
+console.log(`  📦 ZIP 2 (full package): ${binaryName}.zip`);
+console.log(`     Size: ${(fullZipSize / 1024 / 1024).toFixed(1)} MB`);
+console.log(`     Contains: ZIP 1 + standalone/ server + node.exe runtime`);
+console.log('');
+console.log(`  📂 Unpacked folder: ${binDir}`);
+console.log(`  📂 Path: ${prevDist}`);
+console.log('');
+console.log('  🚀 To distribute Windows: send ${binaryName}.zip');
+console.log('  📋 User extracts ZIP and runs the .exe');
+console.log('  ⚠️  Requires WebView2 (preinstalled on Windows 10/11)');
+console.log('  ════════════════════════════════════════════════════════════');
 console.log('');
 
 })().catch(err => {

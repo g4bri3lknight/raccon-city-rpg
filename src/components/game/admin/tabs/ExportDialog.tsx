@@ -354,7 +354,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                   </li>
                   <li className="text-[12px] text-white/40 flex items-center gap-2">
                     <span className="w-1 h-1 rounded-full bg-violet-400/50 shrink-0" />
-                    Frontend React compilato (Electron + Chromium)
+                    Applicazione portatile Neutralinojs (~50-70 MB)
                   </li>
                   <li className="text-[12px] text-white/40 flex items-center gap-2">
                     <span className="w-1 h-1 rounded-full bg-violet-400/50 shrink-0" />
@@ -376,7 +376,11 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                   </li>
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
-                    Electron e electron-builder devono essere installati: <code className="text-amber-300/50 bg-amber-500/[0.08] px-1.5 py-0.5 rounded text-[11px] font-mono">npm install -D electron electron-builder</code>
+                    Neutralinojs usa WebView2 (preinstallato su Windows 10/11)
+                  </li>
+                  <li className="text-[12px] text-white/35 flex items-start gap-2">
+                    <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
+                    Il primo build scarica il runtime Node.js (~25 MB, cached)
                   </li>
                 </ul>
               </div>
@@ -571,7 +575,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                 <ul className="space-y-1.5">
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
-                    Electron non installato: <code className="text-amber-300/50 bg-amber-500/[0.08] px-1.5 py-0.5 rounded text-[11px] font-mono">npm install -D electron electron-builder</code>
+                    WebView2 non installato: <code className="text-amber-300/50 bg-amber-500/[0.08] px-1.5 py-0.5 rounded text-[11px] font-mono">https://developer.microsoft.com/microsoft-edge/webview2</code>
                   </li>
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />

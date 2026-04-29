@@ -43,7 +43,26 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 function findOutputFile(): { path: string; name: string; size: number } | null {
-  const distDir = join(process.cwd(), 'dist-electron');
+  const rootDir = process.cwd();
+
+  // 1. Try Neutralino ZIP output: neutralino/dist/BinaryName.zip (primary distributable)
+  const neutralinoDist = join(rootDir, 'neutralino', 'dist');
+  if (existsSync(neutralinoDist)) {
+    // First: look for full package .zip (BinaryName.zip, NOT BinaryName-binaries.zip)
+    const fullZipFound = findNewestFile(neutralinoDist, '.zip', true, '-binaries.zip');
+    if (fullZipFound) return fullZipFound;
+
+    // Fallback: any .zip (including binaries-only)
+    const zipFound = findNewestFile(neutralinoDist, '.zip');
+    if (zipFound) return zipFound;
+
+    // Fallback: any .exe in Neutralino dist (shouldn't happen with new build)
+    const exeFound = findNewestFile(neutralinoDist, '.exe', true);
+    if (exeFound) return exeFound;
+  }
+
+  // 2. Fallback: legacy Electron output
+  const distDir = join(rootDir, 'dist-electron');
   if (!existsSync(distDir)) return null;
 
   try {
@@ -57,7 +76,6 @@ function findOutputFile(): { path: string; name: string; size: number } | null {
 
     if (candidates.length === 0) return null;
 
-    // Pick the most recently modified
     let newest = candidates[0];
     let newestTime = 0;
 
@@ -78,6 +96,38 @@ function findOutputFile(): { path: string; name: string; size: number } | null {
     return null;
   }
 }
+
+/** Find the newest file with given extension in a directory (optionally recursive) */
+function findNewestFile(dir: string, ext: string, recursive = false, excludeSuffix?: string): { path: string; name: string; size: number } | null {
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    let newest: { path: string; name: string; size: number; mtime: number } | null = null;
+
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory() && recursive) {
+        const found = findNewestFile(full, ext, true, excludeSuffix);
+        if (found) {
+          const st = statSync(found.path);
+          if (!newest || st.mtimeMs > newest.mtime) {
+            newest = { ...found, mtime: st.mtimeMs };
+          }
+        }
+      } else if (entry.name.endsWith(ext) && !(excludeSuffix && entry.name.endsWith(excludeSuffix))) {
+        const st = statSync(full);
+        if (!newest || st.mtimeMs > newest.mtime) {
+          newest = { path: full, name: entry.name, size: st.size, mtime: st.mtimeMs };
+        }
+      }
+    }
+
+    return newest ? { path: newest.path, name: newest.name, size: newest.size } : null;
+  } catch {
+    return null;
+  }
+}
+
+
 
 function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, gameName: string) {
   const build = builds.get(buildId)!;
@@ -139,12 +189,14 @@ function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, ga
     }
     // Track progress from known step markers
     for (const line of lines) {
-      if (line.includes('Step 1/')) build.progress = 'Verifica prerequisiti (step 1/5)...';
-      else if (line.includes('Step 2/')) build.progress = 'Compilazione Next.js (step 2/5)...';
-      else if (line.includes('Step 3/')) build.progress = 'Copia asset statici (step 3/5)...';
-      else if (line.includes('Step 4/')) build.progress = 'Copia database di gioco (step 4/5)...';
-      else if (line.includes('Step 5/')) build.progress = 'Creazione eseguibile portatile (step 5/5)...';
-      else if (line.includes('electron-builder')) build.progress = 'Packaging con electron-builder...';
+      if (line.includes('Step 1/')) build.progress = 'Verifica prerequisiti (step 1/6)...';
+      else if (line.includes('Step 2/')) build.progress = 'Compilazione Next.js (step 2/6)...';
+      else if (line.includes('Step 3/')) build.progress = 'Copia asset statici (step 3/6)...';
+      else if (line.includes('Step 4/')) build.progress = 'Copia database di gioco (step 4/6)...';
+      else if (line.includes('Step 5/')) build.progress = 'Preparazione risorse Neutralino (step 5/6)...';
+      else if (line.includes('Step 6/')) build.progress = 'Creazione eseguibile portatile (step 6/6)...';
+      else if (line.includes('neu build')) build.progress = 'Packaging con Neutralinojs...';
+      else if (line.includes('Downloading Node.js')) build.progress = 'Download runtime Node.js...';
       else if (line.includes('Compiled successfully')) build.progress = 'Compilazione riuscita, generazione pagine...';
       else if (line.includes('standalone build complete')) build.progress = 'Build Next.js completato!';
     }
@@ -180,7 +232,7 @@ function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, ga
         build.progress = 'Build completato!';
       } else {
         build.status = 'error';
-        build.progress = 'Build terminato ma nessun file trovato in dist-electron/';
+        build.progress = 'Build terminato ma nessun file trovato';
       }
     } else {
       build.status = 'error';

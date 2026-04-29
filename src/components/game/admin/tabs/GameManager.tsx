@@ -280,10 +280,11 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
     <div className="flex flex-col h-full">
       {/* Status */}
       {statusMsg && (
-        <div className={`shrink-0 px-4 py-2 text-[13px] font-medium ${statusMsg.type === 'success'
+        <div className={`shrink-0 px-4 py-2 text-[13px] font-medium ${
+          statusMsg.type === 'success'
             ? 'bg-green-500/10 text-green-300 border-b border-green-500/20'
             : 'bg-red-500/10 text-red-300 border-b border-red-500/20'
-          }`}>
+        }`}>
           {statusMsg.type === 'success' ? '✅' : '❌'} {statusMsg.text}
         </div>
       )}
@@ -296,7 +297,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
               <Gamepad2 className="w-8 h-8 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white/90 tracking-tight">RPG Game Engine</h2>
+              <h2 className="text-2xl font-bold text-white/90 tracking-tight">RPG Editor</h2>
               <p className="text-sm text-white/35 mt-0.5">Crea, modifica e gioca ai tuoi giochi RPG</p>
             </div>
           </div>
@@ -335,18 +336,20 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
             {games.map(game => (
               <div
                 key={game.id}
-                className={`rounded-xl border transition-all ${game.active
+                className={`rounded-xl border transition-all ${
+                  game.active
                     ? 'bg-emerald-500/[0.06] border-emerald-500/20'
                     : 'bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]'
-                  }`}
+                }`}
               >
                 <div className="px-4 py-3">
                   <div className="flex items-start gap-3">
                     {/* Cover image */}
-                    <div className={`w-16 h-16 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${game.coverImage
+                    <div className={`w-16 h-16 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${
+                      game.coverImage
                         ? 'border-white/[0.1]'
                         : 'border-dashed border-white/[0.1] bg-white/[0.02]'
-                      }`}>
+                    }`}>
                       {game.coverImage ? (
                         <img
                           src={`/api/game-cover?gameId=${encodeURIComponent(game.id)}&t=${Date.now()}`}
