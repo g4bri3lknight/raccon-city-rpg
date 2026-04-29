@@ -1,13 +1,14 @@
 // Neutralinojs Background Script — RPG Editor
+// Manages the Next.js server lifecycle and game mode detection.
 //
-// ⚠️  DEPRECATED: This file is kept for reference only.
-//
-// In the distributed portable build, the Neutralino binary downloaded from GitHub
-// does NOT have this main.js embedded. Server startup logic has been moved to
-// neutralino/resources/index.html (client-side), which runs inside resources.neu
-// and uses the Neutralino client API (Neutralino.os.execCommand, etc.)
-//
-// This file is only used when running `neu run` during development.
+// Distribution:
+//   AppDir/
+//     AppName.exe             ← Neutralino binary
+//     start-server.bat        ← Launches Next.js server with correct CWD
+//     resources.neu           ← UI bundle (index.html, icons, neutralino.js, config)
+//     standalone/             ← Next.js standalone server
+//     node/node.exe           ← Windows Node.js runtime
+//     game-config.json        ← Game mode configuration
 
 const Neutralino = global.Neutralino;
 
@@ -40,7 +41,7 @@ async function startServer() {
 
   const batFile = appDir + '/start-server.bat';
 
-  Neutralino.debug.log('=== RPG Editor Starting (dev mode) ===');
+  Neutralino.debug.log('=== RPG Editor Starting ===');
   Neutralino.debug.log('AppDir: ' + appDir);
 
   try {
@@ -68,6 +69,7 @@ async function startServer() {
     await new Promise(function(r) { setTimeout(r, 1000); });
     if (isShuttingDown) return;
 
+    // Use netstat to check if port 3000 is LISTENING
     try {
       var ns = await Neutralino.os.execCommand(
         'netstat -an | findstr ":3000.*LISTENING"', {}
@@ -91,6 +93,7 @@ async function cleanup() {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
+  // Kill any node.exe process we spawned
   try {
     await Neutralino.os.execCommand('taskkill /F /IM node.exe /T', {});
   } catch (e) { /* already dead */ }
