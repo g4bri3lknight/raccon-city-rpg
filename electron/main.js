@@ -15,55 +15,138 @@
  */
 
 const { app, BrowserWindow } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// ── Log to file ──
+const LOG_DIR = app.isPackaged
+  ? path.dirname(app.getPath('exe'))
+  : path.join(__dirname, '..');
+
+const LOG_FILE = path.join(LOG_DIR, 'electron-debug.log');
+
+function log(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  try { fs.appendFileSync(LOG_FILE, line, 'utf-8'); } catch {}
+  console.log(msg);
+}
+
+log('=== Electron starting ===');
+log(`platform: ${process.platform}`);
+log(`arch: ${process.arch}`);
+log(`isPackaged: ${app.isPackaged}`);
+log(`resourcesPath: ${process.resourcesPath || 'N/A'}`);
+log(`__dirname: ${__dirname}`);
+log(`exePath: ${app.getPath('exe')}`);
+log(`argv: ${JSON.stringify(process.argv)}`);
+
 // ── Parse command line ──
 const args = process.argv.slice(2);
-const gameArg = args.find(a => a.startsWith('--game='));
-const gameId = gameArg ? gameArg.split('=')[1] : null;
-const isGameOnly = !!(gameId || process.env.GAME_ONLY);
 
-const effectiveGameId = gameId || process.env.GAME_ID || null;
+function findGameId(args) {
+  const eqArg = args.find(a => a.startsWith('--game='));
+  if (eqArg) { const id = eqArg.split('=').slice(1).join('='); if (id) return id; }
+  const idx = args.indexOf('--game');
+  if (idx !== -1 && idx + 1 < args.length) {
+    const id = args[idx + 1];
+    if (id && !id.startsWith('--')) return id;
+  }
+  return null;
+}
+
+let gameId = findGameId(args);
+let isGameOnly = !!(gameId || process.env.GAME_ONLY);
+let effectiveGameId = gameId || process.env.GAME_ID || null;
+
+// Try to read game-config.json (written by build script)
+// This is the SOLE source of truth for packaged EXEs (no CLI args at runtime)
+let gameConfig = null;
+try {
+  const configPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'standalone', 'game-config.json')
+    : path.join(__dirname, '..', '.next', 'standalone', 'game-config.json');
+  if (fs.existsSync(configPath)) {
+    gameConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    log(`Loaded game-config.json: ${JSON.stringify(gameConfig)}`);
+
+    // Override mode from config if no CLI args were given
+    // (packaged EXEs are launched without --game flag)
+    if (!gameId && gameConfig.gameId && gameConfig.isGameOnly) {
+      gameId = gameConfig.gameId;
+      isGameOnly = true;
+      effectiveGameId = gameConfig.gameId;
+      log(`Mode overridden by game-config.json → game-only: ${effectiveGameId}`);
+    }
+  }
+} catch (e) {
+  log(`Could not read game-config.json: ${e.message}`);
+}
+
+const productName = gameConfig?.productName || (isGameOnly ? effectiveGameId : 'RPG Game Editor');
+
+log(`gameId: ${effectiveGameId}, isGameOnly: ${isGameOnly}, productName: ${productName}`);
 
 let mainWindow = null;
 let serverProcess = null;
 
 // ── Paths ──
-function getAppDir() {
+// electron/main.js is inside app.asar
+// standalone server is at resources/standalone/ (real files, outside asar)
+function getStandaloneDir() {
   if (app.isPackaged) {
-    // In packaged app, standalone server is in resources/app/
-    return path.join(process.resourcesPath, 'app');
+    return path.join(process.resourcesPath, 'standalone');
   }
-  // In development, it's in the project root .next/standalone/
   return path.join(__dirname, '..', '.next', 'standalone');
+}
+
+function getServerFile() {
+  return path.join(getStandaloneDir(), 'server.js');
 }
 
 function getDbDir() {
   if (process.env.GAMES_DIR) return process.env.GAMES_DIR;
-  if (app.isPackaged) {
-    // Portable: DB next to the executable
-    return path.join(path.dirname(app.getPath('exe')), 'db', 'games');
-  }
-  return path.join(__dirname, '..', 'db', 'games');
+  return path.join(getStandaloneDir(), 'db', 'games');
 }
 
 function getActiveGameFile() {
   if (process.env.ACTIVE_GAME_FILE) return process.env.ACTIVE_GAME_FILE;
-  if (app.isPackaged) {
-    return path.join(path.dirname(app.getPath('exe')), 'db', '.active-game');
-  }
-  return path.join(__dirname, '..', 'db', '.active-game');
+  return path.join(getStandaloneDir(), 'db', '.active-game');
 }
 
 // ── Start Next.js Server ──
 function startServer() {
-  const appDir = getAppDir();
-  const serverFile = path.join(appDir, 'server.js');
+  const standaloneDir = getStandaloneDir();
+  const serverFile = getServerFile();
+
+  log(`Standalone dir: ${standaloneDir}`);
+  log(`Server file: ${serverFile}`);
+  log(`Server exists: ${fs.existsSync(serverFile)}`);
+
+  // Debug: list resources dir contents
+  if (app.isPackaged) {
+    try {
+      const resContents = fs.readdirSync(process.resourcesPath);
+      log(`resourcesPath contents: ${JSON.stringify(resContents)}`);
+
+      if (fs.existsSync(standaloneDir)) {
+        const saContents = fs.readdirSync(standaloneDir);
+        log(`standalone dir contents: ${JSON.stringify(saContents.slice(0, 20))}`);
+      } else {
+        log(`ERROR: standalone dir does NOT exist!`);
+      }
+    } catch (e) {
+      log(`Error listing dirs: ${e.message}`);
+    }
+  }
 
   if (!fs.existsSync(serverFile)) {
-    console.error(`[Electron] Server not found at: ${serverFile}`);
+    log(`FATAL: server.js NOT FOUND`);
+    const { dialog } = require('electron');
+    dialog.showErrorBox(
+      'Errore di avvio',
+      `server.js non trovato.\n\nControlla electron-debug.log nella cartella dell'eseguibile.`
+    );
     app.quit();
     return;
   }
@@ -91,23 +174,28 @@ function startServer() {
     NODE_ENV: 'production',
     GAMES_DIR: dbDir,
     ACTIVE_GAME_FILE: getActiveGameFile(),
+    // CRITICAL: Make Electron binary act as plain Node.js
+    ELECTRON_RUN_AS_NODE: '1',
+    // Pass game ID for game-only mode
+    GAME_ONLY: isGameOnly ? 'true' : '',
+    GAME_ID: effectiveGameId || '',
   };
 
-  console.log(`[Electron] Starting server from: ${appDir}`);
-  console.log(`[Electron] DB directory: ${dbDir}`);
-  console.log(`[Electron] Mode: ${isGameOnly ? `Game-only (${effectiveGameId})` : 'Full Editor'}`);
+  log(`Starting server...`);
+  log(`DB dir: ${dbDir}`);
+  log(`Mode: ${isGameOnly ? `Game-only (${effectiveGameId})` : 'Full Editor'}`);
 
   serverProcess = spawn(process.execPath, [serverFile], {
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
-    cwd: appDir,
+    cwd: standaloneDir,
   });
 
   let serverReady = false;
 
   serverProcess.stdout.on('data', (data) => {
     const msg = data.toString();
-    console.log('[Server]', msg.trim());
+    log(`[Server OUT] ${msg.trim()}`);
 
     if (!serverReady && (
       msg.includes('Ready') ||
@@ -116,30 +204,39 @@ function startServer() {
       msg.includes('3111')
     )) {
       serverReady = true;
+      log('Server ready, opening window...');
       createWindow();
     }
   });
 
   serverProcess.stderr.on('data', (data) => {
     const msg = data.toString();
-    console.error('[Server Error]', msg.trim());
-  });
-
-  serverProcess.on('error', (err) => {
-    console.error('[Electron] Server process error:', err);
-  });
-
-  serverProcess.on('close', (code) => {
-    console.log(`[Electron] Server exited with code ${code}`);
-  });
-
-  // Fallback: open window after timeout even if server doesn't signal ready
-  setTimeout(() => {
-    if (!serverReady) {
+    log(`[Server ERR] ${msg.trim()}`);
+    if (!serverReady && (msg.includes('Error') || msg.includes('Cannot find') || msg.includes('MODULE_NOT_FOUND'))) {
       serverReady = true;
       createWindow();
     }
-  }, 8000);
+  });
+
+  serverProcess.on('error', (err) => {
+    log(`FATAL: Server spawn error: ${err.message}`);
+    const { dialog } = require('electron');
+    dialog.showErrorBox('Errore', `Impossibile avviare il server.\nControlla electron-debug.log.`);
+    app.quit();
+  });
+
+  serverProcess.on('close', (code) => {
+    log(`Server exited with code ${code}`);
+  });
+
+  // Fallback
+  setTimeout(() => {
+    if (!serverReady) {
+      serverReady = true;
+      log('Timeout 10s, opening window anyway...');
+      createWindow();
+    }
+  }, 10000);
 }
 
 // ── Create Browser Window ──
@@ -150,9 +247,9 @@ function createWindow() {
     ? `http://127.0.0.1:3111/?mode=play&gameId=${encodeURIComponent(effectiveGameId)}`
     : 'http://127.0.0.1:3111/';
 
-  const title = isGameOnly
-    ? `${effectiveGameId}`
-    : 'RPG Game Editor';
+  const title = productName;
+
+  log(`Opening window: ${url}`);
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -160,7 +257,6 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title,
-    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -170,51 +266,58 @@ function createWindow() {
   });
 
   mainWindow.loadURL(url);
-
-  // Hide menu bar (looks cleaner for a game)
   mainWindow.setMenuBarVisibility(false);
 
-  // Open DevTools in dev mode
-  if (!app.isPackaged) {
+  // DevTools: ONLY open if explicitly requested via --devtools flag
+  if (args.includes('--devtools')) {
     mainWindow.webContents.openDevTools();
   }
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
+  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 // ── App Lifecycle ──
 app.whenReady().then(() => {
+  log('Electron app ready');
   startServer();
-
   app.on('activate', () => {
-    // macOS: re-create window when dock icon clicked and no windows open
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  // On macOS, keep app alive even with no windows
-  if (process.platform !== 'darwin') {
-    shutdown();
-  }
-});
-
-app.on('before-quit', () => {
+  // Clean up server process BEFORE exiting
   shutdown();
+  app.exit(0);
 });
 
+app.on('before-quit', () => { shutdown(); });
+
+let isShuttingDown = false;
 function shutdown() {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   if (serverProcess) {
-    console.log('[Electron] Shutting down server...');
-    serverProcess.kill('SIGTERM');
-    // Force kill after 3s
-    setTimeout(() => {
-      try { serverProcess.kill('SIGKILL'); } catch {}
-    }, 3000);
+    const pid = serverProcess.pid;
+    log(`Shutting down server (PID: ${pid})...`);
+
+    if (process.platform === 'win32') {
+      // Windows: SIGTERM/SIGKILL don't work reliably.
+      // Use taskkill /T /F to kill the process tree (process + all children)
+      try {
+        execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore' });
+        log('Server killed via taskkill');
+      } catch {
+        // Fallback: just kill the main process
+        try { serverProcess.kill('SIGKILL'); } catch {}
+      }
+    } else {
+      // Unix: SIGTERM first, SIGKILL after 3s
+      try { serverProcess.kill('SIGTERM'); } catch {}
+      setTimeout(() => {
+        try { if (pid) process.kill(pid, 'SIGKILL'); } catch {}
+      }, 3000);
+    }
     serverProcess = null;
   }
 }

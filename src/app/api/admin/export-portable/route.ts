@@ -79,7 +79,7 @@ function findOutputFile(): { path: string; name: string; size: number } | null {
   }
 }
 
-function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string) {
+function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, gameName: string) {
   const build = builds.get(buildId)!;
   build.status = 'building';
   build.progress = 'Avvio del processo di build...';
@@ -88,10 +88,41 @@ function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string) {
     ? ['scripts/build-portable.js', `--game=${gameId}`]
     : ['scripts/build-portable.js', '--editor'];
 
+  // Add --name for dynamic productName in the EXE
+  if (mode === 'game' && gameName) {
+    args.push(`--name=${gameName}`);
+  }
+
+  // Clean environment: strip ALL dev-server variables so `next build`
+  // runs in a clean context (no PORT, no TURBOPACK, no NEXT_*, etc.)
+  const cleanEnv: Record<string, string | undefined> = {};
+  const skipPrefixes = [
+    'NEXT_',        // NEXT_PUBLIC_*, NEXT_PRIVATE_*, etc.
+    'PORT',         // PORT=3000 (dev server port) — THIS WAS THE BUG: was 'PORT=' which never matched
+    'HOSTNAME',     // HOSTNAME=0.0.0.0 (dev server host)
+    'TURBOPACK',    // TURBOPACK=1 (dev server engine)
+    '__NEXT',       // __NEXT_PRIVATE_* (internal Next.js runtime vars)
+    'NODE_ENV',     // dev server sets "development" — build needs "production"
+    'NODE_OPTIONS', // reset below with clean value
+    'WATCHPACK',    // WATCHPACK_* (file watcher, conflicts with build)
+    'BROWSER',      // BROWSER=none (dev server auto-open)
+  ];
+  for (const [key, value] of Object.entries(process.env)) {
+    const shouldSkip = skipPrefixes.some(p => key.startsWith(p));
+    if (!shouldSkip) {
+      cleanEnv[key] = value;
+    }
+  }
+  // Set clean essential vars
+  cleanEnv.NODE_ENV = 'production';
+  cleanEnv.NODE_OPTIONS = '--max-old-space-size=4096';
+  cleanEnv.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
+
   const proc = spawn('node', args, {
     cwd: process.cwd(),
-    env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096' },
+    env: cleanEnv,
     stdio: ['pipe', 'pipe', 'pipe'],
+    shell: true,
   });
 
   let stdout = '';
@@ -108,12 +139,14 @@ function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string) {
     }
     // Track progress from known step markers
     for (const line of lines) {
-      if (line.includes('Step 1/')) build.progress = 'Build Next.js (step 1/5)...';
-      else if (line.includes('Step 2/')) build.progress = 'Copia asset statici (step 2/5)...';
-      else if (line.includes('Step 3/')) build.progress = 'Copia database (step 3/5)...';
-      else if (line.includes('Step 4/')) build.progress = 'Verifica Prisma (step 4/5)...';
-      else if (line.includes('Step 5/')) build.progress = 'Creazione eseguibile (step 5/5)...';
+      if (line.includes('Step 1/')) build.progress = 'Verifica prerequisiti (step 1/5)...';
+      else if (line.includes('Step 2/')) build.progress = 'Compilazione Next.js (step 2/5)...';
+      else if (line.includes('Step 3/')) build.progress = 'Copia asset statici (step 3/5)...';
+      else if (line.includes('Step 4/')) build.progress = 'Copia database di gioco (step 4/5)...';
+      else if (line.includes('Step 5/')) build.progress = 'Creazione eseguibile portatile (step 5/5)...';
       else if (line.includes('electron-builder')) build.progress = 'Packaging con electron-builder...';
+      else if (line.includes('Compiled successfully')) build.progress = 'Compilazione riuscita, generazione pagine...';
+      else if (line.includes('standalone build complete')) build.progress = 'Build Next.js completato!';
     }
   });
 
@@ -162,6 +195,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const mode: string = body.mode;
     const gameId: string = body.gameId || '';
+    const gameName: string = body.gameName || '';
 
     if (mode !== 'game' && mode !== 'editor') {
       return NextResponse.json({ error: 'mode deve essere "game" o "editor"' }, { status: 400 });
@@ -185,7 +219,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Start build asynchronously (small delay to let the response go out)
-    setTimeout(() => startBuild(buildId, mode as 'game' | 'editor', gameId), 100);
+    setTimeout(() => startBuild(buildId, mode as 'game' | 'editor', gameId, gameName), 100);
 
     return NextResponse.json({ buildId });
   } catch (err) {
@@ -216,7 +250,7 @@ export async function GET(req: NextRequest) {
     mode: build.mode,
     gameId: build.gameId,
     progress: build.progress,
-    logs: build.output.slice(-30), // last 30 lines
+    logs: build.output.slice(-80), // last 80 lines for better error diagnosis
     fileName: build.fileName || null,
     fileSize: build.fileSize || null,
     elapsed: elapsedStr,

@@ -280,25 +280,24 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
     <div className="flex flex-col h-full">
       {/* Status */}
       {statusMsg && (
-        <div className={`shrink-0 px-4 py-2 text-[13px] font-medium ${
-          statusMsg.type === 'success'
+        <div className={`shrink-0 px-4 py-2 text-[13px] font-medium ${statusMsg.type === 'success'
             ? 'bg-green-500/10 text-green-300 border-b border-green-500/20'
             : 'bg-red-500/10 text-red-300 border-b border-red-500/20'
-        }`}>
+          }`}>
           {statusMsg.type === 'success' ? '✅' : '❌'} {statusMsg.text}
         </div>
       )}
 
       {/* Header */}
-      <div className="shrink-0 px-5 py-4 border-b border-white/[0.06]">
+      <div className="shrink-0 px-8 py-8 border-b border-white/[0.06]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-              <Gamepad2 className="w-5 h-5 text-emerald-400" />
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <Gamepad2 className="w-8 h-8 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white/90">RPG Game Editor</h2>
-              <p className="text-[12px] text-white/35">Crea, modifica e gioca ai tuoi giochi RPG</p>
+              <h2 className="text-2xl font-bold text-white/90 tracking-tight">RPG Game Engine</h2>
+              <p className="text-sm text-white/35 mt-0.5">Crea, modifica e gioca ai tuoi giochi RPG</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -325,11 +324,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
 
       {/* Games list */}
       <div className="flex-1 overflow-y-auto px-5 py-4 admin-scrollbar">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
-          </div>
-        ) : games.length === 0 ? (
+        {!loading && games.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="text-4xl">🎮</div>
             <p className="text-sm text-white/30 font-medium">Nessun gioco trovato</p>
@@ -340,20 +335,18 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
             {games.map(game => (
               <div
                 key={game.id}
-                className={`rounded-xl border transition-all ${
-                  game.active
+                className={`rounded-xl border transition-all ${game.active
                     ? 'bg-emerald-500/[0.06] border-emerald-500/20'
                     : 'bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]'
-                }`}
+                  }`}
               >
                 <div className="px-4 py-3">
                   <div className="flex items-start gap-3">
                     {/* Cover image */}
-                    <div className={`w-16 h-16 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${
-                      game.coverImage
+                    <div className={`w-16 h-16 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${game.coverImage
                         ? 'border-white/[0.1]'
                         : 'border-dashed border-white/[0.1] bg-white/[0.02]'
-                    }`}>
+                      }`}>
                       {game.coverImage ? (
                         <img
                           src={`/api/game-cover?gameId=${encodeURIComponent(game.id)}&t=${Date.now()}`}

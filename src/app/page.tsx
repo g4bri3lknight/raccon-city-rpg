@@ -75,9 +75,7 @@ function RootPageInner() {
 export default function RootPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center h-full" style={{ background: '#0a0a0f' }}>
-        <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
-      </div>
+      <div className="flex items-center justify-center h-full" style={{ background: '#0a0a0f' }} />
     }>
       <RootPageInner />
     </Suspense>

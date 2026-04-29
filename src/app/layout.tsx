@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Raccoon City: Escape from Horror",
-  description: "Gioco di ruolo a turni ambientato a Raccoon City. Sopravvivi all'incubo del virus T.",
+  title: "RPG Game Engine",
+  description: "Crea, modifica e gioca ai tuoi giochi RPG a turni.",
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },

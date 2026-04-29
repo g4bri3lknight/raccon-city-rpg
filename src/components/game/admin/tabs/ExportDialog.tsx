@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, Copy, Check, X, Terminal, Package, Info, Loader2, AlertCircle, RotateCcw, ExternalLink } from 'lucide-react';
+import { Download, Copy, Check, X, Terminal, Package, Info, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { adminFetch } from '@/lib/admin-fetch';
 
@@ -14,6 +14,11 @@ interface ExportDialogProps {
 }
 
 type Phase = 'info' | 'building' | 'done' | 'error';
+
+// localStorage key for persisting the active build across dialog close/reopen
+function getStorageKey(gameId?: string, mode?: string) {
+  return `rpg_export_build_${mode}_${gameId || 'editor'}`;
+}
 
 export default function ExportDialog({ open, onClose, mode, gameId, gameName }: ExportDialogProps) {
   const [phase, setPhase] = useState<Phase>('info');
@@ -40,31 +45,129 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
     );
   }, [mode, gameId]);
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+  // ── Stop polling helper ──
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
   }, []);
 
-  // Auto-scroll logs to bottom
+  // ── Start polling for a build ──
+  const startPolling = useCallback((id: string) => {
+    stopPolling();
+    setBuildId(id);
+    setPhase('building');
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const statusRes = await adminFetch(`/api/admin/export-portable?buildId=${id}`);
+        if (!statusRes.ok) return;
+        const status = await statusRes.json();
+
+        setProgress(status.progress || '');
+        setElapsed(status.elapsed || '');
+        setLogs(status.logs || []);
+
+        if (status.status === 'done') {
+          stopPolling();
+          setPhase('done');
+          setFileName(status.fileName || '');
+          setFileSize(status.fileSize || 0);
+          // Clear persisted build — it's done
+          try { localStorage.removeItem(getStorageKey(gameId, mode)); } catch {}
+        } else if (status.status === 'error') {
+          stopPolling();
+          setPhase('error');
+          // Clear persisted build — it errored
+          try { localStorage.removeItem(getStorageKey(gameId, mode)); } catch {}
+        }
+      } catch {
+        // Keep polling — network hiccup
+      }
+    }, 3000);
+  }, [stopPolling, gameId, mode]);
+
+  // ── Cleanup polling on unmount ──
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  // ── When dialog opens, check localStorage for an active build ──
+  useEffect(() => {
+    if (!open) return;
+
+    try {
+      const stored = localStorage.getItem(getStorageKey(gameId, mode));
+      if (stored) {
+        const { buildId: storedId, startedAt } = JSON.parse(stored);
+        // Only reconnect if the build was started less than 10 minutes ago
+        if (storedId && startedAt && Date.now() - startedAt < 10 * 60 * 1000) {
+          // Immediately check status once
+          adminFetch(`/api/admin/export-portable?buildId=${storedId}`)
+            .then(res => {
+              if (res.ok) return res.json();
+              throw new Error('not found');
+            })
+            .then(status => {
+              if (status.status === 'building') {
+                // Resume polling
+                setPhase('building');
+                setProgress(status.progress || '');
+                setLogs(status.logs || []);
+                setElapsed(status.elapsed || '');
+                startPolling(storedId);
+              } else if (status.status === 'done') {
+                setPhase('done');
+                setFileName(status.fileName || '');
+                setFileSize(status.fileSize || 0);
+                setElapsed(status.elapsed || '');
+                localStorage.removeItem(getStorageKey(gameId, mode));
+              } else if (status.status === 'error') {
+                setPhase('error');
+                setProgress(status.progress || 'Build fallito');
+                setLogs(status.logs || []);
+                localStorage.removeItem(getStorageKey(gameId, mode));
+              } else {
+                // queued or not found — treat as fresh
+              }
+            })
+            .catch(() => {
+              // Build not found on server (server restarted?) — clear and start fresh
+              localStorage.removeItem(getStorageKey(gameId, mode));
+            });
+        } else {
+          // Expired — clear
+          localStorage.removeItem(getStorageKey(gameId, mode));
+        }
+      }
+    } catch {
+      // localStorage not available or corrupted — ignore
+    }
+  }, [open, gameId, mode, startPolling]);
+
+  // ── Auto-scroll logs to bottom ──
   useEffect(() => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [logs]);
 
-  // Start build
+  // ── Start build ──
   const startBuild = useCallback(async () => {
     setPhase('building');
     setProgress('Avvio...');
     setLogs([]);
     setFileName('');
     setFileSize(0);
+    setElapsed('');
 
     try {
       const body: Record<string, string> = { mode };
-      if (mode === 'game' && gameId) body.gameId = gameId;
+      if (mode === 'game' && gameId) {
+        body.gameId = gameId;
+        body.gameName = displayName; // pass the display name for the EXE product name
+      }
 
       const res = await adminFetch('/api/admin/export-portable', {
         method: 'POST',
@@ -79,49 +182,32 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
 
       const data = await res.json();
       const id = data.buildId;
-      setBuildId(id);
 
-      // Start polling
-      pollRef.current = setInterval(async () => {
-        try {
-          const statusRes = await adminFetch(`/api/admin/export-portable?buildId=${id}`);
-          if (!statusRes.ok) return;
-          const status = await statusRes.json();
+      // Persist buildId to localStorage so we can reconnect if dialog is closed/reopened
+      try {
+        localStorage.setItem(getStorageKey(gameId, mode), JSON.stringify({
+          buildId: id,
+          startedAt: Date.now(),
+          mode,
+          gameId,
+        }));
+      } catch {}
 
-          setProgress(status.progress);
-          setElapsed(status.elapsed);
-          setLogs(status.logs || []);
-
-          if (status.status === 'done') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            setPhase('done');
-            setFileName(status.fileName);
-            setFileSize(status.fileSize);
-          } else if (status.status === 'error') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            setPhase('error');
-          }
-        } catch {
-          // Keep polling
-        }
-      }, 3000);
+      startPolling(id);
     } catch (err) {
       setPhase('error');
       setProgress(`Errore: ${err}`);
     }
-  }, [mode, gameId]);
+  }, [mode, gameId, startPolling]);
 
-  // Download
+  // ── Download ──
   const downloadFile = () => {
     if (!fileName) return;
-    const adminKey = localStorage.getItem('rpg_admin_key') || 'rpg_admin_2024';
     const url = `/api/admin/export-portable/download?file=${encodeURIComponent(fileName)}`;
     window.open(url, '_blank');
   };
 
-  // Copy command
+  // ── Copy command ──
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(command);
@@ -139,10 +225,9 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
     }
   };
 
-  // Reset to info phase
+  // ── Reset to info phase ──
   const resetToInfo = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = null;
+    stopPolling();
     setPhase('info');
     setBuildId(null);
     setProgress('');
@@ -150,13 +235,16 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
     setFileName('');
     setFileSize(0);
     setElapsed('');
+    try { localStorage.removeItem(getStorageKey(gameId, mode)); } catch {}
   };
 
-  // Close and reset
+  // ── Close — DON'T reset state if build is in progress ──
   const handleClose = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = null;
-    resetToInfo();
+    // Only stop polling if NOT building (build continues on server)
+    if (phase !== 'building') {
+      stopPolling();
+      resetToInfo();
+    }
     onClose();
   };
 
@@ -172,7 +260,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
       <div className="absolute inset-0 bg-black/70" onClick={handleClose} />
 
       <div
-        className="relative w-full max-w-lg mx-4 rounded-xl overflow-hidden"
+        className="relative w-full max-w-4xl mx-4 rounded-xl overflow-hidden"
         style={{
           background: 'rgba(12, 12, 20, 0.98)',
           border: '1px solid rgba(255,255,255,0.1)',
@@ -222,7 +310,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
         </div>
 
         {/* Content */}
-        <div className="max-h-[65vh] overflow-y-auto px-6 py-4 admin-scrollbar space-y-4">
+        <div className="max-h-[75vh] overflow-y-auto px-6 py-4 admin-scrollbar space-y-4">
 
           {/* ── INFO PHASE ── */}
           {phase === 'info' && (
@@ -326,9 +414,8 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
               {/* Progress card */}
               <div className="rounded-lg bg-blue-500/[0.06] border border-blue-500/15 px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] text-blue-300/80 font-medium flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    {progress}
+                  <span className="text-[13px] text-blue-300/80 font-medium">
+                    {progress || 'Avvio...'}
                   </span>
                   <span className="text-[11px] text-white/25 font-mono">{elapsed}</span>
                 </div>
@@ -343,6 +430,8 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                              progress.includes('Step 4') ? '55%' :
                              progress.includes('Step 5') ? '70%' :
                              progress.includes('Packaging') ? '85%' :
+                             progress.includes('Compilazione') ? '30%' :
+                             progress.includes('Cop') ? '50%' :
                              '5%',
                     }}
                   />
@@ -357,7 +446,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                 </div>
                 <div
                   ref={logContainerRef}
-                  className="rounded-lg bg-black/60 border border-white/[0.08] px-3 py-2 h-48 overflow-y-auto font-mono text-[11px] leading-relaxed admin-scrollbar"
+                  className="rounded-lg bg-black/60 border border-white/[0.08] px-3 py-2 h-80 overflow-y-auto font-mono text-[12px] leading-relaxed admin-scrollbar"
                 >
                   {logs.length === 0 ? (
                     <span className="text-white/20">Avvio del processo...</span>
@@ -369,7 +458,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                           line.includes('✅') || line.includes('Copied') ? 'text-green-400/60' :
                           line.includes('❌') || line.includes('ERRORE') || line.includes('Error') ? 'text-red-400/60' :
                           line.includes('⚠️') || line.includes('warn') ? 'text-amber-400/50' :
-                          line.includes('Step') || line.includes('🎮') ? 'text-blue-400/60' :
+                          line.includes('Step') || line.includes('🎮') || line.includes('Building') ? 'text-blue-400/60' :
                           'text-white/30'
                         }`}
                       >
@@ -383,7 +472,8 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
 
               {/* Info */}
               <p className="text-[11px] text-white/20 text-center">
-                La finestra di esportazione puo essere chiusa, il processo continua in background.
+                La finestra di esportazione può essere chiusa, il processo continua in background.
+                Riaprendola si ricollegherà automaticamente al build in corso.
               </p>
             </>
           )}
@@ -453,17 +543,17 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <Terminal className="w-3.5 h-3.5 text-white/30" />
-                    <span className="text-[11px] text-white/30 uppercase tracking-wider font-semibold">Ultimi log</span>
+                    <span className="text-[11px] text-white/30 uppercase tracking-wider font-semibold">Ultimi log ({logs.length} righe)</span>
                   </div>
                   <div
                     ref={logContainerRef}
-                    className="rounded-lg bg-black/60 border border-white/[0.08] px-3 py-2 h-40 overflow-y-auto font-mono text-[11px] leading-relaxed admin-scrollbar"
+                    className="rounded-lg bg-black/60 border border-white/[0.08] px-3 py-2 h-72 overflow-y-auto font-mono text-[12px] leading-relaxed admin-scrollbar"
                   >
-                    {logs.slice(-15).map((line, i) => (
+                    {logs.map((line, i) => (
                       <div
                         key={i}
                         className={`${
-                          line.includes('ERRORE') || line.includes('Error') || line.includes('error') ? 'text-red-400/60' :
+                          line.includes('ERRORE') || line.includes('Error') || line.includes('error') || line.includes('failed') ? 'text-red-400/60' :
                           line.includes('warn') ? 'text-amber-400/50' :
                           'text-white/30'
                         }`}
@@ -486,6 +576,10 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
                     Memoria insufficiente (prova a chiudere altre applicazioni)
+                  </li>
+                  <li className="text-[12px] text-white/35 flex items-start gap-2">
+                    <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
+                    Cache Next.js corrotta: <code className="text-amber-300/50 bg-amber-500/[0.08] px-1.5 py-0.5 rounded text-[11px] font-mono">Remove-Item -Recurse -Force .next</code>
                   </li>
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
@@ -544,7 +638,6 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
           )}
           <Button
             onClick={handleClose}
-            variant={phase === 'info' ? 'default' : undefined}
             className={`text-xs gap-1.5 ${
               phase === 'info'
                 ? 'flex-1 bg-white/[0.06] border border-white/[0.1] text-white/50 hover:bg-white/[0.1] hover:text-white/70'

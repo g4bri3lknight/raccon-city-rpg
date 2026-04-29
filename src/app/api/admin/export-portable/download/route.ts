@@ -39,11 +39,21 @@ export async function GET(req: NextRequest) {
     const stat = statSync(filePath);
 
     const stream = createReadStream(filePath);
+    let closed = false;
     const readableStream = new ReadableStream({
       start(controller) {
-        stream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
-        stream.on('end', () => controller.close());
-        stream.on('error', (err: Error) => controller.error(err));
+        stream.on('data', (chunk: Buffer) => {
+          if (!closed) controller.enqueue(new Uint8Array(chunk));
+        });
+        stream.on('end', () => {
+          if (!closed) { closed = true; controller.close(); }
+        });
+        stream.on('error', (err: Error) => {
+          if (!closed) { closed = true; controller.error(err); }
+        });
+      },
+      cancel() {
+        if (!closed) { closed = true; stream.destroy(); }
       },
     });
 

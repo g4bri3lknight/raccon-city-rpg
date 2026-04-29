@@ -1,0 +1,65 @@
+appId: com.rpg-game.editor
+productName: RPG Game Editor
+copyright: Copyright © 2025
+
+# Skip native module rebuild
+npmRebuild: false
+
+# Disable code signing
+win:
+  forceCodeSigning: false
+  target:
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.png
+  artifactName: RPG-${name}-${version}-${arch}.${ext}
+
+# asar enabled — only electron/ goes inside asar (tiny)
+# Standalone server goes via extraResources (real files on disk)
+asar: true
+
+directories:
+  output: dist-electron
+  buildResources: build
+
+# ONLY electron code goes into app.asar
+files:
+  - electron/**/*
+
+# Standalone server + DB go OUTSIDE asar as real files
+# so the spawned Node process can access them
+extraResources:
+  - from: ".next/standalone/"
+    to: "standalone"
+  - from: "node_modules/.prisma/"
+    to: "standalone/node_modules/.prisma"
+  - from: "node_modules/@prisma/"
+    to: "standalone/node_modules/@prisma"
+  - from: "db/"
+    to: "standalone/db"
+
+extraMetadata:
+  main: electron/main.js
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.png
+  category: public.app-category.games
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build/icon.png
+  category: Game
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
