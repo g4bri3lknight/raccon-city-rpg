@@ -129,7 +129,7 @@ function findNewestFile(dir: string, ext: string, recursive = false, excludeSuff
 
 
 
-function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, gameName: string) {
+function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, gameName: string, platform: string) {
   const build = builds.get(buildId)!;
   build.status = 'building';
   build.progress = 'Avvio del processo di build...';
@@ -141,6 +141,11 @@ function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, ga
   // Add --name for dynamic productName in the EXE
   if (mode === 'game' && gameName) {
     args.push(`--name=${gameName}`);
+  }
+
+  // Add --platform for target platform (win/mac/linux)
+  if (platform) {
+    args.push(`--platform=${platform}`);
   }
 
   // Clean environment: strip ALL dev-server variables so `next build`
@@ -248,12 +253,16 @@ export async function POST(req: NextRequest) {
     const mode: string = body.mode;
     const gameId: string = body.gameId || '';
     const gameName: string = body.gameName || '';
+    const platform: string = body.platform || 'win';
 
     if (mode !== 'game' && mode !== 'editor') {
       return NextResponse.json({ error: 'mode deve essere "game" o "editor"' }, { status: 400 });
     }
     if (mode === 'game' && !gameId) {
       return NextResponse.json({ error: 'gameId è obbligatorio per mode="game"' }, { status: 400 });
+    }
+    if (platform && !['win', 'mac', 'linux'].includes(platform)) {
+      return NextResponse.json({ error: 'platform deve essere "win", "mac" o "linux"' }, { status: 400 });
     }
 
     const buildId = randomUUID();
@@ -271,7 +280,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Start build asynchronously (small delay to let the response go out)
-    setTimeout(() => startBuild(buildId, mode as 'game' | 'editor', gameId, gameName), 100);
+    setTimeout(() => startBuild(buildId, mode as 'game' | 'editor', gameId, gameName, platform), 100);
 
     return NextResponse.json({ buildId });
   } catch (err) {

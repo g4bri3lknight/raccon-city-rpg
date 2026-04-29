@@ -16,7 +16,11 @@
     "app.*",
     "os.*",
     "debug.log",
-    "filesystem.read.file",
+    "filesystem.readFile",
+    "filesystem.getStats",
+    "filesystem.readDirectory",
+    "filesystem.writeFile",
+    "filesystem.writeDirectory",
     "window.*"
   ],
   "modes": {

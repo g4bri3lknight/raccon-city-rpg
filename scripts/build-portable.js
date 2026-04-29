@@ -4,42 +4,36 @@
  * Build Script — RPG Editor Portable Export (Neutralinojs)
  *
  * Usage:
- *   npm run export:game GAME_ID       → single game (build + package)
- *   npm run export:editor             → full editor + all games
+ *   npm run export:game GAME_ID              → single game (build + package) [Windows]
+ *   npm run export:game GAME_ID -- --platform=mac    → macOS build
+ *   npm run export:game GAME_ID -- --platform=linux  → Linux build
+ *   npm run export:editor                        → full editor + all games
  *   node scripts/build-portable.js --game=ID --no-build  → package only (skip next build)
+ *
+ * Flags:
+ *   --platform=win|mac|linux   Target platform (default: win)
+ *   --name="Display Name"      Custom EXE/product name
+ *   --no-build                 Skip Next.js build
  *
  * Architecture:
  *   The build produces a ZIP file containing:
  *     AppName/
- *       AppName.exe          → Neutralinojs binary (~2.6MB, downloaded from GitHub)
- *       resources.neu        → UI resources bundle (index.html, icons, neutralino.js)
- *       standalone/          → Next.js standalone server
- *       node/node.exe        → Windows Node.js runtime (~67MB)
- *       game-config.json     → game mode configuration
+ *       AppName(.exe|.AppImage|no ext)  → Neutralinojs binary (~2.6MB)
+ *       resources.neu                    → UI resources bundle
+ *       standalone/                      → Next.js standalone server
+ *       node/node                        → Node.js runtime (~67MB)
+ *       game-config.json                 → Game mode configuration
+ *       start-server.(bat|sh)            → Launch script
  *       (DBs are inside standalone/db/)
  *
  *   Total: ~80-100MB (vs ~228MB with Electron!)
- *
- * Key design: Neutralino Windows binary is downloaded directly from GitHub releases
- * (more reliable than `neu build` which has POSTJECT_SENTINEL issues).
- * Resources are bundled as resources.neu (created by `neu build`) or as a resources/ dir.
- * Heavy resources (standalone server, node.exe) are placed OUTSIDE alongside the .exe.
- *
- * Steps:
- *   1. Pre-flight checks (@neutralinojs/neu, adm-zip, DBs, Prisma)
- *   2. Run `next build` (standalone output) — SKIPPED with --no-build
- *   3. Copy static assets into standalone
- *   4. Copy game DB(s) into standalone
- *   5. Download Neutralino binary from GitHub + create resources bundle
- *   6. Assemble package + create distributable ZIP
  */
 
-const { execSync, cpSync, mkdirSync, existsSync, writeFileSync, readFileSync, unlinkSync, readdirSync, statSync, rmSync, createReadStream, createWriteStream } = require('fs');
+const { execSync, cpSync, mkdirSync, existsSync, writeFileSync, readFileSync, unlinkSync, readdirSync, statSync, rmSync, createWriteStream, chmodSync } = require('fs');
 const { join, dirname, resolve, basename } = require('path');
-const { argv, env, exit, platform, arch } = require('process');
+const { argv, env, exit } = require('process');
 const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
-const { createInflateRaw } = require('zlib');
 const https = require('https');
 const http = require('http');
 
@@ -65,6 +59,14 @@ const customName = findArg(args, 'name');
 const isEditor = args.includes('--editor');
 const isGameOnly = !!gameId;
 const skipBuild = args.includes('--no-build');
+const targetPlatform = findArg(args, 'platform') || 'win';
+
+// Validate platform
+const VALID_PLATFORMS = ['win', 'mac', 'linux'];
+if (!VALID_PLATFORMS.includes(targetPlatform)) {
+  console.error(`  ❌ Invalid platform "${targetPlatform}". Must be one of: ${VALID_PLATFORMS.join(', ')}`);
+  exit(1);
+}
 
 if (!isGameOnly && !isEditor) {
   console.log('');
@@ -77,15 +79,16 @@ if (!isGameOnly && !isEditor) {
   console.log('  ║    npm run export:editor                     ║');
   console.log('  ║                                              ║');
   console.log('  ║  Flags:                                      ║');
-  console.log('  ║    --name="Display Name"  custom EXE name     ║');
-  console.log('  ║    --no-build           skip next build       ║');
+  console.log('  ║    --platform=win|mac|linux  target platform  ║');
+  console.log('  ║    --name="Display Name"   custom name       ║');
+  console.log('  ║    --no-build             skip next build    ║');
   console.log('  ║                                              ║');
   console.log('  ╚══════════════════════════════════════════════╝');
   console.log('');
   exit(1);
 }
 
-// productName: the display name shown in the EXE/window title
+// productName: the display name shown in the window title
 const productName = customName || (isGameOnly
   ? `RPG ${gameId}`
   : 'RPG Editor');
@@ -93,10 +96,13 @@ const productName = customName || (isGameOnly
 // Safe filename for the binary (no special chars)
 const binaryName = productName.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim() || 'RPG-Editor';
 
+const platformLabels = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
+
 console.log('');
 console.log(`  🎮 Building: ${binaryName}`);
 console.log(`  📛 Product Name: ${productName}`);
 console.log(`  📦 Mode: ${isGameOnly ? `Game-only (${gameId})` : 'Full Editor'}`);
+console.log(`  💻 Platform: ${platformLabels[targetPlatform]} (${targetPlatform})`);
 console.log(`  ⚙️  Engine: Neutralinojs (lightweight, WebView2)`);
 if (skipBuild) console.log(`  ⏭️  Skipping Next.js build (--no-build)`);
 console.log('');
@@ -108,6 +114,48 @@ const NEUTRALINO_DIR = join(ROOT, 'neutralino');
 const NEUTRALINO_RES_DIR = join(NEUTRALINO_DIR, 'resources');
 const NODE_CACHE_DIR = join(ROOT, '.node-runtime-cache');
 const NODE_VERSION = 'v20.18.1';
+
+// ═══════════════════════════════════════════════════════════
+//  PLATFORM CONFIGURATION
+// ═══════════════════════════════════════════════════════════
+
+const PLATFORM_CONFIG = {
+  win: {
+    neutralinoBinary: 'neutralino-win_x64.exe',
+    binaryExt: '.exe',
+    nodeFile: 'node.exe',
+    nodeArchive: `node-${NODE_VERSION}-win-x64.zip`,
+    nodeArchiveUrl: `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-win-x64.zip`,
+    nodeArchivePrefix: `node-${NODE_VERSION}-win-x64/`,
+    launchScript: 'start-server.bat',
+    launchScriptContent: (binaryDir) =>
+      `@echo off\r\ncd /d "%~dp0standalone"\r\n"%~dp0node\\node.exe" server.js\r\n`,
+  },
+  mac: {
+    neutralinoBinary: 'neutralino-mac_x64', // or neutralino-mac_arm64
+    binaryExt: '', // macOS binaries have no extension
+    nodeFile: 'node',
+    nodeArchive: `node-${NODE_VERSION}-darwin-x64.tar.gz`,
+    nodeArchiveUrl: `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-darwin-x64.tar.gz`,
+    nodeArchivePrefix: `node-${NODE_VERSION}-darwin-x64/`,
+    launchScript: 'start-server.sh',
+    launchScriptContent: (binaryDir) =>
+      `#!/bin/bash\nDIR="$(cd "$(dirname "$0")" && pwd)"\ncd "$DIR/standalone"\n"$DIR/node/node" server.js\n`,
+  },
+  linux: {
+    neutralinoBinary: 'neutralino-linux_x64',
+    binaryExt: '',
+    nodeFile: 'node',
+    nodeArchive: `node-${NODE_VERSION}-linux-x64.tar.xz`,
+    nodeArchiveUrl: `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz`,
+    nodeArchivePrefix: `node-${NODE_VERSION}-linux-x64/`,
+    launchScript: 'start-server.sh',
+    launchScriptContent: (binaryDir) =>
+      `#!/bin/bash\nDIR="$(cd "$(dirname "$0")" && pwd)"\ncd "$DIR/standalone"\n"$DIR/node/node" server.js\n`,
+  },
+};
+
+const pConfig = PLATFORM_CONFIG[targetPlatform];
 
 // ═══════════════════════════════════════════════════════════
 //  HELPER: Run command with real-time output + error capture
@@ -234,47 +282,89 @@ function downloadFile(url, destPath) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  HELPER: Ensure Node.js Windows runtime is available
+//  HELPER: Ensure Node.js runtime is available for the target platform
 // ═══════════════════════════════════════════════════════════
 
 async function ensureNodeRuntime() {
-  const nodeExePath = join(ROOT, '.node-runtime-cache', 'node.exe');
+  const nodeExePath = join(NODE_CACHE_DIR, targetPlatform, pConfig.nodeFile);
   if (existsSync(nodeExePath)) {
     const size = statSync(nodeExePath).size;
-    console.log(`  ✅ Node.js runtime cached (${(size / 1024 / 1024).toFixed(1)} MB)`);
+    console.log(`  ✅ Node.js runtime cached for ${platformLabels[targetPlatform]} (${(size / 1024 / 1024).toFixed(1)} MB)`);
     return;
   }
 
-  console.log('  ⬇️  Node.js Windows runtime not cached, downloading...');
-  mkdirSync(NODE_CACHE_DIR, { recursive: true });
+  console.log(`  ⬇️  Node.js ${platformLabels[targetPlatform]} runtime not cached, downloading...`);
+  const platformCacheDir = join(NODE_CACHE_DIR, targetPlatform);
+  mkdirSync(platformCacheDir, { recursive: true });
 
-  const nodeUrl = `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-win-x64.zip`;
-  const cacheZip = join(NODE_CACHE_DIR, `node-${NODE_VERSION}-win-x64.zip`);
+  const archivePath = join(platformCacheDir, pConfig.nodeArchive);
 
-  if (!existsSync(cacheZip)) {
-    console.log(`  ⬇️  Downloading Node.js ${NODE_VERSION} (Windows x64)...`);
-    await downloadFile(nodeUrl, cacheZip);
+  if (!existsSync(archivePath)) {
+    console.log(`  ⬇️  Downloading Node.js ${NODE_VERSION} (${platformLabels[targetPlatform]} x64)...`);
+    await downloadFile(pConfig.nodeArchiveUrl, archivePath);
   } else {
-    console.log(`  📦 Using cached download: ${basename(cacheZip)}`);
+    console.log(`  📦 Using cached download: ${pConfig.nodeArchive}`);
   }
 
-  // Extract node.exe from the zip
-  console.log('  📦 Extracting node.exe...');
-  const AdmZip = require('adm-zip');
-  const zip = new AdmZip(cacheZip);
-  const prefix = `node-${NODE_VERSION}-win-x64/`;
-  const entry = zip.getEntry(prefix + 'node.exe');
-  if (!entry) {
-    console.error('  ❌ node.exe not found in the downloaded zip!');
-    exit(1);
+  // Extract node binary from the archive
+  console.log('  📦 Extracting Node.js binary...');
+
+  if (targetPlatform === 'win') {
+    // Windows: .zip archive
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(archivePath);
+    const entry = zip.getEntry(pConfig.nodeArchivePrefix + 'node.exe');
+    if (!entry) {
+      console.error('  ❌ node.exe not found in the downloaded zip!');
+      exit(1);
+    }
+    zip.extractEntryTo(entry, platformCacheDir, false, true);
+  } else if (targetPlatform === 'mac') {
+    // macOS: .tar.gz archive
+    const { execSync } = require('child_process');
+    execSync(`cd "${platformCacheDir}" && tar xzf "${archivePath}" --include="${pConfig.nodeArchivePrefix}bin/node" 2>/dev/null || tar xzf "${archivePath}" "${pConfig.nodeArchivePrefix}bin/node"`, { stdio: 'inherit' });
+    // Copy node binary to the expected path
+    const extractedBin = join(platformCacheDir, pConfig.nodeArchivePrefix, 'bin', 'node');
+    if (existsSync(extractedBin)) {
+      cpSync(extractedBin, nodeExePath);
+    } else {
+      // Try alternative path
+      const altBin = join(platformCacheDir, 'bin', 'node');
+      if (existsSync(altBin)) {
+        cpSync(altBin, nodeExePath);
+      } else {
+        console.error('  ❌ node binary not found in the downloaded archive!');
+        console.error(`  Expected: ${extractedBin}`);
+        exit(1);
+      }
+    }
+    // Cleanup extracted directory
+    try { rmSync(join(platformCacheDir, pConfig.nodeArchivePrefix), { recursive: true }); } catch {}
+  } else if (targetPlatform === 'linux') {
+    // Linux: .tar.xz archive
+    const { execSync } = require('child_process');
+    execSync(`cd "${platformCacheDir}" && tar xJf "${archivePath}" --include="${pConfig.nodeArchivePrefix}bin/node" 2>/dev/null || tar xJf "${archivePath}" "${pConfig.nodeArchivePrefix}bin/node"`, { stdio: 'inherit' });
+    const extractedBin = join(platformCacheDir, pConfig.nodeArchivePrefix, 'bin', 'node');
+    if (existsSync(extractedBin)) {
+      cpSync(extractedBin, nodeExePath);
+    } else {
+      const altBin = join(platformCacheDir, 'bin', 'node');
+      if (existsSync(altBin)) {
+        cpSync(altBin, nodeExePath);
+      } else {
+        console.error('  ❌ node binary not found in the downloaded archive!');
+        console.error(`  Expected: ${extractedBin}`);
+        exit(1);
+      }
+    }
+    try { rmSync(join(platformCacheDir, pConfig.nodeArchivePrefix), { recursive: true }); } catch {}
   }
-  zip.extractEntryTo(entry, NODE_CACHE_DIR, false, true);
 
   if (existsSync(nodeExePath)) {
     const size = statSync(nodeExePath).size;
-    console.log(`  ✅ Node.js runtime ready (${(size / 1024 / 1024).toFixed(1)} MB)`);
+    console.log(`  ✅ Node.js runtime ready for ${platformLabels[targetPlatform]} (${(size / 1024 / 1024).toFixed(1)} MB)`);
   } else {
-    console.error('  ❌ Failed to extract node.exe!');
+    console.error(`  ❌ Failed to extract ${pConfig.nodeFile}!`);
     exit(1);
   }
 }
@@ -312,10 +402,39 @@ function copyDir(src, dest) {
     } else if (entry.isFile()) {
       cpSync(srcPath, destPath);
     } else {
-      // Symlinks, junctions, etc. — copy with recursive to handle on Windows
       cpSync(srcPath, destPath, { recursive: true });
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HELPER: Safe recursive delete with retries (Windows EPERM fix)
+// ═══════════════════════════════════════════════════════════
+
+function safeRmSync(targetPath, retries = 5) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      rmSync(targetPath, { recursive: true, force: true });
+      return;
+    } catch (e) {
+      if (attempt < retries && (e.code === 'EPERM' || e.code === 'EBUSY' || e.code === 'ENOTEMPTY')) {
+        const delay = attempt * 500;
+        console.log(`  ⚠️  rmSync failed (${e.code}), retry ${attempt}/${retries} in ${delay}ms...`);
+        console.log(`  💡 If this persists, close any running ${binaryName}.exe or file explorers in that folder.`);
+        // On Windows, try to kill Neutralino processes that might lock the dir
+        if (process.platform === 'win32' && attempt === 2) {
+          try { execSync('taskkill /F /IM neutralino-win_x64.exe /T >nul 2>&1', { stdio: 'ignore' }); } catch {}
+        }
+        // Busy wait (synchronous, no process spawn needed)
+        const end = Date.now() + delay;
+        while (Date.now() < end) { /* spin */ }
+      } else {
+        throw e;
+      }
+    }
+  }
+  // Final attempt, let it throw if it still fails
+  rmSync(targetPath, { recursive: true, force: true });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -599,7 +718,10 @@ console.log('  ── Step 5/6: Preparing Neutralino resources + build...');
 
 // 5a. Clean previous build COMPLETELY
 const prevDist = join(NEUTRALINO_DIR, 'dist');
-if (existsSync(prevDist)) rmSync(prevDist, { recursive: true });
+if (existsSync(prevDist)) {
+  console.log('  🗑️  Cleaning previous build output...');
+  safeRmSync(prevDist);
+}
 mkdirSync(prevDist, { recursive: true });
 
 // 5b. Write game-config.json INTO resources/
@@ -615,7 +737,7 @@ for (const d of heavyDirs) {
   const heavyPath = join(NEUTRALINO_RES_DIR, d);
   if (existsSync(heavyPath)) {
     rmSync(heavyPath, { recursive: true });
-    console.log(`  🗑️  Removed ${d}/ from resources/ (will be placed alongside .exe)`);
+    console.log(`  🗑️  Removed ${d}/ from resources/ (will be placed alongside binary)`);
   }
 }
 
@@ -628,39 +750,44 @@ console.log(`  ✅ Generated neutralino.config.json (binaryName: "${binaryName}"
 const NL_VERSION = config.cli.binaryVersion || '5.4.0';
 console.log(`  📋 Neutralino version: ${NL_VERSION}`);
 
-// 5f. Download Windows binary ONLY from GitHub releases
+// 5f. Download the correct Neutralino binary for the target platform
 const NEUTRALINO_CACHE_DIR = join(ROOT, '.neutralino-binaries');
 mkdirSync(NEUTRALINO_CACHE_DIR, { recursive: true });
 
-const cachedExe = join(NEUTRALINO_CACHE_DIR, `neutralino-win_x64-v${NL_VERSION}.exe`);
-if (existsSync(cachedExe)) {
-  console.log(`  ✅ Neutralino binary cached (${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
+// Map of binary names in the Neutralino release zip
+const NEUTRALINO_BINARY_MAP = {
+  win: 'neutralino-win_x64.exe',
+  mac: 'neutralino-mac_x64',       // Intel macOS
+  linux: 'neutralino-linux_x64',
+};
+
+const targetBinaryName = NEUTRALINO_BINARY_MAP[targetPlatform];
+const cachedBinary = join(NEUTRALINO_CACHE_DIR, targetBinaryName);
+
+if (existsSync(cachedBinary)) {
+  console.log(`  ✅ Neutralino binary cached for ${platformLabels[targetPlatform]} (${(statSync(cachedBinary).size / 1024 / 1024).toFixed(1)} MB)`);
 } else {
-  console.log('  ⬇️  Downloading Neutralino Windows binary from GitHub...');
+  console.log(`  ⬇️  Downloading Neutralino ${platformLabels[targetPlatform]} binary from GitHub...`);
   const releaseUrl = `https://github.com/neutralinojs/neutralinojs/releases/download/v${NL_VERSION}/neutralinojs-v${NL_VERSION}.zip`;
   const cacheZip = join(NEUTRALINO_CACHE_DIR, `neutralinojs-v${NL_VERSION}.zip`);
   try {
     if (!existsSync(cacheZip)) await downloadFile(releaseUrl, cacheZip);
-    console.log('  📦 Extracting neutralino-win_x64.exe...');
+    console.log(`  📦 Extracting ${targetBinaryName}...`);
     const AdmZip = require('adm-zip');
     const zip = new AdmZip(cacheZip);
-    const entry = zip.getEntry('neutralino-win_x64.exe');
+    const entry = zip.getEntry(targetBinaryName);
     if (!entry) {
-      console.error('  ❌ neutralino-win_x64.exe not found in the zip!');
+      console.error(`  ❌ ${targetBinaryName} not found in the zip!`);
+      console.error('  Available entries:');
+      zip.getEntries().forEach(e => console.error(`    - ${e.entryName}`));
       exit(1);
     }
-    const rawPath = join(NEUTRALINO_CACHE_DIR, 'neutralino-win_x64.exe');
     zip.extractEntryTo(entry, NEUTRALINO_CACHE_DIR, false, true);
-    if (rawPath !== cachedExe) {
-      if (existsSync(cachedExe)) unlinkSync(cachedExe);
-      cpSync(rawPath, cachedExe);
-      unlinkSync(rawPath);
-    }
-    if (!existsSync(cachedExe) || statSync(cachedExe).size < 1024 * 1024) {
-      console.error('  ❌ Failed to extract neutralino-win_x64.exe!');
+    if (!existsSync(cachedBinary) || statSync(cachedBinary).size < 1024 * 1024) {
+      console.error(`  ❌ Failed to extract ${targetBinaryName}!`);
       exit(1);
     }
-    console.log(`  ✅ Neutralino binary ready (${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
+    console.log(`  ✅ Neutralino binary ready for ${platformLabels[targetPlatform]} (${(statSync(cachedBinary).size / 1024 / 1024).toFixed(1)} MB)`);
   } catch (err) {
     console.error(`  ❌ Failed to download Neutralino binary: ${err.message}`);
     exit(1);
@@ -683,28 +810,68 @@ try {
   console.warn('  ' + String(err.message || err).split('\n')[0]);
 }
 
-// 5h. Clean neu build output (we only need resources.neu from it)
-//     neu build creates .exe files for all platforms + release zips — all unnecessary
+// 5h. Extract resources.neu from neu build output (if any)
+//     NEVER cache it — each build must produce a fresh resources.neu
+//     because game-config.json changes between editor and game-only builds.
+var freshResourcesNeu = null;
 const neuBuildOutput = join(prevDist, binaryName);
+
 if (existsSync(neuBuildOutput)) {
-  // Extract resources.neu if it exists
   const neuRes = join(neuBuildOutput, 'resources.neu');
-  const neuResCached = join(NEUTRALINO_CACHE_DIR, `resources.neu`);
   if (existsSync(neuRes)) {
-    cpSync(neuRes, neuResCached);
-    console.log('  ✅ Saved resources.neu from neu build');
+    // ⚠️ CRITICAL: Copy resources.neu to a TEMP location BEFORE deleting the neu build output!
+    // Previously we saved the path then deleted the directory, which destroyed the file.
+    const tmpRes = join(prevDist, '_tmp_resources.neu');
+    cpSync(neuRes, tmpRes);
+    freshResourcesNeu = tmpRes;
+    console.log('  ✅ Extracted fresh resources.neu from neu build');
   }
   // Remove entire neu build output — we'll assemble clean
-  rmSync(neuBuildOutput, { recursive: true });
+  safeRmSync(neuBuildOutput);
+} else {
+  // neu build might have created a directory with a different name
+  // (e.g. the original binaryName from neutralino.config.json)
+  try {
+    const dirs = readdirSync(prevDist, { withFileTypes: true });
+    for (const d of dirs) {
+      if (d.isDirectory()) {
+        const candidate = join(prevDist, d.name, 'resources.neu');
+        if (existsSync(candidate)) {
+          // Same: copy to temp before cleanup
+          const tmpRes = join(prevDist, '_tmp_resources.neu');
+          cpSync(candidate, tmpRes);
+          freshResourcesNeu = tmpRes;
+          console.log('  ✅ Extracted resources.neu from ' + d.name + '/');
+          break;
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
 }
-// Also remove any release zips created by neu build
-const neuReleaseZips = readdirSync(prevDist).filter(f => f.endsWith('-release.zip'));
-for (const rz of neuReleaseZips) {
-  rmSync(join(prevDist, rz));
-  console.log(`  🗑️  Removed ${rz} (neu build artifact)`);
-}
+// Clean up any leftover directories and release zips from neu build
+try {
+  const neuReleaseZips = readdirSync(prevDist).filter(f => f.endsWith('-release.zip'));
+  for (const rz of neuReleaseZips) {
+    try { unlinkSync(join(prevDist, rz)); } catch {}
+    console.log(`  🗑️  Removed ${rz} (neu build artifact)`);
+  }
+  // Clean any leftover directories from neu build
+  const neuDirs = readdirSync(prevDist, { withFileTypes: true }).filter(f => f.isDirectory());
+  for (const d of neuDirs) {
+    safeRmSync(join(prevDist, d.name));
+    console.log(`  🗑️  Removed ${d.name}/ (neu build artifact)`);
+  }
+} catch (e) { /* ignore */ }
+// Also delete any old cached resources.neu to prevent stale data
+try {
+  const oldCache = join(NEUTRALINO_CACHE_DIR, 'resources.neu');
+  if (existsSync(oldCache)) {
+    unlinkSync(oldCache);
+    console.log('  🗑️  Removed stale cached resources.neu');
+  }
+} catch (e) { /* ignore */ }
 
-// 5i. Ensure Node.js Windows runtime is available
+// 5i. Ensure Node.js runtime for the target platform
 await ensureNodeRuntime();
 
 console.log('  ✅ Neutralino resources prepared');
@@ -717,35 +884,73 @@ console.log('  ── Step 6/6: Assembling distributable package...');
 const distDir = join(prevDist, binaryName);
 mkdirSync(distDir, { recursive: true });
 
-// 6a. Copy Windows binary → AppName.exe
-const winExeDest = join(distDir, `${binaryName}.exe`);
-cpSync(cachedExe, winExeDest);
-console.log(`  ✅ ${binaryName}.exe (${(statSync(winExeDest).size / 1024 / 1024).toFixed(1)} MB)`);
+// 6a. Copy Neutralino binary → AppName(.exe|no ext)
+const binaryDest = join(distDir, `${binaryName}${pConfig.binaryExt}`);
+cpSync(cachedBinary, binaryDest);
+console.log(`  ✅ ${binaryName}${pConfig.binaryExt} (${(statSync(binaryDest).size / 1024 / 1024).toFixed(1)} MB)`);
 
-// 6b. Copy resources.neu (from neu build or fallback to resources/ dir)
-const neuResCached = join(NEUTRALINO_CACHE_DIR, 'resources.neu');
-if (existsSync(neuResCached)) {
-  cpSync(neuResCached, join(distDir, 'resources.neu'));
-  console.log('  ✅ resources.neu');
+// 6b. Copy resources.neu (fresh from THIS build, or create from resources/ dir)
+if (freshResourcesNeu && existsSync(freshResourcesNeu)) {
+  cpSync(freshResourcesNeu, join(distDir, 'resources.neu'));
+  console.log('  ✅ resources.neu (fresh from neu build)');
+  // Clean up temp file
+  try { unlinkSync(freshResourcesNeu); } catch {}
 } else {
-  console.log('  ⚠️  resources.neu not found, copying resources/ directory...');
-  copyDir(NEUTRALINO_RES_DIR, join(distDir, 'resources'));
-  console.log('  ✅ resources/ directory');
+  console.log('  ⚠️  neu build did not produce resources.neu — creating from resources/ directory...');
+  // Create resources.neu manually by zipping the resources/ directory
+  const AdmZip = require('adm-zip');
+  const resZip = new AdmZip();
+  const addResToZip = (dir, prefix, zipInstance) => {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        addResToZip(fullPath, prefix + entry.name + '/', zipInstance);
+      } else {
+        zipInstance.addLocalFile(fullPath, prefix);
+      }
+    }
+  };
+  addResToZip(NEUTRALINO_RES_DIR, '', resZip);
+  const resNeuPath = join(distDir, 'resources.neu');
+  resZip.writeZip(resNeuPath);
+  // Verify game-config.json is inside
+  const writtenZip = new AdmZip(resNeuPath);
+  const configEntry = writtenZip.getEntry('game-config.json');
+  if (configEntry) {
+    const configContent = writtenZip.readAsText(configEntry);
+    console.log('  ✅ Verified game-config.json in resources.neu: ' + configContent.substring(0, 80) + '...');
+  } else {
+    console.warn('  ⚠️  WARNING: game-config.json NOT found in resources.neu!');
+  }
+  console.log('  ✅ resources.neu (created from resources/ directory)');
 }
 
 // 6c. Copy game-config.json
 writeFileSync(join(distDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
 
-// 6d. Write start-server.bat (CRITICAL for correct CWD)
-const batContent = `@echo off\r\ncd /d "%~dp0standalone"\r\n"%~dp0node\\node.exe" server.js\r\n`;
-writeFileSync(join(distDir, 'start-server.bat'), batContent, 'utf-8');
-console.log('  ✅ start-server.bat');
+// 6d. Write launch script (bat for Windows, sh for macOS/Linux)
+const launchScriptContent = pConfig.launchScriptContent(distDir);
+const launchScriptPath = join(distDir, pConfig.launchScript);
+writeFileSync(launchScriptPath, launchScriptContent, 'utf-8');
+console.log(`  ✅ ${pConfig.launchScript}`);
 
-// 6e. Copy node.exe
+// Make .sh executable (no-op on Windows but harmless)
+if (targetPlatform !== 'win') {
+  try {
+    chmodSync(launchScriptPath, 0o755);
+    console.log(`  ✅ ${pConfig.launchScript} made executable`);
+  } catch (e) {
+    console.warn(`  ⚠️  Could not chmod ${pConfig.launchScript}: ${e.message}`);
+  }
+}
+
+// 6e. Copy node runtime
 const distNodeDir = join(distDir, 'node');
 mkdirSync(distNodeDir, { recursive: true });
-cpSync(join(NODE_CACHE_DIR, 'node.exe'), join(distNodeDir, 'node.exe'));
-console.log(`  ✅ node.exe (${(statSync(join(distNodeDir, 'node.exe')).size / 1024 / 1024).toFixed(1)} MB)`);
+const nodeSrcPath = join(NODE_CACHE_DIR, targetPlatform, pConfig.nodeFile);
+cpSync(nodeSrcPath, join(distNodeDir, pConfig.nodeFile));
+console.log(`  ✅ node/${pConfig.nodeFile} (${(statSync(join(distNodeDir, pConfig.nodeFile)).size / 1024 / 1024).toFixed(1)} MB)`);
 
 // 6f. Copy standalone server
 const distStandaloneDir = join(distDir, 'standalone');
@@ -773,7 +978,9 @@ const addDirToZip = (dir, prefix, zipInstance) => {
   }
 };
 
-const zipPath = join(prevDist, `${binaryName}.zip`);
+// Platform suffix for the ZIP filename
+const platformSuffix = targetPlatform === 'win' ? '' : `-${targetPlatform}`;
+const zipPath = join(prevDist, `${binaryName}${platformSuffix}.zip`);
 const zip = new AdmZip();
 addDirToZip(distDir, `${binaryName}/`, zip);
 zip.writeZip(zipPath);
@@ -783,12 +990,23 @@ const zipSize = statSync(zipPath).size;
 console.log('');
 console.log('  ══════════════════════════════════════════════');
 console.log(`  ✅ Build complete: ${productName}`);
-console.log(`  📦 ${binaryName}.zip (${(zipSize / 1024 / 1024).toFixed(1)} MB)`);
+console.log(`  💻 Platform: ${platformLabels[targetPlatform]}`);
+console.log(`  📦 ${binaryName}${platformSuffix}.zip (${(zipSize / 1024 / 1024).toFixed(1)} MB)`);
 console.log(`  📂 Path: ${zipPath}`);
 console.log(`  📂 Unpacked: ${distDir}`);
 console.log('');
-console.log('  🚀 Extract ZIP and run the .exe');
-console.log('  ⚠️  Requires WebView2 (preinstalled on Windows 10/11)');
+
+if (targetPlatform === 'win') {
+  console.log('  🚀 Extract ZIP and run the .exe');
+  console.log('  ⚠️  Requires WebView2 (preinstalled on Windows 10/11)');
+} else if (targetPlatform === 'mac') {
+  console.log('  🚀 Extract ZIP, chmod +x the binary, and run it');
+  console.log('  ⚠️  Uses WebKit (native on macOS)');
+} else {
+  console.log('  🚀 Extract ZIP, chmod +x the binary, and run it');
+  console.log('  ⚠️  Requires WebKitGTK (install via package manager)');
+}
+
 console.log('  ══════════════════════════════════════════════');
 console.log('');
 

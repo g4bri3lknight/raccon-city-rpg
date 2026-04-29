@@ -3,96 +3,460 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/resources/favicon.ico" type="image/x-icon">
   <title>Avvio...</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       background: #0a0a0f;
       color: #fff;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       height: 100vh;
-      gap: 20px;
       overflow: hidden;
     }
-    .icon { font-size: 56px; filter: drop-shadow(0 0 20px rgba(52, 211, 153, 0.3)); }
-    h1 {
-      font-size: 22px;
+    .header {
+      text-align: center;
+      padding: 20px 20px 0;
+      flex-shrink: 0;
+    }
+    .title {
+      font-size: 20px;
       font-weight: 700;
-      color: rgba(255, 255, 255, 0.88);
-      letter-spacing: -0.02em;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+    }
+    .log-container {
+      flex: 1;
+      width: 100%;
+      max-width: 700px;
+      overflow-y: auto;
+      padding: 12px 20px 20px;
+    }
+    .log-container::-webkit-scrollbar { width: 6px; }
+    .log-container::-webkit-scrollbar-track { background: transparent; }
+    .log-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    .log-line {
+      font-size: 12px;
+      line-height: 1.7;
+      word-break: break-all;
+    }
+    .log-line .ts {
+      color: rgba(255,255,255,0.2);
+      margin-right: 8px;
+      font-size: 11px;
+    }
+    .log-info { color: rgba(255,255,255,0.5); }
+    .log-ok { color: #34d399; }
+    .log-warn { color: #fbbf24; }
+    .log-err { color: #f87171; }
+    .log-debug { color: rgba(255,255,255,0.3); }
+    .spinner-wrap {
+      text-align: center;
+      padding: 6px 0 2px;
     }
     .spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid rgba(255, 255, 255, 0.08);
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.08);
       border-top-color: #34d399;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    p {
+    .spinner-text {
       font-size: 13px;
-      color: rgba(255, 255, 255, 0.35);
-      transition: opacity 0.3s;
+      color: rgba(255,255,255,0.4);
+      vertical-align: middle;
     }
-    .error {
+    .error-box {
       color: #f87171;
-      background: rgba(239, 68, 68, 0.1);
+      background: rgba(239, 68, 68, 0.08);
       border: 1px solid rgba(239, 68, 68, 0.2);
-      padding: 12px 24px;
-      border-radius: 10px;
-      font-size: 13px;
-      max-width: 360px;
-      text-align: center;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      max-width: 500px;
+      margin: 8px auto;
+      line-height: 1.5;
     }
   </style>
 </head>
 <body>
-  <div class="icon">🎮</div>
-  <h1>RPG Editor</h1>
-  <div class="spinner" id="spinner"></div>
-  <p id="status">Avvio del server in corso...</p>
+  <div class="header">
+    <div class="title" id="title">RPG Editor</div>
+    <div class="subtitle">Diagnostica avvio</div>
+  </div>
+
+  <div class="spinner-wrap" id="spinner-wrap">
+    <span class="spinner" id="spinner"></span>
+    <span class="spinner-text" id="spinner-text">Inizializzazione...</span>
+  </div>
+
+  <div class="log-container" id="log"></div>
+
+  <!-- Neutralino client library (bundled inside resources.neu) -->
+  <script src="js/neutralino.js"></script>
 
   <script>
-    let attempts = 0;
-    const MAX_ATTEMPTS = 120; // 60 seconds max
+    // ── On-screen logger ──
+    var logEl = document.getElementById('log');
+    function ts() {
+      var d = new Date();
+      return String(d.getHours()).padStart(2,'0') + ':' +
+             String(d.getMinutes()).padStart(2,'0') + ':' +
+             String(d.getSeconds()).padStart(2,'0') + '.' +
+             String(d.getMilliseconds()).padStart(3,'0');
+    }
+    function logLine(msg, cls) {
+      cls = cls || 'log-info';
+      var div = document.createElement('div');
+      div.className = 'log-line ' + cls;
+      div.innerHTML = '<span class="ts">[' + ts() + ']</span>' + escapeHtml(msg);
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function logInfo(msg) { logLine(msg, 'log-info'); }
+    function logOk(msg)   { logLine(msg, 'log-ok'); }
+    function logWarn(msg) { logLine(msg, 'log-warn'); }
+    function logErr(msg)  { logLine(msg, 'log-err'); }
+    function logDbg(msg)  { logLine(msg, 'log-debug'); }
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function setSpinner(text) {
+      document.getElementById('spinner-text').textContent = text || '';
+    }
+    function hideSpinner() {
+      document.getElementById('spinner-wrap').style.display = 'none';
+    }
+    function showError(msg) {
+      hideSpinner();
+      logErr(msg);
+      var box = document.createElement('div');
+      box.className = 'error-box';
+      box.innerHTML = escapeHtml(msg);
+      logEl.appendChild(box);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
 
-    function check() {
-      attempts++;
-      if (attempts > MAX_ATTEMPTS) {
-        document.getElementById('spinner').style.display = 'none';
-        document.getElementById('status').innerHTML =
-          '<div class="error">Impossibile avviare il server.<br>Controlla i log per dettagli.</div>';
+    // ── State ──
+    var isWindows = true; // default to safest option
+    var isShuttingDown = false;
+    var serverPid = null;
+    var pollCount = 0;
+    var MAX_POLL = 120;
+    var gameConfig = null; // will be set from game-config.json
+
+    // ══════════════════════════════════════════════════════
+    //  MAIN FLOW
+    // ══════════════════════════════════════════════════════
+
+    async function main() {
+      logInfo('=== RPG Editor Portable — Avvio ===');
+      logDbg('User-Agent: ' + (navigator.userAgent || 'N/A'));
+
+      // ── Step 1: Check if Neutralino API is available ──
+      logInfo('[Step 1] Verifica Neutralino API...');
+      if (typeof Neutralino === 'undefined') {
+        logWarn('Neutralino API non disponibile — modalita\' browser');
+        await browserFallback();
+        return;
+      }
+      logOk('Neutralino API disponibile');
+
+      // ── Step 2: Initialize Neutralino ──
+      logInfo('[Step 2] Neutralino.init()...');
+      try {
+        Neutralino.init();
+        logOk('Neutralino.init() completato');
+      } catch (e) {
+        logErr('Neutralino.init() fallito: ' + JSON.stringify(e));
+        showError('Neutralino.init() fallito: ' + JSON.stringify(e));
         return;
       }
 
-      fetch('http://localhost:3000')
-        .then(function (r) {
-          if (r.ok) {
-            document.getElementById('status').textContent = 'Pronto!';
-            // Append game mode params if present
-            var params = new URLSearchParams(window.location.search);
-            var url = 'http://localhost:3000';
-            if (params.toString()) url += '?' + params.toString();
-            window.location.href = url;
+      // ── Step 3: Get app directory ──
+      setSpinner('Rilevamento ambiente...');
+      logInfo('[Step 3] Rilevamento directory app...');
+      var appDir = '';
+      try {
+        appDir = (NL_PATH || '').replace(/[\/\\]$/, '');
+        logOk('NL_PATH = "' + appDir + '"');
+      } catch (e) {
+        logErr('Impossibile leggere NL_PATH: ' + JSON.stringify(e));
+        showError('NL_PATH non accessibile');
+        return;
+      }
+
+      // ── Step 4: Detect OS ──
+      logInfo('[Step 4] Rilevamento sistema operativo...');
+      try {
+        var osInfo = Neutralino.os.getOsInfo();
+        logOk('os.getOsInfo() = ' + JSON.stringify(osInfo));
+        var osId = '';
+        if (osInfo && osInfo.osId) {
+          osId = (osInfo.osId + '').toLowerCase();
+          logInfo('osId = "' + osId + '"');
+          if (osId === 'windows' || osId === 'win32') { isWindows = true; }
+          else if (osId === 'darwin' || osId === 'macos') { isWindows = false; }
+          else if (osId === 'linux') { isWindows = false; }
+          else { isWindows = true; logWarn('osId sconosciuto, default Windows'); }
+        } else {
+          logWarn('osId non presente nella risposta, default Windows');
+          isWindows = true;
+        }
+      } catch (e) {
+        logWarn('os.getOsInfo() fallito: ' + JSON.stringify(e) + ' — default Windows');
+        isWindows = true;
+      }
+      logOk('Piattaforma rilevata: ' + (isWindows ? 'WINDOWS' : 'UNIX (macOS/Linux)'));
+
+      // ── Step 5: Read game config ──
+      logInfo('[Step 5] Lettura game-config.json...');
+      var configRead = false;
+
+      // Try from embedded resources first (/resources/ = inside resources.neu)
+      try {
+        var configRaw = await Neutralino.filesystem.readFile('/resources/game-config.json');
+        gameConfig = JSON.parse(configRaw);
+        configRead = true;
+      } catch (e) {
+        logDbg('Embedded config not readable: ' + JSON.stringify(e));
+      }
+
+      // Fallback: try from filesystem next to the exe
+      if (!configRead) {
+        try {
+          var fsConfigRaw = await Neutralino.filesystem.readFile(appDir + '/game-config.json');
+          gameConfig = JSON.parse(fsConfigRaw);
+          configRead = true;
+          logInfo('Config letto da filesystem (non embedded)');
+        } catch (e2) {
+          logDbg('Filesystem config not readable: ' + JSON.stringify(e2));
+        }
+      }
+
+      // Fallback: try inside standalone/ directory
+      if (!configRead) {
+        try {
+          var standaloneConfigRaw = await Neutralino.filesystem.readFile(appDir + '/standalone/game-config.json');
+          gameConfig = JSON.parse(standaloneConfigRaw);
+          configRead = true;
+          logInfo('Config letto da standalone/');
+        } catch (e3) {
+          logDbg('Standalone config not readable: ' + JSON.stringify(e3));
+        }
+      }
+
+      if (configRead && gameConfig) {
+        logOk('Config: ' + JSON.stringify(gameConfig));
+        if (gameConfig.isGameOnly) {
+          var gameTitle = gameConfig.gameName || gameConfig.gameId || 'RPG Game';
+          document.getElementById('title').textContent = gameTitle;
+          try { Neutralino.window.setTitle(gameTitle); } catch(e) {}
+          logInfo('Modalita\' GAME-ONLY: ' + (gameConfig.gameId || 'unknown'));
+        } else {
+          try { Neutralino.window.setTitle('RPG Editor'); } catch(e) {}
+          logInfo('Modalita\' EDITOR (tutti i giochi)');
+        }
+      } else {
+        logWarn('game-config.json non trovato in nessuna posizione — default modalita\' EDITOR');
+      }
+
+      // ── Step 6: Find launch script ──
+      setSpinner('Ricerca script di avvio...');
+      logInfo('[Step 6] Ricerca script di avvio...');
+      var launchScript = null;
+      var batPath = appDir + '/start-server.bat';
+      var shPath = appDir + '/start-server.sh';
+
+      logInfo('Probing: ' + batPath);
+      try {
+        await Neutralino.filesystem.getStats(batPath);
+        launchScript = batPath;
+        isWindows = true;
+        logOk('TROVATO: start-server.bat');
+      } catch (e) {
+        logDbg('start-server.bat NON trovato (' + JSON.stringify(e) + ')');
+      }
+
+      if (!launchScript) {
+        logInfo('Probing: ' + shPath);
+        try {
+          await Neutralino.filesystem.getStats(shPath);
+          launchScript = shPath;
+          isWindows = false;
+          logOk('TROVATO: start-server.sh');
+        } catch (e) {
+          logDbg('start-server.sh NON trovato (' + JSON.stringify(e) + ')');
+        }
+      }
+
+      if (!launchScript) {
+        logErr('NESSUNO script di avvio trovato!');
+        logErr('Trovato in: "' + appDir + '"');
+        // List directory contents
+        logInfo('Tentativo di listare la directory...');
+        try {
+          var entries = await Neutralino.filesystem.readDirectory(appDir);
+          logOk('Contenuto directory (' + entries.length + ' elementi):');
+          for (var i = 0; i < entries.length; i++) {
+            logDbg('  ' + entries[i].entry + ' (' + entries[i].type + ')');
+          }
+        } catch (e2) {
+          logErr('Impossibile listare directory: ' + JSON.stringify(e2));
+        }
+        showError('Nessun file start-server trovato in "' + appDir + '"');
+        return;
+      }
+
+      // ── Step 7: List directory for debug ──
+      logDbg('Listando contenuto directory per debug...');
+      try {
+        var entries = await Neutralino.filesystem.readDirectory(appDir);
+        logOk('Directory contiene ' + entries.length + ' elementi');
+        for (var i = 0; i < entries.length; i++) {
+          logDbg('  ' + entries[i].entry + ' (' + entries[i].type + ')');
+        }
+      } catch (e) {
+        logWarn('List directory fallito: ' + JSON.stringify(e));
+      }
+
+      // ── Step 8: Launch server ──
+      setSpinner('Avvio server...');
+      logInfo('[Step 8] Avvio server: ' + launchScript);
+      logInfo('Modalita\' background = true');
+
+      var cmd;
+      if (isWindows) {
+        cmd = '"' + launchScript + '"';
+      } else {
+        cmd = 'chmod +x "' + launchScript + '" && "' + launchScript + '"';
+      }
+      logInfo('Comando: ' + cmd);
+
+      try {
+        var result = await Neutralino.os.execCommand(cmd, { background: true });
+        serverPid = result.pid;
+        logOk('Server lanciato! PID = ' + serverPid);
+      } catch (e) {
+        logErr('ERRORE avvio server: ' + JSON.stringify(e));
+        showError('Impossibile avviare il server: ' + JSON.stringify(e));
+        return;
+      }
+
+      // ── Step 9: Wait for server ──
+      setSpinner('Attesa server...');
+      logInfo('[Step 9] Attesa risposta da http://localhost:3000 ...');
+
+      for (var i = 0; i < MAX_POLL; i++) {
+        if (isShuttingDown) return;
+        await sleep(500);
+        pollCount++;
+
+        try {
+          var resp = await fetch('http://localhost:3000', { method: 'HEAD', mode: 'no-cors' });
+          logOk('Server RISponde! (tentativo #' + pollCount + ', ' + Math.round(pollCount*500/1000) + 's)');
+          setSpinner('Server pronto!');
+          logOk('=== AVVIO COMPLETATO ===');
+          await sleep(300);
+
+          // Determine redirect URL based on game mode
+          var url;
+          if (gameConfig && gameConfig.isGameOnly && gameConfig.gameId) {
+            url = 'http://localhost:3000/play/' + encodeURIComponent(gameConfig.gameId);
+            logOk('Reindirizzamento a GIOCO: ' + url);
           } else {
-            setTimeout(check, 500);
+            url = 'http://localhost:3000';
+            logOk('Reindirizzamento a EDITOR: ' + url);
           }
-        })
-        .catch(function () {
-          if (attempts % 6 === 0) {
-            document.getElementById('status').textContent =
-              'Avvio del server... (' + Math.round(attempts * 500 / 1000) + 's)';
+
+          var params = new URLSearchParams(window.location.search);
+          if (params.toString()) url += '?' + params.toString();
+          window.location.href = url;
+          return;
+        } catch (e) {
+          if (pollCount % 4 === 0) {
+            logDbg('Server non ancora pronto... (' + Math.round(pollCount*500/1000) + 's)');
+            setSpinner('Attesa server... (' + Math.round(pollCount*500/1000) + 's)');
           }
-          setTimeout(check, 500);
-        });
+        }
+      }
+
+      logErr('Server non risponde dopo 60 secondi');
+      showError('Server non avviato dopo 60s. Controlla che node.exe e standalone/ siano presenti nella cartella.');
     }
 
-    check();
+    function browserFallback() {
+      logInfo('Modalita\' browser — attesa server Next.js...');
+      setSpinner('Attesa server Next.js...');
+      var count = 0;
+      var interval = setInterval(function() {
+        count++;
+        if (count > MAX_POLL) {
+          hideSpinner();
+          showError('Server Next.js non raggiungibile su localhost:3000');
+          clearInterval(interval);
+          return;
+        }
+        fetch('http://localhost:3000', { method: 'HEAD', mode: 'no-cors' })
+          .then(function() {
+            logOk('Server trovato!');
+            clearInterval(interval);
+            window.location.href = 'http://localhost:3000';
+          })
+          .catch(function() {
+            if (count % 6 === 0) {
+              logDbg('In attesa del server... (' + Math.round(count*500/1000) + 's)');
+              setSpinner('Attesa server... (' + Math.round(count*500/1000) + 's)');
+            }
+          });
+      }, 500);
+    }
+
+    function sleep(ms) {
+      return new Promise(function(r) { setTimeout(r, ms); });
+    }
+
+    // ── Cleanup on window close ──
+    async function cleanup() {
+      if (isShuttingDown) return;
+      isShuttingDown = true;
+      logInfo('Chiusura — pulizia processi...');
+      try {
+        if (isWindows) {
+          await Neutralino.os.execCommand('taskkill /F /IM node.exe /T', {});
+        } else {
+          await Neutralino.os.execCommand('pkill -f "node server.js" 2>/dev/null; pkill -f "server.js" 2>/dev/null', {});
+        }
+      } catch (e) {}
+      Neutralino.app.exit();
+    }
+
+    // ── Start ──
+    try {
+      Neutralino.events.on('windowClose', function() {
+        cleanup();
+      });
+    } catch(e) {}
+
+    // Small delay to let Neutralino fully initialize
+    setTimeout(function() {
+      main().catch(function(err) {
+        logErr('ERRORE FATALE: ' + JSON.stringify(err));
+        showError('Errore fatale: ' + JSON.stringify(err));
+      });
+    }, 800);
   </script>
 </body>
 </html>

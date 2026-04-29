@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, Copy, Check, X, Terminal, Package, Info, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
+import { Download, Copy, Check, X, Terminal, Package, Info, Loader2, AlertCircle, RotateCcw, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { adminFetch } from '@/lib/admin-fetch';
 
@@ -14,6 +14,13 @@ interface ExportDialogProps {
 }
 
 type Phase = 'info' | 'building' | 'done' | 'error';
+type Platform = 'win' | 'mac' | 'linux';
+
+const PLATFORM_OPTIONS: { value: Platform; label: string; icon: string; note: string }[] = [
+  { value: 'win', label: 'Windows', icon: '🤖', note: 'WebView2 (preinstallato su Win 10/11)' },
+  { value: 'mac', label: 'macOS', icon: '👾', note: 'WebKit (nativo su macOS)' },
+  { value: 'linux', label: 'Linux', icon: '🐧', note: 'WebKitGTK (richiede installazione)' },
+];
 
 // localStorage key for persisting the active build across dialog close/reopen
 function getStorageKey(gameId?: string, mode?: string) {
@@ -30,6 +37,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
   const [elapsed, setElapsed] = useState('');
   const [command, setCommand] = useState('');
   const [copied, setCopied] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('win');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [logsEndRef, setLogsEndRef] = useState<HTMLDivElement | null>(null);
   const logContainerRef = useRef<HTMLDivElement | null>(null);
@@ -163,7 +171,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
     setElapsed('');
 
     try {
-      const body: Record<string, string> = { mode };
+      const body: Record<string, string> = { mode, platform: selectedPlatform };
       if (mode === 'game' && gameId) {
         body.gameId = gameId;
         body.gameName = displayName; // pass the display name for the EXE product name
@@ -363,6 +371,35 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                 </ul>
               </div>
 
+              {/* Platform Selection */}
+              <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] px-4 py-3">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Monitor className="w-3.5 h-3.5 text-white/30" />
+                  <span className="text-[11px] text-white/30 uppercase tracking-wider font-semibold">Piattaforma di destinazione</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {PLATFORM_OPTIONS.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => setSelectedPlatform(p.value)}
+                      className={`rounded-lg px-3 py-2.5 text-center transition-all cursor-pointer ${
+                        selectedPlatform === p.value
+                          ? 'bg-violet-500/15 border border-violet-500/30 ring-1 ring-violet-500/20'
+                          : 'bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12]'
+                      }`}
+                    >
+                      <div className="text-lg mb-0.5">{p.icon}</div>
+                      <div className={`text-[12px] font-semibold ${
+                        selectedPlatform === p.value ? 'text-violet-300' : 'text-white/50'
+                      }`}>{p.label}</div>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-white/25 mt-2">
+                  {PLATFORM_OPTIONS.find(p => p.value === selectedPlatform)?.note}
+                </p>
+              </div>
+
               {/* Requirements */}
               <div className="rounded-lg bg-amber-500/[0.05] border border-amber-500/12 px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
@@ -376,11 +413,11 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                   </li>
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
-                    Neutralinojs usa WebView2 (preinstallato su Windows 10/11)
+                    Neutralinojs usa il WebView nativo della piattaforma selezionata
                   </li>
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
-                    Il primo build scarica il runtime Node.js (~25 MB, cached)
+                    Il primo build scarica il runtime Node.js (~25 MB, cached per piattaforma)
                   </li>
                 </ul>
               </div>
