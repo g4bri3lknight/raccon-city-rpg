@@ -21,7 +21,7 @@
   ],
   "modes": {
     "window": {
-      "title": "raccoon-city",
+      "title": "RPG Editor",
       "width": 1280,
       "height": 800,
       "minWidth": 800,
@@ -32,7 +32,7 @@
     }
   },
   "cli": {
-    "binaryName": "raccoon-city",
+    "binaryName": "RPG Editor",
     "resourcesPath": "/resources/",
     "extensionsPath": "/extensions/",
     "clientLibrary": "/resources/js/neutralino.js",
