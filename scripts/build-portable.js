@@ -731,6 +731,124 @@ function pruneStandalone(baseDir, targetPlatform) {
     safeRemove(join(prismaClientDir, 'generator-build'));
     safeRemove(join(prismaClientDir, 'src'));
     safeRemove(join(prismaClientDir, 'scripts'));
+    // Remove WASM engine (we use native library engine, not WASM)
+    safeRemove(join(prismaClientDir, 'query_engine_bg.wasm'));
+    safeRemove(join(prismaClientDir, 'query_engine_bg.js'));
+    safeRemove(join(prismaClientDir, 'edge.js'));
+    safeRemove(join(prismaClientDir, 'wasm.js'));
+    safeRemove(join(prismaClientDir, 'wasm-worker-loader.mjs'));
+    safeRemove(join(prismaClientDir, 'wasm-edge-light-loader.mjs'));
+    safeRemove(join(prismaClientDir, 'index-browser.js'));
+    const prismaWasmSize = 2.3 * 1024 * 1024; // ~2.3 MB estimate
+    console.log(`  ✂️  Removed Prisma WASM/edge/browser files (~${(prismaWasmSize / 1024 / 1024).toFixed(1)} MB)`);
+  }
+
+  // ── 13. AGGRESSIVE PRISMA RUNTIME PRUNING ──
+  // The generated .prisma/client/index.js only imports: @prisma/client/runtime/library.js
+  // engineType = "library" → uses native libquery_engine binary (NOT WASM)
+  // database = "sqlite" → all other database engines are useless
+  //
+  // Files we KEEP:
+  //   - @prisma/client/runtime/library.js  (200 KB — the only file actually imported)
+  //   - @prisma/client/runtime/library.mjs (200 KB — ESM import path)
+  //   - @prisma/client/default.js          (4 KB — re-exports generated client)
+  //   - @prisma/client/package.json        (12 KB)
+  //   - .prisma/client/libquery_engine-debian-openssl-3.0.x.{dll|so|dylib}.node
+  //
+  // Files we DELETE (~55 MB):
+  //   - All query_engine_bg.{cockroachdb,mysql,postgresql,sqlserver}.* (~44 MB)
+  //   - All query_compiler_bg.* for all DBs including sqlite (~10 MB)
+  //   - All .wasm-base64.* files for all DBs
+  //   - edge.js, edge-esm.js, react-native.js
+  //   - binary.js, binary.mjs (only needed for engineType="binary")
+  //   - client.js, client.mjs (only needed for engineType="client")
+  //   - wasm-engine-edge.js/mjs, wasm-compiler-edge.js/mjs
+  //   - index-browser.js/mjs
+
+  const prismaRuntimeDir = join(nmDir, '@prisma', 'client', 'runtime');
+  if (existsSync(prismaRuntimeDir)) {
+    let prismaRuntimeSaved = 0;
+    const dbEngines = ['cockroachdb', 'mysql', 'postgresql', 'sqlserver'];
+    const keepList = new Set([
+      'library.js', 'library.mjs', // only files actually imported by generated code
+    ]);
+
+    const runtimeFiles = readdirSync(prismaRuntimeDir);
+    for (const file of runtimeFiles) {
+      // Keep our essential files
+      if (keepList.has(file)) continue;
+
+      // Delete files for other databases (not sqlite)
+      let shouldDelete = false;
+      for (const db of dbEngines) {
+        if (file.includes(db)) { shouldDelete = true; break; }
+      }
+
+      // Delete wasm-base64 variants (even for sqlite — we use native engine)
+      if (file.includes('.wasm-base64')) shouldDelete = true;
+
+      // Delete sqlite query_compiler (we don't need the WASM compiler)
+      if (file.includes('query_compiler_bg')) shouldDelete = true;
+
+      // Delete edge/react-native/browser variants
+      if (file.includes('edge') || file.includes('react-native') || file.includes('index-browser')) shouldDelete = true;
+
+      // Delete binary.js/mjs (engineType="binary", we use "library")
+      if (file.startsWith('binary.')) shouldDelete = true;
+
+      // Delete client.js/mjs (engineType="client", we use "library")
+      if (file === 'client.js' || file === 'client.mjs') shouldDelete = true;
+
+      // Delete wasm compiler/engine edge variants
+      if (file.startsWith('wasm-compiler') || file.startsWith('wasm-engine')) shouldDelete = true;
+
+      if (shouldDelete) {
+        const fullPath = join(prismaRuntimeDir, file);
+        try {
+          const size = statSync(fullPath).size;
+          safeRemove(fullPath);
+          prismaRuntimeSaved += size;
+        } catch {}
+      }
+    }
+    if (prismaRuntimeSaved > 1024 * 1024) {
+      console.log(`  ✂️  Removed Prisma runtime unused engines (~${(prismaRuntimeSaved / 1024 / 1024).toFixed(1)} MB)`);
+    }
+  }
+
+  // ── 14. Remove non-application directories from standalone ──
+  // These directories exist in standalone because Next.js traces them,
+  // but they are NOT needed for the portable RPG app runtime.
+  const nonAppDirs = ['skills', 'docs', 'examples', 'download'];
+  for (const dir of nonAppDirs) {
+    const dirPath = join(baseDir, dir);
+    if (existsSync(dirPath)) {
+      const size = calcDirSize(dirPath);
+      safeRemove(dirPath);
+      if (size > 1024 * 1024) {
+        console.log(`  ✂️  Removed ${dir}/ (not needed, ${(size / 1024 / 1024).toFixed(1)} MB)`);
+      } else if (size > 1024) {
+        console.log(`  ✂️  Removed ${dir}/ (not needed, ${(size / 1024).toFixed(0)} KB)`);
+      }
+    }
+  }
+
+  // ── 15. Remove scripts/ from standalone (build scripts not needed at runtime) ──
+  const standaloneScriptsDir = join(baseDir, 'scripts');
+  if (existsSync(standaloneScriptsDir)) {
+    const size = calcDirSize(standaloneScriptsDir);
+    safeRemove(standaloneScriptsDir);
+    console.log(`  ✂️  Removed scripts/ (not needed at runtime, ${(size / 1024).toFixed(0)} KB)`);
+  }
+
+  // ── 16. Remove neutralino/ from standalone (already packaged separately) ──
+  const standaloneNeutralinoDir = join(baseDir, 'neutralino');
+  if (existsSync(standaloneNeutralinoDir)) {
+    const size = calcDirSize(standaloneNeutralinoDir);
+    safeRemove(standaloneNeutralinoDir);
+    if (size > 1024 * 1024) {
+      console.log(`  ✂️  Removed neutralino/ (already in dist, ${(size / 1024 / 1024).toFixed(1)} MB)`);
+    }
   }
 
   console.log('');
