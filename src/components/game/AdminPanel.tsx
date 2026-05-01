@@ -756,7 +756,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
       {activeTab === 'notifications' ? (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-black border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
             overlayClassName="z-[120]"
           >
             <DialogHeader>
@@ -770,7 +770,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                 }
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6">
+            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6 py-2">
               <NotificationEditDialog
                 initialData={editingData}
                 onSave={handleUpdate}
@@ -783,7 +783,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
       ) : (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-black border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
             overlayClassName="z-[120]"
           >
             <DialogHeader>
@@ -797,7 +797,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                 }
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6">
+            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6 py-2">
               <EntityForm
                 fields={fields}
                 initialData={

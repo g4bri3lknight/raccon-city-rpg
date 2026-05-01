@@ -289,7 +289,7 @@ export function AvatarManager() {
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
         <DialogContent
-          className="bg-black border-white/[0.1] text-white sm:max-w-md"
+          className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-md"
           overlayClassName="z-[120]"
         >
           <DialogHeader>

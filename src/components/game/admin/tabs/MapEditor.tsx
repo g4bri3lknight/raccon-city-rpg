@@ -791,7 +791,7 @@ export default function MapEditor() {
       {/* ── Create / Edit Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
         <DialogContent
-          className="bg-black border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+          className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
           overlayClassName="z-[120]"
         >
           <DialogHeader>

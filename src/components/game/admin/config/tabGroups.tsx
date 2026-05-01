@@ -45,7 +45,7 @@ export const TAB_GROUPS: TabGroupDef[] = [
   { id: 'combat', label: 'Combattimento', icon: '⚔️', defaultOpen: true, tabs: [
     { id: 'archetypes', label: 'Archetipi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/archetypes', entityLabel: 'Archetipo', group: 'combat' },
     { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio', group: 'combat' },
-    { id: 'specials', label: 'Abilità PG', icon: <Sparkles className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità PG', group: 'combat' },
+    { id: 'specials', label: 'Abilità', icon: <Sparkles className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità', group: 'combat' },
     { id: 'enemies', label: 'Nemici', icon: <Skull className="w-4 h-4" />, endpoint: '/api/admin/enemies', entityLabel: 'Nemico', group: 'combat' },
     { id: 'enemy-abilities', label: 'Abilità Nemici', icon: <Flame className="w-4 h-4" />, endpoint: '/api/admin/enemy-abilities', entityLabel: 'Abilità Nemica', group: 'combat' },
     { id: 'boss-phases', label: 'Fasi Boss', icon: <Crown className="w-4 h-4" />, endpoint: '/api/admin/boss-phases', entityLabel: 'Fase Boss', group: 'combat' },

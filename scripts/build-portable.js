@@ -572,49 +572,8 @@ function pruneStandalone(baseDir, targetPlatform) {
     console.log(`  ✂️  Removed Prisma schema-engine (${(sizeBefore / 1024 / 1024).toFixed(1)} MB)`);
   }
 
-  // ── 6. Remove TypeScript declaration files (.d.ts, .d.mts) ──
-  // These are only needed at compile time, not runtime.
-  // We do a targeted scan of the heaviest packages.
-  const dtsPackages = [
-    '@radix-ui', 'framer-motion', 'recharts', '@tanstack',
-    '@dnd-kit', 'cmdk', 'vaul', 'embla-carousel-react',
-    'react-hook-form', '@hookform', 'class-variance-authority',
-    'clsx', 'tailwind-merge', 'sonner', 'lucide-react',
-    'react-markdown', 'input-otp', 'react-day-picker',
-    'react-resizable-panels', 'date-fns', 'zustand', 'zod',
-  ];
-
-  let dtsCount = 0;
-  let dtsSize = 0;
-  for (const pkg of dtsPackages) {
-    const pkgDir = join(nmDir, pkg);
-    if (!existsSync(pkgDir)) continue;
-    try {
-      removeDtsRecursive(pkgDir);
-    } catch { /* ignore */ }
-  }
-
-  function removeDtsRecursive(dir) {
-    try {
-      const entries = readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        const fullPath = join(dir, entry.name);
-        if (entry.isDirectory()) {
-          removeDtsRecursive(fullPath);
-        } else if (entry.name.endsWith('.d.ts') || entry.name.endsWith('.d.mts') || entry.name.endsWith('.d.cts')) {
-          try {
-            dtsSize += statSync(fullPath).size;
-            safeRemove(fullPath);
-            dtsCount++;
-          } catch { /* ignore */ }
-        }
-      }
-    } catch { /* ignore */ }
-  }
-
-  if (dtsCount > 0) {
-    console.log(`  ✂️  Removed ${dtsCount} TypeScript declaration files (${(dtsSize / 1024).toFixed(0)} KB)`);
-  }
+  // ── 6. TypeScript declaration files (.d.ts, .d.mts) ──
+  // Removed globally in step 17 (covers ALL packages, not just specific ones)
 
   // ── 7. Remove source maps (.js.map, .mjs.map, .cjs.map) ──
   let mapCount = 0;
@@ -755,9 +714,10 @@ function pruneStandalone(baseDir, targetPlatform) {
   //   - @prisma/client/package.json        (12 KB)
   //   - .prisma/client/libquery_engine-debian-openssl-3.0.x.{dll|so|dylib}.node
   //
-  // Files we DELETE (~55 MB):
-  //   - All query_engine_bg.{cockroachdb,mysql,postgresql,sqlserver}.* (~44 MB)
-  //   - All query_compiler_bg.* for all DBs including sqlite (~10 MB)
+  // Files we DELETE (~60 MB):
+  //   - ALL query_engine_bg.* for ALL databases (including sqlite!) (~30 MB)
+  //     (we use native library engine, never WASM)
+  //   - All query_compiler_bg.* for all DBs (~10 MB)
   //   - All .wasm-base64.* files for all DBs
   //   - edge.js, edge-esm.js, react-native.js
   //   - binary.js, binary.mjs (only needed for engineType="binary")
@@ -768,7 +728,6 @@ function pruneStandalone(baseDir, targetPlatform) {
   const prismaRuntimeDir = join(nmDir, '@prisma', 'client', 'runtime');
   if (existsSync(prismaRuntimeDir)) {
     let prismaRuntimeSaved = 0;
-    const dbEngines = ['cockroachdb', 'mysql', 'postgresql', 'sqlserver'];
     const keepList = new Set([
       'library.js', 'library.mjs', // only files actually imported by generated code
     ]);
@@ -778,48 +737,25 @@ function pruneStandalone(baseDir, targetPlatform) {
       // Keep our essential files
       if (keepList.has(file)) continue;
 
-      // Delete files for other databases (not sqlite)
-      let shouldDelete = false;
-      for (const db of dbEngines) {
-        if (file.includes(db)) { shouldDelete = true; break; }
-      }
-
-      // Delete wasm-base64 variants (even for sqlite — we use native engine)
-      if (file.includes('.wasm-base64')) shouldDelete = true;
-
-      // Delete sqlite query_compiler (we don't need the WASM compiler)
-      if (file.includes('query_compiler_bg')) shouldDelete = true;
-
-      // Delete edge/react-native/browser variants
-      if (file.includes('edge') || file.includes('react-native') || file.includes('index-browser')) shouldDelete = true;
-
-      // Delete binary.js/mjs (engineType="binary", we use "library")
-      if (file.startsWith('binary.')) shouldDelete = true;
-
-      // Delete client.js/mjs (engineType="client", we use "library")
-      if (file === 'client.js' || file === 'client.mjs') shouldDelete = true;
-
-      // Delete wasm compiler/engine edge variants
-      if (file.startsWith('wasm-compiler') || file.startsWith('wasm-engine')) shouldDelete = true;
-
-      if (shouldDelete) {
-        const fullPath = join(prismaRuntimeDir, file);
-        try {
-          const size = statSync(fullPath).size;
-          safeRemove(fullPath);
-          prismaRuntimeSaved += size;
-        } catch {}
-      }
+      // DELETE EVERYTHING ELSE — we use engineType="library" (native),
+      // so we don't need ANY WASM, compiler, binary, client, or edge files
+      // for ANY database (including sqlite).
+      const fullPath = join(prismaRuntimeDir, file);
+      try {
+        const size = statSync(fullPath).size;
+        safeRemove(fullPath);
+        prismaRuntimeSaved += size;
+      } catch {}
     }
     if (prismaRuntimeSaved > 1024 * 1024) {
-      console.log(`  ✂️  Removed Prisma runtime unused engines (~${(prismaRuntimeSaved / 1024 / 1024).toFixed(1)} MB)`);
+      console.log(`  ✂️  Removed Prisma runtime unused files (~${(prismaRuntimeSaved / 1024 / 1024).toFixed(1)} MB)`);
     }
   }
 
   // ── 14. Remove non-application directories from standalone ──
   // These directories exist in standalone because Next.js traces them,
   // but they are NOT needed for the portable RPG app runtime.
-  const nonAppDirs = ['skills', 'docs', 'examples', 'download'];
+  const nonAppDirs = ['skills', 'docs', 'examples', 'download', 'prisma'];
   for (const dir of nonAppDirs) {
     const dirPath = join(baseDir, dir);
     if (existsSync(dirPath)) {
@@ -830,6 +766,25 @@ function pruneStandalone(baseDir, targetPlatform) {
       } else if (size > 1024) {
         console.log(`  ✂️  Removed ${dir}/ (not needed, ${(size / 1024).toFixed(0)} KB)`);
       }
+    }
+  }
+
+  // Also remove stray files from standalone root (config/build files not needed at runtime)
+  const nonAppFiles = ['bun.lock', 'Caddyfile', 'tsconfig.json', 'tailwind.config.ts',
+    'postcss.config.mjs', 'eslint.config.mjs', 'components.json',
+    'next.config.ts'];
+  // NOTE: package.json is KEPT — needed by Node.js for module resolution in standalone mode
+  // NOTE: .env is KEPT — may contain runtime environment variables
+  for (const file of nonAppFiles) {
+    const filePath = join(baseDir, file);
+    if (existsSync(filePath)) {
+      try {
+        const size = statSync(filePath).size;
+        safeRemove(filePath);
+        if (size > 1024) {
+          console.log(`  ✂️  Removed ${file} (not needed at runtime, ${(size / 1024).toFixed(0)} KB)`);
+        }
+      } catch { /* ignore */ }
     }
   }
 
@@ -849,6 +804,104 @@ function pruneStandalone(baseDir, targetPlatform) {
     if (size > 1024 * 1024) {
       console.log(`  ✂️  Removed neutralino/ (already in dist, ${(size / 1024 / 1024).toFixed(1)} MB)`);
     }
+  }
+
+  // ── 17. Remove ALL .d.ts declaration files from ALL packages ──
+  // TypeScript declarations are never needed at runtime.
+  // Previously we only scanned specific packages; now scan everything.
+  let globalDtsCount = 0;
+  let globalDtsSize = 0;
+
+  function removeGlobalDtsRecursive(dir, depth) {
+    if (depth > 10) return;
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          removeGlobalDtsRecursive(fullPath, depth + 1);
+        } else if (entry.name.endsWith('.d.ts') || entry.name.endsWith('.d.mts') || entry.name.endsWith('.d.cts')) {
+          try {
+            globalDtsSize += statSync(fullPath).size;
+            safeRemove(fullPath);
+            globalDtsCount++;
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  removeGlobalDtsRecursive(nmDir, 0);
+  if (globalDtsCount > 0) {
+    console.log(`  ✂️  Removed ${globalDtsCount} .d.ts files from all packages (${(globalDtsSize / 1024).toFixed(0)} KB)`);
+  }
+
+  // ── 18. Remove admin API routes for GAME-ONLY exports ──
+  // When exporting a single game, the admin panel routes are not needed.
+  // This saves ~5 MB of compiled route code.
+  if (isGameOnly) {
+    const adminApiDir = join(baseDir, '.next', 'server', 'app', 'api', 'admin');
+    if (existsSync(adminApiDir)) {
+      const size = calcDirSize(adminApiDir);
+      safeRemove(adminApiDir);
+      console.log(`  ✂️  Removed admin API routes (game-only export, ${(size / 1024 / 1024).toFixed(1)} MB)`);
+    }
+    // Also remove editor page
+    const editorPageDir = join(baseDir, '.next', 'server', 'app', 'editor');
+    if (existsSync(editorPageDir)) {
+      const size = calcDirSize(editorPageDir);
+      safeRemove(editorPageDir);
+      console.log(`  ✂️  Removed editor page (game-only export, ${(size / 1024).toFixed(0)} KB)`);
+    }
+    // Remove unused API routes (generate-*, upload-game-cover, games, game-cover, ai-status)
+    const unusedApiRoutes = [
+      'generate-document', 'generate-enemy', 'generate-event',
+      'upload-game-cover', 'games', 'game-cover', 'ai-status',
+      'media', 'npc-chat', 'export-portable',
+    ];
+    const apiBaseDir = join(baseDir, '.next', 'server', 'app', 'api');
+    for (const route of unusedApiRoutes) {
+      const routePath = join(apiBaseDir, route);
+      if (existsSync(routePath)) {
+        const size = calcDirSize(routePath);
+        safeRemove(routePath);
+        if (size > 1024) {
+          console.log(`  ✂️  Removed /api/${route} (game-only export, ${(size / 1024).toFixed(0)} KB)`);
+        }
+      }
+    }
+  }
+
+  // ── 19. Remove unnecessary Next.js server chunks ──
+  // Remove chunks that are only used for Next.js features we don't use:
+  // - Image optimization (we don't use next/image)
+  // - Middleware (we don't use Next.js middleware)
+  const nextServerDir = join(baseDir, '.next', 'server');
+  if (existsSync(nextServerDir)) {
+    // Remove middleware config if present
+    const middlewarePath = join(nextServerDir, 'middleware.js');
+    const middlewareManifest = join(nextServerDir, 'middleware-manifest.json');
+    if (existsSync(middlewarePath)) safeRemove(middlewarePath);
+    if (existsSync(middlewareManifest)) safeRemove(middlewareManifest);
+  }
+
+  // ── 20. Minimize @prisma/client/package.json ──
+  // The package.json can contain a large "exports" map with many unused entry points.
+  // We only need the main entry point.
+  const prismaPkgJson = join(nmDir, '@prisma', 'client', 'package.json');
+  if (existsSync(prismaPkgJson)) {
+    try {
+      const pkg = JSON.parse(readFileSync(prismaPkgJson, 'utf-8'));
+      // Keep only essential fields
+      const minimal = {
+        name: pkg.name,
+        version: pkg.version,
+        main: pkg.main,
+        types: pkg.types,
+        exports: pkg.exports,
+      };
+      writeFileSync(prismaPkgJson, JSON.stringify(minimal, null, 2));
+    } catch { /* ignore */ }
   }
 
   console.log('');

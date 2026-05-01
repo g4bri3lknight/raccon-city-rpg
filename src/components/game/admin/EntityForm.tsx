@@ -52,7 +52,7 @@ function FieldContainer({ field, children }: { field: FieldDef; children: React.
   const colClass = getFieldColClass(field);
   return (
     <div className={colClass}>
-      <label className="text-[12px] text-white/50 mb-0.5 block font-medium">
+      <label className="text-xs text-white/60 mb-1 block font-medium">
         {field.label} {field.required && <span className="text-red-400">*</span>}
         {field.helpText && <AdminTooltip text={field.helpText} showIcon={false} className="ml-1" />}
       </label>
@@ -322,8 +322,8 @@ export function EntityForm({
   };
 
   return (
-    <form id="entity-form" onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-3 gap-x-4 gap-y-2.5">
+    <form id="entity-form" onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
         {fields.map(renderField)}
       </div>
 

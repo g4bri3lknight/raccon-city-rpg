@@ -290,15 +290,15 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
       )}
 
       {/* Header */}
-      <div className="shrink-0 px-8 py-8 border-b border-white/[0.06]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-              <Gamepad2 className="w-8 h-8 text-emerald-400" />
+      <div className="shrink-0 px-4 sm:px-8 py-6 sm:py-8 border-b border-white/[0.06]">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-5">
+            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <Gamepad2 className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white/90 tracking-tight">RPG Editor</h2>
-              <p className="text-sm text-white/35 mt-0.5">Crea, modifica e gioca ai tuoi giochi RPG</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-white/90 tracking-tight">RPG Editor</h2>
+              <p className="text-[13px] sm:text-sm text-white/35 mt-0.5">Crea, modifica e gioca ai tuoi giochi RPG</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -309,7 +309,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
               className="text-xs gap-1.5 bg-violet-600/10 border border-violet-500/20 text-violet-300 hover:bg-violet-600/20 hover:text-violet-200"
             >
               <Download className="w-3.5 h-3.5" />
-              Esporta Editor
+              <span className="hidden sm:inline">Esporta Editor</span>
             </Button>
             <Button
               size="sm"
@@ -324,7 +324,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
       </div>
 
       {/* Games list */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 admin-scrollbar">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-4 admin-scrollbar">
         {!loading && games.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="text-4xl">🎮</div>
@@ -332,7 +332,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
             <p className="text-[12px] text-white/15">Crea il tuo primo gioco RPG per iniziare</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {games.map(game => (
               <div
                 key={game.id}
@@ -342,10 +342,11 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
                     : 'bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]'
                 }`}
               >
-                <div className="px-4 py-3">
-                  <div className="flex items-start gap-3">
+                <div className="p-3 sm:px-4 sm:py-3">
+                  {/* Row 1: Cover + Info (stacked on mobile, row on sm+) */}
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                     {/* Cover image */}
-                    <div className={`w-16 h-16 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${
+                    <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center self-start ${
                       game.coverImage
                         ? 'border-white/[0.1]'
                         : 'border-dashed border-white/[0.1] bg-white/[0.02]'
@@ -365,7 +366,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
 
                     {/* Game info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-base">{game.active ? '🎮' : '📁'}</span>
                         <h3 className={`text-sm font-semibold truncate ${game.active ? 'text-emerald-300' : 'text-white/80'}`}>
                           {game.name}
@@ -386,27 +387,28 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 ml-7">
-                        <span className="text-[12px] text-white/25 font-mono">{game.id}</span>
+                      {/* Meta: stacked on mobile, inline on sm+ */}
+                      <div className="mt-1 ml-7 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                        <span className="text-[11px] sm:text-[12px] text-white/25 font-mono">{game.id}</span>
                         {game.description && (
-                          <span className="text-[12px] text-white/40 truncate">{game.description}</span>
+                          <span className="text-[11px] sm:text-[12px] text-white/40 truncate">{game.description}</span>
                         )}
-                        <span className="text-[12px] text-white/15 flex items-center gap-1">
+                        <span className="text-[11px] sm:text-[12px] text-white/15 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {formatDate(game.updatedAt ?? game.createdAt)}
                         </span>
                       </div>
                     </div>
 
-                    {/* Primary Actions: Play + Editor */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* Primary Actions: Play + Editor (side on sm+, below on mobile) */}
+                    <div className="flex items-center gap-2 shrink-0 sm:ml-0 ml-auto sm:self-start">
                       <Button
                         size="sm"
                         onClick={() => onPlay(game.id)}
                         className="h-8 px-3 text-[12px] gap-1.5 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200 shadow-sm shadow-emerald-500/5"
                       >
                         <Swords className="w-3.5 h-3.5" />
-                        Play
+                        <span className="hidden sm:inline">Play</span>
                       </Button>
                       <Button
                         size="sm"
@@ -414,13 +416,13 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
                         className="h-8 px-3 text-[12px] gap-1.5 bg-cyan-600/15 border border-cyan-500/25 text-cyan-300 hover:bg-cyan-600/25 hover:text-cyan-200"
                       >
                         <Settings className="w-3.5 h-3.5" />
-                        Editor
+                        <span className="hidden sm:inline">Editor</span>
                       </Button>
                     </div>
                   </div>
 
-                  {/* Bottom row: secondary actions */}
-                  <div className="flex items-center gap-1 mt-2 ml-[76px]">
+                  {/* Secondary actions row (hidden on mobile, shown on sm+) */}
+                  <div className="hidden sm:flex items-center gap-1 mt-2 ml-[76px]">
                     {!game.active && (
                       <Button
                         size="sm"
@@ -492,6 +494,71 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
                       Elimina
                     </Button>
                   </div>
+
+                  {/* Mobile-only action bar */}
+                  <div className="sm:hidden flex items-center justify-between mt-3 pt-3 border-t border-white/[0.06]">
+                    <div className="flex items-center gap-1">
+                      {!game.active && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleSwitch(game.id)}
+                          disabled={!!switching}
+                          className="h-7 px-2 text-[11px] gap-1 text-white/30 hover:text-emerald-300 hover:bg-emerald-500/10"
+                        >
+                          {switching === game.id
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <Database className="w-3 h-3" />
+                          }
+                        </Button>
+                      )}
+                      {game.active && (
+                        <span className="text-[11px] text-white/15 flex items-center gap-1">
+                          <Database className="w-3 h-3" />
+                          Attivo
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleClone(game.id)}
+                        disabled={creating}
+                        className="h-7 px-2 text-[11px] gap-1 text-white/25 hover:text-white/50 hover:bg-white/[0.06]"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openExportGame(game)}
+                        className="h-7 px-2 text-[11px] gap-1 text-violet-400/50 hover:text-violet-300 hover:bg-violet-500/10"
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEdit(game)}
+                        className="h-7 px-2 text-[11px] gap-1 text-white/25 hover:text-white/50 hover:bg-white/[0.06]"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDelete(game.id, game.name)}
+                        disabled={!!deleting}
+                        className="h-7 px-2 text-[11px] gap-1 text-red-400/40 hover:text-red-400 hover:bg-red-500/10"
+                      >
+                        {deleting === game.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Trash2 className="w-3 h-3" />
+                        }
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -500,9 +567,9 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
       </div>
 
       {/* Info footer */}
-      <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur text-[12px] text-white/25 flex items-center justify-between">
+      <div className="shrink-0 px-4 sm:px-5 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur text-[12px] text-white/25 flex items-center justify-between">
         <span>{games.length} gioco{games.length !== 1 ? 'i' : ''}</span>
-        <span>Ogni gioco ha il proprio database indipendente</span>
+        <span className="hidden sm:inline">Ogni gioco ha il proprio database indipendente</span>
       </div>
 
       {/* ── Edit Game Dialog ── */}

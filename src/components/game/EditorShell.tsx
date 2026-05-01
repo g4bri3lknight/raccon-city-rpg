@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Play, ChevronDown,
+  ArrowLeft, Play, ChevronDown, Menu, X,
   Plus, Pencil, Trash2, RefreshCw, Loader2, Search, Upload,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
@@ -61,6 +61,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const tabConfig = TABS.find(t => t.id === activeTab)!;
   const fields = FIELD_MAP[activeTab];
@@ -283,6 +284,12 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
     setEditingId(null);
   };
 
+  const handleTabClick = (tabId: TabId) => {
+    setActiveTab(tabId);
+    setSearchQuery('');
+    setSidebarOpen(false);
+  };
+
   const editingData = editingId
     ? (() => {
         const raw = { ...(data.find(r => String(r.id) === editingId) as Record<string, unknown> || {}) };
@@ -296,114 +303,154 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
       })()
     : {};
 
+  // ── Shared sidebar content (desktop + mobile drawer) ──
+  const renderSidebarContent = () => (
+    <>
+      {EDITOR_TAB_GROUPS.map(group => {
+        const isCollapsed = collapsedGroups[group.id];
+        const groupCount = group.tabs.reduce((sum, t) => sum + (counts[t.id] ?? 0), 0);
+        const isActiveInGroup = group.tabs.some(t => t.id === activeTab);
+        return (
+          <div key={group.id} className="mb-1">
+            {/* Group Header */}
+            <button
+              onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-all ${
+                isActiveInGroup && !isCollapsed
+                  ? 'text-white/60'
+                  : 'text-white/30 hover:text-white/50'
+              }`}
+            >
+              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+              <span className="text-[12px]">{group.icon}</span>
+              <span className="text-[12px] font-bold uppercase tracking-wider flex-1">{group.label}</span>
+              <span className="text-[11px] font-mono text-white/20">{groupCount}</span>
+            </button>
+            {/* Group Tabs */}
+            {!isCollapsed && (
+              <div className="relative ml-1 border-l border-white/[0.06]">
+                {group.tabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabClick(tab.id)}
+                    className={`w-full flex items-center gap-2 pl-3 pr-3 py-2 text-left transition-all ${
+                      activeTab === tab.id
+                        ? 'bg-emerald-500/10 text-emerald-300 border-l-2 border-emerald-500 -ml-[1px]'
+                        : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04] border-l-2 border-transparent -ml-[1px]'
+                    }`}
+                  >
+                    <span className="shrink-0">{tab.icon}</span>
+                    <span className="text-[13px] font-medium flex-1 truncate">{tab.label}</span>
+                    {!tab.custom && (
+                      <span className={`text-[12px] min-w-[18px] text-center px-1 py-0.5 rounded-full font-mono ${
+                        activeTab === tab.id
+                          ? 'bg-emerald-500/20 text-emerald-200'
+                          : 'bg-white/[0.06] text-white/25'
+                      }`}>
+                        {counts[tab.id] ?? 0}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: '#0a0a0f' }}>
       {/* ── Top Bar ── */}
       <div
-        className="shrink-0 flex items-center justify-between px-5 py-3 border-b border-white/[0.06]"
+        className="shrink-0 flex items-center justify-between px-3 sm:px-5 py-3 border-b border-white/[0.06]"
         style={{
           background: 'rgba(8, 8, 14, 0.95)',
           backdropFilter: 'blur(20px)',
         }}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-[13px] text-white/50 hover:text-white/80 transition-colors"
+            className="flex items-center gap-1 sm:gap-2 text-[13px] text-white/50 hover:text-white/80 transition-colors shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
           </button>
-          <div className="w-px h-4 bg-white/[0.1]" />
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:block w-px h-4 bg-white/[0.1]" />
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/[0.06] text-white/50 hover:text-white/80 transition-colors"
+            >
+              {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
             <span className="text-base">⚙️</span>
-            <span className="text-sm font-black tracking-wider text-emerald-400">EDITOR</span>
-            <span className="text-[12px] text-white/25 bg-white/[0.06] px-2 py-0.5 rounded-md font-mono">{gameId || '...'}</span>
+            <span className="text-sm font-black tracking-wider text-emerald-400 shrink-0">EDITOR</span>
+            <span className="text-[11px] sm:text-[12px] text-white/25 bg-white/[0.06] px-2 py-0.5 rounded-md font-mono truncate max-w-[100px] sm:max-w-none">{gameId || '...'}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRefreshGameData}
             disabled={refreshing}
-            className="text-xs px-3 text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10"
+            className="text-xs px-2 sm:px-3 text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10"
           >
             {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <button
             onClick={() => onPlay(gameId)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10 transition-colors"
+            className="flex items-center gap-1.5 text-xs px-2 sm:px-3 py-1.5 rounded-md text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10 transition-colors"
           >
             <Play className="w-3.5 h-3.5" />
-            Play Test
+            <span className="hidden sm:inline">Play Test</span>
           </button>
         </div>
       </div>
 
       {/* ── Body: Sidebar + Content ── */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* ── Vertical Sidebar with Groups ── */}
-        <div className="w-[200px] shrink-0 border-r border-white/[0.06] bg-white/[0.01] flex flex-col py-2 overflow-y-auto admin-scrollbar">
-          {EDITOR_TAB_GROUPS.map(group => {
-            const isCollapsed = collapsedGroups[group.id];
-            const groupCount = group.tabs.reduce((sum, t) => sum + (counts[t.id] ?? 0), 0);
-            const isActiveInGroup = group.tabs.some(t => t.id === activeTab);
-            return (
-              <div key={group.id} className="mb-1">
-                {/* Group Header */}
-                <button
-                  onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-all ${
-                    isActiveInGroup && !isCollapsed
-                      ? 'text-white/60'
-                      : 'text-white/30 hover:text-white/50'
-                  }`}
-                >
-                  <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="text-[12px]">{group.icon}</span>
-                  <span className="text-[12px] font-bold uppercase tracking-wider flex-1">{group.label}</span>
-                  <span className="text-[11px] font-mono text-white/20">{groupCount}</span>
-                </button>
-                {/* Group Tabs */}
-                {!isCollapsed && (
-                  <div className="relative ml-1 border-l border-white/[0.06]">
-                    {group.tabs.map(tab => (
-                      <button
-                        key={tab.id}
-                        onClick={() => {
-                          setActiveTab(tab.id);
-                          setSearchQuery('');
-                        }}
-                        className={`w-full flex items-center gap-2 pl-3 pr-3 py-2 text-left transition-all ${
-                          activeTab === tab.id
-                            ? 'bg-emerald-500/10 text-emerald-300 border-l-2 border-emerald-500 -ml-[1px]'
-                            : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04] border-l-2 border-transparent -ml-[1px]'
-                        }`}
-                      >
-                        <span className="shrink-0">{tab.icon}</span>
-                        <span className="text-[13px] font-medium flex-1 truncate">{tab.label}</span>
-                        {!tab.custom && (
-                          <span className={`text-[12px] min-w-[18px] text-center px-1 py-0.5 rounded-full font-mono ${
-                            activeTab === tab.id
-                              ? 'bg-emerald-500/20 text-emerald-200'
-                              : 'bg-white/[0.06] text-white/25'
-                          }`}>
-                            {counts[tab.id] ?? 0}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
+        {/* ── Mobile sidebar overlay ── */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="lg:hidden fixed inset-0 z-40 bg-black/60"
+                onClick={() => setSidebarOpen(false)}
+              />
+              <motion.div
+                initial={{ x: -260 }}
+                animate={{ x: 0 }}
+                exit={{ x: -260 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[260px] border-r border-white/[0.06] bg-[#0a0a0f] flex flex-col py-2 overflow-y-auto admin-scrollbar"
+              >
+                {renderSidebarContent()}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* ── Desktop Vertical Sidebar with Groups ── */}
+        <div className="hidden lg:block w-[200px] shrink-0 border-r border-white/[0.06] bg-white/[0.01] flex flex-col py-2 overflow-y-auto admin-scrollbar">
+          {renderSidebarContent()}
         </div>
 
         {/* ── Content Area ── */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Tab title */}
+          <div className="shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-white/[0.04]">
+            <span className="shrink-0">{tabConfig.icon}</span>
+            <h2 className="text-sm font-semibold text-white/80">{tabConfig.label}</h2>
+            <span className="text-[11px] text-white/25 font-mono ml-auto">{counts[activeTab] ?? 0}</span>
+          </div>
           {tabConfig.custom ? (
             activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'theme' ? <ThemeEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
           ) : (
@@ -429,20 +476,20 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
               </AnimatePresence>
 
               {/* Toolbar: Add + Search */}
-              <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/[0.04]">
+              <div className="shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 border-b border-white/[0.04]">
                 {activeTab !== 'sounds' && activeTab !== 'images' && (
                   <Button
                     size="sm"
                     onClick={handleOpenCreate}
-                    className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
+                    className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200 shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Aggiungi Nuovo {tabConfig.entityLabel}
+                    <span className="hidden sm:inline">Aggiungi Nuovo {tabConfig.entityLabel}</span>
                   </Button>
                 )}
 
                 <div className="flex-1" />
-                <div className="relative w-56">
+                <div className="relative w-36 sm:w-56">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none" />
                   <input
                     type="text"
@@ -495,7 +542,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
               })()}
 
               {/* Table content */}
-              <div className="flex-1 overflow-y-auto px-4 py-3 admin-scrollbar">
+              <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 admin-scrollbar">
                 {loading ? (
                   <TableSkeleton />
                 ) : filteredData.length === 0 ? (
@@ -533,19 +580,19 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                         return (
                           <TableRow
                             key={rowId || `row-${idx}`}
-                            className="border-white/[0.04] hover:bg-white/[0.03] group"
+                            className="border-white/[0.04] hover:bg-white/[0.05] transition-colors"
                           >
                             {columns.map(col => (
-                              <TableCell key={col.key} className={`text-[13px] text-white/70 py-2 px-2 ${col.width ?? ''}`}>
+                              <TableCell key={col.key} className={`text-sm text-white/70 py-2.5 px-2 ${col.width ?? ''}`}>
                                 {col.render
                                   ? col.render(row, activeTab)
                                   : String(row[col.key] ?? '—')
                                 }
                               </TableCell>
                             ))}
-                            <TableCell className="text-right py-2 px-2">
+                            <TableCell className="text-right py-2.5 px-2">
                               {activeTab !== 'sounds' && activeTab !== 'images' ? (
-                                <div className="flex items-center justify-end gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center justify-end gap-1">
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -578,7 +625,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
               </div>
 
               {/* Footer */}
-              <div className="px-4 py-3 border-t border-white/[0.06] shrink-0 flex items-center justify-between">
+              <div className="px-3 sm:px-4 py-3 border-t border-white/[0.06] shrink-0 flex items-center justify-between">
                 <span className="text-[12px] text-white/25">
                   {data.length} record · {tabConfig.label}
                   {searchQuery && ` · ${filteredData.length} filtrati`}
@@ -599,7 +646,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
       {activeTab === 'notifications' ? (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-black border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
             overlayClassName="z-[120]"
           >
             <DialogHeader>
@@ -613,7 +660,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                 }
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6">
+            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6 py-2">
               <NotificationEditDialog
                 initialData={editingData}
                 onSave={handleUpdate}
@@ -622,7 +669,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
               />
             </div>
             {/* Sticky footer with save/cancel */}
-            <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur">
+            <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-[#0d0d14]/95 backdrop-blur">
               <FormActions
                 submitLabel={editingId ? 'Salva Modifiche' : 'Crea Notifica'}
                 onCancel={handleDialogClose}
@@ -634,7 +681,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
       ) : (
         <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
           <DialogContent
-            className="bg-black border-white/[0.1] text-white sm:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+            className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
             overlayClassName="z-[120]"
           >
             <DialogHeader>
@@ -648,7 +695,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                 }
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6">
+            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6 py-2">
               <EntityForm
                 fields={fields}
                 initialData={
@@ -664,7 +711,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
               />
             </div>
             {/* Sticky footer with save/cancel */}
-            <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur">
+            <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-[#0d0d14]/95 backdrop-blur">
               <FormActions
                 submitLabel={editingId ? 'Salva Modifiche' : `Crea ${tabConfig.entityLabel}`}
                 onCancel={handleDialogClose}
