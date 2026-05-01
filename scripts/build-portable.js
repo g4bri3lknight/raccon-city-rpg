@@ -13,22 +13,16 @@
  *     AppName/
  *       AppName.exe          → Neutralinojs binary (~2.6MB, downloaded from GitHub)
  *       resources.neu        → UI resources bundle (index.html, icons, neutralino.js)
- *       standalone/          → Next.js standalone server
+ *       standalone/          → Next.js standalone server (pruned)
  *       node/node.exe        → Windows Node.js runtime (~67MB)
  *       game-config.json     → game mode configuration
  *       (DBs are inside standalone/db/)
- *
- *   Total: ~80-100MB (vs ~228MB with Electron!)
- *
- * Key design: Neutralino Windows binary is downloaded directly from GitHub releases
- * (more reliable than `neu build` which has POSTJECT_SENTINEL issues).
- * Resources are bundled as resources.neu (created by `neu build`) or as a resources/ dir.
- * Heavy resources (standalone server, node.exe) are placed OUTSIDE alongside the .exe.
  *
  * Steps:
  *   1. Pre-flight checks (@neutralinojs/neu, adm-zip, DBs, Prisma)
  *   2. Run `next build` (standalone output) — SKIPPED with --no-build
  *   3. Copy static assets into standalone
+ *   3b. PRUNE standalone — remove unnecessary files (locales, dev deps, wrong-platform binaries)
  *   4. Copy game DB(s) into standalone
  *   5. Download Neutralino binary from GitHub + create resources bundle
  *   6. Assemble package + create distributable ZIP
@@ -65,6 +59,7 @@ const customName = findArg(args, 'name');
 const isEditor = args.includes('--editor');
 const isGameOnly = !!gameId;
 const skipBuild = args.includes('--no-build');
+const targetPlatform = findArg(args, 'platform') || 'win'; // win | mac | linux
 
 if (!isGameOnly && !isEditor) {
   console.log('');
@@ -79,6 +74,7 @@ if (!isGameOnly && !isEditor) {
   console.log('  ║  Flags:                                      ║');
   console.log('  ║    --name="Display Name"  custom EXE name     ║');
   console.log('  ║    --no-build           skip next build       ║');
+  console.log('  ║    --platform=win|mac|linux  target platform   ║');
   console.log('  ║                                              ║');
   console.log('  ╚══════════════════════════════════════════════╝');
   console.log('');
@@ -97,7 +93,8 @@ console.log('');
 console.log(`  🎮 Building: ${binaryName}`);
 console.log(`  📛 Product Name: ${productName}`);
 console.log(`  📦 Mode: ${isGameOnly ? `Game-only (${gameId})` : 'Full Editor'}`);
-console.log(`  ⚙️  Engine: Neutralinojs (lightweight, WebView2)`);
+const PLATFORM_LABELS = { win: 'Windows (WebView2)', mac: 'macOS (WebKit)', linux: 'Linux (WebKitGTK)' };
+console.log(`  🖥️  Target: ${PLATFORM_LABELS[targetPlatform] || targetPlatform}`);
 if (skipBuild) console.log(`  ⏭️  Skipping Next.js build (--no-build)`);
 console.log('');
 
@@ -237,46 +234,93 @@ function downloadFile(url, destPath) {
 //  HELPER: Ensure Node.js Windows runtime is available
 // ═══════════════════════════════════════════════════════════
 
-async function ensureNodeRuntime() {
-  const nodeExePath = join(ROOT, '.node-runtime-cache', 'node.exe');
-  if (existsSync(nodeExePath)) {
-    const size = statSync(nodeExePath).size;
-    console.log(`  ✅ Node.js runtime cached (${(size / 1024 / 1024).toFixed(1)} MB)`);
-    return;
-  }
-
-  console.log('  ⬇️  Node.js Windows runtime not cached, downloading...');
+async function ensureNodeRuntime(targetPlatform) {
   mkdirSync(NODE_CACHE_DIR, { recursive: true });
 
-  const nodeUrl = `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-win-x64.zip`;
-  const cacheZip = join(NODE_CACHE_DIR, `node-${NODE_VERSION}-win-x64.zip`);
+  const PLATFORM_CONFIG = {
+    win: {
+      label: 'Windows x64',
+      zipUrl: `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-win-x64.zip`,
+      zipPrefix: `node-${NODE_VERSION}-win-x64/`,
+      binaryName: 'node.exe',
+      cachedBinary: join(NODE_CACHE_DIR, 'node.exe'),
+    },
+    mac: {
+      label: 'macOS x64',
+      zipUrl: `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-darwin-x64.tar.gz`,
+      // macOS uses tar.gz, extract via child process
+      tarPrefix: `node-${NODE_VERSION}-darwin-x64/bin/node`,
+      binaryName: 'node',
+      cachedBinary: join(NODE_CACHE_DIR, 'node-macos'),
+    },
+    linux: {
+      label: 'Linux x64',
+      zipUrl: `https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz`,
+      tarPrefix: `node-${NODE_VERSION}-linux-x64/bin/node`,
+      binaryName: 'node',
+      cachedBinary: join(NODE_CACHE_DIR, 'node-linux'),
+    },
+  };
 
-  if (!existsSync(cacheZip)) {
-    console.log(`  ⬇️  Downloading Node.js ${NODE_VERSION} (Windows x64)...`);
-    await downloadFile(nodeUrl, cacheZip);
-  } else {
-    console.log(`  📦 Using cached download: ${basename(cacheZip)}`);
+  const cfg = PLATFORM_CONFIG[targetPlatform] || PLATFORM_CONFIG.win;
+
+  // Check cache
+  if (existsSync(cfg.cachedBinary)) {
+    const size = statSync(cfg.cachedBinary).size;
+    console.log(`  ✅ Node.js runtime cached (${cfg.label}, ${(size / 1024 / 1024).toFixed(1)} MB)`);
+    return cfg;
   }
 
-  // Extract node.exe from the zip
-  console.log('  📦 Extracting node.exe...');
-  const AdmZip = require('adm-zip');
-  const zip = new AdmZip(cacheZip);
-  const prefix = `node-${NODE_VERSION}-win-x64/`;
-  const entry = zip.getEntry(prefix + 'node.exe');
-  if (!entry) {
-    console.error('  ❌ node.exe not found in the downloaded zip!');
+  console.log(`  ⬇️  Node.js ${cfg.label} runtime not cached, downloading...`);
+
+  if (targetPlatform === 'win') {
+    // Windows: download zip, extract node.exe via adm-zip
+    const cacheZip = join(NODE_CACHE_DIR, `node-${NODE_VERSION}-win-x64.zip`);
+    if (!existsSync(cacheZip)) {
+      console.log(`  ⬇️  Downloading Node.js ${NODE_VERSION} (${cfg.label})...`);
+      await downloadFile(cfg.zipUrl, cacheZip);
+    } else {
+      console.log(`  📦 Using cached download: ${basename(cacheZip)}`);
+    }
+    console.log('  📦 Extracting node.exe...');
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(cacheZip);
+    const entry = zip.getEntry(cfg.zipPrefix + cfg.binaryName);
+    if (!entry) {
+      console.error(`  ❌ ${cfg.binaryName} not found in the downloaded zip!`);
+      exit(1);
+    }
+    zip.extractEntryTo(entry, NODE_CACHE_DIR, false, true);
+  } else {
+    // macOS / Linux: download tar.gz, extract via tar
+    const cacheTar = join(NODE_CACHE_DIR, `node-${NODE_VERSION}-${targetPlatform === 'mac' ? 'darwin-x64' : 'linux-x64'}.tar.gz`);
+    if (!existsSync(cacheTar)) {
+      console.log(`  ⬇️  Downloading Node.js ${NODE_VERSION} (${cfg.label})...`);
+      await downloadFile(cfg.zipUrl, cacheTar);
+    } else {
+      console.log(`  📦 Using cached download: ${basename(cacheTar)}`);
+    }
+    console.log(`  📦 Extracting ${cfg.binaryName}...`);
+    const { execSync } = require('child_process');
+    // Extract just the node binary from the tar
+    execSync(`tar -xzf "${cacheTar}" -C "${NODE_CACHE_DIR}" "${cfg.tarPrefix}"`, { stdio: 'pipe' });
+    // The tar extracts to a path like NODE_CACHE_DIR/node-v20.18.1-darwin-x64/bin/node
+    // Rename it to a simple name
+    const extractedDir = join(NODE_CACHE_DIR, `node-${NODE_VERSION}-${targetPlatform === 'mac' ? 'darwin-x64' : 'linux-x64'}`, 'bin');
+    if (existsSync(join(extractedDir, cfg.binaryName))) {
+      cpSync(join(extractedDir, cfg.binaryName), cfg.cachedBinary);
+      // Clean up extracted directory
+      try { rmSync(join(NODE_CACHE_DIR, `node-${NODE_VERSION}-${targetPlatform === 'mac' ? 'darwin-x64' : 'linux-x64'}`), { recursive: true }); } catch {}
+    }
+  }
+
+  if (!existsSync(cfg.cachedBinary)) {
+    console.error(`  ❌ Failed to extract ${cfg.binaryName}!`);
     exit(1);
   }
-  zip.extractEntryTo(entry, NODE_CACHE_DIR, false, true);
-
-  if (existsSync(nodeExePath)) {
-    const size = statSync(nodeExePath).size;
-    console.log(`  ✅ Node.js runtime ready (${(size / 1024 / 1024).toFixed(1)} MB)`);
-  } else {
-    console.error('  ❌ Failed to extract node.exe!');
-    exit(1);
-  }
+  const size = statSync(cfg.cachedBinary).size;
+  console.log(`  ✅ Node.js runtime ready (${cfg.label}, ${(size / 1024 / 1024).toFixed(1)} MB)`);
+  return cfg;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -336,10 +380,382 @@ function calcDirSize(dir) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  HELPER: Safely remove a file/dir (no error if not exists)
+// ═══════════════════════════════════════════════════════════
+
+function safeRemove(path) {
+  try {
+    if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PRUNE STANDALONE — Remove unnecessary files from node_modules
+//
+//  This function aggressively removes files that are not needed
+//  for the production runtime:
+//    • Locale/language files except English and Italian
+//    • TypeScript declaration files (.d.ts, .d.mts)
+//    • Source maps (.js.map)
+//    • Test files
+//    • README, LICENSE, CHANGELOG, CHANGELOG files
+//    • Wrong-platform native binaries (Linux/macOS for Windows export)
+//    • Unused heavy packages that are not actually imported
+//    • Dev-only metadata files
+// ═══════════════════════════════════════════════════════════
+
+function pruneStandalone(baseDir, targetPlatform) {
+  const nmDir = join(baseDir, 'node_modules');
+  if (!existsSync(nmDir)) return;
+
+  let totalRemoved = 0;
+  const LOCALES_TO_KEEP = new Set(['en', 'en-US', 'en-GB', 'it', 'it-IT', 'en-CA', 'en-AU']);
+
+  function removeIfNotInSet(dir, keepSet, label) {
+    if (!existsSync(dir)) return;
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const nameWithoutExt = entry.name.replace(/\.(js|ts|mjs|cjs|json|d\.ts|d\.mts)$/, '');
+        const baseName = nameWithoutExt.split('.')[0];
+        if (!keepSet.has(baseName) && !keepSet.has(entry.name)) {
+          const fullPath = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            const size = calcDirSize(fullPath);
+            safeRemove(fullPath);
+            totalRemoved += size;
+          } else {
+            try {
+              totalRemoved += statSync(fullPath).size;
+              safeRemove(fullPath);
+            } catch { /* ignore */ }
+          }
+        }
+      }
+      console.log(`  ✂️  Pruned ${label} (${(totalRemoved / 1024).toFixed(0)} KB removed)`);
+      totalRemoved = 0;
+    } catch { /* ignore */ }
+  }
+
+  // ── 1. date-fns locales: keep only en/it ──
+  // date-fns v4 has locale files like: en.ts, en.js, it.ts, it.js, etc.
+  const dateFnsLocaleDir = join(nmDir, 'date-fns', 'locale');
+  removeIfNotInSet(dateFnsLocaleDir, LOCALES_TO_KEEP, 'date-fns locales (kept en/it only)');
+
+  // Also prune date-fns/fp locales if present
+  const dateFnsFpLocaleDir = join(nmDir, 'date-fns', 'fp', 'locale');
+  if (existsSync(dateFnsFpLocaleDir)) {
+    removeIfNotInSet(dateFnsFpLocaleDir, LOCALES_TO_KEEP, 'date-fns/fp locales');
+  }
+
+  // ── 2. react-syntax-highlighter: remove all language definitions ──
+  // This package includes 300+ Prism language files and 197 HLJS languages.
+  // Since the app doesn't use syntax highlighting, remove them all.
+  const rshPrismDir = join(nmDir, 'react-syntax-highlighter', 'dist', 'esm', 'languages', 'prism');
+  if (existsSync(rshPrismDir)) {
+    const sizeBefore = calcDirSize(rshPrismDir);
+    safeRemove(rshPrismDir);
+    console.log(`  ✂️  Removed react-syntax-highlighter Prism languages (${(sizeBefore / 1024).toFixed(0)} KB)`);
+    totalRemoved += sizeBefore;
+  }
+  const rshPrismCjsDir = join(nmDir, 'react-syntax-highlighter', 'dist', 'cjs', 'languages', 'prism');
+  if (existsSync(rshPrismCjsDir)) {
+    const sizeBefore = calcDirSize(rshPrismCjsDir);
+    safeRemove(rshPrismCjsDir);
+    console.log(`  ✂️  Removed react-syntax-highlighter Prism CJS languages (${(sizeBefore / 1024).toFixed(0)} KB)`);
+  }
+  const rshHljsDir = join(nmDir, 'react-syntax-highlighter', 'dist', 'esm', 'languages', 'hljs');
+  if (existsSync(rshHljsDir)) {
+    const sizeBefore = calcDirSize(rshHljsDir);
+    safeRemove(rshHljsDir);
+    console.log(`  ✂️  Removed react-syntax-highlighter HLJS languages (${(sizeBefore / 1024).toFixed(0)} KB)`);
+  }
+  const rshHljsCjsDir = join(nmDir, 'react-syntax-highlighter', 'dist', 'cjs', 'languages', 'hljs');
+  if (existsSync(rshHljsCjsDir)) {
+    const sizeBefore = calcDirSize(rshHljsCjsDir);
+    safeRemove(rshHljsCjsDir);
+    console.log(`  ✂️  Removed react-syntax-highlighter HLJS CJS languages (${(sizeBefore / 1024).toFixed(0)} KB)`);
+  }
+
+  // ── 3. Remove next-intl entirely (not used in the app) ──
+  const nextIntlDir = join(nmDir, 'next-intl');
+  if (existsSync(nextIntlDir)) {
+    const sizeBefore = calcDirSize(nextIntlDir);
+    safeRemove(nextIntlDir);
+    console.log(`  ✂️  Removed next-intl (unused, ${(sizeBefore / 1024).toFixed(0)} KB)`);
+  }
+
+  // ── 4. Remove wrong-platform native binaries ──
+  const allPlatformDirs = {
+    // sharp / @img platform binaries
+    linux: [
+      join(nmDir, '@img', 'sharp-libvips-linux-x64'),
+      join(nmDir, '@img', 'sharp-libvips-linuxmusl-x64'),
+      join(nmDir, '@img', 'sharp-linux-x64'),
+      join(nmDir, '@img', 'sharp-linuxmusl-x64'),
+      join(nmDir, 'sharp', 'linux-x64'),
+      join(nmDir, 'sharp', 'linuxmusl-x64'),
+      join(nmDir, 'sharp', 'libvips-linux-x64'),
+      join(nmDir, 'sharp', 'libvips-linuxmusl-x64'),
+    ],
+    darwin: [
+      join(nmDir, '@img', 'sharp-darwin-x64'),
+      join(nmDir, '@img', 'sharp-darwin-arm64'),
+      join(nmDir, 'sharp', 'darwin-x64'),
+      join(nmDir, 'sharp', 'darwin-arm64'),
+      join(nmDir, 'sharp', 'libvips-darwin-x64'),
+      join(nmDir, 'sharp', 'libvips-darwin-arm64'),
+    ],
+    win: [
+      join(nmDir, '@img', 'sharp-win32-x64'),
+      join(nmDir, '@img', 'sharp-win32-ia32'),
+      join(nmDir, 'sharp', 'win32-x64'),
+      join(nmDir, 'sharp', 'win32-ia32'),
+      join(nmDir, 'sharp', 'libvips-win32-x64'),
+      join(nmDir, 'sharp', 'libvips-win32-ia32'),
+    ],
+  };
+
+  // Prisma engine files per platform
+  const prismaEngineFiles = {
+    linux: [join(nmDir, '@prisma', 'engines', 'libquery_engine-debian-openssl-3.0.x.so.node')],
+    darwin: [join(nmDir, '@prisma', 'engines', 'libquery_engine-debian-openssl-3.0.x.dylib.node')],
+    win: [join(nmDir, '@prisma', 'engines', 'libquery_engine-debian-openssl-3.0.x.dll.node')],
+  };
+
+  // Determine which platforms to REMOVE (everything except target)
+  const platformMap = { win: 'win', mac: 'darwin', linux: 'linux' };
+  const targetKey = platformMap[targetPlatform] || 'win';
+  const platformsToRemove = Object.keys(allPlatformDirs).filter(k => k !== targetKey);
+
+  for (const pKey of platformsToRemove) {
+    for (const p of (allPlatformDirs[pKey] || [])) {
+      if (existsSync(p)) {
+        try {
+          const st = statSync(p);
+          const size = st.isDirectory() ? calcDirSize(p) : st.size;
+          safeRemove(p);
+          if (size > 1024 * 1024) {
+            console.log(`  ✂️  Removed ${basename(p)} (${(size / 1024 / 1024).toFixed(1)} MB)`);
+          } else if (size > 1024) {
+            console.log(`  ✂️  Removed ${basename(p)} (${(size / 1024).toFixed(0)} KB)`);
+          }
+        } catch { /* ignore */ }
+      }
+      for (const ext of ['-wal', '-shm']) safeRemove(p + ext);
+    }
+  }
+
+  // Remove wrong-platform Prisma engines
+  for (const pKey of platformsToRemove) {
+    for (const p of (prismaEngineFiles[pKey] || [])) {
+      if (existsSync(p)) {
+        const st = statSync(p);
+        const size = st.size;
+        safeRemove(p);
+        console.log(`  ✂️  Removed ${basename(p)} (${(size / 1024 / 1024).toFixed(1)} MB)`);
+      }
+    }
+  }
+
+  // ── 5. Remove Prisma schema-engine (not needed at runtime) ──
+  const schemaEngineDir = join(nmDir, '@prisma', 'engines', 'schema-engine-debian-openssl-3.0.x');
+  if (existsSync(schemaEngineDir)) {
+    const sizeBefore = calcDirSize(schemaEngineDir);
+    safeRemove(schemaEngineDir);
+    console.log(`  ✂️  Removed Prisma schema-engine (${(sizeBefore / 1024 / 1024).toFixed(1)} MB)`);
+  }
+  const schemaEngineDir2 = join(nmDir, '@prisma', 'engines', 'schema-engine');
+  if (existsSync(schemaEngineDir2)) {
+    const sizeBefore = calcDirSize(schemaEngineDir2);
+    safeRemove(schemaEngineDir2);
+    console.log(`  ✂️  Removed Prisma schema-engine (${(sizeBefore / 1024 / 1024).toFixed(1)} MB)`);
+  }
+
+  // ── 6. Remove TypeScript declaration files (.d.ts, .d.mts) ──
+  // These are only needed at compile time, not runtime.
+  // We do a targeted scan of the heaviest packages.
+  const dtsPackages = [
+    '@radix-ui', 'framer-motion', 'recharts', '@tanstack',
+    '@dnd-kit', 'cmdk', 'vaul', 'embla-carousel-react',
+    'react-hook-form', '@hookform', 'class-variance-authority',
+    'clsx', 'tailwind-merge', 'sonner', 'lucide-react',
+    'react-markdown', 'input-otp', 'react-day-picker',
+    'react-resizable-panels', 'date-fns', 'zustand', 'zod',
+  ];
+
+  let dtsCount = 0;
+  let dtsSize = 0;
+  for (const pkg of dtsPackages) {
+    const pkgDir = join(nmDir, pkg);
+    if (!existsSync(pkgDir)) continue;
+    try {
+      removeDtsRecursive(pkgDir);
+    } catch { /* ignore */ }
+  }
+
+  function removeDtsRecursive(dir) {
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          removeDtsRecursive(fullPath);
+        } else if (entry.name.endsWith('.d.ts') || entry.name.endsWith('.d.mts') || entry.name.endsWith('.d.cts')) {
+          try {
+            dtsSize += statSync(fullPath).size;
+            safeRemove(fullPath);
+            dtsCount++;
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (dtsCount > 0) {
+    console.log(`  ✂️  Removed ${dtsCount} TypeScript declaration files (${(dtsSize / 1024).toFixed(0)} KB)`);
+  }
+
+  // ── 7. Remove source maps (.js.map, .mjs.map, .cjs.map) ──
+  let mapCount = 0;
+  let mapSize = 0;
+
+  function removeMapsRecursive(dir, depth) {
+    if (depth > 8) return; // limit recursion
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          removeMapsRecursive(fullPath, depth + 1);
+        } else if (entry.name.endsWith('.map')) {
+          try {
+            mapSize += statSync(fullPath).size;
+            safeRemove(fullPath);
+            mapCount++;
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  removeMapsRecursive(nmDir, 0);
+  if (mapCount > 0) {
+    console.log(`  ✂️  Removed ${mapCount} source map files (${(mapSize / 1024).toFixed(0)} KB)`);
+  }
+
+  // ── 8. Remove unnecessary metadata files from packages ──
+  const metaFiles = ['README.md', 'README', 'README.txt', 'LICENSE', 'LICENSE.md', 'CHANGELOG.md', 'CHANGELOG', 'HISTORY.md', 'HISTORY', 'AUTHORS', 'CONTRIBUTORS', '.eslintrc*', '.prettierrc*', 'tsconfig.json', 'jest.config.*', '.editorconfig', '.npmignore', 'Makefile', 'bower.json'];
+
+  let metaCount = 0;
+  let metaSize = 0;
+
+  function removeMetaRecursive(dir, depth) {
+    if (depth > 4) return; // only scan top-level packages
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory() && depth < 2) {
+          removeMetaRecursive(fullPath, depth + 1);
+        } else if (entry.isFile()) {
+          for (const meta of metaFiles) {
+            if (entry.name === meta || (meta.endsWith('*') && entry.name.startsWith(meta.slice(0, -1)))) {
+              try {
+                metaSize += statSync(fullPath).size;
+                safeRemove(fullPath);
+                metaCount++;
+              } catch { /* ignore */ }
+              break;
+            }
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  removeMetaRecursive(nmDir, 0);
+  if (metaCount > 0) {
+    console.log(`  ✂️  Removed ${metaCount} metadata/doc files (${(metaSize / 1024).toFixed(0)} KB)`);
+  }
+
+  // ── 9. Remove test directories ──
+  const testDirs = ['__tests__', '__mocks__', 'test', 'tests', 'coverage', '.nyc_output'];
+  let testSize = 0;
+  let testCount = 0;
+
+  function removeTestDirsRecursive(dir, depth) {
+    if (depth > 4) return;
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && testDirs.includes(entry.name)) {
+          const fullPath = join(dir, entry.name);
+          const size = calcDirSize(fullPath);
+          safeRemove(fullPath);
+          testSize += size;
+          testCount++;
+        } else if (entry.isDirectory() && depth < 3) {
+          removeTestDirsRecursive(join(dir, entry.name), depth + 1);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  removeTestDirsRecursive(nmDir, 0);
+  if (testCount > 0) {
+    console.log(`  ✂️  Removed ${testCount} test directories (${(testSize / 1024 / 1024).toFixed(1)} MB)`);
+  }
+
+  // ── 10. Remove markdown-it locale data (if present) ──
+  const mdItLocaleDir = join(nmDir, 'markdown-it', 'lib', 'rules_core');
+  if (existsSync(mdItLocaleDir)) {
+    // markdown-it locale files are tiny, not worth pruning
+  }
+
+  // ── 11. Remove electron-related packages if somehow traced ──
+  const electronPkgs = ['electron', 'electron-builder'];
+  for (const pkg of electronPkgs) {
+    const pkgDir = join(nmDir, pkg);
+    if (existsSync(pkgDir)) {
+      const size = calcDirSize(pkgDir);
+      safeRemove(pkgDir);
+      console.log(`  ✂️  Removed ${pkg} (not needed, ${(size / 1024 / 1024).toFixed(1)} MB)`);
+    }
+  }
+
+  // ── 12. Remove .prisma/client extra stuff ──
+  const prismaClientDir = join(nmDir, '.prisma', 'client');
+  if (existsSync(prismaClientDir)) {
+    // The generated client is needed, but we can remove the generator scripts
+    safeRemove(join(prismaClientDir, 'generator-build'));
+    safeRemove(join(prismaClientDir, 'src'));
+    safeRemove(join(prismaClientDir, 'scripts'));
+  }
+
+  console.log('');
+}
+
+// ═══════════════════════════════════════════════════════════
 //  MAIN
 // ═══════════════════════════════════════════════════════════
 
 (async () => {
+
+// ═══════════════════════════════════════════════════════════
+//  STEP 0: PRE-CLEANUP — Remove stale artifacts from previous builds
+//  This ensures no .exe or stray files remain from interrupted builds
+// ═══════════════════════════════════════════════════════════
+const staleDist = join(ROOT, 'neutralino', 'dist');
+if (existsSync(staleDist)) {
+  console.log('  🧹 Cleaning stale build artifacts from previous run...');
+  try {
+    rmSync(staleDist, { recursive: true, force: true });
+    console.log('  ✅ Cleaned neutralino/dist/');
+  } catch (e) {
+    console.warn('  ⚠️  Could not clean neutralino/dist/ (may be in use)');
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 //  STEP 1: PRE-FLIGHT CHECKS
@@ -515,7 +931,7 @@ if (existsSync(publicFrom)) {
   console.log('  ✅ Copied public/');
 }
 
-// Prisma engine
+// Prisma engine (.prisma directory — the query engine binary)
 const prismaNodeModules = join(ROOT, 'node_modules', '.prisma');
 const standalonePrisma = join(STANDALONE_DIR, 'node_modules', '.prisma');
 if (existsSync(prismaNodeModules)) {
@@ -525,21 +941,18 @@ if (existsSync(prismaNodeModules)) {
   console.log('  ✅ Copied Prisma engine');
 }
 
-// @prisma/client + @prisma/engines
-const packagesToCopy = ['@prisma/client', '@prisma/engines'];
-for (const pkg of packagesToCopy) {
-  const from = join(ROOT, 'node_modules', pkg);
-  const to = join(STANDALONE_DIR, 'node_modules', pkg);
-  if (existsSync(from) && !existsSync(to)) {
-    mkdirSync(dirname(to), { recursive: true });
-    cpSync(from, to, { recursive: true });
-    console.log(`  ✅ Copied ${pkg}`);
-  } else if (existsSync(to)) {
-    console.log(`  ✅ ${pkg} already in standalone`);
-  }
+// @prisma/client — only copy if not already in standalone (Next.js traces it)
+const prismaClientFrom = join(ROOT, 'node_modules', '@prisma', 'client');
+const prismaClientTo = join(STANDALONE_DIR, 'node_modules', '@prisma', 'client');
+if (existsSync(prismaClientFrom) && !existsSync(prismaClientTo)) {
+  mkdirSync(dirname(prismaClientTo), { recursive: true });
+  cpSync(prismaClientFrom, prismaClientTo, { recursive: true });
+  console.log('  ✅ Copied @prisma/client');
+} else if (existsSync(prismaClientTo)) {
+  console.log('  ✅ @prisma/client already in standalone');
 }
 
-// prisma/schema.prisma
+// prisma/schema.prisma (needed for Prisma to find the schema)
 const schemaFrom = join(ROOT, 'prisma', 'schema.prisma');
 const schemaTo = join(STANDALONE_DIR, 'prisma', 'schema.prisma');
 if (existsSync(schemaFrom)) {
@@ -548,6 +961,33 @@ if (existsSync(schemaFrom)) {
   cpSync(schemaFrom, schemaTo);
   console.log('  ✅ Copied prisma/schema.prisma');
 }
+
+// ═══════════════════════════════════════════════════════════
+//  STEP 3b: PRUNE STANDALONE — Remove unnecessary files
+// ═══════════════════════════════════════════════════════════
+console.log('  ── Step 3b: Pruning standalone (removing unnecessary files)...');
+const sizeBefore = calcDirSize(STANDALONE_DIR);
+console.log(`  📏 Standalone size before pruning: ${(sizeBefore / 1024 / 1024).toFixed(1)} MB`);
+console.log('');
+
+// ── Fix nested seed-data directories (safety check) ──
+const standaloneSeedData = join(STANDALONE_DIR, 'src', 'seed-data');
+if (existsSync(standaloneSeedData)) {
+  const nestedSeedData = join(standaloneSeedData, 'seed-data');
+  if (existsSync(nestedSeedData)) {
+    console.log('  ⚠️  Found nested seed-data/seed-data/ — removing inner duplicate...');
+    rmSync(nestedSeedData, { recursive: true, force: true });
+    console.log('  ✅ Removed nested seed-data/seed-data/');
+  }
+}
+
+pruneStandalone(STANDALONE_DIR, targetPlatform);
+
+const sizeAfter = calcDirSize(STANDALONE_DIR);
+const saved = sizeBefore - sizeAfter;
+console.log(`  📏 Standalone size after pruning: ${(sizeAfter / 1024 / 1024).toFixed(1)} MB`);
+console.log(`  💾 Saved: ${(saved / 1024 / 1024).toFixed(1)} MB (${((saved / sizeBefore) * 100).toFixed(0)}% reduction)`);
+console.log('');
 
 // ═══════════════════════════════════════════════════════════
 //  STEP 4: COPY GAME DATABASE(S) INTO STANDALONE
@@ -628,28 +1068,35 @@ console.log(`  ✅ Generated neutralino.config.json (binaryName: "${binaryName}"
 const NL_VERSION = config.cli.binaryVersion || '5.4.0';
 console.log(`  📋 Neutralino version: ${NL_VERSION}`);
 
-// 5f. Download Windows binary ONLY from GitHub releases
+// 5f. Download Neutralino binary from GitHub releases
 const NEUTRALINO_CACHE_DIR = join(ROOT, '.neutralino-binaries');
 mkdirSync(NEUTRALINO_CACHE_DIR, { recursive: true });
 
-const cachedExe = join(NEUTRALINO_CACHE_DIR, `neutralino-win_x64-v${NL_VERSION}.exe`);
+const NL_PLATFORM_BINARY = {
+  win: { suffix: 'win_x64', ext: '.exe', label: 'Windows x64' },
+  mac: { suffix: 'mac_arm64', ext: '', label: 'macOS ARM64' },
+  linux: { suffix: 'linux_x64', ext: '', label: 'Linux x64' },
+};
+const nlBin = NL_PLATFORM_BINARY[targetPlatform] || NL_PLATFORM_BINARY.win;
+const cachedExe = join(NEUTRALINO_CACHE_DIR, `neutralino-${nlBin.suffix}-v${NL_VERSION}${nlBin.ext}`);
 if (existsSync(cachedExe)) {
-  console.log(`  ✅ Neutralino binary cached (${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
+  console.log(`  ✅ Neutralino binary cached (${nlBin.label}, ${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
 } else {
-  console.log('  ⬇️  Downloading Neutralino Windows binary from GitHub...');
+  console.log(`  ⬇️  Downloading Neutralino ${nlBin.label} binary from GitHub...`);
   const releaseUrl = `https://github.com/neutralinojs/neutralinojs/releases/download/v${NL_VERSION}/neutralinojs-v${NL_VERSION}.zip`;
   const cacheZip = join(NEUTRALINO_CACHE_DIR, `neutralinojs-v${NL_VERSION}.zip`);
   try {
     if (!existsSync(cacheZip)) await downloadFile(releaseUrl, cacheZip);
-    console.log('  📦 Extracting neutralino-win_x64.exe...');
+    const entryName = `neutralino-${nlBin.suffix}${nlBin.ext}`;
+    console.log(`  📦 Extracting ${entryName}...`);
     const AdmZip = require('adm-zip');
     const zip = new AdmZip(cacheZip);
-    const entry = zip.getEntry('neutralino-win_x64.exe');
+    const entry = zip.getEntry(entryName);
     if (!entry) {
-      console.error('  ❌ neutralino-win_x64.exe not found in the zip!');
+      console.error(`  ❌ ${entryName} not found in the zip!`);
       exit(1);
     }
-    const rawPath = join(NEUTRALINO_CACHE_DIR, 'neutralino-win_x64.exe');
+    const rawPath = join(NEUTRALINO_CACHE_DIR, entryName);
     zip.extractEntryTo(entry, NEUTRALINO_CACHE_DIR, false, true);
     if (rawPath !== cachedExe) {
       if (existsSync(cachedExe)) unlinkSync(cachedExe);
@@ -657,17 +1104,18 @@ if (existsSync(cachedExe)) {
       unlinkSync(rawPath);
     }
     if (!existsSync(cachedExe) || statSync(cachedExe).size < 1024 * 1024) {
-      console.error('  ❌ Failed to extract neutralino-win_x64.exe!');
+      console.error(`  ❌ Failed to extract ${entryName}!`);
       exit(1);
     }
-    console.log(`  ✅ Neutralino binary ready (${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
+    console.log(`  ✅ Neutralino binary ready (${nlBin.label}, ${(statSync(cachedExe).size / 1024 / 1024).toFixed(1)} MB)`);
   } catch (err) {
     console.error(`  ❌ Failed to download Neutralino binary: ${err.message}`);
     exit(1);
   }
 }
 
-// 5g. Try neu build for resources.neu (non-fatal)
+// 5g. Use neu build --release to create resources.neu
+//     neu build creates resources.neu in the correct ASAR format that Neutralino can read.
 console.log('  📦 Running neu build --release (for resources.neu)...');
 console.log('');
 try {
@@ -683,29 +1131,60 @@ try {
   console.warn('  ' + String(err.message || err).split('\n')[0]);
 }
 
-// 5h. Clean neu build output (we only need resources.neu from it)
-//     neu build creates .exe files for all platforms + release zips — all unnecessary
+// 5h. Extract resources.neu from neu build output, then discard the rest
+//     NEVER cache it — each build must produce a fresh resources.neu
+let freshResourcesNeu = null;
+
+// Try the expected directory first
 const neuBuildOutput = join(prevDist, binaryName);
 if (existsSync(neuBuildOutput)) {
-  // Extract resources.neu if it exists
   const neuRes = join(neuBuildOutput, 'resources.neu');
-  const neuResCached = join(NEUTRALINO_CACHE_DIR, `resources.neu`);
   if (existsSync(neuRes)) {
-    cpSync(neuRes, neuResCached);
-    console.log('  ✅ Saved resources.neu from neu build');
+    const tmpRes = join(prevDist, '_tmp_resources.neu');
+    cpSync(neuRes, tmpRes);
+    freshResourcesNeu = tmpRes;
+    console.log('  ✅ Extracted fresh resources.neu from neu build');
   }
-  // Remove entire neu build output — we'll assemble clean
   rmSync(neuBuildOutput, { recursive: true });
 }
-// Also remove any release zips created by neu build
-const neuReleaseZips = readdirSync(prevDist).filter(f => f.endsWith('-release.zip'));
-for (const rz of neuReleaseZips) {
-  rmSync(join(prevDist, rz));
-  console.log(`  🗑️  Removed ${rz} (neu build artifact)`);
-}
 
-// 5i. Ensure Node.js Windows runtime is available
-await ensureNodeRuntime();
+// neu build might have created a directory with a different name
+try {
+  const neuDirs = readdirSync(prevDist, { withFileTypes: true }).filter(d => d.isDirectory());
+  for (const d of neuDirs) {
+    if (d.name.startsWith('_')) continue; // skip our temp file
+    const candidate = join(prevDist, d.name, 'resources.neu');
+    if (existsSync(candidate)) {
+      const tmpRes = join(prevDist, '_tmp_resources.neu');
+      cpSync(candidate, tmpRes);
+      freshResourcesNeu = tmpRes;
+      console.log('  ✅ Extracted resources.neu from ' + d.name + '/');
+    }
+    rmSync(join(prevDist, d.name), { recursive: true });
+    console.log(`  🗑️  Removed ${d.name}/ (neu build artifact)`);
+  }
+} catch (e) { /* ignore */ }
+
+// Clean up any leftover release zips from neu build
+try {
+  const neuReleaseZips = readdirSync(prevDist).filter(f => f.endsWith('-release.zip'));
+  for (const rz of neuReleaseZips) {
+    rmSync(join(prevDist, rz));
+    console.log(`  🗑️  Removed ${rz} (neu build artifact)`);
+  }
+} catch { /* ignore */ }
+
+// Also delete any old cached resources.neu to prevent stale data
+try {
+  const oldCache = join(NEUTRALINO_CACHE_DIR, 'resources.neu');
+  if (existsSync(oldCache)) {
+    rmSync(oldCache);
+    console.log('  🗑️  Removed stale cached resources.neu');
+  }
+} catch (e) { /* ignore */ }
+
+// 5i. Ensure Node.js runtime is available
+const nodeRuntimeCfg = await ensureNodeRuntime(targetPlatform);
 
 console.log('  ✅ Neutralino resources prepared');
 
@@ -717,37 +1196,76 @@ console.log('  ── Step 6/6: Assembling distributable package...');
 const distDir = join(prevDist, binaryName);
 mkdirSync(distDir, { recursive: true });
 
-// 6a. Copy Windows binary → AppName.exe
-const winExeDest = join(distDir, `${binaryName}.exe`);
-cpSync(cachedExe, winExeDest);
-console.log(`  ✅ ${binaryName}.exe (${(statSync(winExeDest).size / 1024 / 1024).toFixed(1)} MB)`);
+// 6a. Copy Neutralino binary → AppName[.exe] (platform-specific name)
+const BINARY_EXT = targetPlatform === 'win' ? '.exe' : '';
+const binaryFileName = `${binaryName}${BINARY_EXT}`;
+const binDest = join(distDir, binaryFileName);
+cpSync(cachedExe, binDest);
+console.log(`  ✅ ${binaryFileName} (${(statSync(binDest).size / 1024 / 1024).toFixed(1)} MB)`);
 
-// 6b. Copy resources.neu (from neu build or fallback to resources/ dir)
-const neuResCached = join(NEUTRALINO_CACHE_DIR, 'resources.neu');
-if (existsSync(neuResCached)) {
-  cpSync(neuResCached, join(distDir, 'resources.neu'));
-  console.log('  ✅ resources.neu');
+// 6b. Copy resources.neu (fresh from THIS build, or create from resources/ dir)
+if (freshResourcesNeu && existsSync(freshResourcesNeu)) {
+  cpSync(freshResourcesNeu, join(distDir, 'resources.neu'));
+  console.log('  ✅ resources.neu (fresh from neu build)');
+  // Clean up temp file
+  try { unlinkSync(freshResourcesNeu); } catch {}
 } else {
-  console.log('  ⚠️  resources.neu not found, copying resources/ directory...');
-  copyDir(NEUTRALINO_RES_DIR, join(distDir, 'resources'));
-  console.log('  ✅ resources/ directory');
+  console.log('  ⚠️  neu build did not produce resources.neu — creating from resources/ directory...');
+  // Create resources.neu manually by zipping the resources/ directory
+  const AdmZip = require('adm-zip');
+  const resZip = new AdmZip();
+  const addResToZip = (dir, prefix, zipInstance) => {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        addResToZip(fullPath, prefix + entry.name + '/', zipInstance);
+      } else {
+        zipInstance.addLocalFile(fullPath, prefix);
+      }
+    }
+  };
+  addResToZip(NEUTRALINO_RES_DIR, '', resZip);
+  const resNeuPath = join(distDir, 'resources.neu');
+  resZip.writeZip(resNeuPath);
+  // Verify game-config.json is inside
+  const writtenZip = new AdmZip(resNeuPath);
+  const configEntry = writtenZip.getEntry('game-config.json');
+  if (configEntry) {
+    const configContent = writtenZip.readAsText(configEntry);
+    console.log('  ✅ Verified game-config.json in resources.neu: ' + configContent.substring(0, 80) + '...');
+  } else {
+    console.warn('  ⚠️  WARNING: game-config.json NOT found in resources.neu!');
+  }
+  console.log('  ✅ resources.neu (created from resources/ directory)');
 }
+
+// NOTE: main.js and neutralino.config.json are NOT copied to dist.
+// The portable build runs entirely from index.html (client-side Neutralino API).
+// main.js is only used for `neu run` during development.
 
 // 6c. Copy game-config.json
 writeFileSync(join(distDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
 
 // 6d. Write start-server.bat (CRITICAL for correct CWD)
-const batContent = `@echo off\r\ncd /d "%~dp0standalone"\r\n"%~dp0node\\node.exe" server.js\r\n`;
-writeFileSync(join(distDir, 'start-server.bat'), batContent, 'utf-8');
-console.log('  ✅ start-server.bat');
+if (targetPlatform === 'win') {
+  const batContent = '@echo off\r\ncd /d "%~dp0standalone"\r\n"%~dp0node\\node.exe" server.js\r\n';
+  writeFileSync(join(distDir, 'start-server.bat'), batContent, 'utf-8');
+  console.log('  ✅ start-server.bat');
+} else {
+  const shContent = '#!/bin/bash\nCD="$(cd "$(dirname "$0")" && pwd)"\ncd "$CD/standalone"\n"$CD/node/' + nodeRuntimeCfg.binaryName + '" server.js\n';
+  writeFileSync(join(distDir, 'start-server.sh'), shContent, 'utf-8');
+  try { execSync(`chmod +x "${join(distDir, 'start-server.sh')}"`); } catch {}
+  console.log('  ✅ start-server.sh');
+}
 
-// 6e. Copy node.exe
+// 6e. Copy Node.js runtime
 const distNodeDir = join(distDir, 'node');
 mkdirSync(distNodeDir, { recursive: true });
-cpSync(join(NODE_CACHE_DIR, 'node.exe'), join(distNodeDir, 'node.exe'));
-console.log(`  ✅ node.exe (${(statSync(join(distNodeDir, 'node.exe')).size / 1024 / 1024).toFixed(1)} MB)`);
+cpSync(nodeRuntimeCfg.cachedBinary, join(distNodeDir, nodeRuntimeCfg.binaryName));
+console.log(`  ✅ ${nodeRuntimeCfg.binaryName} (${(statSync(join(distNodeDir, nodeRuntimeCfg.binaryName)).size / 1024 / 1024).toFixed(1)} MB)`);
 
-// 6f. Copy standalone server
+// 6f. Copy standalone server (already pruned!)
 const distStandaloneDir = join(distDir, 'standalone');
 copyDir(STANDALONE_DIR, distStandaloneDir);
 const standaloneSize = calcDirSize(distStandaloneDir);
@@ -787,12 +1305,49 @@ console.log(`  📦 ${binaryName}.zip (${(zipSize / 1024 / 1024).toFixed(1)} MB)
 console.log(`  📂 Path: ${zipPath}`);
 console.log(`  📂 Unpacked: ${distDir}`);
 console.log('');
-console.log('  🚀 Extract ZIP and run the .exe');
-console.log('  ⚠️  Requires WebView2 (preinstalled on Windows 10/11)');
+const PLATFORM_RUN = {
+  win: '  🚀 Extract ZIP and run the .exe',
+  mac: '  🚀 Extract ZIP, chmod +x the binary and run it',
+  linux: '  🚀 Extract ZIP, chmod +x the binary and run it',
+};
+const PLATFORM_REQ = {
+  win: '  ⚠️  Requires WebView2 (preinstalled on Windows 10/11)',
+  mac: '  ⚠️  Uses native WebKit (no additional install required)',
+  linux: '  ⚠️  Requires WebKitGTK (install via package manager)',
+};
+console.log(PLATFORM_RUN[targetPlatform] || PLATFORM_RUN.win);
+console.log(PLATFORM_REQ[targetPlatform] || PLATFORM_REQ.win);
 console.log('  ══════════════════════════════════════════════');
 console.log('');
 
+// FINAL CLEANUP — remove any stray files from neu build that weren't cleaned earlier
+// (e.g. release zips at dist root level — but NOT our assembled BinaryName/ dir or .zip)
+console.log('  🧹 Final cleanup...');
+try {
+  if (existsSync(prevDist)) {
+    const finalEntries = readdirSync(prevDist, { withFileTypes: true });
+    for (const entry of finalEntries) {
+      if (entry.name === binaryName || entry.name === `${binaryName}.zip` || entry.name === '.gitkeep') continue;
+      try { rmSync(join(prevDist, entry.name), { recursive: true, force: true }); } catch {}
+    }
+  }
+} catch {}
+console.log('  ✅ Cleanup complete');
+
 })().catch(err => {
   console.error('  ❌ Unexpected error:', err);
+  // EMERGENCY CLEANUP — always clean neu build artifacts on error
+  try {
+    const prevDist = join(ROOT, 'neutralino', 'dist');
+    if (existsSync(prevDist)) {
+      // Only remove neu-generated binaries, keep our assembled package
+      const entries = readdirSync(prevDist, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          try { rmSync(join(prevDist, entry.name)); } catch {}
+        }
+      }
+    }
+  } catch {}
   exit(1);
 });

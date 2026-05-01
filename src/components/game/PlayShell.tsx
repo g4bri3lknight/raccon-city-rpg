@@ -27,6 +27,7 @@ import SettingsPanel from '@/components/game/SettingsPanel';
 import { KeyboardShortcutsOverlay } from '@/components/game/KeyboardShortcutsOverlay';
 import Footer from '@/components/Footer';
 import { ErrorBoundary } from '@/components/game/ErrorBoundary';
+import StandaloneLogPanel from '@/components/game/StandaloneLogPanel';
 import { playBgm, stopBgm, resumeAmbient, playLocationAmbient, playSafeRoomAmbient } from '@/game/engine/sounds';
 
 interface PlayShellProps {
@@ -278,6 +279,7 @@ export default function PlayShell({ gameId, onBack, isStandalone = false }: Play
       </ErrorBoundary>
       <KeyboardShortcutsOverlay />
       {isStandalone && <Footer />}
+      {isStandalone && <StandaloneLogPanel />}
     </div>
   );
 }

@@ -16,12 +16,16 @@
     "app.*",
     "os.*",
     "debug.log",
-    "filesystem.read.file",
+    "filesystem.readFile",
+    "filesystem.getStats",
+    "filesystem.readDirectory",
+    "filesystem.writeFile",
+    "filesystem.writeDirectory",
     "window.*"
   ],
   "modes": {
     "window": {
-      "title": "RPG Editor",
+      "title": "raccoon-city",
       "width": 1280,
       "height": 800,
       "minWidth": 800,
@@ -32,7 +36,7 @@
     }
   },
   "cli": {
-    "binaryName": "RPG Editor",
+    "binaryName": "raccoon-city",
     "resourcesPath": "/resources/",
     "extensionsPath": "/extensions/",
     "clientLibrary": "/resources/js/neutralino.js",

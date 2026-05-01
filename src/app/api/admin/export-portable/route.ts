@@ -20,6 +20,7 @@ interface BuildInfo {
   status: 'queued' | 'building' | 'done' | 'error';
   mode: 'game' | 'editor';
   gameId: string;
+  platform: string;
   output: string[];
   progress: string;
   filePath: string;
@@ -61,40 +62,7 @@ function findOutputFile(): { path: string; name: string; size: number } | null {
     if (exeFound) return exeFound;
   }
 
-  // 2. Fallback: legacy Electron output
-  const distDir = join(rootDir, 'dist-electron');
-  if (!existsSync(distDir)) return null;
-
-  try {
-    const files = readdirSync(distDir);
-    const candidates = files.filter(f =>
-      f.endsWith('.exe') ||
-      f.endsWith('.AppImage') ||
-      f.endsWith('.dmg') ||
-      f.endsWith('.zip')
-    );
-
-    if (candidates.length === 0) return null;
-
-    let newest = candidates[0];
-    let newestTime = 0;
-
-    for (const f of candidates) {
-      try {
-        const st = statSync(join(distDir, f));
-        if (st.mtimeMs > newestTime) {
-          newestTime = st.mtimeMs;
-          newest = f;
-        }
-      } catch { /* skip */ }
-    }
-
-    const filePath = join(distDir, newest);
-    const st = statSync(filePath);
-    return { path: filePath, name: newest, size: st.size };
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 /** Find the newest file with given extension in a directory (optionally recursive) */
@@ -197,6 +165,7 @@ function startBuild(buildId: string, mode: 'game' | 'editor', gameId: string, ga
       if (line.includes('Step 1/')) build.progress = 'Verifica prerequisiti (step 1/6)...';
       else if (line.includes('Step 2/')) build.progress = 'Compilazione Next.js (step 2/6)...';
       else if (line.includes('Step 3/')) build.progress = 'Copia asset statici (step 3/6)...';
+      else if (line.includes('Step 3b') || line.includes('Pruning')) build.progress = 'Ottimizzazione dipendenze (step 3b)...';
       else if (line.includes('Step 4/')) build.progress = 'Copia database di gioco (step 4/6)...';
       else if (line.includes('Step 5/')) build.progress = 'Preparazione risorse Neutralino (step 5/6)...';
       else if (line.includes('Step 6/')) build.progress = 'Creazione eseguibile portatile (step 6/6)...';
@@ -271,6 +240,7 @@ export async function POST(req: NextRequest) {
       status: 'queued',
       mode: mode as 'game' | 'editor',
       gameId,
+      platform: platform || 'win',
       output: [],
       progress: 'In coda...',
       filePath: '',
@@ -310,6 +280,7 @@ export async function GET(req: NextRequest) {
     status: build.status,
     mode: build.mode,
     gameId: build.gameId,
+    platform: build.platform || 'win',
     progress: build.progress,
     logs: build.output.slice(-80), // last 80 lines for better error diagnosis
     fileName: build.fileName || null,

@@ -17,9 +17,9 @@ type Phase = 'info' | 'building' | 'done' | 'error';
 type Platform = 'win' | 'mac' | 'linux';
 
 const PLATFORM_OPTIONS: { value: Platform; label: string; icon: string; note: string }[] = [
-  { value: 'win', label: 'Windows', icon: '🤖', note: 'WebView2 (preinstallato su Win 10/11)' },
-  { value: 'mac', label: 'macOS', icon: '👾', note: 'WebKit (nativo su macOS)' },
-  { value: 'linux', label: 'Linux', icon: '🐧', note: 'WebKitGTK (richiede installazione)' },
+  { value: 'win', label: 'Windows', icon: '🤖', note: 'WebView2 (preinstallato su Win 10/11), eseguibile .exe' },
+  { value: 'mac', label: 'macOS', icon: '👾', note: 'WebKit nativo, eseguibile shell script' },
+  { value: 'linux', label: 'Linux', icon: '🐧', note: 'WebKitGTK (richiede installazione), eseguibile shell script' },
 ];
 
 // localStorage key for persisting the active build across dialog close/reopen
@@ -612,7 +612,7 @@ export default function ExportDialog({ open, onClose, mode, gameId, gameName }: 
                 <ul className="space-y-1.5">
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />
-                    WebView2 non installato: <code className="text-amber-300/50 bg-amber-500/[0.08] px-1.5 py-0.5 rounded text-[11px] font-mono">https://developer.microsoft.com/microsoft-edge/webview2</code>
+                    WebView non disponibile: Windows richiede WebView2, macOS/Linux usano WebKit nativo
                   </li>
                   <li className="text-[12px] text-white/35 flex items-start gap-2">
                     <span className="w-1 h-1 rounded-full bg-amber-400/40 shrink-0 mt-1.5" />

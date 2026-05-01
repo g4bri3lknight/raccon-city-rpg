@@ -24,9 +24,9 @@ type ViewType = 'dashboard' | 'editor' | 'play';
 function RootPageInner() {
   const searchParams = useSearchParams();
 
-  // Electron game-only mode: ?mode=play&gameId=xxx
+  // Standalone game-only mode: ?mode=play&gameId=xxx
   // Bypasses the dashboard and goes directly to the game
-  const electronMode = useMemo(() => {
+  const standaloneMode = useMemo(() => {
     const mode = searchParams.get('mode');
     const id = searchParams.get('gameId');
     if (mode === 'play' && id) return { gameId: id };
@@ -34,10 +34,10 @@ function RootPageInner() {
   }, [searchParams]);
 
   const [view, setView] = useState<ViewType>(
-    electronMode ? 'play' : 'dashboard'
+    standaloneMode ? 'play' : 'dashboard'
   );
   const [gameId, setGameId] = useState<string>(
-    electronMode?.gameId ?? ''
+    standaloneMode?.gameId ?? ''
   );
 
   const openEditor = useCallback((id: string) => {
@@ -51,18 +51,18 @@ function RootPageInner() {
   }, []);
 
   const goBack = useCallback(() => {
-    // In Electron game-only mode, goBack does nothing (no dashboard)
-    if (electronMode) return;
+    // In standalone game-only mode, goBack does nothing (no dashboard)
+    if (standaloneMode) return;
     setView('dashboard');
     setGameId('');
-  }, [electronMode]);
+  }, [standaloneMode]);
 
   if (view === 'editor' && gameId) {
     return <EditorShell gameId={gameId} onBack={goBack} onPlay={openPlay} />;
   }
 
   if (view === 'play' && gameId) {
-    return <PlayShell gameId={gameId} onBack={goBack} isStandalone={!!electronMode} />;
+    return <PlayShell gameId={gameId} onBack={goBack} isStandalone={!!standaloneMode} />;
   }
 
   return (

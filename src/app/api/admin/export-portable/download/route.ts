@@ -6,7 +6,6 @@
  * Supports:
  *   1. Neutralinojs ZIP (neutralino/dist/BinaryName.zip) — primary
  *   2. Neutralinojs EXE (neutralino/dist/BinaryName/BinaryName.exe) — fallback
- *   3. Legacy Electron (dist-electron/) — deprecated
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -73,14 +72,6 @@ export async function GET(req: NextRequest) {
       };
       const found = findFile(neutralinoDist);
       if (found) filePath = found;
-    }
-  }
-
-  // 4. Fallback: legacy Electron output
-  if (!filePath) {
-    const electronPath = join(rootDir, 'dist-electron', safeName);
-    if (existsSync(electronPath)) {
-      filePath = electronPath;
     }
   }
 

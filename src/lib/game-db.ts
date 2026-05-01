@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlink
 import { join } from 'path';
 
 // GAMES_DIR and ACTIVE_GAME_FILE can be overridden via env vars
-// (used by Electron portable builds)
+// (used by Neutralino portable builds)
 const GAMES_DIR = process.env.GAMES_DIR || join(process.cwd(), 'db', 'games');
 const ACTIVE_GAME_FILE = process.env.ACTIVE_GAME_FILE || join(process.cwd(), 'db', '.active-game');
 
