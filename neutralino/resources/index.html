@@ -7,7 +7,7 @@
   <title>Avvio...</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
+    html, body {
       background: #0a0a0f;
       color: #fff;
       font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -16,6 +16,7 @@
       align-items: center;
       justify-content: center;
       height: 100vh;
+      width: 100vw;
       overflow: hidden;
     }
 
@@ -162,12 +163,25 @@
     .log-warn { color: #fbbf24; }
     .log-err  { color: #f87171; }
     .log-debug { color: rgba(255,255,255,0.25); }
+
+    /* ── Full-screen iframe (for running app) ── */
+    #app-iframe {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      z-index: 9999;
+      background: #fff;
+    }
   </style>
 </head>
 <body>
 
   <!-- Center area: title + spinner -->
-  <div class="center-area">
+  <div class="center-area" id="center-area">
     <div class="header">
       <div class="title" id="title">RPG Editor</div>
       <div class="subtitle">Avvio in corso</div>
@@ -180,7 +194,7 @@
   </div>
 
   <!-- Collapsible Log Panel -->
-  <div class="log-panel">
+  <div class="log-panel" id="log-panel">
     <button class="log-toggle" id="log-toggle" onclick="toggleLog()">
       <span class="log-chevron" id="log-chevron"></span>
       <span>Log diagnostici</span>
@@ -191,6 +205,9 @@
       <div class="log-entries" id="log-entries"></div>
     </div>
   </div>
+
+  <!-- Full-screen iframe for the actual app (hidden until server is ready) -->
+  <iframe id="app-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
 
   <!-- Neutralino client library (bundled inside resources.neu) -->
   <script src="js/neutralino.js"></script>
@@ -277,11 +294,48 @@
 
     // ── State ──
     var isWindows = true;
-    var isShuttingDown = false;
     var serverPid = null;
     var pollCount = 0;
     var MAX_POLL = 120;
     var gameConfig = null;
+    var appDir = '';
+    var heartbeatInterval = null;
+
+    // ══════════════════════════════════════════════════════
+    //  HEARTBEAT — Writes timestamp to file every 2 seconds.
+    //  The server-watchdog.js reads this file and kills the
+    //  server when the heartbeat becomes stale (Neutralino closed).
+    // ══════════════════════════════════════════════════════
+
+    function startHeartbeat() {
+      if (heartbeatInterval) return;
+      heartbeatInterval = setInterval(function() {
+        try {
+          Neutralino.filesystem.writeFile(
+            appDir + '/heartbeat.tmp',
+            String(Date.now())
+          );
+        } catch (e) {
+          // Silent — occasional write failures are OK (file lock, etc.)
+        }
+      }, 2000);
+      logInfo('Heartbeat avviato (ogni 2s)');
+
+      // Write initial heartbeat immediately
+      try {
+        Neutralino.filesystem.writeFile(
+          appDir + '/heartbeat.tmp',
+          String(Date.now())
+        );
+      } catch (e) {}
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+    }
 
     // ══════════════════════════════════════════════════════
     //  MAIN FLOW
@@ -314,7 +368,6 @@
       // ── Step 3: Get app directory ──
       setSpinner('Rilevamento ambiente...');
       logInfo('[Step 3] Rilevamento directory app...');
-      var appDir = '';
       try {
         appDir = (NL_PATH || '').replace(/[\/\\]$/, '');
         logOk('NL_PATH = "' + appDir + '"');
@@ -471,27 +524,20 @@
         var result = await Neutralino.os.execCommand(cmd, { background: true });
         serverPid = result.pid;
         logOk('Server lanciato! PID = ' + serverPid);
-
-        // Save PID to file so main.js can kill it on window close
-        // (index.html handler is lost after redirect to localhost:3000)
-        try {
-          await Neutralino.filesystem.writeFile(appDir + '/server.pid', String(serverPid));
-          logOk('PID ' + serverPid + ' salvato in server.pid');
-        } catch (pidErr) {
-          logWarn('Impossibile salvare server.pid: ' + JSON.stringify(pidErr));
-        }
       } catch (e) {
         logErr('ERRORE avvio server: ' + JSON.stringify(e));
         showError('Impossibile avviare il server: ' + JSON.stringify(e));
         return;
       }
 
+      // ── Start heartbeat IMMEDIATELY after launching server ──
+      startHeartbeat();
+
       // ── Step 9: Wait for server ──
       setSpinner('Attesa server...');
       logInfo('[Step 9] Attesa risposta da http://localhost:3000 ...');
 
       for (var i = 0; i < MAX_POLL; i++) {
-        if (isShuttingDown) return;
         await sleep(500);
         pollCount++;
 
@@ -505,15 +551,35 @@
           var url;
           if (gameConfig && gameConfig.isGameOnly && gameConfig.gameId) {
             url = 'http://localhost:3000/play/' + encodeURIComponent(gameConfig.gameId);
-            logOk('Reindirizzamento a GIOCO: ' + url);
+            logOk('Caricamento GIOCO: ' + url);
           } else {
             url = 'http://localhost:3000';
-            logOk('Reindirizzamento a EDITOR: ' + url);
+            logOk('Caricamento EDITOR: ' + url);
           }
 
           var params = new URLSearchParams(window.location.search);
           if (params.toString()) url += '?' + params.toString();
-          window.location.href = url;
+
+          // ── Load app in full-screen iframe (keeps index.html alive for heartbeat) ──
+          var iframe = document.getElementById('app-iframe');
+          iframe.src = url;
+          iframe.style.display = 'block';
+
+          // Hide the splash screen
+          document.getElementById('center-area').style.display = 'none';
+          document.getElementById('log-panel').style.display = 'none';
+          document.body.style.background = '#fff';
+
+          // Set window title
+          try {
+            if (gameConfig && gameConfig.isGameOnly) {
+              Neutralino.window.setTitle(gameConfig.gameName || gameConfig.gameId || 'RPG Game');
+            } else {
+              Neutralino.window.setTitle('RPG Editor');
+            }
+          } catch(e) {}
+
+          logOk('App caricata in iframe — heartbeat attivo in background');
           return;
         } catch (e) {
           if (pollCount % 4 === 0) {
@@ -558,35 +624,19 @@
       return new Promise(function(r) { setTimeout(r, ms); });
     }
 
-    // ── Cleanup on window close ──
-    // Kills ONLY the specific node process started by this executable (by PID)
+    // ── Cleanup heartbeat file on window close (safety net) ──
+    // This is a fallback — the watchdog should handle cleanup automatically
     async function cleanup() {
-      if (isShuttingDown) return;
-      isShuttingDown = true;
-      logInfo('Chiusura — pulizia processo server...');
+      stopHeartbeat();
       try {
-        var pidToKill = serverPid;
-        // If we don't have the PID in memory, try reading from file
-        if (!pidToKill) {
-          try {
-            var pidStr = await Neutralino.filesystem.readFile(appDir + '/server.pid');
-            pidToKill = parseInt(pidStr.trim(), 10);
-          } catch(e2) {}
-        }
-        if (pidToKill && pidToKill > 0) {
-          logInfo('Uccisione processo server PID=' + pidToKill + '...');
+        if (serverPid && serverPid > 0) {
           if (isWindows) {
-            await Neutralino.os.execCommand('taskkill /F /PID ' + pidToKill + ' /T', {});
+            await Neutralino.os.execCommand('taskkill /F /PID ' + serverPid + ' /T', {});
           } else {
-            await Neutralino.os.execCommand('pkill -P ' + pidToKill + ' 2>/dev/null; kill ' + pidToKill + ' 2>/dev/null', {});
+            await Neutralino.os.execCommand('pkill -P ' + serverPid + ' 2>/dev/null; kill ' + serverPid + ' 2>/dev/null', {});
           }
-          logOk('Processo server terminato');
-        } else {
-          logWarn('Nessun PID trovato, impossibile terminare il server');
         }
-      } catch (e) {
-        logWarn('Cleanup errore: ' + JSON.stringify(e));
-      }
+      } catch (e) {}
       Neutralino.app.exit();
     }
 

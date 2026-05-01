@@ -1240,23 +1240,46 @@ if (freshResourcesNeu && existsSync(freshResourcesNeu)) {
   console.log('  ✅ resources.neu (created from resources/ directory)');
 }
 
-// NOTE: main.js and neutralino.config.json are NOT copied to dist.
-// The portable build runs entirely from index.html (client-side Neutralino API).
-// main.js is only used for `neu run` during development.
+// NOTE: main.js is copied to dist as a background script, but it is NOT
+// compiled into the pre-built Neutralino binary downloaded from GitHub.
+// Therefore, the windowClose handler in main.js does NOT run in portable builds.
+// Instead, we use a heartbeat-based watchdog (server-watchdog.js):
+//   - index.html writes a timestamp to heartbeat.tmp every 2 seconds
+//   - server-watchdog.js monitors heartbeat.tmp and kills the server when stale
 
-// 6c. Copy game-config.json
+// 6c. Copy main.js (background script — kept for dev mode compatibility)
+const mainJsSrc = join(NEUTRALINO_DIR, 'main.js');
+if (existsSync(mainJsSrc)) {
+  cpSync(mainJsSrc, join(distDir, 'main.js'));
+  console.log('  ✅ main.js (background script)');
+}
+
+// 6c2. Copy server-watchdog.js (heartbeat-based server lifecycle manager)
+// This is the PRIMARY mechanism for killing the Node server when the exe closes.
+const watchdogSrc = join(NEUTRALINO_DIR, 'server-watchdog.js');
+if (existsSync(watchdogSrc)) {
+  cpSync(watchdogSrc, join(distDir, 'server-watchdog.js'));
+  console.log('  ✅ server-watchdog.js (heartbeat monitor for server cleanup)');
+} else {
+  console.error('  ❌ server-watchdog.js not found — server will NOT be cleaned up on exit!');
+}
+
+// 6d. Copy game-config.json
 writeFileSync(join(distDir, 'game-config.json'), JSON.stringify(gameConfig, null, 2), 'utf-8');
 
-// 6d. Write start-server.bat (CRITICAL for correct CWD)
+// 6d. Write start-server.bat / start-server.sh
+// IMPORTANT: These now launch server-watchdog.js instead of server.js directly.
+// The watchdog starts server.js as a child process and monitors heartbeat.tmp.
+// When the Neutralino exe is closed, heartbeat stops, and the watchdog kills the server.
 if (targetPlatform === 'win') {
-  const batContent = '@echo off\r\ncd /d "%~dp0standalone"\r\n"%~dp0node\\node.exe" server.js\r\n';
+  const batContent = '@echo off\r\ncd /d "%~dp0"\r\n"%~dp0node\\node.exe" server-watchdog.js\r\n';
   writeFileSync(join(distDir, 'start-server.bat'), batContent, 'utf-8');
-  console.log('  ✅ start-server.bat');
+  console.log('  ✅ start-server.bat (launches watchdog → server)');
 } else {
-  const shContent = '#!/bin/bash\nCD="$(cd "$(dirname "$0")" && pwd)"\ncd "$CD/standalone"\n"$CD/node/' + nodeRuntimeCfg.binaryName + '" server.js\n';
+  const shContent = '#!/bin/bash\nCD="$(cd "$(dirname "$0")" && pwd)"\n"$CD/node/' + nodeRuntimeCfg.binaryName + '" "$CD/server-watchdog.js"\n';
   writeFileSync(join(distDir, 'start-server.sh'), shContent, 'utf-8');
   try { execSync(`chmod +x "${join(distDir, 'start-server.sh')}"`); } catch {}
-  console.log('  ✅ start-server.sh');
+  console.log('  ✅ start-server.sh (launches watchdog → server)');
 }
 
 // 6e. Copy Node.js runtime
