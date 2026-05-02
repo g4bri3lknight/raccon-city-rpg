@@ -2,6 +2,9 @@
 
 import { useState, useCallback } from 'react';
 import { CloudUpload, Eye } from 'lucide-react';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { MEDIA_UPLOADS } from './shared';
 import { MediaUploadBox } from './MediaUploadBox';
 import { NotificationPreviewCard } from './NotificationPreviewCard';
@@ -105,7 +108,7 @@ function buildOverlayCSS(o: OverlayState): string {
 // ── Shared input classes ──
 const colorPickerCls = "w-8 h-8 rounded cursor-pointer bg-transparent border border-white/10";
 const colorTextCls = "flex-1 min-w-0 text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono";
-const optionStyle = { backgroundColor: '#111827', color: 'rgba(255,255,255,0.9)' };
+
 
 export function NotificationEditDialog({
   initialData,
@@ -180,19 +183,21 @@ export function NotificationEditDialog({
         </div>
         <div>
           <label className="text-[12px] text-white/50 mb-0.5 block font-medium">Tipo <span className="text-red-400">*</span></label>
-          <select
-            value={currentType}
-            onChange={e => handleChange('type', e.target.value)}
-            className="w-full text-[13px] bg-[#111827] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
-            style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.8)' }}
-          >
-            {!NOTIFICATION_TYPES.some(t => t.value === currentType) && currentType && (
-              <option value={currentType} style={optionStyle}>{currentType}</option>
-            )}
-            {NOTIFICATION_TYPES.map(t => (
-              <option key={t.value} value={t.value} style={optionStyle}>{t.label}</option>
-            ))}
-          </select>
+          <Select value={currentType} onValueChange={v => handleChange('type', v)}>
+            <SelectTrigger size="sm" className="w-full text-[13px] bg-white/[0.04] border-white/[0.1] rounded px-2 text-white/80 focus:ring-emerald-500/30 focus:border-emerald-500/50 h-[34px]">
+              <SelectValue placeholder="Seleziona tipo..." />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111827] border-white/[0.12] text-white/80">
+              {!NOTIFICATION_TYPES.some(t => t.value === currentType) && currentType && (
+                <SelectItem value={currentType} className="text-white/80 focus:bg-white/[0.08] focus:text-white">{currentType}</SelectItem>
+              )}
+              {NOTIFICATION_TYPES.map(t => (
+                <SelectItem key={t.value} value={t.value} className="text-white/80 focus:bg-white/[0.08] focus:text-white">
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Row 2: Label + Icon */}

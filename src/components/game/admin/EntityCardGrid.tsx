@@ -1,13 +1,23 @@
 'use client';
 
-import { useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { Pencil, Trash2, Copy, AlertTriangle, Link2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import ItemIcon from '@/components/game/ItemIcon';
 import type { Rarity } from '@/game/types';
 import type { TabId } from './config/tabGroups';
 import { getEnumLabel } from './config/enumLabels';
+
+// ═══════════════════════════════════════════════════════════════
+// Helper: determine the display-name field for a given tab
+// ═══════════════════════════════════════════════════════════════
+function getNameField(tabId: TabId): string {
+  if (tabId === 'documents' || tabId === 'events') return 'title';
+  if (tabId === 'characters') return 'displayName';
+  if (tabId === 'notifications') return 'label';
+  return 'name';
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -17,6 +27,19 @@ interface EntityCardGridProps {
   activeTab: TabId;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onClone?: (id: string) => void;
+  crossRefs?: Record<string, Record<string, number>>;
+  brokenRefs?: Record<string, Array<{ field: string; targetId: string }>>;
+  typeLabels?: Record<string, string>;
+  // #5 — Inline rename
+  onInlineRename?: (id: string, newName: string) => void;
+  // #8 — Drag & drop reorder
+  reorderable?: boolean;
+  onReorder?: (fromId: string, toId: string) => void;
+  // #9 — Bulk selection
+  selectedIds?: Set<string>;
+  selectionMode?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -224,6 +247,49 @@ function CardVisualHeader({
 // ═══════════════════════════════════════════════════════════════
 // CardInfoBadges — type/category/rarity badges
 // ═══════════════════════════════════════════════════════════════
+/* ── Notification hover animations (#10) ── */
+const NOTIF_ANIM_STYLE = `
+  .notif-card:hover {
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+  }
+  .notif-card {
+    transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.3s ease;
+  }
+  .notif-card:hover .notif-scanline {
+    opacity: 0.8;
+    animation: scanline-sweep 0.8s ease-in-out;
+  }
+  @keyframes scanline-sweep {
+    0% { top: 20%; opacity: 0; }
+    30% { opacity: 0.8; }
+    70% { opacity: 0.8; }
+    100% { top: 80%; opacity: 0; }
+  }
+  .notif-shake:hover {
+    animation: notif-shake-anim 0.4s ease-in-out;
+  }
+  @keyframes notif-shake-anim {
+    0%, 100% { transform: translateX(0); }
+    10% { transform: translateX(-4px) rotate(-1deg); }
+    20% { transform: translateX(4px) rotate(1deg); }
+    30% { transform: translateX(-3px) rotate(-0.5deg); }
+    40% { transform: translateX(3px) rotate(0.5deg); }
+    50% { transform: translateX(-2px); }
+    60% { transform: translateX(2px); }
+    70% { transform: translateX(-1px); }
+    80% { transform: translateX(1px); }
+    90% { transform: translateX(0); }
+  }
+  .notif-card:hover .notif-glow-pulse {
+    animation: glow-pulse-anim 1s ease-in-out infinite alternate;
+  }
+  @keyframes glow-pulse-anim {
+    0% { opacity: 0.3; }
+    100% { opacity: 0.7; }
+  }
+`;
+
 function CardInfoBadges({
   activeTab,
   row,
@@ -712,19 +778,136 @@ export function EntityCardGrid({
   activeTab,
   onEdit,
   onDelete,
+  onClone,
+  crossRefs = {},
+  brokenRefs = {},
+  typeLabels = {},
+  onInlineRename,
+  reorderable = false,
+  onReorder,
+  selectedIds = new Set(),
+  selectionMode = false,
+  onToggleSelect,
 }: EntityCardGridProps) {
   const hasImageHeader = TABS_WITH_IMAGE_HEADER.has(activeTab);
   const canEdit = true;
 
+  // ── #5 Inline rename state ──
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [editingNameValue, setEditingNameValue] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  // ── #8 Drag & drop state ──
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const nameField = getNameField(activeTab);
+
+  // ── #5 Inline rename handlers ──
+  const handleStartEdit = useCallback((rowId: string, currentName: string) => {
+    setEditingNameId(rowId);
+    setEditingNameValue(currentName);
+    // Focus input after React re-render
+    setTimeout(() => editInputRef.current?.focus(), 0);
+  }, []);
+
+  const handleSaveEdit = useCallback(() => {
+    if (editingNameId && editingNameValue.trim() && onInlineRename) {
+      onInlineRename(editingNameId, editingNameValue.trim());
+    }
+    setEditingNameId(null);
+    setEditingNameValue('');
+  }, [editingNameId, editingNameValue, onInlineRename]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingNameId(null);
+    setEditingNameValue('');
+  }, []);
+
+  // ── #8 Drag & drop handlers ──
+  const handleDragStart = useCallback((e: React.DragEvent, rowId: string) => {
+    setDragId(rowId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', rowId);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, rowId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverId(rowId);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, toId: string) => {
+    e.preventDefault();
+    const fromId = dragId;
+    setDragId(null);
+    setDragOverId(null);
+    if (fromId && fromId !== toId && onReorder) {
+      onReorder(fromId, toId);
+    }
+  }, [dragId, onReorder]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragId(null);
+    setDragOverId(null);
+  }, []);
+
   // Notifications use a completely custom card layout
   if (activeTab === 'notifications') {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {data.map((row, idx) => {
-          const rowId = String(row.id ?? '');
-          return <NotificationCard key={rowId || `row-${idx}`} row={row} onEdit={() => onEdit(rowId)} onDelete={() => onDelete(rowId)} />;
-        })}
-      </div>
+      <>
+        <style dangerouslySetInnerHTML={{ __html: NOTIF_ANIM_STYLE }} />
+        <input type="text" ref={editInputRef} className="sr-only" tabIndex={-1} aria-hidden="true" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {data.map((row, idx) => {
+            const rowId = String(row.id ?? '');
+            const isSelected = selectionMode && selectedIds.has(rowId);
+            const currentLabel = String(row.label ?? '');
+            const isEditing = editingNameId === rowId;
+            return (
+              <div key={rowId || `row-${idx}`} className="relative">
+                {/* #9 — Selection checkbox overlay */}
+                {selectionMode && (
+                  <div
+                    className="absolute top-2 right-2 z-30"
+                    onClick={(e) => { e.stopPropagation(); onToggleSelect?.(rowId); }}
+                  >
+                    <div className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? 'bg-emerald-500 border border-emerald-400'
+                        : 'bg-black/40 border border-white/20 hover:border-white/40'
+                    }`}>
+                      {isSelected && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <NotificationCard
+                  row={row}
+                  onEdit={() => onEdit(rowId)}
+                  onDelete={() => onDelete(rowId)}
+                  onClone={onClone ? () => onClone(rowId) : undefined}
+                  crossRefs={crossRefs}
+                  brokenRefs={brokenRefs}
+                  typeLabels={typeLabels}
+                  selectionMode={selectionMode}
+                  isSelected={isSelected}
+                  onToggleSelect={() => onToggleSelect?.(rowId)}
+                  editingName={isEditing}
+                  editingNameValue={editingNameValue}
+                  onStartEditName={() => handleStartEdit(rowId, currentLabel)}
+                  onSaveEditName={handleSaveEdit}
+                  onCancelEditName={handleCancelEdit}
+                  onChangeEditName={setEditingNameValue}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </>
     );
   }
 
@@ -750,11 +933,69 @@ export function EntityCardGrid({
                 ''
             );
 
+        const rowBroken = brokenRefs[rowId];
+        const rowCross = crossRefs[rowId];
+        const hasBroken = rowBroken && rowBroken.length > 0;
+        const crossEntries = rowCross ? Object.entries(rowCross) : [];
+        const crossTotal = crossEntries.reduce((s, [, c]) => s + c, 0);
+
+        // ── #9 Bulk selection state ──
+        const isSelected = selectionMode && selectedIds.has(rowId);
+
+        // ── #5 Inline rename state ──
+        const isEditing = editingNameId === rowId;
+
+        // ── #8 Drag state ──
+        const isDragging = dragId === rowId;
+        const isDragOver = dragOverId === rowId;
+
         return (
           <div
             key={rowId || `row-${idx}`}
-            className="group rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all overflow-hidden"
+            draggable={reorderable && !isEditing}
+            onDragStart={(e) => handleDragStart(e, rowId)}
+            onDragOver={(e) => handleDragOver(e, rowId)}
+            onDrop={(e) => handleDrop(e, rowId)}
+            onDragEnd={handleDragEnd}
+            className={`group rounded-xl border bg-white/[0.02] hover:bg-white/[0.04] transition-all overflow-hidden relative ${
+              hasBroken
+                ? 'border-red-500/30 hover:border-red-500/50'
+                : isSelected
+                  ? 'border-emerald-500/40 hover:border-emerald-500/60'
+                  : 'border-white/[0.06] hover:border-white/[0.12]'
+            } ${
+              isDragging ? 'opacity-50 scale-95' : ''
+            } ${
+              isDragOver && !isDragging ? 'border-emerald-500/50 ring-2 ring-emerald-500/20' : ''
+            }`}
           >
+            {/* ── #8 Drag handle ── */}
+            {reorderable && (
+              <div className="absolute top-2 left-2 z-20 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-60 transition-opacity">
+                <GripVertical className="w-4 h-4 text-white/60" />
+              </div>
+            )}
+
+            {/* ── #9 Selection checkbox overlay ── */}
+            {selectionMode && (
+              <div
+                className="absolute top-2 right-2 z-20 cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); onToggleSelect?.(rowId); }}
+              >
+                <div className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                  isSelected
+                    ? 'bg-emerald-500 border border-emerald-400'
+                    : 'bg-black/40 border border-white/20 hover:border-white/40'
+                }`}>
+                  {isSelected && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* ── Image header ── */}
             {hasImageHeader && (
               <CardVisualHeader activeTab={activeTab} row={row} />
@@ -762,7 +1003,7 @@ export function EntityCardGrid({
 
             {/* ── Card body ── */}
             <div className="p-4">
-              {/* ── Title row: icon (fallback) + name ── */}
+              {/* ── Title row: icon (fallback) + name (+ #5 inline rename) ── */}
               <div className="flex items-start gap-2.5">
                 {!hasImageHeader && iconEmoji && (
                   <span className="text-xl shrink-0 mt-0.5 leading-none">
@@ -770,9 +1011,36 @@ export function EntityCardGrid({
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-medium text-white/85 truncate leading-snug">
-                    {name}
-                  </h3>
+                  {isEditing && onInlineRename ? (
+                    <input
+                      ref={editInputRef}
+                      type="text"
+                      value={editingNameValue}
+                      onChange={(e) => setEditingNameValue(e.target.value)}
+                      onBlur={handleSaveEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveEdit();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          handleCancelEdit();
+                        }
+                      }}
+                      className="text-sm font-medium text-white/85 bg-transparent border-b border-emerald-500 outline-none w-full py-0.5 focus:border-emerald-400 transition-colors"
+                    />
+                  ) : (
+                    <h3
+                      className="text-sm font-medium text-white/85 truncate leading-snug cursor-text hover:text-emerald-300/90 transition-colors"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (onInlineRename) handleStartEdit(rowId, name);
+                      }}
+                      title="Doppio clic per rinominare"
+                    >
+                      {name}
+                    </h3>
+                  )}
                   <p className="text-[11px] text-white/20 font-mono mt-0.5 truncate">
                     {subtitle}
                   </p>
@@ -792,23 +1060,68 @@ export function EntityCardGrid({
               {/* ── Stats row (combat entities, etc.) ── */}
               <CardStatsRow activeTab={activeTab} row={row} />
 
+              {/* ── Cross-refs badges (#4) ── */}
+              {crossTotal > 0 && (
+                <div className="flex items-center gap-1 flex-wrap mt-2">
+                  <span className="text-[10px] text-sky-400/60 mr-0.5">🔗</span>
+                  {crossEntries.map(([type, count]) => (
+                    <span key={type} className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-500/8 border border-sky-500/15 text-sky-400/80">
+                      {count}× {typeLabels[type] || type}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Broken refs warning (#7) ── */}
+              {hasBroken && (
+                <div
+                  className="mt-2 px-2 py-1.5 rounded-md bg-red-500/8 border border-red-500/15"
+                  title={rowBroken.map(r => `${r.field} → ${r.targetId}`).join(', ')}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
+                    <span className="text-[11px] text-red-400/80 font-medium">
+                      {rowBroken.length} ref. rotto{rowBroken.length > 1 ? 'i' : ''}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-col gap-0.5">
+                    {rowBroken.map((r, i) => (
+                      <span key={i} className="text-[10px] text-red-400/50 font-mono truncate">
+                        {r.field}: <span className="line-through">{r.targetId}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* ── Action buttons (always visible on mobile, hover on desktop) ── */}
               {canEdit && (
                 <div className="flex items-center gap-1 pt-3 mt-3 border-t border-white/[0.04] lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onEdit(rowId)}
+                    onClick={(e) => { e.stopPropagation(); onEdit(rowId); }}
                     className="h-7 px-2.5 text-[12px] gap-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                   >
                     <Pencil className="w-3 h-3" />
                     Modifica
                   </Button>
                   <div className="flex-1" />
+                  {onClone && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); onClone(rowId); }}
+                      className="h-7 px-2 text-[12px] gap-1 text-sky-400/70 hover:text-sky-300 hover:bg-sky-500/10"
+                      title="Duplica"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onDelete(rowId)}
+                    onClick={(e) => { e.stopPropagation(); onDelete(rowId); }}
                     className="h-7 px-2.5 text-[12px] gap-1.5 text-red-400/70 hover:text-red-300 hover:bg-red-500/10"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -826,7 +1139,24 @@ export function EntityCardGrid({
 // ═══════════════════════════════════════════════════════════════
 // NotificationCard — styled card that mimics the in-game notification
 // ═══════════════════════════════════════════════════════════════
-function NotificationCard({ row, onEdit, onDelete }: { row: Record<string, unknown>; onEdit: () => void; onDelete: () => void }) {
+function NotificationCard({ row, onEdit, onDelete, onClone, crossRefs: crossRefsProp, brokenRefs: brokenRefsProp, typeLabels: typeLabelsProp, selectionMode, isSelected, onToggleSelect, editingName, editingNameValue, onStartEditName, onSaveEditName, onCancelEditName, onChangeEditName }: {
+  row: Record<string, unknown>;
+  onEdit: () => void;
+  onDelete: () => void;
+  onClone?: () => void;
+  crossRefs?: Record<string, Record<string, number>>;
+  brokenRefs?: Record<string, Array<{ field: string; targetId: string }>>;
+  typeLabels?: Record<string, string>;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  editingName?: boolean;
+  editingNameValue?: string;
+  onStartEditName?: () => void;
+  onSaveEditName?: () => void;
+  onCancelEditName?: () => void;
+  onChangeEditName?: (v: string) => void;
+}) {
   const cardBg = String(row.cardBg ?? '#1a1a2e');
   const borderColor = String(row.borderColor ?? '#333333');
   const titleColor = String(row.titleColor ?? '#ffffff');
@@ -853,19 +1183,48 @@ function NotificationCard({ row, onEdit, onDelete }: { row: Record<string, unkno
   };
   const typeLabel = TYPE_LABELS[notifType] || notifType;
 
+  // Broken refs for this notification
+  const notifBroken = brokenRefsProp?.[notifId];
+  const hasNotifBroken = notifBroken && notifBroken.length > 0;
+  // Cross refs for this notification
+  const notifCross = crossRefsProp?.[notifId];
+  const notifCrossTotal = notifCross ? Object.values(notifCross).reduce((s, c) => s + c, 0) : 0;
+
+  const displayText = label || typeLabel;
+
   return (
     <div
-      className="group relative rounded-xl overflow-hidden border transition-all cursor-pointer hover:brightness-110 flex flex-col"
+      className={`notif-card group relative rounded-xl overflow-hidden border transition-all cursor-pointer flex flex-col ${shake ? 'notif-shake' : ''} ${
+        isSelected ? 'ring-2 ring-emerald-500/50' : ''
+      }`}
       style={{
         background: cardBg,
         borderColor: `${borderColor}80`,
         boxShadow: `0 0 24px ${borderColor}20`,
       }}
-      onClick={onEdit}
+      onClick={(e) => {
+        if (editingName) return;
+        onEdit();
+      }}
     >
+      {/* Broken ref warning bar */}
+      {hasNotifBroken && (
+        <div className="absolute top-0 inset-x-0 h-1 bg-red-500/60 z-20 rounded-t-xl" title={`${notifBroken.length} riferimenti rotti`} />
+      )}
+
+      {/* Glow pulse overlay on hover (#10) */}
+      {titleGlow !== 'none' && (
+        <div className="notif-glow-pulse absolute inset-0 pointer-events-none z-0 rounded-xl opacity-30"
+          style={{
+            background: `radial-gradient(ellipse at center, ${borderColor}40, transparent 70%)`,
+            transition: 'opacity 0.3s ease',
+          }}
+        />
+      )}
+
       {/* Scanline */}
       <div
-        className="absolute inset-x-0 top-[40%] h-[1px] opacity-40 z-10 pointer-events-none"
+        className="absolute inset-x-0 top-[40%] h-[1px] opacity-40 z-10 pointer-events-none notif-scanline"
         style={{ background: `linear-gradient(90deg, transparent, ${scanlineColor}, transparent)` }}
       />
 
@@ -886,17 +1245,53 @@ function NotificationCard({ row, onEdit, onDelete }: { row: Record<string, unkno
         ) : (
           icon ? <div className="text-2xl mb-1">{icon}</div> : null
         )}
-        {/* Title — uses editable label, falls back to type label */}
-        <div
-          className="font-black tracking-wider uppercase text-xs"
-          style={{
-            color: titleColor,
-            textShadow: titleGlow === 'none' ? undefined : titleGlow,
-            fontFamily: "'Courier New', monospace",
-          }}
-        >
-          {label || typeLabel}
-        </div>
+        {/* Title — #5 inline rename support */}
+        {editingName && onChangeEditName ? (
+          <input
+            type="text"
+            value={editingNameValue ?? ''}
+            onChange={(e) => onChangeEditName(e.target.value)}
+            onBlur={(e) => {
+              e.stopPropagation();
+              onSaveEditName?.();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                onSaveEditName?.();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                onCancelEditName?.();
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="font-black tracking-wider uppercase text-xs bg-transparent border-b border-emerald-500 outline-none w-full text-center py-0.5 focus:border-emerald-400 transition-colors"
+            style={{
+              color: titleColor,
+              textShadow: titleGlow === 'none' ? undefined : titleGlow,
+              fontFamily: "'Courier New', monospace",
+            }}
+            autoFocus
+          />
+        ) : (
+          <div
+            className="font-black tracking-wider uppercase text-xs cursor-text hover:brightness-125 transition-all"
+            style={{
+              color: titleColor,
+              textShadow: titleGlow === 'none' ? undefined : titleGlow,
+              fontFamily: "'Courier New', monospace",
+            }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onStartEditName?.();
+            }}
+            title="Doppio clic per rinominare"
+          >
+            {displayText}
+          </div>
+        )}
         {/* Type badge (small, below title) */}
         <div className="mt-1">
           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-white/25 font-mono">
@@ -909,14 +1304,33 @@ function NotificationCard({ row, onEdit, onDelete }: { row: Record<string, unkno
       <div className="px-3 py-2.5 border-t border-white/[0.06] bg-black/20 backdrop-blur-sm mt-auto">
         <div className="flex items-center justify-between">
           <div className="min-w-0 flex-1 mr-2">
-            <p className="text-[12px] text-white/60 font-mono truncate">{notifId}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[12px] text-white/60 font-mono truncate">{notifId}</p>
+              {hasNotifBroken && <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />}
+            </div>
             <div className="flex items-center gap-2 mt-0.5">
               {shake && <span className="text-[10px] text-white/30">📳 Shake</span>}
               <span className="text-[10px] text-white/25">{duration}ms</span>
               {effectiveImageRef && <span className="text-[10px] text-emerald-400/50">🖼️</span>}
+              {notifCrossTotal > 0 && (
+                <span className="text-[10px] text-sky-400/60" title={`${notifCrossTotal} entità usano questa notifica`}>
+                  🔗 {notifCrossTotal}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+            {onClone && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onClone(); }}
+                className="h-6 w-6 p-0 text-sky-400/60 hover:text-sky-300 hover:bg-sky-500/10"
+                title="Duplica"
+              >
+                <Copy className="w-3 h-3" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"

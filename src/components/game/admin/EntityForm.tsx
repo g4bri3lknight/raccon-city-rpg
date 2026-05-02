@@ -6,6 +6,7 @@ import type { TabId } from './config/tabGroups';
 import type { FieldDef } from './config/fieldDefinitions';
 import { MEDIA_UPLOADS } from './shared';
 import { getFieldColClass } from './fields';
+import { EntityLinkPreview } from './EntityLinkPreview';
 import { AdminTooltip } from './fields/AdminTooltip';
 import { getSectionsForTab } from './config/fieldSections';
 
@@ -64,6 +65,39 @@ function FieldContainer({ field, children }: { field: FieldDef; children: React.
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Helper: derive a tabId from field key or endpoint
+// ═══════════════════════════════════════════════════════════════
+function deriveTabId(fieldKey: string, endpoint?: string): string {
+  const keyMap: Record<string, string> = {
+    npcId: 'npcs',
+    locationId: 'locations',
+    questId: 'quests',
+    targetId: 'items',
+    enemyId: 'enemies',
+    itemId: 'items',
+    bossId: 'enemies',
+    specialId: 'specials',
+    special2Id: 'specials',
+    archetypeId: 'archetypes',
+    characterId: 'characters',
+    documentId: 'documents',
+    endingId: 'endings',
+    requiredDocumentId: 'documents',
+    requiredNpcQuestId: 'quests',
+    uniqueItemId: 'items',
+    resultItemId: 'items',
+    chainId: 'quest-chains',
+    nextEventId: 'events',
+  };
+  if (keyMap[fieldKey]) return keyMap[fieldKey];
+  if (endpoint) {
+    const match = endpoint.match(/\/api\/admin\/(\w[\w-]*)/);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Entity Form (for create/edit dialog)
 // ═══════════════════════════════════════════════════════════════
 export function EntityForm({
@@ -74,6 +108,7 @@ export function EntityForm({
   submitLabel,
   isEdit,
   activeTab,
+  onNavigate,
 }: {
   fields: FieldDef[];
   initialData: Record<string, unknown>;
@@ -82,6 +117,7 @@ export function EntityForm({
   submitLabel: string;
   isEdit: boolean;
   activeTab: TabId;
+  onNavigate?: (tabId: string, entityId: string) => void;
 }) {
   const [data, setData] = useState<Record<string, unknown>>({ ...initialData });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -126,16 +162,31 @@ export function EntityForm({
 
     // Composite fields (need external FieldContainer wrapper)
     if (f.type === 'entity-search') {
+      const targetTabId = deriveTabId(f.key, f.entitySearchEndpoint);
       return (
         <FieldContainer key={f.key} field={f}>
-          <EntitySearchInput
-            value={String(val)}
-            onChange={v => handleChange(f.key, v)}
-            endpoint={f.entitySearchEndpoint ?? ''}
-            labelKey={f.entitySearchLabelKey ?? 'name'}
-            iconKey={f.entityIconKey}
-            placeholder={f.placeholder}
-          />
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <EntitySearchInput
+                value={String(val)}
+                onChange={v => handleChange(f.key, v)}
+                endpoint={f.entitySearchEndpoint ?? ''}
+                labelKey={f.entitySearchLabelKey ?? 'name'}
+                iconKey={f.entityIconKey}
+                placeholder={f.placeholder}
+              />
+            </div>
+            {val && targetTabId && onNavigate && (
+              <EntityLinkPreview
+                value={String(val)}
+                endpoint={f.entitySearchEndpoint ?? ''}
+                labelKey={f.entitySearchLabelKey ?? 'name'}
+                iconKey={f.entityIconKey}
+                tabId={targetTabId}
+                onNavigate={onNavigate}
+              />
+            )}
+          </div>
         </FieldContainer>
       );
     }

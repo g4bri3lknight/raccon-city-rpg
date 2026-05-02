@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Plus, Pencil, Trash2, RefreshCw, Loader2, Search,
-  Upload, ChevronDown,
+  Upload, ChevronDown, Copy, Filter, ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
 import { useGameStore } from '@/game/store';
@@ -25,6 +25,7 @@ import { TABLE_COLUMNS } from './admin/config/tableColumns';
 import { EntityForm } from './admin/EntityForm';
 import { NotificationEditDialog } from './admin/NotificationEditDialog';
 import { TableSkeleton } from './admin/TableSkeleton';
+import { TAB_FILTERS, getFilterValues } from './admin/config/filterConfig';
 import { AvatarManager } from './admin/tabs/AvatarManager';
 import { StartScreenEditor } from './admin/tabs/StartScreenEditor';
 import { GameSettingsEditor } from './admin/tabs/GameSettingsEditor';
@@ -56,6 +57,9 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showLogin, setShowLogin] = useState(false);
   const [loginKey, setLoginKey] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -65,20 +69,55 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
   const fields = FIELD_MAP[activeTab];
   const columns = TABLE_COLUMNS[activeTab];
 
+  const toggleSort = useCallback((key: string) => {
+    if (sortKey === key) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortKey(null); setSortDir('asc'); }
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }, [sortKey, sortDir]);
+
   // Dialog state
   const dialogOpen = creating || editingId !== null;
 
-  // Filter data by search
+  // Filter data by search + filters, then sort
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return data;
-    const q = searchQuery.toLowerCase();
-    return data.filter(row => {
-      const id = String(row.id ?? '').toLowerCase();
-      const name = String(row.name ?? row.title ?? '').toLowerCase();
-      const type = String(row.type ?? row.category ?? '').toLowerCase();
-      return id.includes(q) || name.includes(q) || type.includes(q);
-    });
-  }, [data, searchQuery]);
+    let result = data;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = data.filter(row => {
+        const id = String(row.id ?? '').toLowerCase();
+        const name = String(row.name ?? row.title ?? '').toLowerCase();
+        const type = String(row.type ?? row.category ?? '').toLowerCase();
+        return id.includes(q) || name.includes(q) || type.includes(q);
+      });
+    }
+    const filterEntries = Object.entries(activeFilters);
+    if (filterEntries.length > 0) {
+      result = result.filter(row =>
+        filterEntries.every(([key, value]) => String(row[key] ?? '') === value)
+      );
+    }
+    if (sortKey) {
+      result = [...result].sort((a, b) => {
+        const va = a[sortKey];
+        const vb = b[sortKey];
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        let cmp = 0;
+        if (typeof va === 'number' && typeof vb === 'number') {
+          cmp = va - vb;
+        } else {
+          cmp = String(va).localeCompare(String(vb), undefined, { numeric: true });
+        }
+        return sortDir === 'desc' ? -cmp : cmp;
+      });
+    }
+    return result;
+  }, [data, searchQuery, activeFilters, sortKey, sortDir]);
 
   const showStatus = useCallback((text: string, type: 'success' | 'error') => {
     setStatusMsg({ text, type });
@@ -134,6 +173,9 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
       setCreating(false);
       setEditingId(null);
       setSearchQuery('');
+      setActiveFilters({});
+      setSortKey(null);
+      setSortDir('asc');
     }
   }, [open, activeTab, fetchData, fetchCounts]);
 
@@ -317,6 +359,27 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
       fetchCounts();
     } catch (err) {
       showStatus(`Errore eliminazione: ${err}`, 'error');
+    }
+  };
+
+  const handleClone = async (id: string) => {
+    const row = data.find(r => String(r.id) === id);
+    if (!row) return;
+    const newId = prompt(`Nuovo ID per la copia di "${id}":`, `${id}_copia`);
+    if (!newId || !newId.trim()) return;
+    try {
+      const clone = { ...row, id: newId.trim() };
+      const res = await adminFetch(tabConfig.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clone),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showStatus(`Clonato come "${newId.trim()}"!`, 'success');
+      fetchData();
+      fetchCounts();
+    } catch (err) {
+      showStatus(`Errore clonazione: ${err}`, 'error');
     }
   };
 
@@ -583,7 +646,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
               )}
             </AnimatePresence>
 
-            {/* Toolbar: Add + Search */}
+            {/* Toolbar: Add + Filters + Search */}
             <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/[0.04]">
               <Button
                 size="sm"
@@ -593,6 +656,43 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                 <Plus className="w-3.5 h-3.5" />
                 Aggiungi Nuovo {tabConfig.entityLabel}
               </Button>
+
+              {/* Filter dropdowns */}
+              {(() => {
+                const filters = TAB_FILTERS[activeTab];
+                if (!filters || filters.length === 0) return null;
+                return (
+                  <>
+                    {filters.map(f => {
+                      const options = getFilterValues(data, f as any);
+                      if (options.length <= 1) return null;
+                      return (
+                        <select
+                          key={f.key}
+                          value={activeFilters[f.key] ?? ''}
+                          onChange={e => setActiveFilters(prev => {
+                            const next = { ...prev };
+                            if (e.target.value) next[f.key] = e.target.value;
+                            else delete next[f.key];
+                            return next;
+                          })}
+                          className="text-[12px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-white/60 focus:outline-none focus:border-emerald-500/30 cursor-pointer shrink-0 max-w-[130px]"
+                          style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.6)' }}
+                        >
+                          <option value="" style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.5)' }}>
+                            {f.label}...
+                          </option>
+                          {options.map(o => (
+                            <option key={o.value} value={o.value} style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.85)' }}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      );
+                    })}
+                  </>
+                );
+              })()}
 
               <div className="flex-1" />
               <div className="relative w-56">
@@ -665,10 +765,27 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                           key={col.key}
                           className={`text-[12px] font-semibold text-white/40 uppercase tracking-wider ${col.width ?? ''}`}
                         >
-                          {col.label}
+                          {col.render ? (
+                            col.label
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(col.key)}
+                              className="flex items-center gap-1 hover:text-white/60 transition-colors"
+                            >
+                              {col.label}
+                              {sortKey === col.key ? (
+                                sortDir === 'asc'
+                                  ? <ArrowUp className="w-3 h-3 text-emerald-400" />
+                                  : <ArrowDown className="w-3 h-3 text-emerald-400" />
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 text-white/15" />
+                              )}
+                            </button>
+                          )}
                         </TableHead>
                       ))}
-                      <TableHead className="text-[12px] font-semibold text-white/40 uppercase tracking-wider text-right w-32">
+                      <TableHead className="text-[12px] font-semibold text-white/40 uppercase tracking-wider text-right w-40">
                         Azioni
                       </TableHead>
                     </TableRow>
@@ -691,6 +808,16 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                           ))}
                           <TableCell className="text-right py-2 px-2">
                             <div className="flex items-center justify-end gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleClone(rowId)}
+                                className="h-7 px-2 text-[12px] gap-1 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
+                                title="Duplica"
+                              >
+                                <Copy className="w-3 h-3" />
+                                Clona
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
