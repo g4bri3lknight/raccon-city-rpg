@@ -24,7 +24,6 @@ import { FIELD_MAP } from './admin/config/fieldDefinitions';
 import { TABLE_COLUMNS } from './admin/config/tableColumns';
 import { EntityForm } from './admin/EntityForm';
 import { NotificationEditDialog } from './admin/NotificationEditDialog';
-import { GalleryBanner } from './admin/GalleryBanner';
 import { TableSkeleton } from './admin/TableSkeleton';
 import { AvatarManager } from './admin/tabs/AvatarManager';
 import { StartScreenEditor } from './admin/tabs/StartScreenEditor';
@@ -586,16 +585,14 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
 
             {/* Toolbar: Add + Search */}
             <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/[0.04]">
-              {activeTab !== 'sounds' && activeTab !== 'images' && (
-                <Button
-                  size="sm"
-                  onClick={handleOpenCreate}
-                  className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Aggiungi Nuovo {tabConfig.entityLabel}
-                </Button>
-              )}
+              <Button
+                size="sm"
+                onClick={handleOpenCreate}
+                className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Aggiungi Nuovo {tabConfig.entityLabel}
+              </Button>
 
               <div className="flex-1" />
               <div className="relative w-56">
@@ -609,11 +606,6 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                 />
               </div>
             </div>
-
-            {/* Gallery banner for sounds/images (view-only) */}
-            {(activeTab === 'sounds' || activeTab === 'images') && (
-              <GalleryBanner type={activeTab as 'sounds' | 'images'} />
-            )}
 
             {/* Data-driven seed banners for all entity tabs */}
             {(() => {
@@ -676,11 +668,9 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                           {col.label}
                         </TableHead>
                       ))}
-                      {activeTab !== 'sounds' && activeTab !== 'images' && (
-                        <TableHead className="text-[12px] font-semibold text-white/40 uppercase tracking-wider text-right w-32">
-                          Azioni
-                        </TableHead>
-                      )}
+                      <TableHead className="text-[12px] font-semibold text-white/40 uppercase tracking-wider text-right w-32">
+                        Azioni
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -700,30 +690,26 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                             </TableCell>
                           ))}
                           <TableCell className="text-right py-2 px-2">
-                            {activeTab !== 'sounds' && activeTab !== 'images' ? (
-                              <div className="flex items-center justify-end gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenEdit(rowId)}
-                                  className="h-7 px-2 text-[12px] gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                  Modifica
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDelete(rowId)}
-                                  className="h-7 px-2 text-[12px] gap-1 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  Elimina
-                                </Button>
-                              </div>
-                            ) : (
-                              <span className="text-[12px] text-white/15">—</span>
-                            )}
+                            <div className="flex items-center justify-end gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEdit(rowId)}
+                                className="h-7 px-2 text-[12px] gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                              >
+                                <Pencil className="w-3 h-3" />
+                                Modifica
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(rowId)}
+                                className="h-7 px-2 text-[12px] gap-1 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Elimina
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -772,6 +758,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
             </DialogHeader>
             <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6 py-2">
               <NotificationEditDialog
+                key={editingId || '__new__'}
                 initialData={editingData}
                 onSave={handleUpdate}
                 onCancel={handleDialogClose}

@@ -467,7 +467,7 @@ export default function GameNotification() {
               {notification.itemId ? (
                 <ItemIcon itemId={notification.itemId} size={48} />
               ) : (
-                notification.icon || '✨'
+                notification.icon
               )}
             </motion.div>
 
@@ -579,7 +579,7 @@ export default function GameNotification() {
                       {item.itemId ? (
                         <ItemIcon itemId={item.itemId} size={16} />
                       ) : (
-                        <span className="text-sm">{item.icon || '✨'}</span>
+                        item.icon ? <span className="text-sm">{item.icon}</span> : null
                       )}
                       <span className="text-[11px] sm:text-xs text-green-300/80 font-mono">{item.name}</span>
                     </motion.div>

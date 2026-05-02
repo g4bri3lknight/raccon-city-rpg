@@ -7,7 +7,7 @@ export function NotificationPreviewCard({ config }: { config: Record<string, unk
   const titleGlow = String(config.titleGlow ?? 'none');
   const scanlineColor = String(config.scanlineColor ?? 'rgba(255,255,255,0.3)');
   const label = String(config.label ?? '');
-  const icon = String(config.icon ?? '✨');
+  const icon = String(config.icon ?? '');
   const overlayBg = String(config.overlayBg ?? 'rgba(0,0,0,0.8)');
   const notifType = String(config.type ?? 'item_found');
   const notifId = String(config.id ?? 'notif_preview');
@@ -23,9 +23,21 @@ export function NotificationPreviewCard({ config }: { config: Record<string, unk
   };
   const sample = SAMPLE_TEXTS[notifType] || { title: 'Messaggio di esempio', sub: 'Testo secondario opzionale' };
 
-  // Image from DB if uploaded
-  const imageRef = String(config.imageRef ?? '');
+  // Image from DB if uploaded — auto-derive from notification ID if not explicitly set
+  const rawImageRef = String(config.imageRef ?? '');
+  const imageRef = rawImageRef || (notifId ? `notif_img_${notifId}` : '');
   const hasImage = imageRef.length > 0;
+
+  // Italian type labels
+  const TYPE_LABELS: Record<string, string> = {
+    encounter: '⚔️ Incontro',
+    victory: '🏆 Vittoria',
+    defeat: '💀 Sconfitta',
+    item_found: '📦 Oggetto trovato',
+    bag_expand: '🎒 Espansione zaino',
+    collectible_found: '💎 Collezionabile',
+  };
+  const typeLabel = TYPE_LABELS[notifType] || notifType;
 
   return (
     <div className="relative rounded-xl overflow-hidden" style={{ background: overlayBg }}>
@@ -56,18 +68,9 @@ export function NotificationPreviewCard({ config }: { config: Record<string, unk
             </div>
           </div>
         ) : (
-          <div className="text-2xl mb-1">{icon || '✨'}</div>
+          icon ? <div className="text-2xl mb-1">{icon}</div> : null
         )}
-        {/* Label */}
-        {label && (
-          <div
-            className="text-[10px] uppercase tracking-[0.2em] mb-0.5 opacity-70"
-            style={{ color: titleColor }}
-          >
-            {label}
-          </div>
-        )}
-        {/* Title */}
+        {/* Title — uses editable label from config, falls back to sample text */}
         <div
           className="font-black tracking-wider uppercase text-sm"
           style={{
@@ -76,14 +79,14 @@ export function NotificationPreviewCard({ config }: { config: Record<string, unk
             fontFamily: "'Courier New', monospace",
           }}
         >
-          {sample.title}
+          {label || sample.title}
         </div>
         {/* Sub message */}
         <div className="text-[12px] mt-1 text-gray-400">{sample.sub}</div>
         {/* Type badge */}
         <div className="mt-2">
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-white/25 font-mono">
-            {notifType}
+            {typeLabel}
           </span>
         </div>
       </div>

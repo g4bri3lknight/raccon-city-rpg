@@ -6,13 +6,11 @@ import Link from 'next/link';
 import {
   ArrowLeft, Play, ChevronDown, Menu, X,
   Plus, Pencil, Trash2, RefreshCw, Loader2, Search, Upload,
+  LayoutGrid, List,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
 import { useGameStore } from '@/game/store';
 import { adminFetch } from '@/lib/admin-fetch';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from '@/components/ui/dialog';
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
@@ -23,9 +21,9 @@ import { SEED_BANNERS } from '@/components/game/admin/config/seedBanners';
 import { FIELD_MAP } from '@/components/game/admin/config/fieldDefinitions';
 import { TABLE_COLUMNS } from '@/components/game/admin/config/tableColumns';
 import { EntityForm } from '@/components/game/admin/EntityForm';
+import { EntityCardGrid } from '@/components/game/admin/EntityCardGrid';
 import { FormActions } from '@/components/game/admin/fields/FormActions';
 import { NotificationEditDialog } from '@/components/game/admin/NotificationEditDialog';
-import { GalleryBanner } from '@/components/game/admin/GalleryBanner';
 import { TableSkeleton } from '@/components/game/admin/TableSkeleton';
 import { AvatarManager } from '@/components/game/admin/tabs/AvatarManager';
 import { StartScreenEditor } from '@/components/game/admin/tabs/StartScreenEditor';
@@ -57,6 +55,7 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
 
   // Resolve params
   useEffect(() => {
@@ -437,13 +436,79 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
 
         {/* ── Content Area ── */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {/* Tab title */}
-          <div className="shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-white/[0.04]">
-            <span className="shrink-0">{tabConfig.icon}</span>
-            <h2 className="text-sm font-semibold text-white/80">{tabConfig.label}</h2>
-            <span className="text-[11px] text-white/25 font-mono ml-auto">{counts[activeTab] ?? 0}</span>
-          </div>
-          {tabConfig.custom ? (
+          {dialogOpen && !tabConfig.custom ? (
+            <>
+              {/* Form header bar */}
+              <div className="shrink-0 flex items-center gap-3 px-4 sm:px-8 py-3 border-b border-white/[0.06]">
+                <button
+                  onClick={handleDialogClose}
+                  className="flex items-center gap-1.5 text-[13px] text-white/50 hover:text-white/80 transition-colors shrink-0"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Torna alla lista</span>
+                </button>
+                <div className="hidden sm:block w-px h-4 bg-white/[0.1]" />
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-emerald-400">
+                    {activeTab === 'notifications'
+                      ? (editingId ? `Modifica Notifica: ${editingId}` : 'Nuova Notifica')
+                      : (editingId ? `Modifica: ${editingId}` : `Nuovo ${tabConfig.entityLabel}`)
+                    }
+                  </h2>
+                  <p className="text-[12px] text-white/40">
+                    {activeTab === 'notifications'
+                      ? (editingId
+                        ? 'Personalizza i colori, animazioni e media per questa notifica'
+                        : 'Configura una nuova notifica per il gioco')
+                      : (editingId
+                        ? 'Modifica i campi e premi Salva per aggiornare'
+                        : `Compila i campi per creare un nuovo ${tabConfig.entityLabel.toLowerCase()}`)}
+                  </p>
+                </div>
+              </div>
+              {/* Form body */}
+              <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 admin-scrollbar">
+                {activeTab === 'notifications' ? (
+                  <NotificationEditDialog
+                    initialData={editingData}
+                    onSave={handleUpdate}
+                    onCancel={handleDialogClose}
+                    isEdit={!!editingId}
+                  />
+                ) : (
+                  <EntityForm
+                    fields={fields}
+                    initialData={
+                      editingId
+                        ? editingData
+                        : Object.fromEntries(fields.map(f => [f.key, f.defaultValue ?? '']))
+                    }
+                    onSubmit={editingId ? handleUpdate : handleCreate}
+                    onCancel={handleDialogClose}
+                    submitLabel={editingId ? 'Salva Modifiche' : 'Crea'}
+                    isEdit={!!editingId}
+                    activeTab={activeTab}
+                  />
+                )}
+              </div>
+              {/* Sticky footer */}
+              <div className="shrink-0 px-4 sm:px-8 py-3 border-t border-white/[0.06]">
+                <FormActions
+                  submitLabel={editingId ? 'Salva Modifiche' : (activeTab === 'notifications' ? 'Crea Notifica' : `Crea ${tabConfig.entityLabel}`)}
+                  onCancel={handleDialogClose}
+                  formId={activeTab === 'notifications' ? 'notif-form' : 'entity-form'}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Tab title */}
+              <div className="shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-white/[0.04]">
+                <span className="shrink-0">{tabConfig.icon}</span>
+                <h2 className="text-sm font-semibold text-white/80">{tabConfig.label}</h2>
+                <span className="text-[11px] text-white/25 font-mono ml-auto">{counts[activeTab] ?? 0}</span>
+              </div>
+              {tabConfig.custom ? (
             activeTab === 'avatars' ? <AvatarManager /> : activeTab === 'settings' ? <GameSettingsEditor /> : activeTab === 'theme' ? <ThemeEditor /> : activeTab === 'locations' ? <MapEditor /> : <StartScreenEditor />
           ) : (
             <>
@@ -469,18 +534,43 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
 
               {/* Toolbar: Add + Search */}
               <div className="shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 border-b border-white/[0.04]">
-                {activeTab !== 'sounds' && activeTab !== 'images' && (
-                  <Button
-                    size="sm"
-                    onClick={handleOpenCreate}
-                    className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200 shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Aggiungi Nuovo {tabConfig.entityLabel}</span>
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  onClick={handleOpenCreate}
+                  className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Aggiungi Nuovo {tabConfig.entityLabel}</span>
+                </Button>
 
                 <div className="flex-1" />
+
+                {/* View mode toggle */}
+                <div className="flex items-center border border-white/[0.08] rounded-md overflow-hidden shrink-0">
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`flex items-center justify-center w-7 h-7 transition-colors ${
+                      viewMode === 'table'
+                        ? 'bg-white/[0.08] text-white/70'
+                        : 'text-white/30 hover:text-white/50'
+                    }`}
+                    title="Vista tabella"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('card')}
+                    className={`flex items-center justify-center w-7 h-7 transition-colors ${
+                      viewMode === 'card'
+                        ? 'bg-white/[0.08] text-white/70'
+                        : 'text-white/30 hover:text-white/50'
+                    }`}
+                    title="Vista schede"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
                 <div className="relative w-36 sm:w-56">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none" />
                   <input
@@ -492,11 +582,6 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
                   />
                 </div>
               </div>
-
-              {/* Gallery banner for sounds/images (view-only) */}
-              {(activeTab === 'sounds' || activeTab === 'images') && (
-                <GalleryBanner type={activeTab as 'sounds' | 'images'} />
-              )}
 
               {/* Data-driven seed banners for all entity tabs */}
               {(() => {
@@ -547,6 +632,13 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
                       {searchQuery ? 'Prova con un termine diverso' : `Crea il primo ${tabConfig.entityLabel.toLowerCase()} per iniziare`}
                     </p>
                   </div>
+                ) : viewMode === 'card' ? (
+                  <EntityCardGrid
+                        data={filteredData}
+                        activeTab={activeTab}
+                        onEdit={handleOpenEdit}
+                        onDelete={handleDelete}
+                      />
                 ) : (
                   <Table>
                     <TableHeader>
@@ -559,11 +651,9 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
                             {col.label}
                           </TableHead>
                         ))}
-                        {activeTab !== 'sounds' && activeTab !== 'images' && (
-                          <TableHead className="text-[12px] font-semibold text-white/40 uppercase tracking-wider text-right w-32">
-                            Azioni
-                          </TableHead>
-                        )}
+                        <TableHead className="text-[12px] font-semibold text-white/40 uppercase tracking-wider text-right w-32">
+                          Azioni
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -583,30 +673,26 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
                               </TableCell>
                             ))}
                             <TableCell className="text-right py-2.5 px-2">
-                              {activeTab !== 'sounds' && activeTab !== 'images' ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleOpenEdit(rowId)}
-                                    className="h-7 px-2 text-[12px] gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                                  >
-                                    <Pencil className="w-3 h-3" />
-                                    Modifica
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDelete(rowId)}
-                                    className="h-7 px-2 text-[12px] gap-1 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                    Elimina
-                                  </Button>
-                                </div>
-                              ) : (
-                                <span className="text-[12px] text-white/15">—</span>
-                              )}
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenEdit(rowId)}
+                                  className="h-7 px-2 text-[12px] gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                  Modifica
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(rowId)}
+                                  className="h-7 px-2 text-[12px] gap-1 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Elimina
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -631,88 +717,10 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
               </div>
             </>
           )}
+            </>
+          )}
         </div>
       </div>
-
-      {/* ── Create/Edit Dialog ── */}
-      {activeTab === 'notifications' ? (
-        <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
-          <DialogContent
-            className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
-            overlayClassName="z-[120]"
-          >
-            <DialogHeader>
-              <DialogTitle className="text-emerald-400 text-base">
-                {editingId ? `Modifica Notifica: ${editingId}` : 'Nuova Notifica'}
-              </DialogTitle>
-              <DialogDescription className="text-white/40 text-xs">
-                {editingId
-                  ? 'Personalizza i colori, animazioni e media per questa notifica'
-                  : 'Configura una nuova notifica per il gioco'
-                }
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6 py-2">
-              <NotificationEditDialog
-                initialData={editingData}
-                onSave={handleUpdate}
-                onCancel={handleDialogClose}
-                isEdit={!!editingId}
-              />
-            </div>
-            {/* Sticky footer with save/cancel */}
-            <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-[#0d0d14]/95 backdrop-blur">
-              <FormActions
-                submitLabel={editingId ? 'Salva Modifiche' : 'Crea Notifica'}
-                onCancel={handleDialogClose}
-                formId="notif-form"
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
-          <DialogContent
-            className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
-            overlayClassName="z-[120]"
-          >
-            <DialogHeader>
-              <DialogTitle className="text-emerald-400 text-base">
-                {editingId ? `Modifica: ${editingId}` : `Nuovo ${tabConfig.entityLabel}`}
-              </DialogTitle>
-              <DialogDescription className="text-white/40 text-xs">
-                {editingId
-                  ? 'Modifica i campi e premi Salva per aggiornare'
-                  : `Compila i campi per creare un nuovo ${tabConfig.entityLabel.toLowerCase()}`
-                }
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex-1 overflow-y-auto admin-scrollbar -mx-6 px-6 py-2">
-              <EntityForm
-                fields={fields}
-                initialData={
-                  editingId
-                    ? editingData
-                    : Object.fromEntries(fields.map(f => [f.key, f.defaultValue ?? '']))
-                }
-                onSubmit={editingId ? handleUpdate : handleCreate}
-                onCancel={handleDialogClose}
-                submitLabel={editingId ? 'Salva Modifiche' : 'Crea'}
-                isEdit={!!editingId}
-                activeTab={activeTab}
-              />
-            </div>
-            {/* Sticky footer with save/cancel */}
-            <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-[#0d0d14]/95 backdrop-blur">
-              <FormActions
-                submitLabel={editingId ? 'Salva Modifiche' : `Crea ${tabConfig.entityLabel}`}
-                onCancel={handleDialogClose}
-                formId="entity-form"
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }

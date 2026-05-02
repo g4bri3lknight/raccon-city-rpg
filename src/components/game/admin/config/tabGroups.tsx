@@ -2,14 +2,14 @@ import React from 'react';
 import {
   MapPin, Users, Scroll, Zap, FileText, DoorOpen,
   Swords, Sparkles, Skull, Flame, Crown,
-  Package, Wrench, Trophy, Flag, Volume2, ImageIcon, Bell,
+  Package, Wrench, Trophy, Flag, Bell,
   Monitor, Settings, Link2, Gamepad2, Palette,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-export type TabId = 'games' | 'items' | 'quests' | 'events' | 'documents' | 'sounds' | 'images' | 'notifications' | 'locations' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
+export type TabId = 'games' | 'items' | 'quests' | 'events' | 'documents' | 'notifications' | 'locations' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
 
 export interface TabConfig {
   id: TabId;
@@ -58,16 +58,12 @@ export const TAB_GROUPS: TabGroupDef[] = [
     { id: 'achievements', label: 'Traguardi', icon: <Trophy className="w-4 h-4" />, endpoint: '/api/admin/achievements', entityLabel: 'Traguardo', group: 'progress' },
     { id: 'endings', label: 'Finale', icon: <Flag className="w-4 h-4" />, endpoint: '/api/admin/endings', entityLabel: 'Finale', group: 'progress' },
   ]},
-  { id: 'media', label: 'Media', icon: '🎨', tabs: [
-    { id: 'sounds', label: 'Suoni', icon: <Volume2 className="w-4 h-4" />, endpoint: '/api/admin/sounds', entityLabel: 'Suono', group: 'media' },
-    { id: 'images', label: 'Immagini', icon: <ImageIcon className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Immagine', group: 'media' },
-    { id: 'notifications', label: 'Notifiche', icon: <Bell className="w-4 h-4" />, endpoint: '/api/admin/notifications', entityLabel: 'Notifica', group: 'media' },
-  ]},
-  { id: 'config', label: 'Config', icon: '⚙️', tabs: [
+  { id: 'config', label: 'IMPOSTAZIONI', icon: '⚙️', tabs: [
+    { id: 'notifications', label: 'Notifiche', icon: <Bell className="w-4 h-4" />, endpoint: '/api/admin/notifications', entityLabel: 'Notifica', group: 'config' },
     { id: 'avatars', label: 'Avatar', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/images', entityLabel: 'Avatar', custom: true, group: 'config' },
     { id: 'start-screen', label: 'Schermata Iniziale', icon: <Monitor className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
-    { id: 'settings', label: 'Impostazioni', icon: <Settings className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
     { id: 'theme', label: 'Tema', icon: <Palette className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
+    { id: 'settings', label: 'Varie', icon: <Settings className="w-4 h-4" />, endpoint: '/api/admin/game-settings', entityLabel: 'Impostazione', custom: true, group: 'config' },
   ]},
 ];
 

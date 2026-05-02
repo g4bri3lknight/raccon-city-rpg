@@ -2,12 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Plus, Users, Pencil, Upload, Trash2, Save, Loader2,
+  Plus, Users, Pencil, Upload, Trash2, Save, Loader2, ArrowLeft,
 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
-} from '@/components/ui/dialog';
 
 export function AvatarManager() {
   const [avatars, setAvatars] = useState<{ id: string; name: string; emoji: string; sortOrder: number }[]>([]);
@@ -15,12 +12,12 @@ export function AvatarManager() {
   const [isUploadingId, setIsUploadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Dialog state
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Editing state (replaces dialog state)
+  const [editing, setEditing] = useState(false);
   const [editingAvatar, setEditingAvatar] = useState<{ id: string; name: string; emoji: string; sortOrder: number } | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Dialog form fields
+  // Form fields
   const [formId, setFormId] = useState('');
   const [formName, setFormName] = useState('');
   const [formEmoji, setFormEmoji] = useState('👤');
@@ -110,26 +107,26 @@ export function AvatarManager() {
     }
   };
 
-  const openCreateDialog = () => {
+  const openCreate = () => {
     setFormId('');
     setFormName('');
     setFormEmoji('👤');
     setIsCreating(true);
     setEditingAvatar(null);
-    setDialogOpen(true);
+    setEditing(true);
   };
 
-  const openEditDialog = (avatar: { id: string; name: string; emoji: string; sortOrder: number }) => {
+  const openEdit = (avatar: { id: string; name: string; emoji: string; sortOrder: number }) => {
     setFormId(avatar.id);
     setFormName(avatar.name);
     setFormEmoji(avatar.emoji);
     setIsCreating(false);
     setEditingAvatar(avatar);
-    setDialogOpen(true);
+    setEditing(true);
   };
 
-  const handleDialogClose = () => {
-    setDialogOpen(false);
+  const handleCancel = () => {
+    setEditing(false);
     setEditingAvatar(null);
     setIsCreating(false);
   };
@@ -154,7 +151,7 @@ export function AvatarManager() {
         if (!res.ok) throw new Error(await res.text());
       }
       await reloadAvatars();
-      handleDialogClose();
+      handleCancel();
     } catch (err) {
       console.error('Save error:', err);
     } finally {
@@ -170,235 +167,234 @@ export function AvatarManager() {
     );
   }
 
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header — sticky */}
-      <div className="shrink-0 px-6 py-4 border-b border-white/[0.06] flex items-start justify-between">
-        <div>
+  // ─── EDITING VIEW (full-page inline form) ────────────────────────────
+  if (editing) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {/* Header with back button */}
+        <div className="shrink-0 px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Torna alla lista
+          </button>
+          <div className="w-px h-5 bg-white/[0.08]" />
           <h3 className="text-sm font-bold text-white/80 flex items-center gap-2">
             <Users className="w-4 h-4 text-emerald-400/60" />
-            Avatar Personaggio
+            {isCreating ? 'Nuovo Avatar' : `Modifica: ${editingAvatar?.name}`}
           </h3>
-          <p className="text-[13px] text-white/30 mt-1">
-            Gestisci gli avatar disponibili nella creazione personaggio.
-          </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreateDialog}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-[13px] font-medium hover:bg-emerald-600/30 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Nuovo Avatar
-        </button>
-      </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto admin-scrollbar p-6">
-      {/* Avatar Grid */}
-      <div className="grid grid-cols-3 gap-3">
-        {avatars.map(avatar => (
-          <div
-            key={avatar.id}
-            className="relative rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden group hover:border-white/[0.15] transition-colors"
-          >
-            <div className="relative aspect-square bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center overflow-hidden">
-              {avatarHasImage[avatar.id] ? (
-                <img
-                  src={`/api/media/image?id=${avatar.id}&_t=${Date.now()}`}
-                  alt={avatar.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    target.parentElement!.querySelector('.emoji-fallback')!.classList.remove('hidden');
-                  }}
-                />
-              ) : null}
-              <span className={`emoji-fallback text-5xl ${avatarHasImage[avatar.id] ? 'hidden absolute' : ''}`}>
-                {avatar.emoji}
-              </span>
-
-              {/* Overlay on hover */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openEditDialog(avatar)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[12px] hover:bg-blue-600/30 transition-colors"
-                  title="Modifica"
-                >
-                  <Pencil className="w-3 h-3" />
-                  Modifica
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp'; input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) handleUpload(avatar.id, f); }; input.click(); }}
-                  disabled={isUploadingId === avatar.id}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-[12px] hover:bg-emerald-600/30 transition-colors disabled:opacity-50"
-                  title="Carica immagine"
-                >
-                  {isUploadingId === avatar.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                  {avatarHasImage[avatar.id] ? 'Immagine' : 'Carica'}
-                </button>
-                {avatarHasImage[avatar.id] && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteImage(avatar.id)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-600/20 border border-orange-500/30 text-orange-300 text-[12px] hover:bg-orange-600/30 transition-colors"
-                    title="Rimuovi immagine"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="px-3 py-2.5 border-t border-white/[0.06]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[14px] text-white/80 font-medium flex items-center gap-1.5">
-                    <span>{avatar.emoji}</span>
-                    {avatar.name}
-                  </div>
-                  <div className="text-[12px] text-white/25 font-mono mt-0.5">{avatar.id}</div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${avatarHasImage[avatar.id] ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/[0.03] border border-white/[0.06] text-white/20'}`}>
-                    {avatarHasImage[avatar.id] ? '✓ Img' : '—'}
-                  </span>
-                  <button
-                    onClick={() => handleDeleteAvatar(avatar.id)}
-                    className="text-white/20 hover:text-red-400 transition-colors p-0.5"
-                    title="Elimina avatar"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      </div>
-
-      {/* Sticky footer */}
-      <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur text-[12px] text-white/25 flex items-center justify-between">
-        <span>{avatars.length} avatar{avatars.length !== 1 ? 'i' : ''}</span>
-        <span>Gestione avatar per la creazione personaggio</span>
-      </div>
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
-        <DialogContent
-          className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-md"
-          overlayClassName="z-[120]"
-        >
-          <DialogHeader>
-            <DialogTitle className="text-emerald-400 text-base">
-              {isCreating ? 'Nuovo Avatar' : `Modifica: ${editingAvatar?.name}`}
-            </DialogTitle>
-            <DialogDescription className="text-white/40 text-xs">
+        {/* Scrollable form body */}
+        <div className="flex-1 overflow-y-auto admin-scrollbar p-6">
+          <div className="max-w-3xl mx-auto">
+            <p className="text-[13px] text-white/30 mb-6">
               {isCreating
-                ? 'Inserisci i dati per creare un nuovo avatar'
-                : 'Modifica i campi e premi Salva per aggiornare'
+                ? 'Inserisci i dati per creare un nuovo avatar.'
+                : 'Modifica i campi e premi Salva per aggiornare.'
               }
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Preview */}
-            <div className="flex items-center justify-center py-3">
-              <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-gray-900 to-gray-950 border border-white/[0.08] flex items-center justify-center overflow-hidden">
-                {avatarHasImage[formId] && !isCreating ? (
+            </p>
+
+            {/* Horizontal layout: large image left + fields right */}
+            {!isCreating && avatarHasImage[formId] && (
+              <div className="flex gap-8 items-start mb-6">
+                {/* Large preview */}
+                <div className="shrink-0 w-72 h-72 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-950 border border-white/[0.08] flex items-center justify-center overflow-hidden">
                   <img
                     src={`/api/media/image?id=${formId}&_t=${Date.now()}`}
                     alt={formName}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
-                      e.currentTarget.parentElement!.querySelector('.emoji-fallback')!.classList.remove('hidden');
+                      const fallback = e.currentTarget.parentElement!.querySelector('.emoji-fallback');
+                      if (fallback) fallback.classList.remove('hidden');
                     }}
                   />
-                ) : null}
-                <span className={`emoji-fallback text-4xl ${avatarHasImage[formId] && !isCreating ? 'hidden absolute' : ''}`}>
-                  {formEmoji}
-                </span>
-              </div>
-            </div>
-
-            {/* ID field */}
-            <div>
-              <label className="text-[12px] text-white/50 mb-1 block font-medium">ID (slug)</label>
-              <input
-                type="text"
-                value={formId}
-                onChange={e => setFormId(e.target.value)}
-                disabled={!isCreating}
-                placeholder="es. avatar_soldato"
-                className="w-full px-3 py-2 text-[13px] bg-black/40 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/40 disabled:opacity-40 disabled:cursor-not-allowed"
-              />
-              <p className="text-[10px] text-white/20 mt-1">Identificatore univoco. Non modificabile dopo la creazione.</p>
-            </div>
-
-            {/* Name field */}
-            <div>
-              <label className="text-[12px] text-white/50 mb-1 block font-medium">Nome</label>
-              <input
-                type="text"
-                value={formName}
-                onChange={e => setFormName(e.target.value)}
-                placeholder="es. Soldato"
-                className="w-full px-3 py-2 text-[13px] bg-black/40 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/40"
-              />
-            </div>
-
-            {/* Emoji field */}
-            <div>
-              <label className="text-[12px] text-white/50 mb-1 block font-medium">Emoji (fallback se nessuna immagine)</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={formEmoji}
-                  onChange={e => setFormEmoji(e.target.value)}
-                  className="w-20 px-3 py-2 text-[20px] bg-black/40 border border-white/10 rounded-lg text-center focus:outline-none focus:border-emerald-500/40"
-                />
-                <span className="text-3xl">{formEmoji}</span>
-              </div>
-            </div>
-
-            {/* Image upload (edit only) */}
-            {!isCreating && (
-              <div>
-                <label className="text-[12px] text-white/50 mb-1 block font-medium">Immagine</label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp'; input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) handleUpload(formId, f); }; input.click(); }}
-                    disabled={isUploadingId === formId}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 text-[12px] hover:bg-emerald-600/25 transition-colors disabled:opacity-50"
-                  >
-                    {isUploadingId === formId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                    {avatarHasImage[formId] ? 'Cambia immagine' : 'Carica immagine'}
-                  </button>
-                  {avatarHasImage[formId] && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteImage(formId)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/15 border border-red-500/25 text-red-300 text-[12px] hover:bg-red-600/25 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Rimuovi
-                    </button>
-                  )}
-                  <span className={`text-[10px] px-2 py-0.5 rounded ml-auto ${avatarHasImage[formId] ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/[0.03] border border-white/[0.06] text-white/20'}`}>
-                    {avatarHasImage[formId] ? '✓ Caricata' : 'Nessuna'}
+                  <span className="emoji-fallback hidden absolute text-7xl">
+                    {formEmoji}
                   </span>
+                </div>
+
+                {/* Fields stacked on the right */}
+                <div className="flex-1 min-w-0 space-y-4">
+                  {/* ID field */}
+                  <div>
+                    <label className="text-[12px] text-white/50 mb-1.5 block font-medium">ID (slug)</label>
+                    <input
+                      type="text"
+                      value={formId}
+                      onChange={e => setFormId(e.target.value)}
+                      disabled={true}
+                      placeholder="es. avatar_soldato"
+                      className="w-full px-3 py-2 text-[13px] bg-black/40 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  {/* Name field */}
+                  <div>
+                    <label className="text-[12px] text-white/50 mb-1.5 block font-medium">Nome</label>
+                    <input
+                      type="text"
+                      value={formName}
+                      onChange={e => setFormName(e.target.value)}
+                      placeholder="es. Soldato"
+                      className="w-full px-3 py-2 text-[13px] bg-black/40 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/40"
+                    />
+                  </div>
+
+                  {/* Emoji field */}
+                  <div>
+                    <label className="text-[12px] text-white/50 mb-1.5 block font-medium">Emoji (fallback)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        value={formEmoji}
+                        onChange={e => setFormEmoji(e.target.value)}
+                        className="w-20 px-3 py-2 text-[20px] bg-black/40 border border-white/10 rounded-lg text-center focus:outline-none focus:border-emerald-500/40"
+                      />
+                      <span className="text-3xl">{formEmoji}</span>
+                    </div>
+                  </div>
+
+                  {/* Image upload */}
+                  <div>
+                    <label className="text-[12px] text-white/50 mb-1.5 block font-medium">Immagine</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp'; input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) handleUpload(formId, f); }; input.click(); }}
+                        disabled={isUploadingId === formId}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 text-[12px] hover:bg-emerald-600/25 transition-colors disabled:opacity-50"
+                      >
+                        {isUploadingId === formId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        {avatarHasImage[formId] ? 'Cambia immagine' : 'Carica immagine'}
+                      </button>
+                      {avatarHasImage[formId] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImage(formId)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/15 border border-red-500/25 text-red-300 text-[12px] hover:bg-red-600/25 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Rimuovi
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
+
+            {/* Vertical layout: no image or creating */}
+            {(isCreating || !avatarHasImage[formId]) && (
+              <div className="space-y-5">
+                {/* Preview (small, centered) */}
+                <div className="flex items-center justify-center py-2">
+                  <div className="w-28 h-28 rounded-xl bg-gradient-to-br from-gray-900 to-gray-950 border border-white/[0.08] flex items-center justify-center overflow-hidden relative">
+                    {!isCreating && avatarHasImage[formId] ? (
+                      <img
+                        src={`/api/media/image?id=${formId}&_t=${Date.now()}`}
+                        alt={formName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          e.currentTarget.parentElement!.querySelector('.emoji-fallback')!.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <span className={`emoji-fallback text-5xl ${!isCreating && avatarHasImage[formId] ? 'hidden absolute' : ''}`}>
+                      {formEmoji}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ID field */}
+                <div>
+                  <label className="text-[12px] text-white/50 mb-1.5 block font-medium">ID (slug)</label>
+                  <input
+                    type="text"
+                    value={formId}
+                    onChange={e => setFormId(e.target.value)}
+                    disabled={!isCreating}
+                    placeholder="es. avatar_soldato"
+                    className="w-full px-3 py-2 text-[13px] bg-black/40 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                  <p className="text-[10px] text-white/20 mt-1">Identificatore univoco. Non modificabile dopo la creazione.</p>
+                </div>
+
+                {/* Name field */}
+                <div>
+                  <label className="text-[12px] text-white/50 mb-1.5 block font-medium">Nome</label>
+                  <input
+                    type="text"
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    placeholder="es. Soldato"
+                    className="w-full px-3 py-2 text-[13px] bg-black/40 border border-white/10 rounded-lg text-white/80 focus:outline-none focus:border-emerald-500/40"
+                  />
+                </div>
+
+                {/* Emoji field */}
+                <div>
+                  <label className="text-[12px] text-white/50 mb-1.5 block font-medium">Emoji (fallback se nessuna immagine)</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="text"
+                      value={formEmoji}
+                      onChange={e => setFormEmoji(e.target.value)}
+                      className="w-20 px-3 py-2 text-[20px] bg-black/40 border border-white/10 rounded-lg text-center focus:outline-none focus:border-emerald-500/40"
+                    />
+                    <span className="text-3xl">{formEmoji}</span>
+                  </div>
+                </div>
+
+                {/* Image upload (edit only) */}
+                {!isCreating && (
+                  <div>
+                    <label className="text-[12px] text-white/50 mb-1.5 block font-medium">Immagine</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp'; input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) handleUpload(formId, f); }; input.click(); }}
+                        disabled={isUploadingId === formId}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 text-[12px] hover:bg-emerald-600/25 transition-colors disabled:opacity-50"
+                      >
+                        {isUploadingId === formId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        {avatarHasImage[formId] ? 'Cambia immagine' : 'Carica immagine'}
+                      </button>
+                      {avatarHasImage[formId] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImage(formId)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/15 border border-red-500/25 text-red-300 text-[12px] hover:bg-red-600/25 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Rimuovi
+                        </button>
+                      )}
+                      <span className={`text-[10px] px-2 py-0.5 rounded ml-auto ${avatarHasImage[formId] ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/[0.03] border border-white/[0.06] text-white/20'}`}>
+                        {avatarHasImage[formId] ? '✓ Caricata' : 'Nessuna'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+        </div>
+
+        {/* Sticky footer with Annulla + Salva */}
+        <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur flex items-center justify-between">
+          <span className="text-[12px] text-white/25">
+            {isCreating ? 'Nuovo avatar' : `Modifica: ${formId}`}
+          </span>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleDialogClose}
+              onClick={handleCancel}
               className="px-4 py-2 rounded-lg text-[13px] text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
             >
               Annulla
@@ -412,9 +408,127 @@ export function AvatarManager() {
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               {isCreating ? 'Crea Avatar' : 'Salva Modifiche'}
             </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── LIST VIEW (avatar grid) ─────────────────────────────────────────
+  return (
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Header — sticky */}
+      <div className="shrink-0 px-6 py-4 border-b border-white/[0.06] flex items-start justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-white/80 flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-400/60" />
+            Avatar Personaggio
+          </h3>
+          <p className="text-[13px] text-white/30 mt-1">
+            Gestisci gli avatar disponibili nella creazione personaggio.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-[13px] font-medium hover:bg-emerald-600/30 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Nuovo Avatar
+        </button>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto admin-scrollbar p-6">
+        {/* Avatar Grid */}
+        <div className="grid grid-cols-3 gap-3">
+          {avatars.map(avatar => (
+            <div
+              key={avatar.id}
+              className="relative rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden group hover:border-white/[0.15] transition-colors"
+            >
+              <div className="relative aspect-square bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center overflow-hidden">
+                {avatarHasImage[avatar.id] ? (
+                  <img
+                    src={`/api/media/image?id=${avatar.id}&_t=${Date.now()}`}
+                    alt={avatar.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.parentElement!.querySelector('.emoji-fallback')!.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <span className={`emoji-fallback text-5xl ${avatarHasImage[avatar.id] ? 'hidden absolute' : ''}`}>
+                  {avatar.emoji}
+                </span>
+
+                {/* Overlay on hover */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(avatar)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[12px] hover:bg-blue-600/30 transition-colors"
+                    title="Modifica"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Modifica
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp'; input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) handleUpload(avatar.id, f); }; input.click(); }}
+                    disabled={isUploadingId === avatar.id}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-[12px] hover:bg-emerald-600/30 transition-colors disabled:opacity-50"
+                    title="Carica immagine"
+                  >
+                    {isUploadingId === avatar.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                    {avatarHasImage[avatar.id] ? 'Immagine' : 'Carica'}
+                  </button>
+                  {avatarHasImage[avatar.id] && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteImage(avatar.id)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-600/20 border border-orange-500/30 text-orange-300 text-[12px] hover:bg-orange-600/30 transition-colors"
+                      title="Rimuovi immagine"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="px-3 py-2.5 border-t border-white/[0.06]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[14px] text-white/80 font-medium flex items-center gap-1.5">
+                      <span>{avatar.emoji}</span>
+                      {avatar.name}
+                    </div>
+                    <div className="text-[12px] text-white/25 font-mono mt-0.5">{avatar.id}</div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${avatarHasImage[avatar.id] ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/[0.03] border border-white/[0.06] text-white/20'}`}>
+                      {avatarHasImage[avatar.id] ? '✓ Img' : '—'}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteAvatar(avatar.id)}
+                      className="text-white/20 hover:text-red-400 transition-colors p-0.5"
+                      title="Elimina avatar"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sticky footer */}
+      <div className="shrink-0 px-6 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur text-[12px] text-white/25 flex items-center justify-between">
+        <span>{avatars.length} avatar{avatars.length !== 1 ? 'i' : ''}</span>
+        <span>Gestione avatar per la creazione personaggio</span>
+      </div>
     </div>
   );
 }

@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import type { TabId } from './config/tabGroups';
 import type { FieldDef } from './config/fieldDefinitions';
 import { MEDIA_UPLOADS } from './shared';
 import { getFieldColClass } from './fields';
 import { AdminTooltip } from './fields/AdminTooltip';
+import { getSectionsForTab } from './config/fieldSections';
 
 // Field editor components
 import {
@@ -82,6 +84,13 @@ export function EntityForm({
   activeTab: TabId;
 }) {
   const [data, setData] = useState<Record<string, unknown>>({ ...initialData });
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    const sections = getSectionsForTab(activeTab, fields);
+    const initial: Record<string, boolean> = {};
+    // Auto-collapse all sections except the first
+    sections.forEach((s, i) => { initial[s.id] = i > 0; });
+    return initial;
+  });
   const mediaUploads = MEDIA_UPLOADS[activeTab];
 
   const handleChange = (key: string, value: unknown) => {
@@ -323,9 +332,54 @@ export function EntityForm({
 
   return (
     <form id="entity-form" onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-        {fields.map(renderField)}
-      </div>
+      {(() => {
+        const sections = getSectionsForTab(activeTab, fields);
+        const fieldMap = new Map(fields.map(f => [f.key, f]));
+
+        // Only one section with no config → flat layout (no accordion)
+        if (sections.length === 1 && sections[0].fieldKeys.length === 0) {
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+              {fields.map(renderField)}
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-1">
+            {sections.map(section => {
+              const isCollapsed = collapsedSections[section.id] ?? false;
+              const sectionFields = section.fieldKeys
+                .map(key => fieldMap.get(key))
+                .filter(Boolean) as FieldDef[];
+
+              if (sectionFields.length === 0) return null;
+
+              return (
+                <div key={section.id} className="border border-white/[0.06] rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
+                  >
+                    <span className="text-sm">{section.icon}</span>
+                    <span className="text-[13px] font-semibold text-white/60">{section.label}</span>
+                    <span className="text-[11px] text-white/20 ml-1">{sectionFields.length}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-white/30 ml-auto transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                  </button>
+                  {!isCollapsed && (
+                    <div className="px-4 pb-4 pt-1">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                        {sectionFields.map(renderField)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <MediaUploadsSection
         mediaUploads={mediaUploads}
