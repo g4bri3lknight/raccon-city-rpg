@@ -200,6 +200,9 @@ export interface GameStore extends GameState {
   // Mini-map
   exploreSubArea: (subAreaId: string) => void;
 
+  // Room system: navigate between rooms within a location
+  navigateToRoom: (roomId: string) => void;
+
   // Safe Room & Item Box
   enterSafeRoom: () => void;
   exitSafeRoom: () => void;

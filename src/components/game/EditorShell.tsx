@@ -748,29 +748,43 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
             {/* Group Tabs */}
             {!isCollapsed && (
               <div className="relative ml-1 border-l border-white/[0.06]">
-                {group.tabs.map(tab => (
+                {group.tabs.map(tab => {
+                  const tabColor = entityColors[tab.id];
+                  const isActive = activeTab === tab.id;
+                  return (
                   <button
                     key={tab.id}
                     onClick={() => handleTabClick(tab.id)}
                     className={`w-full flex items-center gap-2 pl-3 pr-3 py-2 text-left transition-all ${
-                      activeTab === tab.id
-                        ? 'bg-emerald-500/10 text-emerald-300 border-l-2 border-emerald-500 -ml-[1px]'
+                      isActive
+                        ? 'border-l-2 -ml-[1px]'
                         : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04] border-l-2 border-transparent -ml-[1px]'
                     }`}
+                    style={isActive ? {
+                      backgroundColor: tabColor ? `${tabColor}10` : 'rgba(16,185,129,0.1)',
+                      color: tabColor || '#6ee7b7',
+                      borderColor: tabColor || '#10b981',
+                    } : undefined}
                   >
                     <span className="shrink-0">{tab.icon}</span>
                     <span className="text-[13px] font-medium flex-1 truncate">{tab.label}</span>
                     {!tab.custom && (
                       <span className={`text-[12px] min-w-[18px] text-center px-1 py-0.5 rounded-full font-mono ${
-                        activeTab === tab.id
-                          ? 'bg-emerald-500/20 text-emerald-200'
+                        isActive
+                          ? ''
                           : 'bg-white/[0.06] text-white/25'
-                      }`}>
+                      }`}
+                      style={isActive ? {
+                        backgroundColor: tabColor ? `${tabColor}20` : 'rgba(16,185,129,0.2)',
+                        color: tabColor ? `${tabColor}cc` : '#a7f3d0',
+                      } : undefined}
+                    >
                         {counts[tab.id] ?? 0}
                       </span>
                     )}
                   </button>
-                ))}
+                );
+                })}
               </div>
             )}
           </div>
@@ -1224,6 +1238,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                         selectedIds={selectedIds}
                         selectionMode={selectionMode}
                         onToggleSelect={handleToggleSelect}
+                        entityColor={entityColors[activeTab]}
                       />
                     ) : (
                       <Table>

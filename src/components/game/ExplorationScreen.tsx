@@ -67,6 +67,9 @@ export default function ExplorationScreen() {
     handleDynamicEventChoice: s.handleDynamicEventChoice,
     enterSafeRoom: s.enterSafeRoom,
     quickHeal: s.quickHeal,
+    currentRoomId: s.currentRoomId,
+    exploredRooms: s.exploredRooms,
+    navigateToRoom: s.navigateToRoom,
   })));
 
   const {
@@ -81,6 +84,7 @@ export default function ExplorationScreen() {
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
     toggleSettings, toggleHelp, handleDynamicEventChoice, enterSafeRoom, quickHeal,
+    currentRoomId, exploredRooms, navigateToRoom,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
@@ -159,9 +163,15 @@ export default function ExplorationScreen() {
   }
 
   const aliveParty = party.filter(p => p.currentHp > 0);
-  const hasSafeRoom = !location.isBossArea && !!location.subAreas?.some(sa => sa.id === 'safe_room');
+  const hasRoomSafeRoom = !location.isBossArea && !!location.rooms?.some(r => r.type === 'safe_room');
+  const hasLegacySafeRoom = !location.isBossArea && !!location.subAreas?.some(sa => sa.id === 'safe_room');
+  const hasSafeRoom = hasRoomSafeRoom || hasLegacySafeRoom;
 
-  
+  // Room system: get current room data
+  const currentRoom = (location.rooms && location.rooms.length > 0 && currentRoomId)
+    ? location.rooms.find(r => r.id === currentRoomId)
+    : null;
+  const locationHasRooms = !!location.rooms && location.rooms.length > 0;
 
   return (
     <div className="h-dvh sm:h-screen game-horror flex flex-col overflow-hidden" role="main" aria-label="Schermata esplorazione">
@@ -232,7 +242,14 @@ export default function ExplorationScreen() {
                 </Badge>
               )}
             </div>
-            <h2 className="text-lg sm:text-2xl font-bold text-white">{location.name}</h2>
+            <h2 className="text-lg sm:text-2xl font-bold text-white">
+              {location.name}
+              {currentRoom && (
+                <span className="text-base sm:text-lg text-white/70 font-normal ml-2">
+                  — {currentRoom.icon} {currentRoom.name}
+                </span>
+              )}
+            </h2>
           </motion.div>
         </div>
       </div>
@@ -596,7 +613,7 @@ export default function ExplorationScreen() {
                   </span>
                 )}
               </Button>
-              {hasSafeRoom && (
+              {hasSafeRoom && !locationHasRooms && (
                 <Button
                   onClick={enterSafeRoom}
                   disabled={isActionBlocked}
@@ -664,6 +681,62 @@ export default function ExplorationScreen() {
                 </div>
               );
             })()}
+
+            {/* Room Navigation — when location has rooms */}
+            {locationHasRooms && !location.isBossArea && (
+              <div className="mt-2">
+                <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5 flex items-center gap-1.5">
+                  <ChevronRight className="w-3 h-3" />
+                  Stanze ({location.rooms!.filter(r => exploredRooms.includes(r.id)).length}/{location.rooms!.length} esplorate)
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {location.rooms!.map(room => {
+                    const isCurrent = room.id === currentRoomId;
+                    const isExplored = exploredRooms.includes(room.id);
+                    const isLocked = currentRoom?.lockedRooms?.some(l => l.roomId === room.id);
+                    const hasKey = isLocked
+                      ? party.some(p => p.inventory.some(i => 
+                          i.itemId === currentRoom!.lockedRooms!.find(l => l.roomId === room.id)!.requiredItemId
+                        ))
+                      : true;
+                    const canNavigate = !isCurrent && (!isLocked || hasKey);
+                    
+                    // Room type colors
+                    const roomTypeColors: Record<string, string> = {
+                      safe_room: 'border-emerald-500/30 text-emerald-300',
+                      boss_room: 'border-red-500/30 text-red-300',
+                      secret: 'border-purple-500/30 text-purple-300',
+                      shop: 'border-amber-500/30 text-amber-300',
+                      puzzle: 'border-cyan-500/30 text-cyan-300',
+                      corridor: 'border-white/10 text-white/50',
+                      normal: 'border-white/[0.08] text-white/60',
+                    };
+                    const roomColors = roomTypeColors[room.type] || roomTypeColors.normal;
+
+                    return (
+                      <Button
+                        key={room.id}
+                        variant="outline"
+                        onClick={() => canNavigate && navigateToRoom(room.id)}
+                        disabled={!canNavigate || !!(activeEvent || activeDynamicEvent || activeNpc)}
+                        className={`text-[10px] sm:text-xs border ${
+                          isCurrent
+                            ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200 ring-1 ring-emerald-500/30'
+                            : isLocked && !hasKey
+                              ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
+                              : `${roomColors} hover:bg-white/[0.06]`
+                        }`}
+                      >
+                        {isLocked && !hasKey ? '🔒' : room.icon}
+                        <span className="ml-1">{room.name}</span>
+                        {isExplored && !isCurrent && <span className="ml-1 text-[8px] opacity-40">✓</span>}
+                        {isCurrent && <span className="ml-1 text-[8px]">●</span>}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Quest Tracker — collapsible */}
             {activeMissions > 0 && (

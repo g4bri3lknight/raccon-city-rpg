@@ -20,13 +20,18 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
     const state = get();
     const locId = state.currentLocationId;
     const location = LOCATIONS[locId];
-    if (!location || !location.subAreas?.some(sa => sa.id === 'safe_room')) return;
+    // Room system: check for safe_room in rooms OR legacy subAreas
+    const hasRoomSafeRoom = location?.rooms?.some(r => r.type === 'safe_room');
+    const hasLegacySafeRoom = location?.subAreas?.some(sa => sa.id === 'safe_room');
+    if (!location || (!hasRoomSafeRoom && !hasLegacySafeRoom)) return;
     if (state.currentSubArea === 'safe_room') return;
 
     // Populate item box with default items from game settings on first visit to any safe room
     let updatedItemBox = [...state.itemBoxItems];
     const defaultDefs = getDefaultItemBoxItems();
-    if (defaultDefs.length > 0 && !state.searchedSafeRooms.includes(locId)) {
+    // Room system: use currentRoomId as search key if in a room-based safe room
+    const safeRoomSearchKey = state.currentRoomId || locId;
+    if (defaultDefs.length > 0 && !state.searchedSafeRooms.includes(safeRoomSearchKey)) {
       // Don't add items already in the box
       const existingIds = new Set(updatedItemBox.map(i => i.itemId));
       const newDefaults: ItemInstance[] = [];
@@ -82,16 +87,26 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
 
     // Guard: must be in safe room
     if (state.currentSubArea !== 'safe_room') return;
-    // Guard: location must exist and have a safe room
-    if (!location || !location.subAreas?.some(sa => sa.id === 'safe_room')) return;
+    // Guard: location must exist and have a safe room (rooms or legacy subAreas)
+    const hasRoomSafeRoom = location?.rooms?.some(r => r.type === 'safe_room');
+    const hasLegacySafeRoom = location?.subAreas?.some(sa => sa.id === 'safe_room');
+    if (!location || (!hasRoomSafeRoom && !hasLegacySafeRoom)) return;
+
+    // Room system: use currentRoomId as search key
+    const safeRoomSearchKey = state.currentRoomId || locId;
     // Guard: already searched this safe room
-    if (state.searchedSafeRooms.includes(locId)) return;
+    if (state.searchedSafeRooms.includes(safeRoomSearchKey)) return;
 
     const searcherName = state.party.find(p => p.id === state.selectedCharacterId)?.name || 'Qualcuno';
     const newLog = [...state.messageLog, `[${state.turnCount}] 🔍 ${searcherName} cerca nella Safe Room...`];
 
-    // Roll items from location's item pool (100% chance — safe rooms always have something)
-    const itemPool = location.itemPool || [];
+    // Room system: use room's item pool if available, otherwise location's
+    const currentRoom = state.currentRoomId
+      ? location.rooms?.find(r => r.id === state.currentRoomId)
+      : null;
+    const itemPool = currentRoom?.itemPool?.length
+      ? currentRoom.itemPool
+      : (location.itemPool || []);
     const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
     const foundItems: string[] = [];
 
@@ -104,8 +119,8 @@ export const createSafeRoomSlice: StateCreator<GameStore, [], [], GameStore> = (
       }
     }
 
-    // Mark safe room as searched
-    const newSearchedSafeRooms = [...state.searchedSafeRooms, locId];
+    // Mark safe room as searched (use room key if in room-based system)
+    const newSearchedSafeRooms = [...state.searchedSafeRooms, safeRoomSearchKey];
 
     if (foundItems.length === 0) {
       const msg = `${searcherName} perquisisce ogni angolo della stanza, ma non trova nulla di utile.`;

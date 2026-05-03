@@ -498,6 +498,33 @@ export interface SubAreaDefinition {
   description: string;
 }
 
+// ==========================================
+// ROOM SYSTEM — Location → Room hierarchy
+// ==========================================
+
+export type RoomType = 'normal' | 'safe_room' | 'boss_room' | 'secret' | 'shop' | 'puzzle' | 'corridor';
+
+export interface RoomDefinition {
+  id: string;
+  locationId: string;
+  name: string;
+  description: string;
+  type: RoomType;
+  icon: string;
+  nextRooms: string[];              // room IDs reachable from this room
+  lockedRooms?: { roomId: string; requiredItemId: string; lockedMessage: string }[];
+  enemyPool: string[];              // EnemyDefinition ids (overrides location if non-empty)
+  itemPool: LootEntry[];            // Items that can be found (overrides location if non-empty)
+  searchChance?: number;            // 0-100, overrides location default
+  searchMax?: number;               // max searches, overrides location default
+  npcIds: string[];                 // NPC IDs present in this room
+  storyEvent?: StoryEvent;
+  ambientText: string[];
+  sortOrder: number;
+  mapRow?: number;
+  mapCol?: number;
+}
+
 export interface LocationDefinition {
   id: string;
   name: string;
@@ -523,6 +550,8 @@ export interface LocationDefinition {
   mapCol?: number;       // horizontal position (0 = center, -1 = left, 1 = right)
   mapIcon?: string;      // emoji icon for map node
   mapDanger?: number;    // danger level 0-3 for visual color (always resolved, auto-calc at save time)
+  // Room system: rooms within this location (loaded from DB)
+  rooms?: RoomDefinition[];
 }
 
 export interface StoryEvent {
@@ -780,10 +809,13 @@ export interface GameState {
   // #45 Randomizer Mode
   randomizerMode: boolean;
   randomizedLocationData: RandomizedLocationData | null;
+  // Room system: current room within a location
+  currentRoomId: string | null;
+  exploredRooms: string[];    // room IDs that have been visited
   // Safe Room & Item Box
   currentSubArea: string | null;
   itemBoxItems: ItemInstance[];
-  searchedSafeRooms: string[]; // location IDs whose safe room has been searched
+  searchedSafeRooms: string[]; // location/room IDs whose safe room has been searched
   // Document read tracking
   readDocuments: string[]; // document IDs that have been opened/read
   // Admin data refresh version (incremented on refreshGameData)

@@ -141,7 +141,39 @@ model GameLocation {
   mapDangerAuto   Boolean  @default(false) // true = auto-calculated from enemy pool
   shortName       String?
   createdAt       DateTime @default(now())
+
+  // Room system: a location contains multiple rooms (sub-areas)
+  rooms            GameRoom[]
+
   @@map("game_locations")
+}
+
+model GameRoom {
+  id              String   @id
+  locationId      String
+  name            String
+  description     String   @default("")
+  type            String   @default("normal")   // normal | safe_room | boss_room | secret | shop | puzzle | corridor
+  icon            String   @default("🚪")
+  nextRooms       String   @default("[]")       // JSON: ["room_id_1", "room_id_2"]
+  lockedRooms     String   @default("[]")       // JSON: [{roomId, requiredItemId, lockedMessage}]
+  enemyPool       String   @default("[]")       // JSON: ["enemy_id_1", "enemy_id_2"]
+  itemPool        String   @default("[]")       // JSON: [{itemId, chance, quantity}]
+  searchChance    Int?                         // 0-100, overrides location default
+  searchMax       Int?                         // max searches, overrides location default
+  npcIds          String   @default("[]")       // JSON: ["npc_id_1"]
+  storyEvent      String   @default("")         // JSON: StoryEvent object
+  ambientText     String   @default("[]")       // JSON: ["text1", "text2"]
+  sortOrder       Int      @default(0)
+  // Map layout within the location's room grid
+  mapRow          Int?
+  mapCol          Int?
+  createdAt       DateTime @default(now())
+
+  location        GameLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([locationId])
+  @@map("game_rooms")
 }
 
 model GameNPC {

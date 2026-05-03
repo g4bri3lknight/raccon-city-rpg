@@ -40,6 +40,8 @@ interface EntityCardGridProps {
   selectedIds?: Set<string>;
   selectionMode?: boolean;
   onToggleSelect?: (id: string) => void;
+  // #13 — Custom entity color
+  entityColor?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -788,9 +790,15 @@ export function EntityCardGrid({
   selectedIds = new Set(),
   selectionMode = false,
   onToggleSelect,
+  entityColor,
 }: EntityCardGridProps) {
   const hasImageHeader = TABS_WITH_IMAGE_HEADER.has(activeTab);
   const canEdit = true;
+
+  // ── #13 — Compute entity color styles ──
+  const entityColorStyle = entityColor
+    ? { '--entity-color': entityColor } as React.CSSProperties
+    : undefined;
 
   // ── #5 Inline rename state ──
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
@@ -962,16 +970,26 @@ export function EntityCardGrid({
                 ? 'border-red-500/30 hover:border-red-500/50'
                 : isSelected
                   ? 'border-emerald-500/40 hover:border-emerald-500/60'
-                  : 'border-white/[0.06] hover:border-white/[0.12]'
+                  : entityColor
+                    ? 'hover:border-[var(--entity-color)]/60'
+                    : 'border-white/[0.06] hover:border-white/[0.12]'
             } ${
               isDragging ? 'opacity-50 scale-95' : ''
             } ${
               isDragOver && !isDragging ? 'border-emerald-500/50 ring-2 ring-emerald-500/20' : ''
             }`}
+            style={entityColor ? { borderColor: `${entityColor}30`, ...entityColorStyle } : undefined}
           >
-            {/* ── #8 Drag handle ── */}
+            {/* ── #13 Entity color accent bar ── */}
+            {entityColor && (
+              <div
+                className="absolute top-0 left-0 right-0 h-[2px] z-30"
+                style={{ backgroundColor: entityColor }}
+              />
+            )}
+            {/* ── #8 Drag handle — visible on mobile for touch, hover on desktop ── */}
             {reorderable && (
-              <div className="absolute top-2 left-2 z-20 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-60 transition-opacity">
+              <div className="absolute top-2 left-2 z-20 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-60 md:opacity-0 md:group-hover:opacity-60 transition-opacity">
                 <GripVertical className="w-4 h-4 text-white/60" />
               </div>
             )}
@@ -1035,6 +1053,14 @@ export function EntityCardGrid({
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         if (onInlineRename) handleStartEdit(rowId, name);
+                      }}
+                      onClick={(e) => {
+                        // On touch devices, single tap triggers rename (no hover = touch)
+                        if (!onInlineRename) return;
+                        if (window.matchMedia('(hover: none)').matches) {
+                          e.stopPropagation();
+                          handleStartEdit(rowId, name);
+                        }
                       }}
                       title="Doppio clic per rinominare"
                     >

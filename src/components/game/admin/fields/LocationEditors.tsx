@@ -28,8 +28,8 @@ export function LockedLocsEditor({ value, onChange }: { value: unknown; onChange
 
   return (
     <div className="space-y-1.5">
-      <div className="max-h-48 overflow-y-auto overflow-x-hidden admin-scrollbar rounded-md border border-white/[0.08]">
-        <table className="w-full text-[12px] table-fixed">
+      <div className="max-h-48 overflow-y-auto overflow-x-auto admin-scrollbar rounded-md border border-white/[0.08]">
+        <table className="w-full text-[12px] min-w-[420px]">
           <thead className="sticky top-0 z-10 bg-black">
             <tr className="border-b border-white/[0.06]">
               <th className="text-left px-2 py-1.5 text-white/50 font-medium w-8">#</th>
@@ -100,11 +100,11 @@ export function SubAreasEditor({ value, onChange }: { value: unknown; onChange: 
       <div className="max-h-[28rem] overflow-y-auto admin-scrollbar rounded-md border border-white/[0.08]">
         {areas.map((area, i) => (
           <div key={i} className="border-b border-white/[0.06] bg-black last:border-b-0">
-            <div className="flex items-center gap-2 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2">
               <span className="shrink-0 text-[11px] text-white/20 font-mono">{i + 1}.</span>
-              <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-28 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-emerald-500/40" />
-              <input type="text" value={area.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Safe Room" className="w-32 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40" />
-              <input type="text" value={area.description} onChange={e => update(i, 'description', e.target.value)} placeholder="Un rifugio sicuro..." className="flex-1 min-w-0 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40" />
+              <input type="text" value={area.id} onChange={e => update(i, 'id', e.target.value)} placeholder="safe_room" className="w-20 sm:w-28 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 font-mono focus:outline-none focus:border-emerald-500/40" />
+              <input type="text" value={area.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Safe Room" className="min-w-[80px] w-24 sm:w-32 flex-1 sm:flex-none text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40" />
+              <input type="text" value={area.description} onChange={e => update(i, 'description', e.target.value)} placeholder="Un rifugio sicuro..." className="min-w-[120px] flex-1 text-[12px] bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 placeholder-white/15 focus:outline-none focus:border-emerald-500/40" />
               <button type="button" onClick={() => remove(i)} className="shrink-0 text-white/15 hover:text-red-400 transition-colors">
                 <Trash2 className="w-3 h-3" />
               </button>

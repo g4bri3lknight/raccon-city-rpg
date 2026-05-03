@@ -114,6 +114,9 @@ export function getDefaultState() {
     exploredSubAreas: {} as Record<string, string[]>,
     randomizerMode: false,
     randomizedLocationData: null as RandomizedLocationData | null,
+    // Room system
+    currentRoomId: null as string | null,
+    exploredRooms: [] as string[],
     currentSubArea: null as string | null,
     itemBoxItems: [] as ItemInstance[],
     searchedSafeRooms: [] as string[],

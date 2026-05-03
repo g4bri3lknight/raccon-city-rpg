@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Save, RefreshCw, Loader2, GripVertical, Eye, Link, Lock, ArrowRight, ArrowDown, ArrowUp, ArrowLeft, Plus, Pencil, Trash2, Upload, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Save, RefreshCw, Loader2, GripVertical, Eye, Link, Lock, ArrowRight, ArrowDown, ArrowUp, ArrowLeft, Plus, Pencil, Trash2, Upload, MapPin, DoorOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { adminFetch } from '@/lib/admin-fetch';
 import {
@@ -10,6 +10,7 @@ import {
 import { EntityForm } from '@/components/game/admin/EntityForm';
 import { FIELD_MAP } from '@/components/game/admin/config/fieldDefinitions';
 import { SEED_BANNERS } from '@/components/game/admin/config/seedBanners';
+import RoomEditorPanel from '@/components/game/admin/tabs/RoomEditorPanel';
 
 // ── Types ──
 interface LocationData {
@@ -74,6 +75,8 @@ export default function MapEditor() {
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showConnections, setShowConnections] = useState(true);
   const [showConnectionNames, setShowConnectionNames] = useState(true);
+  // ── Room management: selected location to show its rooms ──
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ row: number; col: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -399,18 +402,26 @@ export default function MapEditor() {
   }
 
   return (
-    <>
+    <React.Fragment>
+      {/* ── Full-Width Rooms View ── */}
+      {selectedLocationId ? (
+        <RoomEditorPanel
+          locationId={selectedLocationId}
+          locationName={locations.find(l => l.id === selectedLocationId)?.name ?? selectedLocationId}
+          onBack={() => setSelectedLocationId(null)}
+        />
+      ) : (
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="shrink-0 px-5 py-4 border-b border-white/[0.06]">
-          <div className="flex items-center justify-between">
+        <div className="shrink-0 px-3 sm:px-5 py-3 sm:py-4 border-b border-white/[0.06]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-bold text-white/90">🗺️ Location & Mappa</h2>
               <p className="text-[12px] text-white/35 mt-0.5">
                 Gestisci location e posizionale sulla mappa. Trascina per spostare.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <Button
                 size="sm"
                 variant="ghost"
@@ -419,7 +430,7 @@ export default function MapEditor() {
                 title="Mostra/nascondi nomi collegamenti"
               >
                 <span className="text-[10px]">🏷️</span>
-                Nomi
+                <span className="hidden sm:inline">Nomi</span>
               </Button>
               <Button
                 size="sm"
@@ -429,7 +440,7 @@ export default function MapEditor() {
                 title="Mostra/nascondi frecce collegamento"
               >
                 <Link className="w-3 h-3" />
-                Freccie
+                <span className="hidden sm:inline">Freccie</span>
               </Button>
               <Button
                 size="sm"
@@ -448,7 +459,7 @@ export default function MapEditor() {
                 title="Inserisci i dati di default per le location"
               >
                 {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                Seed Default
+                <span className="hidden sm:inline">Seed Default</span>
               </Button>
               <Button
                 size="sm"
@@ -456,7 +467,7 @@ export default function MapEditor() {
                 className="text-xs gap-1.5 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Aggiungi Location
+                <span className="hidden sm:inline">Aggiungi Location</span>
               </Button>
             </div>
           </div>
@@ -480,8 +491,8 @@ export default function MapEditor() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 admin-scrollbar">
-          <div className="flex gap-6">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 admin-scrollbar">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
             {/* Grid */}
             <div className="flex-1 min-w-0">
               {/* Column headers */}
@@ -508,7 +519,7 @@ export default function MapEditor() {
                         <div
                           key={cellKey}
                           className={`
-                            group/cell relative min-h-[80px] rounded-lg border-2 border-dashed transition-all duration-200
+                            group/cell relative min-h-[100px] sm:min-h-[110px] rounded-lg border-2 border-dashed transition-all duration-200
                             ${cell.location
                               ? 'border-white/[0.06] bg-white/[0.02]'
                               : isDropTarget
@@ -516,6 +527,7 @@ export default function MapEditor() {
                                 : 'border-white/[0.04] bg-white/[0.01] hover:border-white/[0.08]'
                             }
                             ${isDragged ? 'opacity-30' : ''}
+                            ${cell.location?.id === selectedLocationId ? 'ring-2 ring-emerald-500/40 bg-emerald-500/[0.03]' : ''}
                           `}
                           onDragOver={(e) => handleDragOver(e, cell.row, cell.col)}
                           onDragLeave={handleDragLeave}
@@ -526,37 +538,13 @@ export default function MapEditor() {
                             R{cell.row}
                           </span>
 
-                          {/* Action buttons (edit/delete) — always visible */}
-                          {cell.location && (
-                            <div className="absolute top-1 right-1 z-20 flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setEditingId(cell.location!.id); setCreating(false); }}
-                                className="flex items-center gap-1 text-[10px] font-medium text-cyan-400/80 hover:text-cyan-300 bg-black/70 rounded-md px-1.5 py-1 transition-colors border border-cyan-500/15 hover:border-cyan-500/30"
-                                title="Modifica"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                                <span>Modifica</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); handleDelete(cell.location!.id); }}
-                                className="flex items-center gap-1 text-[10px] font-medium text-red-400/70 hover:text-red-300 bg-black/70 rounded-md px-1.5 py-1 transition-colors border border-red-500/15 hover:border-red-500/30"
-                                title="Elimina"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Elimina</span>
-                              </button>
-                            </div>
-                          )}
-
                           {cell.location ? (
                             <div
                               draggable
                               onDragStart={(e) => handleDragStart(e, cell.location!.id)}
                               onDragEnd={handleDragEnd}
                               className={`
-                                h-full flex flex-col items-center justify-center p-2 rounded-lg cursor-grab active:cursor-grabbing
+                                h-full flex flex-col items-center justify-center p-2 pb-1 sm:p-2 rounded-lg cursor-grab active:cursor-grabbing
                                 transition-all hover:scale-[1.02] relative
                                 ${dangerColors[getDangerLevel(cell.location)]}
                               `}
@@ -588,12 +576,12 @@ export default function MapEditor() {
                               )}
 
                               {/* Location node */}
-                              <div className="flex items-center gap-1.5 w-full">
+                              <div className="flex items-center gap-1 sm:gap-1.5 w-full">
                                 <GripVertical className="w-3 h-3 text-white/15 shrink-0" />
-                                <span className="text-lg leading-none shrink-0">
+                                <span className="text-base sm:text-lg leading-none shrink-0">
                                   {cell.location.mapIcon || '📍'}
                                 </span>
-                                <span className="text-[11px] font-bold text-white/80 truncate min-w-0">
+                                <span className="text-[11px] sm:text-[12px] font-bold text-white/80 truncate min-w-0">
                                   {cell.location.name}
                                 </span>
                                 {cell.location.isBossArea && (
@@ -621,9 +609,9 @@ export default function MapEditor() {
                                 {dangerLabels[getDangerLevel(cell.location)]}
                               </div>
 
-                              {/* Connection names */}
+                              {/* Connection names — hidden on mobile for clarity */}
                               {showConnectionNames && conns.length > 0 && (
-                                <div className="mt-1.5 flex flex-wrap gap-0.5 justify-center max-w-full">
+                                <div className="mt-1 sm:mt-1.5 hidden sm:flex flex-wrap gap-0.5 justify-center max-w-full">
                                   {conns.slice(0, 4).map(conn => (
                                     <span
                                       key={conn.id}
@@ -645,6 +633,37 @@ export default function MapEditor() {
                                   )}
                                 </div>
                               )}
+
+                              {/* Action buttons — flow below card content, never overlap */}
+                              <div className="flex items-center justify-center gap-1 sm:gap-1.5 mt-2 w-full">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedLocationId(selectedLocationId === cell.location!.id ? null : cell.location!.id); }}
+                                  className={`flex items-center gap-1 text-[10px] font-medium rounded-md px-2 py-1 transition-colors border ${selectedLocationId === cell.location!.id ? 'text-emerald-300 border-emerald-500/40 bg-emerald-900/30' : 'text-emerald-400/70 hover:text-emerald-300 border-emerald-500/15 hover:border-emerald-500/30 bg-black/50'}`}
+                                  title="Gestisci stanze"
+                                >
+                                  <DoorOpen className="w-3 h-3" />
+                                  <span>Stanze</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setEditingId(cell.location!.id); setCreating(false); }}
+                                  className="flex items-center gap-1 text-[10px] font-medium text-cyan-400/80 hover:text-cyan-300 bg-black/50 rounded-md px-2 py-1 transition-colors border border-cyan-500/15 hover:border-cyan-500/30"
+                                  title="Modifica"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                  <span>Modifica</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleDelete(cell.location!.id); }}
+                                  className="flex items-center gap-1 text-[10px] font-medium text-red-400/70 hover:text-red-300 bg-black/50 rounded-md px-2 py-1 transition-colors border border-red-500/15 hover:border-red-500/30"
+                                  title="Elimina"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Elimina</span>
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <div className="h-full flex items-center justify-center">
@@ -680,98 +699,102 @@ export default function MapEditor() {
               </p>
             </div>
 
-            {/* Sidebar: Unplaced locations + actions */}
-            <div className="w-[250px] shrink-0 flex flex-col">
-              <div className="text-[12px] font-bold text-white/40 uppercase tracking-wider mb-2">
-                Non posizionate ({unplaced.length})
-              </div>
-              {unplaced.length === 0 ? (
-                <div className="text-[11px] text-white/15 italic py-4">
-                  Tutte le location sono sulla mappa
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-[400px] overflow-y-auto admin-scrollbar">
-                  {unplaced.map(loc => {
-                    const locConns = getConnections(loc);
-                    return (
-                      <div
-                        key={loc.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, loc.id)}
-                        onDragEnd={handleDragEnd}
-                        className="p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] cursor-grab active:cursor-grabbing hover:bg-white/[0.04] transition-colors"
-                      >
-                        {/* Name row */}
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="w-3 h-3 text-white/15 shrink-0" />
-                          <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
-                          <span className="text-[11px] text-white/60 truncate min-w-0 flex-1">{loc.name}</span>
-                        </div>
-                        {/* Action buttons row */}
-                        <div className="flex items-center gap-1.5 mt-1.5 pl-5">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setEditingId(loc.id); setCreating(false); }}
-                            className="flex items-center gap-1 text-[10px] font-medium text-cyan-400/70 hover:text-cyan-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-cyan-500/15 hover:border-cyan-500/30"
-                            title="Modifica location"
+            {/* Sidebar: Unplaced locations */}
+            <div className="w-full lg:w-[250px] shrink-0 flex flex-col">
+                <>
+                  <div className="text-[12px] font-bold text-white/40 uppercase tracking-wider mb-2">
+                    <span className="lg:hidden">📋 Non posizionate ({unplaced.length})</span>
+                    <span className="hidden lg:inline">Non posizionate ({unplaced.length})</span>
+                  </div>
+                  {unplaced.length === 0 ? (
+                    <div className="text-[11px] text-white/15 italic py-4">
+                      Tutte le location sono sulla mappa
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-[400px] overflow-y-auto admin-scrollbar">
+                      {unplaced.map(loc => {
+                        const locConns = getConnections(loc);
+                        return (
+                          <div
+                            key={loc.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, loc.id)}
+                            onDragEnd={handleDragEnd}
+                            className="p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] cursor-grab active:cursor-grabbing hover:bg-white/[0.04] transition-colors"
                           >
-                            <Pencil className="w-3 h-3" />
-                            <span>Modifica</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => placeAtEmpty(loc.id)}
-                            className="flex items-center gap-1 text-[10px] font-medium text-emerald-400/60 hover:text-emerald-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-emerald-500/15 hover:border-emerald-500/30"
-                            title="Posiziona automaticamente"
-                          >
-                            <Eye className="w-3 h-3" />
-                            <span>Mappa</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(loc.id)}
-                            className="flex items-center gap-1 text-[10px] font-medium text-red-400/60 hover:text-red-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-red-500/15 hover:border-red-500/30"
-                            title="Elimina location"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Elimina</span>
-                          </button>
-                        </div>
-                        {showConnectionNames && locConns.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-0.5 pl-5">
-                            {locConns.slice(0, 3).map(conn => (
-                              <span
-                                key={conn.id}
-                                className="text-[7px] px-1 py-px rounded-sm bg-white/[0.04] text-white/25 border border-white/[0.06] truncate max-w-[70px]"
+                            {/* Name row */}
+                            <div className="flex items-center gap-2">
+                              <GripVertical className="w-3 h-3 text-white/15 shrink-0" />
+                              <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
+                              <span className="text-[11px] text-white/60 truncate min-w-0 flex-1">{loc.name}</span>
+                            </div>
+                            {/* Action buttons row */}
+                            <div className="flex items-center gap-1.5 mt-1.5 pl-5">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setEditingId(loc.id); setCreating(false); }}
+                                className="flex items-center gap-1 text-[10px] font-medium text-cyan-400/70 hover:text-cyan-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-cyan-500/15 hover:border-cyan-500/30"
+                                title="Modifica location"
                               >
-                                {conn.name}
-                              </span>
-                            ))}
-                            {locConns.length > 3 && (
-                              <span className="text-[7px] text-white/20">+{locConns.length - 3}</span>
+                                <Pencil className="w-3 h-3" />
+                                <span>Modifica</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => placeAtEmpty(loc.id)}
+                                className="flex items-center gap-1 text-[10px] font-medium text-emerald-400/60 hover:text-emerald-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-emerald-500/15 hover:border-emerald-500/30"
+                                title="Posiziona automaticamente"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>Mappa</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(loc.id)}
+                                className="flex items-center gap-1 text-[10px] font-medium text-red-400/60 hover:text-red-300 bg-black/60 rounded-md px-1.5 py-1 transition-colors border border-red-500/15 hover:border-red-500/30"
+                                title="Elimina location"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Elimina</span>
+                              </button>
+                            </div>
+                            {showConnectionNames && locConns.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-0.5 pl-5">
+                                {locConns.slice(0, 3).map(conn => (
+                                  <span
+                                    key={conn.id}
+                                    className="text-[7px] px-1 py-px rounded-sm bg-white/[0.04] text-white/25 border border-white/[0.06] truncate max-w-[70px]"
+                                  >
+                                    {conn.name}
+                                  </span>
+                                ))}
+                                {locConns.length > 3 && (
+                                  <span className="text-[7px] text-white/20">+{locConns.length - 3}</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                        );
+                      })}
+                    </div>
+                  )}
 
-              {/* Quick Edit / Info for placed locations */}
-              <div className="mt-4 pt-4 border-t border-white/[0.06]">
-                <div className="text-[11px] text-white/30 space-y-2">
-                  <p><span className="text-white/50 font-medium">ℹ️ Gestione Unificata</span></p>
-                  <p>Trascina per posizionare. Clicca ✏️ per modificare i dettagli.</p>
-                  <p>&quot;Salva Posizioni&quot; salva solo riga/colonna. Il dialog salva tutti i dati.</p>
-                </div>
-              </div>
+                  {/* Quick Edit / Info for placed locations */}
+                  <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                    <div className="text-[11px] text-white/30 space-y-2">
+                      <p><span className="text-white/50 font-medium">ℹ️ Gestione Unificata</span></p>
+                      <p>Trascina per posizionare. Clicca ✏️ per modificare i dettagli.</p>
+                      <p>Clicca <span className="text-emerald-400">🚪 Stanze</span> per gestire le stanze di una location.</p>
+                      <p>&quot;Salva Posizioni&quot; salva solo riga/colonna. Il dialog salva tutti i dati.</p>
+                    </div>
+                  </div>
+                </>
             </div>
           </div>
         </div>
 
         {/* Sticky footer with save */}
-        <div className="shrink-0 px-5 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur flex items-center justify-between">
+        <div className="shrink-0 px-3 sm:px-5 py-3 border-t border-white/[0.06] bg-black/95 backdrop-blur flex items-center justify-between">
           <span className="text-[12px] text-white/25">
             {locations.length} location{locations.length !== 1 ? 's' : ''} · {unplaced.length} non posizionat{unplaced.length === 1 ? 'a' : 'e'}
           </span>
@@ -787,12 +810,14 @@ export default function MapEditor() {
           </Button>
         </div>
       </div>
+      )}
 
-      {/* ── Create / Edit Dialog ── */}
-      <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
+      {/* ── Create / Edit Dialog (only shown in map view, not rooms view) ── */}
+      {!selectedLocationId && <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) handleDialogClose(); }}>
         <DialogContent
-          className="bg-[#0d0d14] border-white/[0.1] text-white sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
-          overlayClassName="z-[120]"
+          className="bg-[#0d0d14] border-white/[0.1] text-white max-w-[95vw] sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col z-[120]"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
             <DialogTitle className="text-emerald-400 text-base">
@@ -820,7 +845,7 @@ export default function MapEditor() {
             />
           </div>
         </DialogContent>
-      </Dialog>
-    </>
+      </Dialog>}
+    </React.Fragment>
   );
 }

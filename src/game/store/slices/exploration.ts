@@ -14,6 +14,7 @@ import {
   NPCS,
   SECRET_ROOMS,
   RECIPES_DATA,
+  getLocationRooms,
 } from '../../data/loader';
 import { generateRandomizedData, getEffectiveLocation } from '../../data/randomizer';
 import {
@@ -46,18 +47,29 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       setTimeout(() => { try { get().autoSave(); } catch {} }, 300);
     }
 
+    // Room system: get current room's data if in a room-based location
+    const currentRoom = (location.rooms && location.rooms.length > 0 && state.currentRoomId)
+      ? location.rooms.find(r => r.id === state.currentRoomId)
+      : null;
+
     // #45 Randomizer: get effective enemy pool and encounter rate
     const effectiveLoc = getEffectiveLocation(state.currentLocationId, state.randomizedLocationData);
-    const enemyPool = effectiveLoc?.enemyPool || location.enemyPool;
+    // Room system: override enemy pool from current room if available
+    const roomEnemyPool = currentRoom?.enemyPool?.length ? currentRoom.enemyPool : [];
+    const enemyPool = roomEnemyPool.length > 0
+      ? roomEnemyPool
+      : (effectiveLoc?.enemyPool || location.enemyPool);
     const encounterRate = effectiveLoc?.encounterRate ?? location.encounterRate;
 
     // Play location ambient sound (#33)
     try { playLocationAmbient(state.currentLocationId); } catch {}
 
-    // Random ambient text
-    const ambient = location.ambientText?.length > 0
-      ? location.ambientText[Math.floor(Math.random() * location.ambientText.length)]
-      : `${location.name} è silenziosa...`;
+    // Random ambient text (room-aware)
+    const ambient = (currentRoom && currentRoom.ambientText?.length > 0)
+      ? currentRoom.ambientText[Math.floor(Math.random() * currentRoom.ambientText.length)]
+      : location.ambientText?.length > 0
+        ? location.ambientText[Math.floor(Math.random() * location.ambientText.length)]
+        : `${currentRoom?.name || location.name} è silenziosa...`;
     const newLog = [...state.messageLog, `[${state.turnCount}] ${ambient}`];
 
     // Check for combat encounter (skip if just resolved an event)
@@ -291,7 +303,11 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     }
 
     // Check for random item find
-    const effectiveItemPool = effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity }));
+    // Room system: override item pool from current room if available
+    const roomItemPool = currentRoom?.itemPool?.length ? currentRoom.itemPool : [];
+    const effectiveItemPool = roomItemPool.length > 0
+      ? roomItemPool
+      : (effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity })));
     if (Math.random() < 0.3 && effectiveItemPool.length > 0) {
       // Filter out key items already in party inventory BEFORE selection
       const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
@@ -623,10 +639,97 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       party: updatedParty,
       skipNextEncounter: true,
       currentSubArea: null,
+      currentRoomId: null,
     });
     // Track run stats: distance traveled
     try { get().incrementRunStat('distanceTraveled', turnIncrease); } catch {}
     setTimeout(() => get().checkAchievements(), 100);
+  },
+
+  navigateToRoom: (roomId: string) => {
+    const state = get();
+    const location = LOCATIONS[state.currentLocationId];
+    if (!location || !location.rooms || location.rooms.length === 0) return;
+
+    // Find current room (or null if not in any room)
+    const currentRoom = state.currentRoomId
+      ? location.rooms.find(r => r.id === state.currentRoomId)
+      : null;
+
+    // Find target room
+    const targetRoom = location.rooms.find(r => r.id === roomId);
+    if (!targetRoom) return;
+
+    // Check if target is reachable from current room
+    if (currentRoom && !currentRoom.nextRooms.includes(roomId)) {
+      // Check locked rooms on current room
+      const lockedEntry = currentRoom.lockedRooms?.find(l => l.roomId === roomId);
+      if (!lockedEntry) {
+        // Also check if target room has this room in its nextRooms (bidirectional)
+        if (!targetRoom.nextRooms.includes(currentRoom.id)) {
+          set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🚫 Non puoi raggiungere quella stanza da qui.`] });
+          return;
+        }
+      }
+    }
+
+    // Check locked rooms
+    const lockedEntry = currentRoom?.lockedRooms?.find(l => l.roomId === roomId);
+
+    if (lockedEntry) {
+      const hasKey = state.party.some(p => p.inventory.some(i => i.itemId === lockedEntry.requiredItemId));
+      if (!hasKey) {
+        set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🔒 ${lockedEntry.lockedMessage || 'Questa stanza è chiusa a chiave.'}`] });
+        return;
+      }
+    }
+
+    // Handle safe room type
+    if (targetRoom.type === 'safe_room') {
+      get().enterSafeRoom();
+      set({ currentRoomId: roomId });
+      return;
+    }
+
+    // Exit safe room if currently in one
+    if (state.currentSubArea === 'safe_room') {
+      get().exitSafeRoom();
+    }
+
+    // Track exploration
+    const newExploredRooms = state.exploredRooms.includes(roomId)
+      ? state.exploredRooms
+      : [...state.exploredRooms, roomId];
+
+    const newLog = [
+      ...state.messageLog,
+      `[${state.turnCount}] 🚪 Ti sposti in: ${targetRoom.icon} ${targetRoom.name}`,
+    ];
+    if (targetRoom.description) {
+      newLog.push(`[${state.turnCount}] ${targetRoom.description}`);
+    }
+
+    // Increment turn for room navigation (minor cost)
+    set({
+      currentRoomId: roomId,
+      messageLog: newLog,
+      turnCount: state.turnCount + 1,
+      exploredRooms: newExploredRooms,
+      skipNextEncounter: true, // Don't encounter enemies immediately on room entry
+      currentSubArea: null,
+    });
+
+    // Check room story event
+    if (targetRoom.storyEvent) {
+      const roomEventKey = `room_${roomId}`;
+      if (!state.completedEvents.includes(roomEventKey)) {
+        set({
+          activeEvent: targetRoom.storyEvent,
+          eventOutcome: null,
+          completedEvents: [...state.completedEvents, roomEventKey],
+        });
+      }
+    }
   },
 
   searchArea: () => {
@@ -636,15 +739,25 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     const locId = state.currentLocationId;
     const searchCount = state.searchCounts[locId] || 0;
 
+    // Room system: get current room's data if in a room-based location
+    const currentRoom = (location.rooms && location.rooms.length > 0 && state.currentRoomId)
+      ? location.rooms.find(r => r.id === state.currentRoomId)
+      : null;
+
     const effectiveLoc = getEffectiveLocation(locId, state.randomizedLocationData);
-    const effectiveItemPool = effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity }));
+    // Room system: override item pool from current room if available
+    const roomItemPool = currentRoom?.itemPool?.length ? currentRoom.itemPool : [];
+    const effectiveItemPool = roomItemPool.length > 0
+      ? roomItemPool
+      : (effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity })));
 
     // Track run stats: searches performed
     try { get().incrementRunStat('searchesPerformed'); } catch {}
 
-    const baseSearchChance = location.searchChance ?? 60;
+    // Room system: override search config from current room if available
+    const baseSearchChance = currentRoom?.searchChance ?? location.searchChance ?? 60;
     const baseDocChance = location.docChance ?? 35;
-    const locSearchMax = location.searchMax;
+    const locSearchMax = currentRoom?.searchMax ?? location.searchMax;
 
     const activeEvent = state.activeDynamicEvent || null;
     const hasSearchBonus = activeEvent?.effect?.searchBonus === true;

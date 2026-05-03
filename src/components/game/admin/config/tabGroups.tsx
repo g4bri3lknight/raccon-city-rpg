@@ -9,7 +9,7 @@ import {
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-export type TabId = 'games' | 'items' | 'quests' | 'events' | 'documents' | 'notifications' | 'locations' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
+export type TabId = 'games' | 'items' | 'quests' | 'events' | 'documents' | 'notifications' | 'locations' | 'rooms' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
 
 export interface TabConfig {
   id: TabId;

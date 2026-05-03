@@ -4,7 +4,7 @@ import { getCustomPassiveDescription as _getCustomPassiveDescription } from './c
 import { ENEMY_IMAGES, CHARACTER_IMAGES } from './enemies';
 import { rebuildWeaponModsFromItems } from './weapon-mods';
 import { rebuildEquipmentFromItems } from './equipment';
-import type { ItemDefinition, ItemType, Rarity, LocationDefinition, MultiStepQuest } from '../types';
+import type { ItemDefinition, ItemType, Rarity, LocationDefinition, MultiStepQuest, RoomDefinition, RoomType } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition, Archetype } from '../types';
@@ -462,6 +462,28 @@ interface DbQuestChainFinalReward {
   createdAt: Date;
 }
 
+interface DbRoom {
+  id: string;
+  locationId: string;
+  name: string;
+  description: string;
+  type: string;
+  icon: string;
+  nextRooms: string;
+  lockedRooms: string;
+  enemyPool: string;
+  itemPool: string;
+  searchChance: number | null;
+  searchMax: number | null;
+  npcIds: string;
+  storyEvent: string;
+  ambientText: string;
+  sortOrder: number;
+  mapRow: number | null;
+  mapCol: number | null;
+  createdAt: Date;
+}
+
 // ── Mappers ──
 
 function mapDbItem(item: DbItem): ItemDefinition {
@@ -893,6 +915,49 @@ async function loadAvatars(api: Awaited<ReturnType<typeof loadFromApi>>): Promis
   }
 }
 
+function mapDbRoom(row: DbRoom): RoomDefinition {
+  let itemPool: LootEntry[] = [];
+  try { itemPool = JSON.parse(row.itemPool || '[]'); } catch { itemPool = []; }
+  return {
+    id: row.id,
+    locationId: row.locationId,
+    name: row.name,
+    description: row.description || '',
+    type: row.type as RoomType,
+    icon: row.icon || '🚪',
+    nextRooms: JSON.parse(row.nextRooms || '[]'),
+    lockedRooms: JSON.parse(row.lockedRooms || '[]'),
+    enemyPool: JSON.parse(row.enemyPool || '[]'),
+    itemPool,
+    ...(row.searchChance != null ? { searchChance: row.searchChance } : {}),
+    ...(row.searchMax != null ? { searchMax: row.searchMax } : {}),
+    npcIds: JSON.parse(row.npcIds || '[]'),
+    storyEvent: row.storyEvent ? JSON.parse(row.storyEvent) : undefined,
+    ambientText: JSON.parse(row.ambientText || '[]'),
+    sortOrder: row.sortOrder,
+    ...(row.mapRow != null ? { mapRow: row.mapRow } : {}),
+    ...(row.mapCol != null ? { mapCol: row.mapCol } : {}),
+  };
+}
+
+function loadRooms(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  // Clear rooms from all locations
+  for (const loc of Object.values(LOCATIONS)) {
+    loc.rooms = [];
+  }
+  if (api?.rooms && api.rooms.length > 0) {
+    for (const row of api.rooms) {
+      const room = mapDbRoom(row as DbRoom);
+      // Attach to parent location
+      const loc = LOCATIONS[room.locationId];
+      if (loc) {
+        if (!loc.rooms) loc.rooms = [];
+        loc.rooms.push(room);
+      }
+    }
+  }
+}
+
 function loadQuestChains(api: Awaited<ReturnType<typeof loadFromApi>>): void {
   QUEST_CHAINS_DATA = {};
   NPC_QUEST_CHAIN_MAP = {};
@@ -1116,6 +1181,7 @@ async function loadFromApi(): Promise<{
   questChains: DbQuestChain[];
   questChainSteps: DbQuestChainStep[];
   questChainFinalRewards: DbQuestChainFinalReward[];
+  rooms: DbRoom[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -1238,6 +1304,8 @@ export async function initGameData(): Promise<void> {
         loadQuestChains(api),
         loadGameSettings(),
       ]);
+      // Rooms must load AFTER locations (depends on LOCATIONS being populated)
+      loadRooms(api);
       // Boss phases must load AFTER enemy abilities (resolves ability IDs)
       loadBossPhases(api);
       // Rebuild archetype→special map AFTER both characters AND specials are loaded
@@ -1278,6 +1346,8 @@ export async function refreshGameData(): Promise<void> {
     loadQuestChains(api),
     loadGameSettings(),
   ]);
+  // Rooms must load AFTER locations (depends on LOCATIONS being populated)
+  loadRooms(api);
   // Boss phases must load AFTER enemy abilities (resolves ability IDs)
   loadBossPhases(api);
   // Rebuild archetype→special map AFTER both characters AND specials are loaded
@@ -1359,4 +1429,11 @@ export function getSpecialById(id: string): SpecialAbilityDefinition | undefined
 export function mediaUrl(idOrPath: string, version: number): string {
   const sep = idOrPath.includes('?') ? '&' : '?';
   return `${idOrPath}${sep}_v=${version}`;
+}
+
+// ── Room system helpers ──
+
+/** Get all rooms for a given location */
+export function getLocationRooms(locationId: string): RoomDefinition[] {
+  return LOCATIONS[locationId]?.rooms || [];
 }
