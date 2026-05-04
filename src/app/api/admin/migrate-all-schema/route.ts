@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { execSync } from 'child_process';
-import { listGameDbFiles, getGameDbPath, disconnectAll } from '@/lib/game-db';
-import { existsSync } from 'fs';
+import { listGameDbFiles, syncGameDbSchema, disconnectAll } from '@/lib/game-db';
 
 /**
  * POST /api/admin/migrate-all-schema
@@ -26,56 +24,15 @@ export async function POST() {
       });
     }
 
-    const originalUrl = process.env.DATABASE_URL;
     const results: {
       gameId: string;
       success: boolean;
-      output: string;
-      error?: string;
+      message: string;
     }[] = [];
 
     for (const gameId of gameIds) {
-      const dbPath = getGameDbPath(gameId);
-
-      if (!existsSync(dbPath)) {
-        results.push({ gameId, success: false, output: 'File DB non trovato', error: 'missing' });
-        continue;
-      }
-
-      try {
-        process.env.DATABASE_URL = `file:${dbPath}`;
-
-        const output = execSync(
-          'npx prisma db push --skip-generate --accept-data-loss 2>&1',
-          {
-            cwd: process.cwd(),
-            stdio: 'pipe',
-            timeout: 60000,
-            encoding: 'utf-8',
-          }
-        );
-
-        const cleaned = output
-          .replace(/Your database.*?\n?/s, '')
-          .replace(/🚀.*?\n?/s, '')
-          .trim();
-
-        results.push({
-          gameId,
-          success: true,
-          output: cleaned || 'Schema già aggiornato.',
-        });
-      } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        results.push({
-          gameId,
-          success: false,
-          output: 'Errore durante prisma db push',
-          error: errMsg,
-        });
-      } finally {
-        process.env.DATABASE_URL = originalUrl;
-      }
+      const result = await syncGameDbSchema(gameId);
+      results.push({ gameId, success: result.success, message: result.message });
     }
 
     // Disconnect all cached clients so they pick up new schema on next request
@@ -112,17 +69,21 @@ export async function GET() {
   try {
     const gameIds = listGameDbFiles();
 
+    const { getGameDbPath } = await import('@/lib/game-db');
+    const { existsSync, statSync } = await import('fs');
+
     const summaries = await Promise.all(
       gameIds.map(async (gameId) => {
         const dbPath = getGameDbPath(gameId);
         const exists = existsSync(dbPath);
+        const size = exists ? statSync(dbPath).size : 0;
         const stats = exists ? await getDbStats(dbPath) : null;
 
         return {
           gameId,
           exists,
           dbPath,
-          size: exists ? (await import('fs')).statSync(dbPath).size : 0,
+          size,
           tables: stats?.tables || 0,
           tablesList: stats?.tableNames || [],
         };

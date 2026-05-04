@@ -4,14 +4,15 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { useShallow } from 'zustand/react/shallow';
-import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS, QUESTS } from '@/game/data/loader';
+import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS, QUESTS, DOCUMENTS as DOCUMENTS_DATA } from '@/game/data/loader';
 import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
 import { CompactHpPanel } from './HpBar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { getKeyItemIds } from '@/game/store/helpers';
 import {
-  Compass, Search, Package, MapPin, ChevronRight,
+  Search, Package, MapPin, ChevronRight,
   Skull, ArrowRightLeft, AlertTriangle, Users, Map, Trophy, BookOpen,
   FileText, Zap, Dices, Home, ScrollText, MessageSquare, Settings, Pill, ChevronDown, HelpCircle
 } from 'lucide-react';
@@ -49,6 +50,8 @@ export default function ExplorationScreen() {
     randomizedLocationData: s.randomizedLocationData,
     currentSubArea: s.currentSubArea,
     npcsEncountered: s.npcsEncountered,
+    clearedRooms: s.clearedRooms,
+    foundRoomItems: s.foundRoomItems,
     explore: s.explore,
     travelTo: s.travelTo,
     searchArea: s.searchArea,
@@ -80,7 +83,7 @@ export default function ExplorationScreen() {
     isExploring,
     collectedDocuments, npcQuestProgress, readDocuments, randomizerMode,
     randomizedLocationData, currentSubArea, npcsEncountered,
-    explore, travelTo, searchArea, handleEventChoice, closeEvent,
+    clearedRooms, foundRoomItems, explore, travelTo, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
     toggleSettings, toggleHelp, handleDynamicEventChoice, enterSafeRoom, quickHeal,
@@ -131,6 +134,13 @@ export default function ExplorationScreen() {
   }, [selectedChar]);
 
   if (!location) return null;
+
+  // Room system: get current room data (must be before search counter calculation)
+  const currentRoom = (location.rooms && location.rooms.length > 0 && currentRoomId)
+    ? location.rooms.find(r => r.id === currentRoomId)
+    : null;
+  const locationHasRooms = !!location.rooms && location.rooms.length > 0;
+
   // searchMax: DB config (null=random 1-3, 0=unlimited) → searchMaxes: runtime state
   const effectiveMax = searchMaxes[currentLocationId]
     ?? (location.searchMax != null ? (location.searchMax === 0 ? Infinity : location.searchMax) : 0);
@@ -149,9 +159,31 @@ export default function ExplorationScreen() {
     n => n.locationId === currentLocationId && npcsEncountered.includes(n.id)
   );
 
-  // Search counter display
-  const searchCount = searchCounts[currentLocationId] || 0;
-  const searchBadge = effectiveMax === Infinity ? '∞' : `${searchCount}/${effectiveMax}`;
+  // Search counter display — room-aware: use searchKey based on room
+  const roomSearchKey = currentRoom ? `${currentLocationId}__${currentRoom.id}` : currentLocationId;
+  const searchCount = searchCounts[roomSearchKey] || 0;
+  const foundItemsArr = foundRoomItems[roomSearchKey] || [];
+  // Calculate total findable items = items in pool (excluding keys already owned) + uncollected docs in room
+  const roomDocs = Object.values(DOCUMENTS_DATA).filter((d: any) => {
+    if (d.locationId !== currentLocationId) return false;
+    if (collectedDocuments.includes(d.id)) return false;
+    if (d.roomId && currentRoom && d.roomId !== currentRoom.id) return false;
+    if (!d.roomId) return false;
+    return true;
+  });
+  const partyItemIds = new Set(party.flatMap(p => p.inventory.map(i => i.itemId)));
+  const roomItemPool = currentRoom?.itemPool || [];
+  const findableItemCount = roomItemPool.filter((e: any) => !(getKeyItemIds().has(e.itemId) && partyItemIds.has(e.itemId))).length;
+  const totalFindable = findableItemCount + roomDocs.length;
+  const searchExhaustedRoom = foundItemsArr.length >= totalFindable && totalFindable > 0;
+  // Location-level search exhausted check (legacy, for non-room locations)
+  const locationSearchExhausted = !currentRoom && (searchCounts[currentLocationId] || 0) >= effectiveMax && effectiveMax > 0;
+  const searchDisabled = searchExhaustedRoom || locationSearchExhausted;
+  const searchBadge = totalFindable === 0
+    ? (effectiveMax === Infinity ? '∞' : `${searchCount}/${effectiveMax}`)
+    : foundItemsArr.length >= totalFindable
+      ? '✓'
+      : `${foundItemsArr.length}/${totalFindable}`;
 
   // If in safe room, show SafeRoomPanel instead of exploration
   if (currentSubArea === 'safe_room') {
@@ -167,19 +199,13 @@ export default function ExplorationScreen() {
   const hasLegacySafeRoom = !location.isBossArea && !!location.subAreas?.some(sa => sa.id === 'safe_room');
   const hasSafeRoom = hasRoomSafeRoom || hasLegacySafeRoom;
 
-  // Room system: get current room data
-  const currentRoom = (location.rooms && location.rooms.length > 0 && currentRoomId)
-    ? location.rooms.find(r => r.id === currentRoomId)
-    : null;
-  const locationHasRooms = !!location.rooms && location.rooms.length > 0;
-
   return (
     <div className="h-dvh sm:h-screen game-horror flex flex-col overflow-hidden" role="main" aria-label="Schermata esplorazione">
       {/* Location Header with Background */}
       <div className="relative h-28 sm:h-44 shrink-0 overflow-hidden border-b border-white/[0.06]">
         <div
           className="absolute inset-0 bg-cover bg-center transition-all duration-700"
-          style={{ backgroundImage: `url('${location.backgroundImage}')` }}
+          style={{ backgroundImage: `url('${currentRoom?.backgroundImage ? `/api/media/image?id=${encodeURIComponent(currentRoom.backgroundImage)}` : location.backgroundImage}')` }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/30" />
         
@@ -539,17 +565,34 @@ export default function ExplorationScreen() {
               const isActionBlocked = !!(activeEvent || activeDynamicEvent || activeNpc);
               return (
               <div className={`grid grid-cols-3 sm:grid-cols-3 gap-1 sm:gap-2 ${isActionBlocked ? 'opacity-40 pointer-events-none' : ''}`}>
-              <Button
-                onClick={explore}
-                disabled={aliveParty.length === 0 || isActionBlocked || isExploring}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-                aria-label="Esplora area"
+              {/* Room Status Badge (replaces Esplora button) */}
+              <Badge
+                className={`flex items-center justify-center py-1.5 sm:py-2.5 rounded-lg text-[10px] sm:text-sm font-medium border ${
+                  currentRoom && (currentRoom.enemyPool?.length > 0) && !clearedRooms.includes(currentRoom.id)
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                    : currentRoom && clearedRooms.includes(currentRoom.id)
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : currentRoom
+                      ? 'bg-white/[0.06] border-white/10 text-white/50'
+                      : 'bg-white/[0.04] border-white/[0.06] text-white/30'
+                }`}
               >
-                <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Esplora
-              </Button>
+                {(() => {
+                  if (currentRoom && (currentRoom.enemyPool?.length > 0) && !clearedRooms.includes(currentRoom.id)) {
+                    return <span>⚠️ Pericolo</span>;
+                  }
+                  if (currentRoom && clearedRooms.includes(currentRoom.id)) {
+                    return <span>✅ Stanza Sicura</span>;
+                  }
+                  if (currentRoom) {
+                    return <span>🏠 {currentRoom.icon}</span>;
+                  }
+                  return null;
+                })()}
+              </Badge>
               <Button
                 onClick={searchArea}
-                disabled={aliveParty.length === 0 || searchExhausted || isActionBlocked}
+                disabled={aliveParty.length === 0 || searchDisabled || isActionBlocked}
                 className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Cerca oggetti"
               >
@@ -687,7 +730,7 @@ export default function ExplorationScreen() {
               <div className="mt-2">
                 <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5 flex items-center gap-1.5">
                   <ChevronRight className="w-3 h-3" />
-                  Stanze ({location.rooms!.filter(r => exploredRooms.includes(r.id)).length}/{location.rooms!.length} esplorate)
+                  Stanze ({location.rooms!.filter(r => exploredRooms.includes(r.id)).length}/{location.rooms!.length} esplorate · {clearedRooms.filter(id => location.rooms!.some(r => r.id === id)).length} pulite)
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {location.rooms!.map(room => {
@@ -729,7 +772,9 @@ export default function ExplorationScreen() {
                       >
                         {isLocked && !hasKey ? '🔒' : room.icon}
                         <span className="ml-1">{room.name}</span>
-                        {isExplored && !isCurrent && <span className="ml-1 text-[8px] opacity-40">✓</span>}
+                        {clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] text-emerald-400">✅</span>}
+                        {room.enemyPool?.length > 0 && !clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] text-red-400">💀</span>}
+                        {isExplored && !isCurrent && !clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] opacity-40">✓</span>}
                         {isCurrent && <span className="ml-1 text-[8px]">●</span>}
                       </Button>
                     );

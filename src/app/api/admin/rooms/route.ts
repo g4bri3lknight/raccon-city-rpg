@@ -44,6 +44,12 @@ export async function GET(request: NextRequest) {
       sortOrder: r.sortOrder,
       mapRow: r.mapRow,
       mapCol: r.mapCol,
+      mapX: r.mapX,
+      mapY: r.mapY,
+      mapWidth: r.mapWidth,
+      mapHeight: r.mapHeight,
+      orientation: r.orientation,
+      backgroundImage: r.backgroundImage,
       createdAt: r.createdAt,
     }));
 
@@ -84,6 +90,12 @@ export async function POST(request: NextRequest) {
         sortOrder: Number(body.sortOrder) || 0,
         mapRow: body.mapRow != null ? Number(body.mapRow) : null,
         mapCol: body.mapCol != null ? Number(body.mapCol) : null,
+        mapX: body.mapX != null ? Number(body.mapX) : null,
+        mapY: body.mapY != null ? Number(body.mapY) : null,
+        mapWidth: Number(body.mapWidth) || 0,
+        mapHeight: Number(body.mapHeight) || 0,
+        orientation: body.orientation ?? 'auto',
+        backgroundImage: body.backgroundImage ?? '',
       },
     });
 
@@ -124,6 +136,12 @@ export async function PUT(request: NextRequest) {
     if (updateFields.sortOrder !== undefined) data.sortOrder = Number(updateFields.sortOrder) || 0;
     if (updateFields.mapRow !== undefined) data.mapRow = updateFields.mapRow != null ? Number(updateFields.mapRow) : null;
     if (updateFields.mapCol !== undefined) data.mapCol = updateFields.mapCol != null ? Number(updateFields.mapCol) : null;
+    if (updateFields.mapX !== undefined) data.mapX = updateFields.mapX != null ? Number(updateFields.mapX) : null;
+    if (updateFields.mapY !== undefined) data.mapY = updateFields.mapY != null ? Number(updateFields.mapY) : null;
+    if (updateFields.mapWidth !== undefined) data.mapWidth = Number(updateFields.mapWidth) || 0;
+    if (updateFields.mapHeight !== undefined) data.mapHeight = Number(updateFields.mapHeight) || 0;
+    if (updateFields.orientation !== undefined) data.orientation = updateFields.orientation;
+    if (updateFields.backgroundImage !== undefined) data.backgroundImage = updateFields.backgroundImage;
 
     const room = await db.gameRoom.update({
       where: { id },

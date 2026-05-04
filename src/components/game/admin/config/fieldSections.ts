@@ -11,6 +11,14 @@ export interface FieldSection {
   fieldKeys: string[];
   /** If true, section starts collapsed */
   defaultCollapsed?: boolean;
+  /** Conditionally hide this section based on form data */
+  hiddenWhen?: {
+    field: string;
+    /** Hide when the field has a truthy non-empty value */
+    hasValue?: boolean;
+    /** Hide when the field equals this exact value */
+    equals?: string;
+  };
 }
 
 export type SectionMap = Record<string, FieldSection[]>;
@@ -63,10 +71,11 @@ export const FIELD_SECTIONS: Partial<Record<TabId, FieldSection[]>> = {
     { id: 'equipment', label: 'Equipaggiamento', icon: '🎒', fieldKeys: ['startingItems'] },
   ],
   characters: [
-    { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'archetype', 'name', 'displayName', 'description', 'portraitEmoji', 'sortOrder'] },
-    { id: 'stats', label: 'Statistiche', icon: '📊', fieldKeys: ['maxHp', 'atk', 'def', 'spd'] },
-    { id: 'abilities', label: 'Abilità', icon: '⚡', fieldKeys: ['specialName', 'special2Name'] },
-    { id: 'passive', label: 'Passiva', icon: '🛡️', fieldKeys: ['passiveDescription'] },
+    { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'archetypeId', 'name', 'displayName', 'description', 'portraitEmoji', 'sortOrder'] },
+    { id: 'archetype-inherit', label: 'Eredità Archetipo', icon: '🔗', fieldKeys: [], hiddenWhen: { field: 'archetypeId', hasValue: false } },
+    { id: 'stats', label: 'Statistiche (Custom)', icon: '📊', fieldKeys: ['maxHp', 'atk', 'def', 'spd'], hiddenWhen: { field: 'archetypeId', hasValue: true } },
+    { id: 'abilities', label: 'Abilità (Custom)', icon: '⚡', fieldKeys: ['specialName', 'specialDescription', 'specialCost', 'special2Name', 'special2Description', 'special2Cost'], hiddenWhen: { field: 'archetypeId', hasValue: true } },
+    { id: 'passive', label: 'Passiva (Custom)', icon: '🛡️', fieldKeys: ['passiveDescription'], hiddenWhen: { field: 'archetypeId', hasValue: true } },
     { id: 'equipment', label: 'Equipaggiamento', icon: '🎒', fieldKeys: ['startingItems'] },
   ],
   locations: [
@@ -128,11 +137,34 @@ export const FIELD_SECTIONS: Partial<Record<TabId, FieldSection[]>> = {
 };
 
 /**
+ * Check if a section should be hidden based on form data and hiddenWhen condition.
+ */
+export function isSectionHidden(section: FieldSection, formData: Record<string, unknown>): boolean {
+  if (!section.hiddenWhen) return false;
+  const { field, hasValue, equals } = section.hiddenWhen;
+  const val = formData[field];
+  if (hasValue === true) {
+    // Hide when field has a truthy non-empty value
+    return !!val && val !== '';
+  }
+  if (hasValue === false) {
+    // Hide when field is falsy or empty
+    return !val || val === '';
+  }
+  if (equals !== undefined) {
+    return String(val) === equals;
+  }
+  return false;
+}
+
+/**
  * Distributes an array of FieldDefs into sections.
  * If FIELD_SECTIONS has a config for the given tab, uses it.
  * Otherwise, puts all fields in a single "Campi" section.
+ *
+ * @param formData Optional current form data — used to evaluate hiddenWhen conditions.
  */
-export function getSectionsForTab(tabId: TabId, fields: { key: string }[]): FieldSection[] {
+export function getSectionsForTab(tabId: TabId, fields: { key: string }[], formData?: Record<string, unknown>): FieldSection[] {
   const sections = FIELD_SECTIONS[tabId];
   if (!sections || sections.length === 0) {
     return [{ id: 'fields', label: 'Campi', icon: '📋', fieldKeys: [] }];
@@ -152,9 +184,14 @@ export function getSectionsForTab(tabId: TabId, fields: { key: string }[]): Fiel
     if (!explicitKeys.has(f.key)) catchAllKeys.push(f.key);
   }
 
-  // Return resolved sections
-  return sections.map((s, i) => ({
+  // Return resolved sections, filtering out hidden ones
+  const resolved = sections.map((s, i) => ({
     ...s,
     fieldKeys: i === catchAllIdx ? catchAllKeys : s.fieldKeys,
   }));
+
+  if (formData) {
+    return resolved.filter(s => !isSectionHidden(s, formData));
+  }
+  return resolved;
 }

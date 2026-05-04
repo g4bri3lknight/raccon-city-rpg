@@ -137,6 +137,7 @@ export const GAMEPLAY_SETTINGS_FIELDS: GameplaySettingDef[] = [
   { key: 'combat.fleeSpdWeight', label: 'Fuga: Peso SPD', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 20, step: 1, helpText: '% fuga per ogni punto SPD di differenza con il nemico' },
   { key: 'combat.fleeMinChance', label: 'Fuga: Min (%)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 100, step: 1, helpText: 'Probabilità minima di fuga anche con nemici molto più veloci' },
   { key: 'combat.fleeMaxChance', label: 'Fuga: Max (%)', type: 'number', group: 'combat', groupLabel: '⚔️ Combattimento', min: 0, max: 100, step: 1, helpText: 'Probabilità massima di fuga anche con party molto più veloce' },
+  { key: 'combat.fleeBehavior', label: 'Comportamento Fuga', type: 'select', options: ['return', 'stay', 'retry'], enumGroup: 'fleeBehavior', group: 'combat', groupLabel: '⚔️ Combattimento', defaultValue: 'return', helpText: 'Cosa succede quando il giocatore fugge: "Ritorna" = torna alla stanza precedente, "Resta" = rimane ma stanza sicura temporaneamente, "Riprova" = i nemici restano e il combattimento riprende' },
   { key: 'combat.autoUseItems', label: 'AI usa oggetti', type: 'toggle', group: 'combat', groupLabel: '⚔️ Combattimento', helpText: 'Se attivo, il combattimento automatico usa pozze e oggetti di cura quando necessario' },
 
   // ── New Game+ ──

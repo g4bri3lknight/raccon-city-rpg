@@ -76,11 +76,14 @@ model Document {
   content         String
   type            String   // diary | umbrella_file | note | photo | report | email
   locationId      String
+  roomId          String?
   icon            String   @default("")
   rarity          String   @default("common")
   isSecret        Boolean  @default(false)
   hintRequired    String?
   createdAt       DateTime @default(now())
+  @@index([roomId])
+  @@index([locationId])
   @@map("documents")
 }
 
@@ -136,6 +139,8 @@ model GameLocation {
   // Map layout fields (optional, for GameMap visual positioning)
   mapRow          Int?
   mapCol          Int?
+  mapX            Int?      // Free-form X position (pixels) for visual map editor
+  mapY            Int?      // Free-form Y position (pixels) for visual map editor
   mapIcon         String?
   mapDanger       Int      @default(0)   // resolved danger level 0-3 (always calculated, even for auto)
   mapDangerAuto   Boolean  @default(false) // true = auto-calculated from enemy pool
@@ -168,6 +173,12 @@ model GameRoom {
   // Map layout within the location's room grid
   mapRow          Int?
   mapCol          Int?
+  mapX            Int?                         // Free-form X position (pixels) for visual map editor
+  mapY            Int?                         // Free-form Y position (pixels) for visual map editor
+  mapWidth        Int      @default(0)          // Visual width override (0 = auto based on room type)
+  mapHeight       Int      @default(0)          // Visual height override (0 = auto based on room type)
+  orientation     String   @default("auto")   // auto | horizontal | vertical (visual shape on map for corridors)
+  backgroundImage String   @default("")
   createdAt       DateTime @default(now())
 
   location        GameLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)

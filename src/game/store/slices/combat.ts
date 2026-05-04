@@ -174,15 +174,55 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       }
 
       if (canFlee) {
-        set({
-          phase: 'exploration',
-          combat: null,
-          enemies: [],
-          party: cleanCombatStatusEffects(state.party),
-          messageLog: [...state.messageLog, `[${state.turnCount}] 🏃 Fuga riuscita!${hasNemesis ? ' 💀 Ma NEMESIS vi rintraccerà...' : ''}`],
-          // FIX: Fleeing from Nemesis caps pursuit at level 4 (max without permanent defeat)
-          ...(hasNemesis && state.nemesisPursuitLevel < 4 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
-        });
+        const fleeBehavior: string = (COMBAT_CONFIG as any).fleeBehavior || 'return';
+        const roomHistory = state.roomHistory || [];
+
+        if (fleeBehavior === 'return' && roomHistory.length > 0) {
+          // Return to previous room
+          const previousRoomId = roomHistory[roomHistory.length - 1];
+          const location = LOCATIONS[state.currentLocationId];
+          const previousRoom = location?.rooms?.find(r => r.id === previousRoomId);
+
+          set({
+            phase: 'exploration',
+            combat: null,
+            enemies: [],
+            party: cleanCombatStatusEffects(state.party),
+            currentRoomId: previousRoomId,
+            roomHistory: roomHistory.slice(0, -1), // pop the previous room from history
+            combatRoomId: null,
+            messageLog: [
+              ...state.messageLog,
+              `[${state.turnCount}] 🏃 Fuga riuscita! Ti sei ritirato${previousRoom ? ` in ${previousRoom.icon || '🚪'} ${previousRoom.name}` : ''}.`,
+            ],
+          });
+        } else if (fleeBehavior === 'retry') {
+          // Enemies remain — room stays uncleared, combat just ends
+          // Player stays in current room but combat ends. If they re-enter combat, enemies respawn.
+          set({
+            phase: 'exploration',
+            combat: null,
+            enemies: [],
+            party: cleanCombatStatusEffects(state.party),
+            // Don't clear combatRoomId — room stays uncleared, enemies will respawn on next entry
+            messageLog: [
+              ...state.messageLog,
+              `[${state.turnCount}] 🏃 Fuga riuscita! Ma i nemici sono ancora ${roomHistory.length > 0 ? 'nella stanza' : 'nelle vicinanze'}...`,
+            ],
+          });
+        } else {
+          // 'stay' — default behavior, room becomes temporarily safe until re-entry
+          set({
+            phase: 'exploration',
+            combat: null,
+            enemies: [],
+            party: cleanCombatStatusEffects(state.party),
+            messageLog: [
+              ...state.messageLog,
+              `[${state.turnCount}] 🏃 Fuga riuscita! Ti sei allontanato momentaneamente.`,
+            ],
+          });
+        }
         return;
       } else {
         const newLog = [...state.combat.log, {
@@ -1040,6 +1080,14 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
       }
 
+      // ── Room cleared logic ──
+      let updatedClearedRooms = [...state.clearedRooms];
+      let roomClearMsgs: string[] = [];
+      if (state.combatRoomId && !updatedClearedRooms.includes(state.combatRoomId)) {
+        updatedClearedRooms = [...updatedClearedRooms, state.combatRoomId];
+        roomClearMsgs.push(`[${state.turnCount}] ✅ Stanza pulita! Nessun nemico rimarrà qui.`);
+      }
+
       if (updatedEnemies.some(e => e.isBoss)) {
         set({
           notification: {
@@ -1057,12 +1105,15 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           messageLog: [
             ...state.messageLog,
             `[${state.turnCount}] ⚔️ Boss eliminato. Sei sopravvissuto. +${totalExp}${bonusExp > 0 ? `+${bonusExp}` : ''} EXP`,
+            ...roomClearMsgs,
             ...levelUpMessages,
             ...questLogMsgs,
           ],
           bestiary: victoryBestiary,
           npcQuestProgress: updatedNpcQuestProgress,
           nemesisPursuitLevel: newNemesisPursuitLevel,
+          clearedRooms: updatedClearedRooms,
+          combatRoomId: null,
         });
         setTimeout(() => {
           // Auto-save after boss victory before transitioning
@@ -1088,12 +1139,15 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         messageLog: [
           ...state.messageLog,
           `[${state.turnCount}] ⚔️ Sei sopravvissuto allo scontro. +${totalExp}${bonusExp > 0 ? `+${bonusExp}` : ''} EXP`,
+          ...roomClearMsgs,
           ...levelUpMessages,
           ...questLogMsgs,
         ],
         bestiary: victoryBestiary,
         npcQuestProgress: updatedNpcQuestProgress,
         nemesisPursuitLevel: newNemesisPursuitLevel,
+        clearedRooms: updatedClearedRooms,
+        combatRoomId: null,
       });
       setTimeout(() => {
         set({ phase: 'exploration', combat: null, enemies: [], notification: null });
@@ -1715,6 +1769,16 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         }
       }
       const isBoss = updatedEnemiesForStatus.some(e => e.isBoss);
+
+      // ── Room cleared logic ──
+      let autoClearedRooms = [...get().clearedRooms];
+      let autoRoomClearMsgs: string[] = [];
+      const autoCombatRoomId = get().combatRoomId;
+      if (autoCombatRoomId && !autoClearedRooms.includes(autoCombatRoomId)) {
+        autoClearedRooms = [...autoClearedRooms, autoCombatRoomId];
+        autoRoomClearMsgs.push(`[${get().turnCount}] ✅ Stanza pulita! Nessun nemico rimarrà qui.`);
+      }
+
       set({
         notification: {
           id: nextNotifId(),
@@ -1730,9 +1794,12 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         messageLog: [
           ...get().messageLog,
           `[${get().turnCount}] ⚔️ ${isBoss ? 'Boss eliminato' : 'Nemici sconfitti'}. +${totalExp}${dotBonusExp > 0 ? `+${dotBonusExp}` : ''} EXP`,
+          ...autoRoomClearMsgs,
           ...levelUpMessages,
         ],
         bestiary: victoryBestiary,
+        clearedRooms: autoClearedRooms,
+        combatRoomId: null,
       });
       setTimeout(() => {
         if (isBoss) {

@@ -71,6 +71,7 @@ const DEFAULTS: Record<string, { value: string; label: string; group: string; so
   'combat.fleeSpdWeight':         { value: '5',    label: 'Fuga: Peso Velocità',                group: 'combat', sortOrder: 341, helpText: 'Punti % fuga per ogni punto SPD in più/meno del nemico' },
   'combat.fleeMinChance':         { value: '10',   label: 'Fuga: Chance Minima (%)',             group: 'combat', sortOrder: 342, helpText: 'Probabilità minima di fuga anche se i nemici sono molto più veloci' },
   'combat.fleeMaxChance':         { value: '80',   label: 'Fuga: Chance Massima (%)',            group: 'combat', sortOrder: 343, helpText: 'Probabilità massima di fuga anche se il party è molto più veloce' },
+  'combat.fleeBehavior':           { value: 'return', label: 'Comportamento Fuga',                group: 'combat', sortOrder: 344, helpText: 'Cosa succede quando il giocatore fugge: return=torna indietro, stay=resta, retry=nemici restano' },
   'combat.autoUseItems':           { value: 'true', label: 'AI usa oggetti',                     group: 'combat', sortOrder: 321 },
 
   // ── New Game+ ──

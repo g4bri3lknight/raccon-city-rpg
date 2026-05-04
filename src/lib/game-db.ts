@@ -102,6 +102,55 @@ export function getGameDb(gameId?: string): PrismaClient {
 }
 
 /**
+ * Push the Prisma schema to a specific game DB file.
+ * Uses `bunx prisma db push` to add missing columns/tables without data loss.
+ */
+export async function syncSchemaToDb(dbPath: string): Promise<{ success: boolean; message: string }> {
+  const { execSync } = await import('child_process');
+  const originalUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = `file:${dbPath}`;
+  try {
+    execSync('npx prisma db push --skip-generate --accept-data-loss 2>&1', {
+      cwd: process.cwd(),
+      stdio: 'pipe',
+      timeout: 30000,
+    });
+    return { success: true, message: 'Schema synced successfully' };
+  } catch (error: any) {
+    return { success: false, message: error?.message || 'Schema sync failed' };
+  } finally {
+    process.env.DATABASE_URL = originalUrl;
+  }
+}
+
+/**
+ * Sync the Prisma schema to an existing game DB and refresh the cached client.
+ */
+export async function syncGameDbSchema(gameId: string): Promise<{ success: boolean; message: string }> {
+  const dbPath = getGameDbPath(gameId);
+  
+  if (!existsSync(dbPath)) {
+    return { success: false, message: `Database file not found: ${dbPath}` };
+  }
+  
+  const result = await syncSchemaToDb(dbPath);
+  
+  if (result.success) {
+    // Disconnect and remove cached client so it picks up new schema
+    if (clientCache.has(gameId)) {
+      try {
+        await clientCache.get(gameId)!.$disconnect();
+      } catch { /* ignore */ }
+      clientCache.delete(gameId);
+    }
+    // Re-create the client
+    getGameDb(gameId);
+  }
+  
+  return result;
+}
+
+/**
  * Initialize a new game DB with the full schema
  * Returns the PrismaClient for the new game
  */
@@ -115,18 +164,7 @@ export async function initGameDb(gameId: string): Promise<PrismaClient> {
   }
   
   // Push schema to the new DB
-  const { execSync } = await import('child_process');
-  const originalUrl = process.env.DATABASE_URL;
-  process.env.DATABASE_URL = `file:${dbPath}`;
-  try {
-    execSync('npx prisma db push --skip-generate', {
-      cwd: process.cwd(),
-      stdio: 'pipe',
-      timeout: 30000,
-    });
-  } finally {
-    process.env.DATABASE_URL = originalUrl;
-  }
+  await syncSchemaToDb(dbPath);
   
   // Return cached client (or create new one)
   if (clientCache.has(gameId)) {

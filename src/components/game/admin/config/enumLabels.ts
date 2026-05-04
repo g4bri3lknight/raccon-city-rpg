@@ -108,6 +108,11 @@ export const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: str
     '2':     { it: '🟠 Pericolosa', hint: 'Pericoloso, preparati al combattimento' },
     '3':     { it: '🔴 Mortale', hint: 'Molto pericoloso, rischio morte' },
   },
+  fleeBehavior: {
+    return: { it: '🔙 Ritorna alla stanza precedente', hint: 'Il giocatore torna nella stanza da cui è arrivato. I nemici nella stanza corrente respawnano al re-ingresso.' },
+    stay:   { it: '📍 Resta nella stanza', hint: 'Il giocatore rimane nella stanza ma i nemici scompaiono temporaneamente. Al re-ingresso i nemici tornano.' },
+    retry:  { it: '🔁 Nemici restano (Riprova)', hint: 'I nemici restano nella stanza. Se rientri, ricomincia il combattimento con gli stessi nemici.' },
+  },
   recipeCategory: {
     ammo:    { it: 'Munizioni' },
     healing: { it: 'Guarigione' },
@@ -117,6 +122,20 @@ export const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: str
     easy:   { it: 'Semplice' },
     medium: { it: 'Medio' },
     hard:   { it: 'Difficile' },
+  },
+  roomType: {
+    normal:    { it: 'Normale' },
+    safe_room: { it: 'Stanza Salvatica' },
+    boss_room: { it: 'Stanza Boss' },
+    secret:    { it: 'Stanza Segreta' },
+    shop:      { it: 'Negozio' },
+    puzzle:    { it: 'Stanza Puzzle' },
+    corridor:  { it: 'Corridoio' },
+  },
+  roomOrientation: {
+    auto:       { it: '⚙️ Automatico', hint: 'Dedotto dai collegamenti: orizzontale se collega sinistra/destra, verticale se collega sopra/sotto' },
+    horizontal: { it: '↔️ Orizzontale', hint: 'Rettangolo largo — ideale per corridoi che collegano stanze a sinistra/destra' },
+    vertical:   { it: '↕️ Verticale', hint: 'Rettangolo alto — ideale per corridoi che collegano stanze sopra/sotto' },
   },
 };
 

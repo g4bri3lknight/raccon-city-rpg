@@ -4,16 +4,18 @@ import { safeErrorResponse } from '@/lib/api-utils';
 
 interface PositionUpdate {
   id: string;
-  mapRow: number | null;
-  mapCol: number | null;
+  mapRow?: number | null;
+  mapCol?: number | null;
+  mapX?: number | null;
+  mapY?: number | null;
 }
 
 /**
  * PUT /api/admin/locations/batch-positions
  *
- * Batch-update map positions (mapRow + mapCol) for multiple locations
- * in a single transaction. Used by the visual map editor to save all
- * positions at once, avoiding race conditions from concurrent PUTs.
+ * Batch-update map positions for multiple locations
+ * in a single transaction. Supports both grid (mapRow/mapCol)
+ * and free-form (mapX/mapY) positioning.
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -32,8 +34,10 @@ export async function PUT(request: NextRequest) {
         db.gameLocation.update({
           where: { id: p.id },
           data: {
-            mapRow: p.mapRow ?? null,
-            mapCol: p.mapCol ?? null,
+            ...(p.mapRow !== undefined ? { mapRow: p.mapRow ?? null } : {}),
+            ...(p.mapCol !== undefined ? { mapCol: p.mapCol ?? null } : {}),
+            ...(p.mapX !== undefined ? { mapX: p.mapX ?? null } : {}),
+            ...(p.mapY !== undefined ? { mapY: p.mapY ?? null } : {}),
           },
         }),
       ),

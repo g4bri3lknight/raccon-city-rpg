@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronDown, Link2, Shield, Swords, Heart, Zap, Info } from 'lucide-react';
 import type { TabId } from './config/tabGroups';
 import type { FieldDef } from './config/fieldDefinitions';
 import { MEDIA_UPLOADS } from './shared';
@@ -9,6 +9,7 @@ import { getFieldColClass } from './fields';
 import { EntityLinkPreview } from './EntityLinkPreview';
 import { AdminTooltip } from './fields/AdminTooltip';
 import { getSectionsForTab } from './config/fieldSections';
+import { adminFetch } from '@/lib/admin-fetch';
 
 // Field editor components
 import {
@@ -45,6 +46,98 @@ import {
 
 // Re-export ItemBoxDefaultsEditor for external consumers (GameSettingsEditor)
 export { ItemBoxDefaultsEditor } from './fields';
+
+// ═══════════════════════════════════════════════════════════════
+// Archetype Inherit Banner — shows inherited stats when archetypeId is set
+// ═══════════════════════════════════════════════════════════════
+function ArchetypeInheritBanner({ archetypeId }: { archetypeId: string }) {
+  const [archetype, setArchetype] = useState<{
+    name: string; displayName: string; portraitEmoji: string;
+    maxHp: number; atk: number; def: number; spd: number;
+    passiveName: string; passiveDescription: string;
+    specialId: string; special2Id: string;
+    startingItems: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!archetypeId) return;
+    (async () => {
+      try {
+        const res = await adminFetch('/api/admin/archetypes');
+        if (!res.ok || cancelled) return;
+        const list = await res.json();
+        const found = list.find((a: { id: string }) => a.id === archetypeId);
+        if (found && !cancelled) setArchetype(found);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [archetypeId]);
+
+  if (!archetype) {
+    return (
+      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+        <div className="flex items-center gap-2 text-emerald-400 text-sm">
+          <Link2 className="w-4 h-4" />
+          <span className="font-medium">Archetipo selezionato: {archetypeId}</span>
+        </div>
+        <p className="text-emerald-300/50 text-xs mt-1">Il personaggio erediterà statistiche, abilità e passiva da questo archetipo.</p>
+      </div>
+    );
+  }
+
+  const startingItems = (() => {
+    try { return JSON.parse(archetype.startingItems || '[]'); } catch { return []; }
+  })();
+
+  return (
+    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+      <div className="flex items-center gap-2 text-emerald-400">
+        <Link2 className="w-4 h-4" />
+        <span className="font-semibold text-sm">Eredita da: {archetype.displayName || archetype.name}</span>
+        <span className="text-lg">{archetype.portraitEmoji}</span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="flex items-center gap-1.5 text-xs">
+          <Heart className="w-3 h-3 text-red-400" />
+          <span className="text-white/40">HP</span>
+          <span className="text-white/70 font-mono">{archetype.maxHp}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs">
+          <Swords className="w-3 h-3 text-amber-400" />
+          <span className="text-white/40">ATK</span>
+          <span className="text-white/70 font-mono">{archetype.atk}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs">
+          <Shield className="w-3 h-3 text-green-400" />
+          <span className="text-white/40">DEF</span>
+          <span className="text-white/70 font-mono">{archetype.def}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs">
+          <Zap className="w-3 h-3 text-purple-400" />
+          <span className="text-white/40">SPD</span>
+          <span className="text-white/70 font-mono">{archetype.spd}</span>
+        </div>
+      </div>
+
+      {archetype.passiveDescription && (
+        <div className="text-xs text-white/30 italic">✦ {archetype.passiveName ? `${archetype.passiveName}: ` : ''}{archetype.passiveDescription}</div>
+      )}
+
+      {startingItems.length > 0 && (
+        <div className="text-[11px] text-white/20">
+          🎒 {startingItems.length} oggetto/i iniziale/i dall&apos;archetipo
+        </div>
+      )}
+
+      <p className="text-emerald-300/40 text-[11px] flex items-center gap-1">
+        <Info className="w-3 h-3" />
+        Le sezioni Statistiche, Abilità e Passiva sono nascoste perché ereditate.
+      </p>
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // FieldContainer — wraps composite fields with label + grid span
@@ -384,7 +477,7 @@ export function EntityForm({
   return (
     <form id="entity-form" onSubmit={handleSubmit} className="space-y-4">
       {(() => {
-        const sections = getSectionsForTab(activeTab, fields);
+        const sections = getSectionsForTab(activeTab, fields, data);
         const fieldMap = new Map(fields.map(f => [f.key, f]));
 
         // Only one section with no config → flat layout (no accordion)
@@ -404,20 +497,33 @@ export function EntityForm({
                 .map(key => fieldMap.get(key))
                 .filter(Boolean) as FieldDef[];
 
+              // Special: archetype-inherit section shows banner instead of fields
+              if (section.id === 'archetype-inherit') {
+                const archetypeId = String(data.archetypeId || '');
+                if (!archetypeId) return null;
+                return (
+                  <div key={section.id}>
+                    <ArchetypeInheritBanner archetypeId={archetypeId} />
+                  </div>
+                );
+              }
+
               if (sectionFields.length === 0) return null;
 
               return (
-                <div key={section.id} className="border border-white/[0.06] rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setCollapsedSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
-                  >
-                    <span className="text-sm">{section.icon}</span>
-                    <span className="text-[13px] font-semibold text-white/60">{section.label}</span>
-                    <span className="text-[11px] text-white/20 ml-1">{sectionFields.length}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-white/30 ml-auto transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  </button>
+                <div key={section.id} className="border border-white/[0.06] rounded-lg">
+                  <div className="overflow-hidden rounded-t-lg">
+                    <button
+                      type="button"
+                      onClick={() => setCollapsedSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
+                    >
+                      <span className="text-sm">{section.icon}</span>
+                      <span className="text-[13px] font-semibold text-white/60">{section.label}</span>
+                      <span className="text-[11px] text-white/20 ml-1">{sectionFields.length}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-white/30 ml-auto transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                    </button>
+                  </div>
                   {!isCollapsed && (
                     <div className="px-4 pb-4 pt-1">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">

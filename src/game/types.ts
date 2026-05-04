@@ -523,6 +523,12 @@ export interface RoomDefinition {
   sortOrder: number;
   mapRow?: number;
   mapCol?: number;
+  mapX?: number;
+  mapY?: number;
+  mapWidth?: number;
+  mapHeight?: number;
+  orientation?: string;
+  backgroundImage?: string;
 }
 
 export interface LocationDefinition {
@@ -546,8 +552,10 @@ export interface LocationDefinition {
   searchMax?: number;    // max searches per location (null=random 1-3, 0=unlimited)
   // Map layout fields (optional, for GameMap visual positioning)
   shortName?: string;    // abbreviated name for map display
-  mapRow?: number;       // vertical position (0 = top)
-  mapCol?: number;       // horizontal position (0 = center, -1 = left, 1 = right)
+  mapRow?: number;       // vertical position (0 = top) — legacy grid
+  mapCol?: number;       // horizontal position — legacy grid
+  mapX?: number;         // free-form X position (pixels)
+  mapY?: number;         // free-form Y position (pixels)
   mapIcon?: string;      // emoji icon for map node
   mapDanger?: number;    // danger level 0-3 for visual color (always resolved, auto-calc at save time)
   // Room system: rooms within this location (loaded from DB)
@@ -811,10 +819,15 @@ export interface GameState {
   randomizedLocationData: RandomizedLocationData | null;
   // Room system: current room within a location
   currentRoomId: string | null;
+  roomHistory: string[];     // stack of room IDs visited (for flee-back)
   exploredRooms: string[];    // room IDs that have been visited
+  clearedRooms: string[];     // room IDs where all enemies have been defeated
+  foundRoomItems: Record<string, string[]>; // roomKey → itemIds already found (deterministic search)
   // Safe Room & Item Box
   currentSubArea: string | null;
   itemBoxItems: ItemInstance[];
+  // Track which room spawned current combat (for clearing after victory)
+  combatRoomId: string | null;
   searchedSafeRooms: string[]; // location/room IDs whose safe room has been searched
   // Document read tracking
   readDocuments: string[]; // document IDs that have been opened/read
@@ -898,6 +911,7 @@ export interface GameDocument {
   content: string;
   type: DocumentType;
   locationId: string;
+  roomId?: string;
   icon: string;
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
   isSecret: boolean;

@@ -10,6 +10,57 @@ function jsonStr(val: unknown, fallback: string): string {
 }
 
 /**
+ * When archetypeId is set, auto-fill character fields from the archetype.
+ * This ensures the game engine has all data it needs without changes.
+ */
+async function applyArchetypeInheritance(data: Record<string, unknown>): Promise<void> {
+  const archetypeId = data.archetypeId as string | null | undefined;
+  if (!archetypeId) return;
+
+  const archetype = await db.gameArchetype.findUnique({ where: { id: archetypeId } });
+  if (!archetype) return;
+
+  // Copy stats from archetype
+  data.maxHp = archetype.maxHp;
+  data.atk = archetype.atk;
+  data.def = archetype.def;
+  data.spd = archetype.spd;
+
+  // Resolve specials: archetype stores specialId (ID), character stores specialName (name)
+  if (archetype.specialId) {
+    const spec1 = await db.gameSpecial.findUnique({ where: { id: archetype.specialId } });
+    if (spec1) {
+      data.specialName = spec1.name;
+      data.specialDescription = spec1.description;
+      data.specialCost = spec1.cooldown;
+    }
+  }
+  if (archetype.special2Id) {
+    const spec2 = await db.gameSpecial.findUnique({ where: { id: archetype.special2Id } });
+    if (spec2) {
+      data.special2Name = spec2.name;
+      data.special2Description = spec2.description;
+      data.special2Cost = spec2.cooldown;
+    }
+  }
+
+  // Copy passive
+  data.passiveDescription = archetype.passiveDescription || '';
+
+  // Copy starting items (only if character doesn't have its own)
+  const charItems = data.startingItems;
+  const charItemsEmpty = !charItems || 
+    (typeof charItems === 'string' && (charItems === '[]' || charItems === '')) ||
+    (Array.isArray(charItems) && charItems.length === 0);
+  if (charItemsEmpty) {
+    data.startingItems = archetype.startingItems || '[]';
+  }
+
+  // Set fallback
+  data.archetypeFallback = archetype.name || 'custom';
+}
+
+/**
  * GET /api/admin/characters — list all characters from DB
  */
 export async function GET() {
@@ -59,11 +110,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'id, name and displayName are required' }, { status: 400 });
     }
 
+    // Auto-populate from archetype if archetypeId is set
+    await applyArchetypeInheritance(body);
+
     const character = await db.gameCharacter.create({
       data: {
         id: body.id,
         archetypeId: body.archetypeId || null,
-        archetypeFallback: body.archetype ?? 'custom',
+        archetypeFallback: body.archetypeFallback ?? body.archetype ?? 'custom',
         name: body.name,
         displayName: body.displayName,
         description: body.description ?? '',
@@ -102,10 +156,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    // Map frontend 'archetype' (string) back to DB 'archetypeFallback'
+    // Map frontend 'archetype' (string) back to DB 'archetypeFallback' (legacy compat)
     if (archetype !== undefined) {
       data.archetypeFallback = archetype;
     }
+
+    // Auto-populate from archetype if archetypeId is set
+    await applyArchetypeInheritance(data);
 
     // Coerce number fields from string to number
     if (data.maxHp !== undefined) data.maxHp = Number(data.maxHp) || 100;

@@ -24,6 +24,10 @@ interface MapNode {
   gridRow: number;
   isBoss: boolean;
   dangerLevel: number;
+  /** Free-form X position (pixels) */
+  mapX?: number;
+  /** Free-form Y position (pixels) */
+  mapY?: number;
 }
 
 interface ConnDef {
@@ -102,7 +106,12 @@ function offsetPoint(
 // ── Data builders ──
 function buildMapNodes(): MapNode[] {
   return Object.values(LOCATIONS)
-    .filter(loc => loc.mapRow != null && loc.mapRow >= 0)
+    .filter(loc => {
+      // Include locations with EITHER grid OR free-form positioning
+      const hasGrid = loc.mapRow != null && loc.mapRow >= 0;
+      const hasFree = loc.mapX != null && loc.mapY != null;
+      return hasGrid || hasFree;
+    })
     .map(loc => ({
       id: loc.id,
       name: loc.name,
@@ -113,6 +122,8 @@ function buildMapNodes(): MapNode[] {
       gridRow: (loc.mapRow ?? 0) + 1,
       isBoss: loc.isBossArea || false,
       dangerLevel: loc.mapDanger ?? 0,
+      mapX: loc.mapX,
+      mapY: loc.mapY,
     }))
     .sort((a, b) => a.row - b.row || a.gridCol - b.gridCol);
 }
@@ -173,10 +184,48 @@ export default function GameMap() {
   const mapNodes = useMemo(() => buildMapNodes(), [dataVersion]);
   const connections = useMemo(() => buildConnections(), [dataVersion]);
 
+  // ── Mode detection ──
+  const hasFreeForm = useMemo(
+    () => mapNodes.some(n => n.mapX != null && n.mapY != null),
+    [mapNodes],
+  );
+
+  // ── Filter nodes for active mode ──
+  const activeNodes = useMemo(
+    () => hasFreeForm
+      ? mapNodes.filter(n => n.mapX != null && n.mapY != null)
+      : mapNodes,
+    [mapNodes, hasFreeForm],
+  );
+
+  // ── Free-form canvas bounding box ──
+  const freeFormCanvas = useMemo(() => {
+    if (!hasFreeForm) return { width: 0, height: 0, offsetX: 0, offsetY: 0 };
+    const positioned = activeNodes as Array<MapNode & { mapX: number; mapY: number }>;
+    if (positioned.length === 0) return { width: 0, height: 0, offsetX: 0, offsetY: 0 };
+
+    const PADDING = 80;
+    const NODE_W = 185;
+    const NODE_H = 180;
+
+    const minX = Math.min(...positioned.map(n => n.mapX));
+    const minY = Math.min(...positioned.map(n => n.mapY));
+    const maxX = Math.max(...positioned.map(n => n.mapX));
+    const maxY = Math.max(...positioned.map(n => n.mapY));
+
+    const width = maxX - minX + NODE_W + PADDING * 2;
+    const height = maxY - minY + NODE_H + PADDING * 2;
+
+    return { width, height, offsetX: minX - PADDING, offsetY: minY - PADDING };
+  }, [hasFreeForm, activeNodes]);
+
   // ── Refs for SVG line calculation ──
   const gridRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Record<string, HTMLDivElement>>({});
   const [lines, setLines] = useState<ConnLine[]>([]);
+
+  // ── Ref for free-form scroll container ──
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // ── Helpers ──
   const hasKey = (keyId: string) =>
@@ -295,6 +344,18 @@ export default function GameMap() {
     return () => ro.disconnect();
   }, []);
 
+  // ── Scroll to current location in free-form mode ──
+  useEffect(() => {
+    if (!hasFreeForm || !mapOpen || !currentLocationId) return;
+    const timer = setTimeout(() => {
+      const nodeEl = nodeRefs.current[currentLocationId];
+      if (nodeEl && scrollContainerRef.current) {
+        nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [hasFreeForm, mapOpen, currentLocationId]);
+
   // ── Get outgoing connections for a node ──
   const getOutgoing = (nodeId: string) =>
     connections.filter(c => c.from === nodeId);
@@ -308,6 +369,277 @@ export default function GameMap() {
       case 'unlocked': return 'rgba(34,197,94,0.8)';
     }
   };
+
+  // ═══════════════════════════════════════════════════════════
+  // Shared: Node card renderer
+  // ═══════════════════════════════════════════════════════════
+
+  const renderNodeCard = (node: MapNode) => {
+    const isCurrent = currentLocationId === node.id;
+    const isVisited = visitedLocations.includes(node.id);
+    const outgoing = getOutgoing(node.id);
+
+    // Check if node has any locked outgoing connections we can unlock
+    const hasKeyForLocked = outgoing.some(c => {
+      const s = getConnStatus(c);
+      return s === 'locked_have_key';
+    });
+
+    return (
+      <motion.div
+        className={`
+          relative w-[100px] sm:w-[175px] rounded-lg border-2 p-1.5 sm:p-2.5 transition-all duration-300
+          ${nodeBorders[node.dangerLevel]}
+          ${nodeBgs[node.dangerLevel]}
+          ${nodeGlows[node.dangerLevel]}
+          ${isCurrent
+            ? 'ring-2 ring-red-500 ring-offset-1 ring-offset-gray-950 shadow-[0_0_20px_rgba(239,68,68,0.35)] scale-[1.04]'
+            : ''
+          }
+          ${!isVisited ? 'opacity-90' : ''}
+          ${hasKeyForLocked && !isCurrent ? 'ring-1 ring-yellow-600/40' : ''}
+        `}
+        whileHover={{ scale: isCurrent ? 1.04 : 1.03 }}
+      >
+        {/* Status badge row */}
+        <div className="flex items-center justify-between mb-0.5 min-h-[14px]">
+          {isCurrent ? (
+            <span className="flex items-center gap-0.5 text-[8px] sm:text-[10px] text-red-400 font-bold">
+              <MapPin className="w-2.5 h-2.5" /> QUI
+            </span>
+          ) : isVisited ? (
+            <span className="text-[8px] sm:text-[9px] text-green-400/80">
+              <CheckCircle2 className="w-2.5 h-2.5 inline mr-0.5" />Visitata
+            </span>
+          ) : (
+            <span className="text-[8px] sm:text-[9px] text-gray-500">Sconosciuta</span>
+          )}
+          {node.isBoss && (
+            <span className="text-[8px] sm:text-[9px] text-red-400 flex items-center gap-0.5">
+              <Skull className="w-3 h-3" /> Boss
+            </span>
+          )}
+        </div>
+
+        {/* Icon + Name */}
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <span className="text-lg sm:text-2xl leading-none">{node.icon}</span>
+          <div className="min-w-0">
+            <div className="text-[10px] sm:text-xs font-bold truncate leading-tight">
+              {node.shortName}
+            </div>
+            <div className="text-[7px] sm:text-[9px] opacity-50 truncate leading-tight hidden sm:block">
+              {node.name}
+            </div>
+          </div>
+        </div>
+
+        {/* Danger level bar */}
+        <div className="flex items-center gap-1 mt-1">
+          <div className="flex gap-px">
+            {[0, 1, 2, 3].map(lvl => (
+              <div
+                key={lvl}
+                className={`w-1.5 h-1.5 rounded-full ${
+                  lvl <= node.dangerLevel
+                    ? lvl <= 1 ? 'bg-yellow-500' : lvl <= 2 ? 'bg-orange-500' : 'bg-red-500'
+                    : 'bg-gray-700'
+                }`}
+              />
+            ))}
+          </div>
+          <span className="text-[7px] sm:text-[8px] opacity-50">
+            {dangerLabels[node.dangerLevel]}
+          </span>
+        </div>
+
+        {/* Outgoing connections */}
+        {outgoing.length > 0 && (
+          <div className="flex flex-wrap gap-0.5 mt-1.5 pt-1.5 border-t border-white/[0.06]">
+            {outgoing.map((conn, ci) => {
+              const toNode = mapNodes.find(n => n.id === conn.to);
+              const status = getConnStatus(conn);
+              const isLocked = status === 'locked_have_key' || status === 'locked_no_key';
+
+              return (
+                <div
+                  key={ci}
+                  className={`
+                    flex items-center gap-0.5 text-[7px] sm:text-[8px] px-1 sm:px-1.5 py-0.5 rounded-sm border
+                    ${status === 'free'
+                      ? 'border-gray-700/40 text-gray-400 bg-white/[0.02]'
+                      : status === 'unlocked'
+                        ? 'border-green-800/40 text-green-400/70 bg-green-950/15'
+                        : status === 'locked_have_key'
+                          ? 'border-yellow-700/60 text-yellow-300 bg-yellow-950/25 re-door-yellow'
+                          : 'border-red-700/50 text-red-300/80 bg-red-950/25 re-door-red'
+                    }
+                  `}
+                >
+                  <span className="shrink-0">{toNode?.icon || '?'}</span>
+                  <span className="truncate max-w-[35px] sm:max-w-[55px]">
+                    {toNode?.shortName || conn.to}
+                  </span>
+                  {status === 'locked_have_key' && (
+                    <Lock className="w-2 h-2 shrink-0 text-yellow-400" />
+                  )}
+                  {status === 'locked_no_key' && (
+                    <Lock className="w-2 h-2 shrink-0 text-red-400" />
+                  )}
+                  {status === 'unlocked' && (
+                    <Unlock className="w-2 h-2 shrink-0 text-green-500" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+    );
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // Shared: SVG connection lines overlay
+  // ═══════════════════════════════════════════════════════════
+
+  const svgOverlay = (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{ zIndex: 1 }}
+    >
+      <defs>
+        {/* Arrow markers for each status type — orient="auto-start-reverse" reverses on marker-start */}
+        <marker id="arrow-free" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(34,197,94,0.5)" />
+        </marker>
+        <marker id="arrow-unlocked" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(34,197,94,0.8)" />
+        </marker>
+        <marker id="arrow-locked-red" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(239,68,68,0.8)" />
+        </marker>
+        <marker id="arrow-locked-yellow" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(234,179,8,0.8)" />
+        </marker>
+
+        {/* Glow filters */}
+        <filter id="lock-glow-red" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="lock-glow-yellow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {lines.map(line => {
+        const isLockedRed = line.status === 'locked_no_key';
+        const isLockedYellow = line.status === 'locked_have_key';
+        const isLocked = isLockedRed || isLockedYellow;
+        const isUnlocked = line.status === 'unlocked';
+
+        const strokeColor =
+          line.status === 'free'
+            ? 'rgba(34,197,94,0.3)'
+            : isLockedRed
+              ? 'rgba(239,68,68,0.7)'
+              : isLockedYellow
+                ? 'rgba(234,179,8,0.7)'
+                : 'rgba(34,197,94,0.6)';
+
+        const dashArray =
+          line.status === 'free'
+            ? '8 5'
+            : isLocked
+              ? '10 4'
+              : undefined;
+
+        const blinkStyle =
+          isLockedRed
+            ? { animation: 're-line-blink-red 2s ease-in-out infinite' }
+            : isLockedYellow
+              ? { animation: 're-line-blink-yellow 2.5s ease-in-out infinite' }
+              : undefined;
+
+        const markerId =
+          line.status === 'free' ? 'arrow-free'
+          : isLockedRed ? 'arrow-locked-red'
+          : isLockedYellow ? 'arrow-locked-yellow'
+          : 'arrow-unlocked';
+
+        return (
+          <g key={line.id}>
+            {/* Glow layer for locked lines */}
+            {isLockedRed && (
+              <line
+                x1={`${line.x1}%`} y1={`${line.y1}%`}
+                x2={`${line.x2}%`} y2={`${line.y2}%`}
+                stroke="rgba(239,68,68,0.25)"
+                strokeWidth="6"
+                strokeLinecap="round"
+                filter="url(#lock-glow-red)"
+                style={{ animation: 're-line-blink-red 2s ease-in-out infinite' }}
+              />
+            )}
+            {isLockedYellow && (
+              <line
+                x1={`${line.x1}%`} y1={`${line.y1}%`}
+                x2={`${line.x2}%`} y2={`${line.y2}%`}
+                stroke="rgba(234,179,8,0.25)"
+                strokeWidth="6"
+                strokeLinecap="round"
+                filter="url(#lock-glow-yellow)"
+                style={{ animation: 're-line-blink-yellow 2.5s ease-in-out infinite' }}
+              />
+            )}
+
+            {/* Main line — edge-to-edge with arrow markers */}
+            <line
+              x1={`${line.x1}%`} y1={`${line.y1}%`}
+              x2={`${line.x2}%`} y2={`${line.y2}%`}
+              stroke={strokeColor}
+              strokeWidth={isLocked ? 2.5 : isUnlocked ? 2 : 1.5}
+              strokeLinecap="round"
+              strokeDasharray={dashArray}
+              style={blinkStyle}
+              markerEnd={`url(#${markerId})`}
+              markerStart={line.bidirectional ? `url(#${markerId})` : undefined}
+            />
+
+            {/* Lock icon at midpoint for locked connections */}
+            {isLocked && (
+              <text
+                x={`${(line.x1 + line.x2) / 2}%`}
+                y={`${(line.y1 + line.y2) / 2}%`}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize="14"
+                style={{
+                  animation: isLockedRed
+                    ? 're-line-blink-red 2s ease-in-out infinite'
+                    : 're-line-blink-yellow 2.5s ease-in-out infinite',
+                  filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.8))',
+                }}
+              >
+                🔒
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
 
   // ═══════════════════════════════════════════════════════════
   // Render
@@ -370,296 +702,84 @@ export default function GameMap() {
                 </span>
               </div>
 
-              {/* ── Map grid with SVG overlay ── */}
-              <div ref={gridRef} className="relative pb-2">
-
-                {/* SVG connection lines */}
-                <svg
-                  className="absolute inset-0 w-full h-full pointer-events-none"
-                  style={{ zIndex: 1 }}
-                >
-                  <defs>
-                    {/* Arrow markers for each status type — orient="auto-start-reverse" reverses on marker-start */}
-                    <marker id="arrow-free" viewBox="0 0 10 10" refX="9" refY="5"
-                            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                      <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(34,197,94,0.5)" />
-                    </marker>
-                    <marker id="arrow-unlocked" viewBox="0 0 10 10" refX="9" refY="5"
-                            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                      <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(34,197,94,0.8)" />
-                    </marker>
-                    <marker id="arrow-locked-red" viewBox="0 0 10 10" refX="9" refY="5"
-                            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                      <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(239,68,68,0.8)" />
-                    </marker>
-                    <marker id="arrow-locked-yellow" viewBox="0 0 10 10" refX="9" refY="5"
-                            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                      <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="rgba(234,179,8,0.8)" />
-                    </marker>
-
-                    {/* Glow filters */}
-                    <filter id="lock-glow-red" x="-50%" y="-50%" width="200%" height="200%">
-                      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                      <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
-                    <filter id="lock-glow-yellow" x="-50%" y="-50%" width="200%" height="200%">
-                      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
-                      <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
-                  </defs>
-
-                  {lines.map(line => {
-                    const isLockedRed = line.status === 'locked_no_key';
-                    const isLockedYellow = line.status === 'locked_have_key';
-                    const isLocked = isLockedRed || isLockedYellow;
-                    const isUnlocked = line.status === 'unlocked';
-
-                    const strokeColor =
-                      line.status === 'free'
-                        ? 'rgba(34,197,94,0.3)'
-                        : isLockedRed
-                          ? 'rgba(239,68,68,0.7)'
-                          : isLockedYellow
-                            ? 'rgba(234,179,8,0.7)'
-                            : 'rgba(34,197,94,0.6)';
-
-                    const dashArray =
-                      line.status === 'free'
-                        ? '8 5'
-                        : isLocked
-                          ? '10 4'
-                          : undefined;
-
-                    const blinkStyle =
-                      isLockedRed
-                        ? { animation: 're-line-blink-red 2s ease-in-out infinite' }
-                        : isLockedYellow
-                          ? { animation: 're-line-blink-yellow 2.5s ease-in-out infinite' }
-                          : undefined;
-
-                    const markerId =
-                      line.status === 'free' ? 'arrow-free'
-                      : isLockedRed ? 'arrow-locked-red'
-                      : isLockedYellow ? 'arrow-locked-yellow'
-                      : 'arrow-unlocked';
-
-                    return (
-                      <g key={line.id}>
-                        {/* Glow layer for locked lines */}
-                        {isLockedRed && (
-                          <line
-                            x1={`${line.x1}%`} y1={`${line.y1}%`}
-                            x2={`${line.x2}%`} y2={`${line.y2}%`}
-                            stroke="rgba(239,68,68,0.25)"
-                            strokeWidth="6"
-                            strokeLinecap="round"
-                            filter="url(#lock-glow-red)"
-                            style={{ animation: 're-line-blink-red 2s ease-in-out infinite' }}
-                          />
-                        )}
-                        {isLockedYellow && (
-                          <line
-                            x1={`${line.x1}%`} y1={`${line.y1}%`}
-                            x2={`${line.x2}%`} y2={`${line.y2}%`}
-                            stroke="rgba(234,179,8,0.25)"
-                            strokeWidth="6"
-                            strokeLinecap="round"
-                            filter="url(#lock-glow-yellow)"
-                            style={{ animation: 're-line-blink-yellow 2.5s ease-in-out infinite' }}
-                          />
-                        )}
-
-                        {/* Main line — edge-to-edge with arrow markers */}
-                        <line
-                          x1={`${line.x1}%`} y1={`${line.y1}%`}
-                          x2={`${line.x2}%`} y2={`${line.y2}%`}
-                          stroke={strokeColor}
-                          strokeWidth={isLocked ? 2.5 : isUnlocked ? 2 : 1.5}
-                          strokeLinecap="round"
-                          strokeDasharray={dashArray}
-                          style={blinkStyle}
-                          markerEnd={`url(#${markerId})`}
-                          markerStart={line.bidirectional ? `url(#${markerId})` : undefined}
-                        />
-
-                        {/* Lock icon at midpoint for locked connections */}
-                        {isLocked && (
-                          <text
-                            x={`${(line.x1 + line.x2) / 2}%`}
-                            y={`${(line.y1 + line.y2) / 2}%`}
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                            fontSize="14"
-                            style={{
-                              animation: isLockedRed
-                                ? 're-line-blink-red 2s ease-in-out infinite'
-                                : 're-line-blink-yellow 2.5s ease-in-out infinite',
-                              filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.8))',
-                            }}
-                          >
-                            🔒
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                </svg>
-
-                {/* Grid of location nodes */}
+              {/* ── Map rendering: free-form or legacy grid ── */}
+              {hasFreeForm ? (
+                /* ═══ FREE-FORM CANVAS MODE ═══ */
                 <div
-                  className="grid gap-x-2 sm:gap-x-4 gap-y-5 sm:gap-y-7"
-                  style={{
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    position: 'relative',
-                    zIndex: 2,
-                  }}
+                  ref={scrollContainerRef}
+                  className="overflow-auto inventory-scrollbar rounded-lg border border-white/[0.04]"
+                  style={{ maxHeight: '65vh' }}
                 >
-                  {mapNodes.map(node => {
-                    const isCurrent = currentLocationId === node.id;
-                    const isVisited = visitedLocations.includes(node.id);
-                    const outgoing = getOutgoing(node.id);
+                  <div
+                    ref={gridRef}
+                    className="relative rounded-lg"
+                    style={{
+                      width: freeFormCanvas.width,
+                      height: freeFormCanvas.height,
+                      minWidth: '100%',
+                      backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)',
+                      backgroundSize: '20px 20px',
+                      backgroundColor: '#0a0a12',
+                    }}
+                  >
+                    {/* SVG connection lines overlay */}
+                    {svgOverlay}
 
-                    // Check if node has any locked outgoing connections we can unlock
-                    const hasKeyForLocked = outgoing.some(c => {
-                      const s = getConnStatus(c);
-                      return s === 'locked_have_key';
-                    });
-
-                    // Alignment based on column
-                    const justifyClass =
-                      node.gridCol === 1
-                        ? 'justify-self-start'
-                        : node.gridCol === 3
-                          ? 'justify-self-end'
-                          : 'justify-self-center';
-
-                    return (
+                    {/* Absolutely positioned location nodes */}
+                    {activeNodes.map(node => (
                       <div
                         key={node.id}
                         ref={el => { if (el) nodeRefs.current[node.id] = el; }}
-                        className={`${justifyClass} relative z-10`}
-                        style={{ gridColumn: node.gridCol, gridRow: node.gridRow }}
+                        className="relative z-10"
+                        style={{
+                          position: 'absolute',
+                          left: (node.mapX ?? 0) - freeFormCanvas.offsetX,
+                          top: (node.mapY ?? 0) - freeFormCanvas.offsetY,
+                        }}
                       >
-                        <motion.div
-                          className={`
-                            relative w-[100px] sm:w-[175px] rounded-lg border-2 p-1.5 sm:p-2.5 transition-all duration-300
-                            ${nodeBorders[node.dangerLevel]}
-                            ${nodeBgs[node.dangerLevel]}
-                            ${nodeGlows[node.dangerLevel]}
-                            ${isCurrent
-                              ? 'ring-2 ring-red-500 ring-offset-1 ring-offset-gray-950 shadow-[0_0_20px_rgba(239,68,68,0.35)] scale-[1.04]'
-                              : ''
-                            }
-                            ${!isVisited ? 'opacity-90' : ''}
-                            ${hasKeyForLocked && !isCurrent ? 'ring-1 ring-yellow-600/40' : ''}
-                          `}
-                          whileHover={{ scale: isCurrent ? 1.04 : 1.03 }}
-                        >
-                          {/* Status badge row */}
-                          <div className="flex items-center justify-between mb-0.5 min-h-[14px]">
-                            {isCurrent ? (
-                              <span className="flex items-center gap-0.5 text-[8px] sm:text-[10px] text-red-400 font-bold">
-                                <MapPin className="w-2.5 h-2.5" /> QUI
-                              </span>
-                            ) : isVisited ? (
-                              <span className="text-[8px] sm:text-[9px] text-green-400/80">
-                                <CheckCircle2 className="w-2.5 h-2.5 inline mr-0.5" />Visitata
-                              </span>
-                            ) : (
-                              <span className="text-[8px] sm:text-[9px] text-gray-500">Sconosciuta</span>
-                            )}
-                            {node.isBoss && (
-                              <span className="text-[8px] sm:text-[9px] text-red-400 flex items-center gap-0.5">
-                                <Skull className="w-3 h-3" /> Boss
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Icon + Name */}
-                          <div className="flex items-center gap-1 sm:gap-1.5">
-                            <span className="text-lg sm:text-2xl leading-none">{node.icon}</span>
-                            <div className="min-w-0">
-                              <div className="text-[10px] sm:text-xs font-bold truncate leading-tight">
-                                {node.shortName}
-                              </div>
-                              <div className="text-[7px] sm:text-[9px] opacity-50 truncate leading-tight hidden sm:block">
-                                {node.name}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Danger level bar */}
-                          <div className="flex items-center gap-1 mt-1">
-                            <div className="flex gap-px">
-                              {[0, 1, 2, 3].map(lvl => (
-                                <div
-                                  key={lvl}
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    lvl <= node.dangerLevel
-                                      ? lvl <= 1 ? 'bg-yellow-500' : lvl <= 2 ? 'bg-orange-500' : 'bg-red-500'
-                                      : 'bg-gray-700'
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-[7px] sm:text-[8px] opacity-50">
-                              {dangerLabels[node.dangerLevel]}
-                            </span>
-                          </div>
-
-                          {/* Outgoing connections */}
-                          {outgoing.length > 0 && (
-                            <div className="flex flex-wrap gap-0.5 mt-1.5 pt-1.5 border-t border-white/[0.06]">
-                              {outgoing.map((conn, ci) => {
-                                const toNode = mapNodes.find(n => n.id === conn.to);
-                                const status = getConnStatus(conn);
-                                const isLocked = status === 'locked_have_key' || status === 'locked_no_key';
-
-                                return (
-                                  <div
-                                    key={ci}
-                                    className={`
-                                      flex items-center gap-0.5 text-[7px] sm:text-[8px] px-1 sm:px-1.5 py-0.5 rounded-sm border
-                                      ${status === 'free'
-                                        ? 'border-gray-700/40 text-gray-400 bg-white/[0.02]'
-                                        : status === 'unlocked'
-                                          ? 'border-green-800/40 text-green-400/70 bg-green-950/15'
-                                          : status === 'locked_have_key'
-                                            ? 'border-yellow-700/60 text-yellow-300 bg-yellow-950/25 re-door-yellow'
-                                            : 'border-red-700/50 text-red-300/80 bg-red-950/25 re-door-red'
-                                      }
-                                    `}
-                                  >
-                                    <span className="shrink-0">{toNode?.icon || '?'}</span>
-                                    <span className="truncate max-w-[35px] sm:max-w-[55px]">
-                                      {toNode?.shortName || conn.to}
-                                    </span>
-                                    {status === 'locked_have_key' && (
-                                      <Lock className="w-2 h-2 shrink-0 text-yellow-400" />
-                                    )}
-                                    {status === 'locked_no_key' && (
-                                      <Lock className="w-2 h-2 shrink-0 text-red-400" />
-                                    )}
-                                    {status === 'unlocked' && (
-                                      <Unlock className="w-2 h-2 shrink-0 text-green-500" />
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </motion.div>
+                        {renderNodeCard(node)}
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* ═══ LEGACY GRID MODE ═══ */
+                <div ref={gridRef} className="relative pb-2">
+                  {/* SVG connection lines overlay */}
+                  {svgOverlay}
+
+                  {/* Grid of location nodes */}
+                  <div
+                    className="grid gap-x-2 sm:gap-x-4 gap-y-5 sm:gap-y-7"
+                    style={{
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      position: 'relative',
+                      zIndex: 2,
+                    }}
+                  >
+                    {activeNodes.map(node => {
+                      // Alignment based on column
+                      const justifyClass =
+                        node.gridCol === 1
+                          ? 'justify-self-start'
+                          : node.gridCol === 3
+                            ? 'justify-self-end'
+                            : 'justify-self-center';
+
+                      return (
+                        <div
+                          key={node.id}
+                          ref={el => { if (el) nodeRefs.current[node.id] = el; }}
+                          className={`${justifyClass} relative z-10`}
+                          style={{ gridColumn: node.gridCol, gridRow: node.gridRow }}
+                        >
+                          {renderNodeCard(node)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* ── Key inventory summary ── */}
               <div className="mt-4 p-2 sm:p-3 rounded-lg glass-dark-inner">

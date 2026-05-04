@@ -32,37 +32,32 @@ import { rollVictoryCondition } from '../../data/victory-conditions';
 import { playLocationAmbient } from '../../engine/sounds';
 
 export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
+  // ── OBSERVE (was "explore") ──
+  // Simplified to just show ambient text about the current room/location.
+  // No combat, no items, no documents, no NPCs, no dynamic events.
   explore: () => {
     const state = get();
     if (state.isExploring) return;
     set({ isExploring: true });
+
     const location = LOCATIONS[state.currentLocationId];
     if (!location) {
       set({ isExploring: false });
       return;
     }
 
-    // Schedule auto-save every 5 turns (fires after current explore completes)
+    // Schedule auto-save every 5 turns
     if ((state.turnCount + 1) % 5 === 0 && state.phase === 'exploration' && state.party.length > 0) {
       setTimeout(() => { try { get().autoSave(); } catch {} }, 300);
     }
 
-    // Room system: get current room's data if in a room-based location
+    // Play location ambient sound
+    try { playLocationAmbient(state.currentLocationId); } catch {}
+
+    // Get current room's data if in a room-based location
     const currentRoom = (location.rooms && location.rooms.length > 0 && state.currentRoomId)
       ? location.rooms.find(r => r.id === state.currentRoomId)
       : null;
-
-    // #45 Randomizer: get effective enemy pool and encounter rate
-    const effectiveLoc = getEffectiveLocation(state.currentLocationId, state.randomizedLocationData);
-    // Room system: override enemy pool from current room if available
-    const roomEnemyPool = currentRoom?.enemyPool?.length ? currentRoom.enemyPool : [];
-    const enemyPool = roomEnemyPool.length > 0
-      ? roomEnemyPool
-      : (effectiveLoc?.enemyPool || location.enemyPool);
-    const encounterRate = effectiveLoc?.encounterRate ?? location.encounterRate;
-
-    // Play location ambient sound (#33)
-    try { playLocationAmbient(state.currentLocationId); } catch {}
 
     // Random ambient text (room-aware)
     const ambient = (currentRoom && currentRoom.ambientText?.length > 0)
@@ -70,496 +65,17 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       : location.ambientText?.length > 0
         ? location.ambientText[Math.floor(Math.random() * location.ambientText.length)]
         : `${currentRoom?.name || location.name} è silenziosa...`;
+
     const newLog = [...state.messageLog, `[${state.turnCount}] ${ambient}`];
 
-    // Check for combat encounter (skip if just resolved an event)
-    const shouldSkipEncounter = state.skipNextEncounter;
-    if (shouldSkipEncounter) {
-      set({ messageLog: newLog, turnCount: state.turnCount + 1, skipNextEncounter: false, isExploring: false });
-      return;
-    }
+    set({
+      messageLog: newLog,
+      turnCount: state.turnCount + 1,
+      isExploring: false,
+    });
 
-    if (Math.random() * 100 < encounterRate) {
-      const diff = getDifficultyConfig(state.difficulty, state.partySize);
-      // Spawn enemies scaled by party size and NG+ cycle
-      const ngMult = state.ngPlusEnemyMultiplier || 1;
-      const avgLevel = state.party.length > 0 ? Math.round(state.party.reduce((s, p) => s + p.level, 0) / state.party.length) : 1;
-      const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
-      const enemies: EnemyInstance[] = [];
-      if (enemyPool.length === 0) {
-        set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
-        return;
-      }
-      for (let i = 0; i < numEnemies; i++) {
-        const enemyId = enemyPool[Math.floor(Math.random() * enemyPool.length)];
-        enemies.push(createEnemyInstance(enemyId, diff.statMult * ngMult, avgLevel));
-      }
-
-      const enemyNames = enemies.map(e => e.name).join(', ');
-
-      // ── SECRET BOSS CHECK (proto_tyrant) ──
-      const defeatedTyrant = state.bestiary.some(b => b.enemyId === 'tyrant_boss' && b.defeated);
-      if (defeatedTyrant && state.currentLocationId === 'laboratory_entrance' && Math.random() < 0.15) {
-        const protoBoss = createEnemyInstance('proto_tyrant', diff.statMult * ngMult, avgLevel);
-        enemies.length = 0;
-        enemies.push(protoBoss);
-      }
-
-      const secretEnemyNames = enemies.map(e => e.name).join(', ');
-
-      // Show encounter notification first, then transition to combat
-      set({
-        messageLog: [...newLog, `[${state.turnCount}] ⚔️ Combattimento iniziato contro ${secretEnemyNames}!`],
-        notification: {
-          id: nextNotifId(),
-          type: 'encounter',
-          message: `Incontro: ${secretEnemyNames}`,
-          icon: '⚔️',
-          subMessage: 'Preparati al combattimento!',
-        },
-        isExploring: false,
-      });
-
-      // Delay combat start to show notification
-      setTimeout(() => {
-        const currentState = get();
-        // Determine turn order
-        const allActors = [
-          ...currentState.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
-          ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
-        ].sort((a, b) => {
-          const jitterA = Math.random() * 4;
-          const jitterB = Math.random() * 4;
-          return (b.spd + jitterB) - (a.spd + jitterA);
-        });
-        const firstActor = allActors[0];
-
-        // Update bestiary - mark enemies as encountered
-        const currentBestiary = [...currentState.bestiary];
-        for (const enemy of enemies) {
-          const existing = currentBestiary.find(b => b.enemyId === enemy.definitionId);
-          if (!existing) {
-            currentBestiary.push({ enemyId: enemy.definitionId, encountered: true, defeated: false, timesDefeated: 0 });
-          } else if (!existing.encountered) {
-            existing.encountered = true;
-          }
-        }
-
-        const vc = rollVictoryCondition(enemies);
-        set({
-          phase: 'combat',
-          enemies,
-          autoCombat: getAutoCombatDefault(),
-          combat: {
-            turn: 1,
-            playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
-            enemyOrder: allActors.filter(a => a.type === 'enemy').map(a => a.id),
-            fullTurnOrder: allActors.map(a => ({ id: a.id, type: a.type })),
-            currentActorId: firstActor.id,
-            currentActorType: firstActor.type,
-            selectedAction: null,
-            selectedTarget: null,
-            selectedItemUid: null,
-            isProcessing: false,
-            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Combattimento', message: `Incontro con ${secretEnemyNames}!` }],
-            isVictory: false,
-            isDefeat: false,
-            fled: false,
-            statusDurations: {},
-            specialCooldowns: {},
-            special2Cooldowns: {},
-            tauntTargetId: null,
-            activeEffects: [],
-            victoryCondition: vc,
-            comboCount: 0,
-            comboTargetId: null,
-            lastOffensiveAction: null,
-          },
-          notification: null,
-          bestiary: currentBestiary,
-        });
-
-        // If enemy goes first, trigger their action after a short delay
-        if (firstActor.type === 'enemy') {
-          setTimeout(() => get().advanceToNextActor(), 1400);
-        }
-      }, 1200);
-      return;
-    }
-
-    // ── NEMESIS INVASION CHECK (Persistent Pursuit) ──
-    const nemesisPursuitLevel = state.nemesisPursuitLevel;
-    const nemesisPermanentlyDefeated = nemesisPursuitLevel >= 5;
-    const turnsSinceLastSeen = state.nemesisLastSeenTurn > 0 ? state.turnCount - state.nemesisLastSeenTurn : 999;
-    const canNemesisAppear = state.turnCount >= 15 && !nemesisPermanentlyDefeated && turnsSinceLastSeen >= 10;
-
-    // Invasion chance scales with pursuit level (8% base + 3% per level)
-    if (canNemesisAppear && Math.random() < (0.08 + nemesisPursuitLevel * 0.03)) {
-      const diff = getDifficultyConfig(state.difficulty, state.partySize);
-      // Stronger Nemesis based on pursuit level
-      const nemesisStatMult = diff.statMult * (0.8 + 0.1 * nemesisPursuitLevel);
-      const avgLevel = state.party.length > 0 ? Math.round(state.party.reduce((s, p) => s + p.level, 0) / state.party.length) : 1;
-      const nemesis = createEnemyInstance('nemesis_boss', nemesisStatMult, avgLevel);
-
-      const pursuitLabel = nemesisPursuitLevel === 0 ? 'Primo Incontro' :
-        nemesisPursuitLevel === 1 ? 'Inseguimento' :
-        nemesisPursuitLevel === 2 ? 'Caccia Spietata' :
-        nemesisPursuitLevel === 3 ? 'Furia' :
-        nemesisPursuitLevel === 4 ? 'Rabbia Estrema' :
-        'Sconfitto';
-
-      set({
-        messageLog: [...newLog, `[${state.turnCount}] 💀 "S.T.A.R.S...." Un suono terrificante riecheggia... NEMESIS appare! [Livello Inseguimento: ${nemesisPursuitLevel + 1}/5 — ${pursuitLabel}]`],
-        turnCount: state.turnCount + 1,
-        notification: {
-          id: nextNotifId(),
-          type: 'encounter',
-          message: `💀 NEMESIS INVASIONE! [Lv.${nemesisPursuitLevel + 1}]`,
-          icon: '💀',
-          subMessage: `S.T.A.R.S... ${pursuitLabel}!`,
-        },
-        nemesisLastSeenLocation: state.currentLocationId,
-        nemesisLastSeenTurn: state.turnCount,
-        isExploring: false,
-      });
-
-      // Start QTE instead of going directly to combat —
-      // player gets a chance to dodge; failure triggers combat via completeQTE
-      setTimeout(() => {
-        get().startQTE('nemesis');
-      }, 1200);
-      return;
-    }
-
-    // ── DYNAMIC EVENT CHECK ──
-    if (!state.activeDynamicEvent) {
-      const allEvents = Object.values(DYNAMIC_EVENTS);
-      const eligibleEvents = allEvents.filter(e => {
-        if (state.turnCount < e.minTurn) return false;
-        if (e.locationIds.length > 0 && !e.locationIds.includes(state.currentLocationId)) return false;
-        return Math.random() * 100 < e.triggerChance;
-      });
-      if (eligibleEvents.length > 0) {
-        const event = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
-        set({
-          messageLog: [...newLog, `[${state.turnCount}] ${event.icon} ${event.onTriggerMessage}`],
-          turnCount: state.turnCount + 1,
-          activeDynamicEvent: event,
-          dynamicEventTurnsLeft: event.duration,
-          isExploring: false,
-        });
-        return;
-      }
-    }
-    // ── DYNAMIC EVENT TICK ──
-    else {
-      const evt = state.activeDynamicEvent;
-      const dmg = evt?.effect.damagePerTurn || 0;
-      let tickLog: string[] = [];
-      let updatedParty = [...state.party];
-      if (dmg > 0) {
-        updatedParty = updatedParty.map(p => ({
-          ...p,
-          // Skip dead party members — don't revive them with Math.max(1, ...)
-          currentHp: p.currentHp > 0 ? Math.max(1, p.currentHp - dmg) : 0,
-        }));
-        tickLog.push(`[${state.turnCount}] 💔 ${evt!.icon} ${dmg} danni a tutti (${state.dynamicEventTurnsLeft - 1} turni rimasti)`);
-      }
-      const newTurnsLeft = state.dynamicEventTurnsLeft - 1;
-      if (newTurnsLeft <= 0) {
-        tickLog.push(`[${state.turnCount}] ✅ ${evt!.onEndMessage}`);
-        // Track run stats: dynamic events survived
-        try { get().incrementRunStat('dynamicEventsSurvived'); } catch {}
-        const completedEventId = evt!.id;
-        set({
-          activeDynamicEvent: null,
-          dynamicEventTurnsLeft: 0,
-          party: updatedParty,
-          messageLog: [...newLog, ...tickLog],
-          turnCount: state.turnCount + 1,
-          isExploring: false,
-        });
-        get().checkEventChain(completedEventId);
-      } else {
-        set({
-          dynamicEventTurnsLeft: newTurnsLeft,
-          party: updatedParty,
-          messageLog: [...newLog, ...tickLog],
-          turnCount: state.turnCount + 1,
-          isExploring: false,
-        });
-      }
-      return;
-    }
-
-    // ── NPC ENCOUNTER CHECK ──
-    const locationNpcs = Object.values(NPCS).filter(n => n.locationId === state.currentLocationId);
-    const newNpcs = locationNpcs.filter(n => !state.npcsEncountered.includes(n.id));
-    if (newNpcs.length > 0 && Math.random() < 0.15) {
-      const npc = newNpcs[Math.floor(Math.random() * newNpcs.length)];
-      set({ isExploring: false });
-      get().encounterNpc(npc.id);
-      return;
-    }
-
-    // Check for random item find
-    // Room system: override item pool from current room if available
-    const roomItemPool = currentRoom?.itemPool?.length ? currentRoom.itemPool : [];
-    const effectiveItemPool = roomItemPool.length > 0
-      ? roomItemPool
-      : (effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity })));
-    if (Math.random() < 0.3 && effectiveItemPool.length > 0) {
-      // Filter out key items already in party inventory BEFORE selection
-      const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
-      const eligibleItems = effectiveItemPool.filter(entry =>
-        !(getKeyItemIds().has(entry.itemId) && partyItemIds.has(entry.itemId))
-      );
-      const availableItems = eligibleItems.filter(() => Math.random() * 100 < 50);
-      if (availableItems.length > 0) {
-        const foundEntry = availableItems[Math.floor(Math.random() * availableItems.length)];
-        const itemDef = ITEMS[foundEntry.itemId];
-        if (itemDef) {
-          if (itemDef.type === 'collectible') {
-            if (state.collectedRibbons >= 10) {
-              set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
-              return;
-            }
-            const newCount = state.collectedRibbons + 1;
-            set({
-              messageLog: [...newLog, `[${state.turnCount}] 🎀 Nastro d'Inchiostro trovato! (${newCount}/10)`],
-              turnCount: state.turnCount + 1,
-              collectedRibbons: newCount,
-              notification: {
-                id: nextNotifId(),
-                type: 'collectible_found' as const,
-                message: `Nastro d'Inchiostro`,
-                icon: '🎀',
-                itemId: 'ink_ribbon',
-                subMessage: `Collezionabili: ${newCount}/10`,
-              },
-              isExploring: false,
-            });
-            setTimeout(() => get().checkAchievements(), 100);
-            return;
-          }
-
-          // ── BAG: auto-equip only if inventory full, otherwise add as item ──
-          const addSlotsAmt = getAddSlotsAmount(itemDef.effects);
-          if (itemDef.type === 'bag' && addSlotsAmt !== null) {
-            const targetId = state.selectedCharacterId || state.party[0]?.id;
-            const targetChar = state.party.find(p => p.id === targetId);
-            const isFull = targetChar ? targetChar.inventory.length >= targetChar.maxInventorySlots : false;
-            const maxSlots = getMaxInventorySlots();
-
-            if (isFull && targetChar && targetChar.maxInventorySlots < maxSlots) {
-              // Auto-equip: expand slots immediately
-              const { updatedChar, expanded, oldSlots, newSlots } = applyAddSlotsToCharacter(targetChar, addSlotsAmt);
-              const updatedParty = state.party.map(p =>
-                p.id === targetId ? updatedChar : p
-              );
-              set({
-                messageLog: [...newLog,
-                  expanded
-                    ? `[${state.turnCount}] 🧳 ${targetChar.name} usa ${itemDef.name}! Inventario espanso: ${oldSlots} → ${newSlots} slot.`
-                    : `[${state.turnCount}] 🧳 ${itemDef.name} trovato, ma l'inventario è già al massimo (${maxSlots} slot).`,
-                ],
-                party: updatedParty,
-                turnCount: state.turnCount + 1,
-                notification: expanded ? {
-                  id: nextNotifId(),
-                  type: 'bag_expand',
-                  message: `Inventario espanso!`,
-                  icon: '🧳',
-                  itemId: foundEntry.itemId,
-                  subMessage: `${targetChar.name}: ${oldSlots} → ${newSlots} slot`,
-                  characterId: targetId,
-                } : null,
-                isExploring: false,
-              });
-            } else {
-              // Add to inventory as normal item
-              const bagItem: ItemInstance = {
-                uid: `bag_${Date.now()}`,
-                itemId: foundEntry.itemId,
-                name: itemDef.name,
-                description: itemDef.description,
-                type: itemDef.type,
-                rarity: itemDef.rarity,
-                icon: itemDef.icon,
-                usable: itemDef.usable,
-                equippable: itemDef.equippable,
-                effects: itemDef.effects,
-                quantity: foundEntry.quantity,
-              };
-              const updatedParty = state.party.map(p =>
-                p.id === targetId ? { ...p, inventory: [...p.inventory, bagItem] } : p
-              );
-              set({
-                messageLog: [...newLog, `[${state.turnCount}] 🧳 ${targetChar?.name || 'Qualcuno'} ha trovato ${itemDef.name}! (Usalo dall'inventario per espandere lo spazio)`],
-                party: updatedParty,
-                turnCount: state.turnCount + 1,
-                notification: {
-                  id: nextNotifId(),
-                  type: 'item_found',
-                  message: itemDef.name,
-                  icon: itemDef.icon,
-                  itemId: foundEntry.itemId,
-                  subMessage: `Ricevuto da ${targetChar?.name || 'qualcuno'}`,
-                  characterId: targetId,
-                },
-                isExploring: false,
-              });
-            }
-            return;
-          }
-
-          // ── KEY ITEM CHECK: prevent duplicate keys ──
-          if (getKeyItemIds().has(foundEntry.itemId)) {
-            const partyAlreadyHasKey = state.party.some(p =>
-              p.inventory.some(i => i.itemId === foundEntry.itemId)
-            );
-            if (partyAlreadyHasKey) {
-              set({ messageLog: [...newLog, `[${state.turnCount}] 🎒 Avete trovato ${itemDef.name}, ma ne avete già una copia.`], turnCount: state.turnCount + 1, isExploring: false });
-              return;
-            }
-          }
-
-          // ── NORMAL ITEM: add to inventory ──
-          const newItem: ItemInstance = {
-            uid: `${foundEntry.itemId}_${Date.now()}`,
-            itemId: foundEntry.itemId,
-            name: itemDef.name,
-            description: itemDef.description,
-            type: itemDef.type,
-            rarity: itemDef.rarity,
-            icon: itemDef.icon,
-            usable: itemDef.usable,
-            equippable: itemDef.equippable,
-        
-            effects: itemDef.effects,
-            quantity: foundEntry.quantity,
-          };
-
-          const targetId = state.selectedCharacterId || state.party[0]?.id;
-          let finder: typeof state.party[0] | null = null;
-          const updatedParty = state.party.map(p => {
-            if (!finder && p.id === targetId) {
-              const existingIdx = p.inventory.findIndex(i => i.itemId === foundEntry.itemId);
-              if (existingIdx >= 0) {
-                finder = p;
-                const updatedInv = [...p.inventory];
-                updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + foundEntry.quantity };
-                return { ...p, inventory: updatedInv };
-              }
-              if (p.inventory.length < p.maxInventorySlots) {
-                finder = p;
-                return { ...p, inventory: [...p.inventory, newItem] };
-              }
-            }
-            return p;
-          });
-          // Fallback: any party member with space
-          if (!finder) {
-            const fallbackParty = updatedParty.map(p => {
-              if (!finder && p.currentHp > 0) {
-                const existingIdx = p.inventory.findIndex(i => i.itemId === foundEntry.itemId);
-                if (existingIdx >= 0) {
-                  finder = p;
-                  const updatedInv = [...p.inventory];
-                  updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + foundEntry.quantity };
-                  return { ...p, inventory: updatedInv };
-                }
-                if (p.inventory.length < p.maxInventorySlots) {
-                  finder = p;
-                  return { ...p, inventory: [...p.inventory, newItem] };
-                }
-              }
-              return p;
-            });
-            set({
-              messageLog: [
-                ...newLog,
-                finder
-                  ? `[${state.turnCount}] 🎒 ${finder.name} ha trovato: ${itemDef.name}!`
-                  : `[${state.turnCount}] 🎒 Avete trovato ${itemDef.name}, ma gli inventari sono pieni.`,
-              ],
-              party: fallbackParty,
-              turnCount: state.turnCount + 1,
-              notification: finder ? {
-                id: nextNotifId(),
-                type: 'item_found',
-                message: itemDef.name,
-                icon: itemDef.icon,
-                itemId: foundEntry.itemId,
-                subMessage: `Ricevuto da ${finder.name}`,
-                characterId: finder.id,
-              } : null,
-              isExploring: false,
-            });
-          } else {
-            set({
-              messageLog: [...newLog, `[${state.turnCount}] 🎒 ${finder.name} ha trovato: ${itemDef.name}!`],
-              party: updatedParty,
-              turnCount: state.turnCount + 1,
-              notification: {
-                id: nextNotifId(),
-                type: 'item_found',
-                message: itemDef.name,
-                icon: itemDef.icon,
-                itemId: foundEntry.itemId,
-                subMessage: `Ricevuto da ${finder.name}`,
-                characterId: finder.id,
-              },
-              isExploring: false,
-            });
-          }
-          return;
-        }
-      }
-    }
-
-    // ── DOCUMENT DISCOVERY IN EXPLORE ──
-    const allLocationDocs = [
-      ...Object.values(DOCUMENTS).filter(d =>
-        d.locationId === state.currentLocationId &&
-        !state.collectedDocuments.includes(d.id)
-      ),
-    ];
-    if (allLocationDocs.length > 0 && Math.random() < 0.25) {
-      const doc = allLocationDocs[Math.floor(Math.random() * allLocationDocs.length)];
-      if (doc.hintRequired && !state.collectedDocuments.includes(doc.hintRequired)) {
-        set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
-        return;
-      }
-      const newDocs = [...state.collectedDocuments, doc.id];
-      // Track run stats: documents found
-      try { get().incrementRunStat('documentsFound'); } catch {}
-      set({
-        messageLog: [...newLog, `[${state.turnCount}] 📖 Documento trovato: "${doc.title}"`],
-        collectedDocuments: newDocs,
-        turnCount: state.turnCount + 1,
-        notification: {
-          id: nextNotifId(),
-          type: 'item_found',
-          message: doc.title,
-          icon: doc.icon,
-          subMessage: doc.type === 'umbrella_file' ? '📄 File Umbrella' : `📝 ${doc.type}`,
-        },
-        isExploring: false,
-      });
-      return;
-    }
-
-    set({ messageLog: newLog, turnCount: state.turnCount + 1, isExploring: false });
     // Track run stats: turns survived
     try { get().incrementRunStat('turnsSurvived'); } catch {}
-
-    // Check pending chain events
-    const pending = get().pendingChainEvent;
-    if (pending && get().turnCount >= pending.triggerTurn) {
-      get().triggerDynamicEvent(pending.eventId);
-      set({ pendingChainEvent: null });
-    }
   },
 
   travelTo: (locationId: string) => {
@@ -625,8 +141,11 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     }
 
     const turnIncrease = destination.encounterRate > 40 ? 2 : 1;
+
+    // Don't trigger location story events if location has rooms (rooms have their own events)
+    const destinationHasRooms = !!(destination.rooms && destination.rooms.length > 0);
     const eventAlreadyCompleted = state.completedEvents.includes(locationId);
-    const showEvent = destination.storyEvent && !eventAlreadyCompleted;
+    const showEvent = destination.storyEvent && !eventAlreadyCompleted && !destinationHasRooms;
 
     set({
       currentLocationId: locationId,
@@ -637,9 +156,9 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       unlockedPaths: newUnlockedPaths,
       visitedLocations: newVisited,
       party: updatedParty,
-      skipNextEncounter: true,
       currentSubArea: null,
       currentRoomId: null,
+      roomHistory: [],
     });
     // Track run stats: distance traveled
     try { get().incrementRunStat('distanceTraveled', turnIncrease); } catch {}
@@ -709,17 +228,157 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       newLog.push(`[${state.turnCount}] ${targetRoom.description}`);
     }
 
+    // ── Room types that should NOT spawn enemies ──
+    const NO_ENEMY_TYPES = ['safe_room', 'shop', 'puzzle', 'corridor'];
+    const hasEnemies = !!(targetRoom.enemyPool && targetRoom.enemyPool.length > 0);
+    const isCleared = state.clearedRooms.includes(roomId);
+    const shouldSpawnEnemies = hasEnemies
+      && !isCleared
+      && !NO_ENEMY_TYPES.includes(targetRoom.type);
+
+    // Schedule auto-save every 5 turns
+    if ((state.turnCount + 1) % 5 === 0 && state.phase === 'exploration' && state.party.length > 0) {
+      setTimeout(() => { try { get().autoSave(); } catch {} }, 300);
+    }
+
+    // Build room history: push current room to history stack before navigating
+    const newRoomHistory = state.currentRoomId
+      ? [...state.roomHistory, state.currentRoomId]
+      : state.roomHistory;
+
     // Increment turn for room navigation (minor cost)
     set({
       currentRoomId: roomId,
+      roomHistory: newRoomHistory,
       messageLog: newLog,
       turnCount: state.turnCount + 1,
       exploredRooms: newExploredRooms,
-      skipNextEncounter: true, // Don't encounter enemies immediately on room entry
       currentSubArea: null,
+      // Set combatRoomId so combat victory can mark room as cleared
+      ...(shouldSpawnEnemies ? { combatRoomId: roomId } : { combatRoomId: null }),
     });
 
-    // Check room story event
+    // ── Spawn enemies immediately on room entry if applicable ──
+    if (shouldSpawnEnemies) {
+      const enemyPool = targetRoom.enemyPool!;
+      const diff = getDifficultyConfig(state.difficulty, state.partySize);
+      const ngMult = state.ngPlusEnemyMultiplier || 1;
+      const avgLevel = state.party.length > 0
+        ? Math.round(state.party.reduce((s, p) => s + p.level, 0) / state.party.length)
+        : 1;
+      const numEnemies = diff.minEnemies + Math.floor(Math.random() * (diff.maxEnemies - diff.minEnemies + 1));
+
+      if (enemyPool.length === 0) {
+        return;
+      }
+
+      const enemies: EnemyInstance[] = [];
+      for (let i = 0; i < numEnemies; i++) {
+        const enemyId = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+        enemies.push(createEnemyInstance(enemyId, diff.statMult * ngMult, avgLevel));
+      }
+
+      const enemyNames = enemies.map(e => e.name).join(', ');
+
+      // Show encounter notification first, then transition to combat
+      set(state => ({
+        messageLog: [
+          ...state.messageLog,
+          `[${state.turnCount}] ⚔️ Combattimento iniziato contro ${enemyNames}!`,
+        ],
+        notification: {
+          id: nextNotifId(),
+          type: 'encounter',
+          message: `Incontro: ${enemyNames}`,
+          icon: '⚔️',
+          subMessage: 'Preparati al combattimento!',
+        },
+      }));
+
+      // Delay combat start to show notification
+      setTimeout(() => {
+        const currentState = get();
+        // Determine turn order
+        const allActors = [
+          ...currentState.party.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
+          ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
+        ].sort((a, b) => {
+          const jitterA = Math.random() * 4;
+          const jitterB = Math.random() * 4;
+          return (b.spd + jitterB) - (a.spd + jitterA);
+        });
+        const firstActor = allActors[0];
+
+        // Update bestiary - mark enemies as encountered
+        const currentBestiary = [...currentState.bestiary];
+        for (const enemy of enemies) {
+          const existing = currentBestiary.find(b => b.enemyId === enemy.definitionId);
+          if (!existing) {
+            currentBestiary.push({ enemyId: enemy.definitionId, encountered: true, defeated: false, timesDefeated: 0 });
+          } else if (!existing.encountered) {
+            existing.encountered = true;
+          }
+        }
+
+        const vc = rollVictoryCondition(enemies);
+        set({
+          phase: 'combat',
+          enemies,
+          autoCombat: getAutoCombatDefault(),
+          combat: {
+            turn: 1,
+            playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
+            enemyOrder: allActors.filter(a => a.type === 'enemy').map(a => a.id),
+            fullTurnOrder: allActors.map(a => ({ id: a.id, type: a.type })),
+            currentActorId: firstActor.id,
+            currentActorType: firstActor.type,
+            selectedAction: null,
+            selectedTarget: null,
+            selectedItemUid: null,
+            isProcessing: false,
+            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Combattimento', message: `Incontro con ${enemyNames}!` }],
+            isVictory: false,
+            isDefeat: false,
+            fled: false,
+            statusDurations: {},
+            specialCooldowns: {},
+            special2Cooldowns: {},
+            tauntTargetId: null,
+            activeEffects: [],
+            victoryCondition: vc,
+            comboCount: 0,
+            comboTargetId: null,
+            lastOffensiveAction: null,
+          },
+          notification: null,
+          bestiary: currentBestiary,
+        });
+
+        // If enemy goes first, trigger their action after a short delay
+        if (firstActor.type === 'enemy') {
+          setTimeout(() => get().advanceToNextActor(), 1400);
+        }
+      }, 1200);
+      return;
+    }
+
+    // ── If room is already cleared, show a safe message ──
+    if (isCleared && hasEnemies) {
+      newLog.push(`[${state.turnCount}] ✅ Stanza pulita. Nessun nemico qui.`);
+      set(state => ({ messageLog: [...state.messageLog, newLog[newLog.length - 1]] }));
+    }
+
+    // ── Check for NPCs in room (non-random, first un-encountered) ──
+    if (targetRoom.npcIds && targetRoom.npcIds.length > 0) {
+      const unEncountered = targetRoom.npcIds.filter(npcId => !state.npcsEncountered.includes(npcId));
+      if (unEncountered.length > 0) {
+        set(state => ({ isExploring: false }));
+        get().encounterNpc(unEncountered[0]);
+        return;
+      }
+    }
+
+    // ── Check room story event ──
     if (targetRoom.storyEvent) {
       const roomEventKey = `room_${roomId}`;
       if (!state.completedEvents.includes(roomEventKey)) {
@@ -737,62 +396,24 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     const location = LOCATIONS[state.currentLocationId];
     if (!location) return;
     const locId = state.currentLocationId;
-    const searchCount = state.searchCounts[locId] || 0;
 
     // Room system: get current room's data if in a room-based location
     const currentRoom = (location.rooms && location.rooms.length > 0 && state.currentRoomId)
       ? location.rooms.find(r => r.id === state.currentRoomId)
       : null;
 
-    const effectiveLoc = getEffectiveLocation(locId, state.randomizedLocationData);
-    // Room system: override item pool from current room if available
-    const roomItemPool = currentRoom?.itemPool?.length ? currentRoom.itemPool : [];
-    const effectiveItemPool = roomItemPool.length > 0
-      ? roomItemPool
-      : (effectiveLoc?.itemPool || location.itemPool.map(e => ({ itemId: e.itemId, chance: e.chance, quantity: e.quantity })));
+    // Room-aware search key: each room has independent search tracking
+    const searchKey = currentRoom ? `${locId}__${currentRoom.id}` : locId;
+    const searchCount = state.searchCounts[searchKey] || 0;
+    const foundItems = state.foundRoomItems[searchKey] || [];
 
     // Track run stats: searches performed
     try { get().incrementRunStat('searchesPerformed'); } catch {}
 
-    // Room system: override search config from current room if available
-    const baseSearchChance = currentRoom?.searchChance ?? location.searchChance ?? 60;
-    const baseDocChance = location.docChance ?? 35;
-    const locSearchMax = currentRoom?.searchMax ?? location.searchMax;
-
-    const activeEvent = state.activeDynamicEvent || null;
-    const hasSearchBonus = activeEvent?.effect?.searchBonus === true;
-    const searchBoost = hasSearchBonus ? 20 : 0;
-
-    const effectiveSearchChance = Math.min(100, baseSearchChance + searchBoost);
-    const effectiveDocChance = Math.min(100, baseDocChance + searchBoost);
-
-    const maxSearches = state.searchMaxes[locId]
-      || (locSearchMax != null
-        ? (locSearchMax === 0 ? Infinity : locSearchMax)
-        : (Math.floor(Math.random() * 3) + 1));
-    const newSearchMaxes = state.searchMaxes[locId]
-      ? state.searchMaxes
-      : { ...state.searchMaxes, [locId]: maxSearches };
-
-    if (searchCount >= maxSearches) {
-      const emptyMessages = [
-        'Non trovate nulla di interessante.',
-        'La zona non ha più segreti da svelare.',
-        'Perlustrate ogni angolo, ma non c\'è più nulla.',
-        'Avete già controllato tutto a fondo.',
-      ];
-      const msg = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
-      set({
-        messageLog: [...state.messageLog, `[${state.turnCount}] 🔍 ${msg}`],
-        turnCount: state.turnCount + 1,
-      });
-      return;
-    }
+    const newSearchCounts = { ...state.searchCounts, [searchKey]: searchCount + 1 };
 
     const searcherName = state.party.find(p => p.id === state.selectedCharacterId)?.name || 'Qualcuno';
     const newLog = [...state.messageLog, `[${state.turnCount}] 🔍 ${searcherName} cerca nella zona...`];
-
-    const newSearchCounts = { ...state.searchCounts, [locId]: searchCount + 1 };
 
     const searchFlavourTexts = [
       `${searcherName} ispeziona gli scaffali...`,
@@ -803,45 +424,103 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     ];
     const flavourText = searchFlavourTexts[Math.floor(Math.random() * searchFlavourTexts.length)];
 
-    // ── PHASE 1: Miss check ──
-    if (Math.random() * 100 >= effectiveSearchChance) {
-      const missMessages = [
-        `${flavourText} Nulla di utile.`,
-        `${flavourText} Solo polvere e ragnatele.`,
-        `${flavourText} Niente che valga la pena prendere.`,
-        `${flavourText} Questa zona è già stata saccheggiata.`,
+    // ── Build the deterministic "findable list" ──
+    // 1. Items from room's itemPool (skip key items already in party inventory)
+    const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
+    const roomItemPool = currentRoom?.itemPool?.length ? currentRoom.itemPool : [];
+    const findableItems: string[] = [];
+    for (const entry of roomItemPool) {
+      if (getKeyItemIds().has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
+      if (!foundItems.includes(entry.itemId)) {
+        findableItems.push(entry.itemId);
+      }
+    }
+
+    // 2. Documents scoped to this room (not yet collected)
+    const searchDocs = [
+      ...Object.values(DOCUMENTS).filter(d => {
+        if (d.locationId !== locId) return false;
+        if (state.collectedDocuments.includes(d.id)) return false;
+        // Documents WITH roomId only match if player is in that room
+        if (d.roomId && currentRoom && d.roomId !== currentRoom.id) return false;
+        // Documents WITHOUT roomId match if player is at this location
+        if (!d.roomId) return false; // In room system, only room-scoped docs are searchable
+        return true;
+      }),
+    ];
+    const findableDocIds = searchDocs.map(d => d.id);
+
+    // Total findable = items + documents not yet found
+    const allFindableIds = [...findableItems, ...findableDocIds];
+    const allFoundCount = foundItems.length;
+    const totalFindable = allFindableIds.length;
+
+    // Check if everything is exhausted
+    if (allFoundCount >= totalFindable && totalFindable > 0) {
+      const emptyMessages = [
+        'Non trovate nulla di interessante.',
+        'La zona non ha più segreti da svelare.',
+        'Perlustrate ogni angolo, ma non c\'è più nulla.',
+        'Avete già controllato tutto a fondo.',
       ];
-      const msg = missMessages[Math.floor(Math.random() * missMessages.length)];
+      const msg = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
       set({
-        messageLog: [...newLog, `[${state.turnCount}] ${msg}`],
+        messageLog: [...newLog, `[${state.turnCount}] 🔍 ${msg}`],
         turnCount: state.turnCount + 1,
         searchCounts: newSearchCounts,
-        searchMaxes: newSearchMaxes,
       });
       return;
     }
 
-    // ── PHASE 2: Roll items from pool ──
-    const partyItemIds = new Set(state.party.flatMap(p => p.inventory.map(i => i.itemId)));
-    const foundItems: string[] = [];
-    for (const entry of effectiveItemPool) {
-      if (getKeyItemIds().has(entry.itemId) && partyItemIds.has(entry.itemId)) continue;
-      if (Math.random() * 100 < entry.chance) {
-        foundItems.push(entry.itemId);
+    // ── Find the NEXT item/doc not yet found ──
+    // Priority: documents first, then items
+    let nextFindId: string | null = null;
+    let isDoc = false;
+
+    for (const doc of searchDocs) {
+      if (!foundItems.includes(doc.id)) {
+        if (doc.hintRequired && !state.collectedDocuments.includes(doc.hintRequired)) continue;
+        nextFindId = doc.id;
+        isDoc = true;
+        break;
+      }
+    }
+    if (!nextFindId) {
+      for (const itemId of findableItems) {
+        if (!foundItems.includes(itemId)) {
+          nextFindId = itemId;
+          break;
+        }
       }
     }
 
-    // ── PHASE 3: Document vs Items ──
-    const searchDocs = [
-      ...Object.values(DOCUMENTS).filter(d =>
-        d.locationId === locId &&
-        !state.collectedDocuments.includes(d.id) &&
-        (!d.hintRequired || state.collectedDocuments.includes(d.hintRequired))
-      ),
-    ];
-    if (searchDocs.length > 0 && Math.random() * 100 < effectiveDocChance) {
-      const doc = searchDocs[Math.floor(Math.random() * searchDocs.length)];
+    if (!nextFindId) {
+      const emptyMessages = [
+        'Non trovate nulla di interessante.',
+        'La zona non ha più segreti da svelare.',
+      ];
+      const msg = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] 🔍 ${msg}`],
+        turnCount: state.turnCount + 1,
+        searchCounts: newSearchCounts,
+      });
+      return;
+    }
+
+    // Track found items
+    const newFoundItems = [...foundItems, nextFindId];
+    const newFoundRoomItems = { ...state.foundRoomItems, [searchKey]: newFoundItems };
+
+    // ── DOCUMENT FOUND ──
+    if (isDoc) {
+      const doc = DOCUMENTS[nextFindId];
+      if (!doc) return;
+
       const newDocs = [...state.collectedDocuments, doc.id];
+      // Track run stats: documents found
+      try { get().incrementRunStat('documentsFound'); } catch {}
+
       // Some documents reveal hidden recipes
       const RECIPE_HINT_DOCS: Record<string, string[]> = {
         'doc_rpd_diary': ['craft_spray_super', 'craft_mega_bandage'],
@@ -861,15 +540,13 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           }
         }
       }
-      const docLog = newDiscoveredRecipes
-        ? [...newLog, `[${state.turnCount}] 📖 ${flavourText} ${searcherName} trova un documento: "${doc.title}"`]
-        : [...newLog, `[${state.turnCount}] 📖 ${flavourText} ${searcherName} trova un documento: "${doc.title}"`];
+
       set({
-        messageLog: docLog,
+        messageLog: [...newLog, `[${state.turnCount}] 📖 ${flavourText} ${searcherName} trova un documento: "${doc.title}"`],
         collectedDocuments: newDocs,
         turnCount: state.turnCount + 1,
         searchCounts: newSearchCounts,
-        searchMaxes: newSearchMaxes,
+        foundRoomItems: newFoundRoomItems,
         discoveredRecipes: newDiscoveredRecipes || state.discoveredRecipes,
         notification: {
           id: nextNotifId(),
@@ -883,381 +560,211 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       return;
     }
 
-    // ── PHASE 4: Award items ──
-    if (foundItems.length === 0) {
+    // ── ITEM FOUND ──
+    const itemDef = ITEMS[nextFindId];
+    if (!itemDef) return;
+
+    // ── Collectible (ink ribbon) ──
+    if (itemDef.type === 'collectible') {
+      if (state.collectedRibbons >= 10) {
+        set({
+          messageLog: [...newLog, `[${state.turnCount}] 🔍 ${flavourText} Non trovate nulla di utile qui.`],
+          turnCount: state.turnCount + 1,
+          searchCounts: newSearchCounts,
+          foundRoomItems: newFoundRoomItems,
+        });
+        return;
+      }
+      const newCount = state.collectedRibbons + 1;
       set({
-        messageLog: [...newLog, `[${state.turnCount}] ${flavourText} Non trovate nulla di utile qui.`],
+        messageLog: [...newLog, `[${state.turnCount}] 🎀 Nastro d'Inchiostro trovato! (${newCount}/10)`],
         turnCount: state.turnCount + 1,
+        collectedRibbons: newCount,
         searchCounts: newSearchCounts,
-        searchMaxes: newSearchMaxes,
+        foundRoomItems: newFoundRoomItems,
+        notification: {
+          id: nextNotifId(),
+          type: 'collectible_found' as const,
+          message: `Nastro d'Inchiostro`,
+          icon: '🎀',
+          itemId: 'ink_ribbon',
+          subMessage: `Collezionabili: ${newCount}/10`,
+        },
       });
+      setTimeout(() => get().checkAchievements(), 100);
       return;
     }
 
-    const targetId = state.selectedCharacterId || state.party[0]?.id;
-    let updatedParty = [...state.party];
-    const foundNames: string[] = [];
-    const foundNotifItems: { name: string; itemId: string; icon?: string }[] = [];
-    let lastNotif: GameNotification | null = null;
-    let newRibbonCount = state.collectedRibbons;
+    // ── BAG: auto-equip only if inventory full, otherwise add as item ──
+    const addSlotsAmt = getAddSlotsAmount(itemDef.effects);
+    if (itemDef.type === 'bag' && addSlotsAmt !== null) {
+      const targetId = state.selectedCharacterId || state.party[0]?.id;
+      const targetChar = state.party.find(p => p.id === targetId);
+      const isFull = targetChar ? targetChar.inventory.length >= targetChar.maxInventorySlots : false;
+      const maxSlots = getMaxInventorySlots();
 
-    for (const itemId of foundItems) {
-      const itemDef = ITEMS[itemId];
-      if (!itemDef) continue;
-
-      if (itemDef.type === 'collectible') {
-        if (newRibbonCount < 10) {
-          newRibbonCount += 1;
-          foundNames.push(`🎀 ${itemDef.name} (${newRibbonCount}/10)`);
-          lastNotif = {
+      if (isFull && targetChar && targetChar.maxInventorySlots < maxSlots) {
+        const { updatedChar, expanded, oldSlots, newSlots } = applyAddSlotsToCharacter(targetChar, addSlotsAmt);
+        const updatedParty = state.party.map(p =>
+          p.id === targetId ? updatedChar : p
+        );
+        set({
+          messageLog: [...newLog,
+            expanded
+              ? `[${state.turnCount}] 🧳 ${targetChar.name} usa ${itemDef.name}! Inventario espanso: ${oldSlots} → ${newSlots} slot.`
+              : `[${state.turnCount}] 🧳 ${itemDef.name} trovato, ma l'inventario è già al massimo (${maxSlots} slot).`,
+          ],
+          party: updatedParty,
+          turnCount: state.turnCount + 1,
+          searchCounts: newSearchCounts,
+          foundRoomItems: newFoundRoomItems,
+          notification: expanded ? {
             id: nextNotifId(),
-            type: 'collectible_found' as const,
-            message: itemDef.name,
-            icon: itemDef.icon,
-            itemId: 'ink_ribbon',
-            subMessage: `Collezionabili: ${newRibbonCount}/10`,
-          };
-        }
-        continue;
-      }
-
-      const targetChar = updatedParty.find(p => p.id === targetId);
-
-      const searchBagAmt = getAddSlotsAmount(itemDef.effects);
-      if (itemDef.type === 'bag' && searchBagAmt !== null) {
-        const isFull = targetChar ? targetChar.inventory.length >= targetChar.maxInventorySlots : false;
-        const maxSlots = getMaxInventorySlots();
-        if (isFull && targetChar && targetChar.maxInventorySlots < maxSlots) {
-          const { updatedChar, expanded, oldSlots, newSlots } = applyAddSlotsToCharacter(targetChar, searchBagAmt);
-          updatedParty = updatedParty.map(p =>
-            p.id === targetId ? updatedChar : p
-          );
-          foundNames.push(`${itemDef.name} (slot ${oldSlots}→${newSlots})`);
-          lastNotif = {
-            id: nextNotifId(),
-            type: 'bag_expand' as const,
+            type: 'bag_expand',
             message: `Inventario espanso!`,
             icon: '🧳',
-            itemId,
+            itemId: nextFindId,
             subMessage: `${targetChar.name}: ${oldSlots} → ${newSlots} slot`,
             characterId: targetId,
-          };
-        } else {
-          const bagItem: ItemInstance = {
-            uid: `bag_${Date.now()}_${Math.random()}`,
-            itemId,
-            name: itemDef.name,
-            description: itemDef.description,
-            type: itemDef.type,
-            rarity: itemDef.rarity,
-            icon: itemDef.icon,
-            usable: itemDef.usable,
-            equippable: itemDef.equippable,
-            effects: itemDef.effects,
-            quantity: 1,
-          };
-          updatedParty = updatedParty.map(p =>
-            p.id === targetId ? { ...p, inventory: [...p.inventory, bagItem] } : p
-          );
-          foundNames.push(itemDef.name);
-          foundNotifItems.push({ name: itemDef.name, itemId, icon: itemDef.icon });
-        }
-        continue;
-      }
-
-      if (getKeyItemIds().has(itemId)) {
-        const partyAlreadyHasKey = updatedParty.some(p =>
-          p.inventory.some(i => i.itemId === itemId)
+          } : null,
+        });
+      } else {
+        const bagItem: ItemInstance = {
+          uid: `bag_${Date.now()}_${Math.random()}`,
+          itemId: nextFindId,
+          name: itemDef.name,
+          description: itemDef.description,
+          type: itemDef.type,
+          rarity: itemDef.rarity,
+          icon: itemDef.icon,
+          usable: itemDef.usable,
+          equippable: itemDef.equippable,
+          effects: itemDef.effects,
+          quantity: 1,
+        };
+        const updatedParty = state.party.map(p =>
+          p.id === targetId ? { ...p, inventory: [...p.inventory, bagItem] } : p
         );
-        if (partyAlreadyHasKey) {
-          continue;
-        }
+        set({
+          messageLog: [...newLog, `[${state.turnCount}] 🧳 ${targetChar?.name || 'Qualcuno'} ha trovato ${itemDef.name}! (Usalo dall'inventario per espandere lo spazio)`],
+          party: updatedParty,
+          turnCount: state.turnCount + 1,
+          searchCounts: newSearchCounts,
+          foundRoomItems: newFoundRoomItems,
+          notification: {
+            id: nextNotifId(),
+            type: 'item_found',
+            message: itemDef.name,
+            icon: itemDef.icon,
+            itemId: nextFindId,
+            subMessage: `Ricevuto da ${targetChar?.name || 'qualcuno'}`,
+            characterId: targetId,
+          },
+        });
       }
+      return;
+    }
 
-      const finderChar = updatedParty.find(p => p.id === targetId);
-      const existingIdx = finderChar ? finderChar.inventory.findIndex(i => i.itemId === itemId) : -1;
-      if (existingIdx >= 0) {
-        updatedParty = updatedParty.map(p => {
-          if (p.id !== targetId) return p;
+    // ── KEY ITEM CHECK: prevent duplicate keys ──
+    if (getKeyItemIds().has(nextFindId)) {
+      const partyAlreadyHasKey = state.party.some(p =>
+        p.inventory.some(i => i.itemId === nextFindId)
+      );
+      if (partyAlreadyHasKey) {
+        set({ messageLog: [...newLog, `[${state.turnCount}] 🎒 Avete trovato ${itemDef.name}, ma ne avete già una copia.`], turnCount: state.turnCount + 1, searchCounts: newSearchCounts, foundRoomItems: newFoundRoomItems });
+        return;
+      }
+    }
+
+    // ── NORMAL ITEM: add to inventory ──
+    const newItem: ItemInstance = {
+      uid: `${nextFindId}_${Date.now()}`,
+      itemId: nextFindId,
+      name: itemDef.name,
+      description: itemDef.description,
+      type: itemDef.type,
+      rarity: itemDef.rarity,
+      icon: itemDef.icon,
+      usable: itemDef.usable,
+      equippable: itemDef.equippable,
+      effects: itemDef.effects,
+      quantity: 1,
+    };
+
+    const targetId = state.selectedCharacterId || state.party[0]?.id;
+    let finder: typeof state.party[0] | null = null;
+    const updatedParty = state.party.map(p => {
+      if (!finder && p.id === targetId) {
+        const existingIdx = p.inventory.findIndex(i => i.itemId === nextFindId);
+        if (existingIdx >= 0) {
+          finder = p;
           const updatedInv = [...p.inventory];
           updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + 1 };
           return { ...p, inventory: updatedInv };
-        });
-        foundNames.push(itemDef.name);
-        foundNotifItems.push({ name: itemDef.name, itemId, icon: itemDef.icon });
-      } else {
-        const hasSpace = finderChar && finderChar.inventory.length < finderChar.maxInventorySlots;
-        if (hasSpace) {
-          const newItem: ItemInstance = {
-            uid: `${itemId}_${Date.now()}_${Math.random()}`,
-            itemId,
-            name: itemDef.name,
-            description: itemDef.description,
-            type: itemDef.type,
-            rarity: itemDef.rarity,
-            icon: itemDef.icon,
-            usable: itemDef.usable,
-            equippable: itemDef.equippable,
-        
-            effects: itemDef.effects,
-            quantity: 1,
-          };
-          updatedParty = updatedParty.map(p =>
-            p.id === targetId ? { ...p, inventory: [...p.inventory, newItem] } : p
-          );
-          foundNames.push(itemDef.name);
-          foundNotifItems.push({ name: itemDef.name, itemId, icon: itemDef.icon });
-        } else {
-          foundNames.push(`${itemDef.name} (inventario pieno!)`);
+        }
+        if (p.inventory.length < p.maxInventorySlots) {
+          finder = p;
+          return { ...p, inventory: [...p.inventory, newItem] };
         }
       }
-    }
-
-    const finderChar = updatedParty.find(p => p.id === targetId);
-    if (!lastNotif && foundNotifItems.length > 0) {
-      if (foundNotifItems.length === 1) {
-        const item = foundNotifItems[0];
-        lastNotif = {
-          id: nextNotifId(),
-          type: 'item_found' as const,
-          message: item.name,
-          icon: item.icon,
-          itemId: item.itemId,
-          subMessage: `Ricevuto da ${finderChar?.name || 'qualcuno'}`,
-          characterId: targetId,
-        };
-      } else {
-        lastNotif = {
-          id: nextNotifId(),
-          type: 'item_found' as const,
-          message: `${foundNotifItems.length} oggetti trovati!`,
-          icon: '🎒',
-          subMessage: `Ricevuti da ${finderChar?.name || 'qualcuno'}`,
-          characterId: targetId,
-          items: foundNotifItems,
-        };
-      }
-    }
-
-    // ── SECRET ROOM DISCOVERY ──
-    let discoveredSecretRoomId: string | null = null;
-    const locationSecrets = Object.values(SECRET_ROOMS).filter((s: any) =>
-      s.locationId === locId &&
-      !state.discoveredSecretRooms.includes(s.id)
-    );
-    for (const secret of locationSecrets) {
-      let canDiscover = false;
-      if (secret.discoveryMethod === 'search' && Math.random() * 100 < secret.searchChance) {
-        canDiscover = true;
-      }
-      if (secret.discoveryMethod === 'document' && secret.requiredDocumentId && state.collectedDocuments.includes(secret.requiredDocumentId)) {
-        canDiscover = Math.random() * 100 < 50;
-      }
-      if (secret.discoveryMethod === 'npc_hint' && secret.requiredNpcQuestId) {
-        const questProgress = state.npcQuestProgress[secret.requiredNpcQuestId];
-        if (questProgress?.completed && Math.random() * 100 < secret.searchChance) {
-          canDiscover = true;
-        }
-      }
-      if (canDiscover) {
-        discoveredSecretRoomId = secret.id;
-        break;
-      }
-    }
-
-    // Recipe discovery: 8% chance to discover a hidden recipe during search
-    let newDiscoveredRecipes: string[] | undefined;
-    if (!state.activeDynamicEvent) {
-      const hiddenRecipes = RECIPES_DATA.filter(r => r.hidden && !state.discoveredRecipes.includes(r.id));
-      if (hiddenRecipes.length > 0 && Math.random() * 100 < 8) {
-        const discoveredRecipe = hiddenRecipes[Math.floor(Math.random() * hiddenRecipes.length)];
-        newDiscoveredRecipes = [...state.discoveredRecipes, discoveredRecipe.id];
-        newLog.push(`[${state.turnCount}] 📜 Hai trovato un appunto con una ricetta di crafting segreta: ${discoveredRecipe.name}!`);
-      }
-    }
-
-    set({
-      messageLog: [...newLog, `[${state.turnCount}] 🎒 ${flavourText} Trovati: ${foundNames.join(', ')}.`],
-      party: updatedParty,
-      turnCount: state.turnCount + 1,
-      searchCounts: newSearchCounts,
-      searchMaxes: newSearchMaxes,
-      notification: lastNotif,
-      collectedRibbons: newRibbonCount,
-      discoveredRecipes: newDiscoveredRecipes || state.discoveredRecipes,
+      return p;
     });
-    // Discover secret room AFTER committing search state (items, counts, etc.)
-    if (discoveredSecretRoomId) {
-      get().discoverSecretRoom(discoveredSecretRoomId);
-    }
-    setTimeout(() => get().checkAchievements(), 100);
-  },
-
-  handleEventChoice: (choiceIndex: number) => {
-    const state = get();
-    const event = state.activeEvent;
-    if (!event) return;
-
-    const choice = event.choices[choiceIndex];
-    if (!choice) return;
-
-    // ── PUZZLE CHECK ──
-    if (event.puzzle && choiceIndex === 0) {
-      get().startPuzzle(event.puzzle, event.title, event.description);
-      return;
-    }
-
-    const outcome = choice.outcome;
-    let updatedParty = [...state.party];
-    const logMessages: string[] = [
-      `[${state.turnCount}] 📖 Evento: ${event.title}`,
-      `[${state.turnCount}] ${event.description}`,
-      `[${state.turnCount}] → ${choice.text}`,
-      `[${state.turnCount}] 📖 ${outcome.description}`,
-    ];
-
-    if (outcome.hpChange) {
-      updatedParty = updatedParty.map(p => ({
-        ...p,
-        currentHp: Math.max(0, Math.min(p.maxHp, p.currentHp + outcome.hpChange)),
-      }));
-      logMessages.push(`[${state.turnCount}] ${outcome.hpChange > 0 ? '❤️' : '💔'} ${Math.abs(outcome.hpChange)} HP ${outcome.hpChange > 0 ? 'recuperati' : 'persi'}.`);
-    }
-
-    if (outcome.receiveItems) {
-      const lootSummary: string[] = [];
-      for (const itemEntry of outcome.receiveItems) {
-        const result = addItemToParty(updatedParty, itemEntry.itemId, itemEntry.quantity);
-        updatedParty = result.party;
-        if (result.added) {
-          lootSummary.push(`${ITEMS[itemEntry.itemId]?.name} x${itemEntry.quantity} → ${result.characterName}`);
-        } else {
-          lootSummary.push(`${ITEMS[itemEntry.itemId]?.name} x${itemEntry.quantity} → perso (inventario pieno)`);
+    // Fallback: any party member with space
+    if (!finder) {
+      const fallbackParty = updatedParty.map(p => {
+        if (!finder && p.currentHp > 0) {
+          const existingIdx = p.inventory.findIndex(i => i.itemId === nextFindId);
+          if (existingIdx >= 0) {
+            finder = p;
+            const updatedInv = [...p.inventory];
+            updatedInv[existingIdx] = { ...updatedInv[existingIdx], quantity: updatedInv[existingIdx].quantity + 1 };
+            return { ...p, inventory: updatedInv };
+          }
+          if (p.inventory.length < p.maxInventorySlots) {
+            finder = p;
+            return { ...p, inventory: [...p.inventory, newItem] };
+          }
         }
-      }
-      if (lootSummary.length > 0) {
-        logMessages.push(`[${state.turnCount}] 🎒 Bottino ottenuto:`);
-        for (const line of lootSummary) {
-          logMessages.push(`[${state.turnCount}]   · ${line}`);
-        }
-      }
-    }
-
-    if (outcome.triggerCombat && outcome.combatEnemyIds) {
-      const eventDiff = getDifficultyConfig(state.difficulty, state.partySize);
-      const avgLevel = state.party.length > 0 ? Math.round(state.party.reduce((s, p) => s + p.level, 0) / state.party.length) : 1;
-      const enemies = outcome.combatEnemyIds.map(id => createEnemyInstance(id, eventDiff.statMult, avgLevel));
-      const allActors = [
-        ...updatedParty.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
-        ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
-      ].sort((a, b) => b.spd - a.spd + (Math.random() - 0.5) * 4);
-
-      const firstActor = allActors[0];
-
-      const newCompletedCombat = state.completedEvents.includes(state.currentLocationId)
-        ? state.completedEvents
-        : [...state.completedEvents, state.currentLocationId];
-
+        return p;
+      });
       set({
-        phase: 'combat',
+        messageLog: [
+          ...newLog,
+          finder
+            ? `[${state.turnCount}] 🎒 ${finder.name} ha trovato: ${itemDef.name}!`
+            : `[${state.turnCount}] 🎒 Avete trovato ${itemDef.name}, ma gli inventari sono pieni.`,
+        ],
+        party: fallbackParty,
+        turnCount: state.turnCount + 1,
+        searchCounts: newSearchCounts,
+        foundRoomItems: newFoundRoomItems,
+        notification: finder ? {
+          id: nextNotifId(),
+          type: 'item_found',
+          message: itemDef.name,
+          icon: itemDef.icon,
+          itemId: nextFindId,
+          subMessage: `Ricevuto da ${finder.name}`,
+          characterId: finder.id,
+        } : null,
+      });
+    } else {
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] 🎒 ${finder.name} ha trovato: ${itemDef.name}!`],
         party: updatedParty,
-        autoCombat: getAutoCombatDefault(),
-        enemies,
-        activeEvent: null,
-        eventOutcome: outcome,
-        completedEvents: newCompletedCombat,
-        combat: {
-          turn: 1,
-          playerOrder: allActors.filter(a => a.type === 'player').map(a => a.id),
-          enemyOrder: allActors.filter(a => a.type === 'enemy').map(a => a.id),
-          fullTurnOrder: allActors.map(a => ({ id: a.id, type: a.type })),
-          currentActorId: firstActor.id,
-          currentActorType: firstActor.type,
-          selectedAction: null,
-          selectedTarget: null,
-          selectedItemUid: null,
-          isProcessing: false,
-          log: [{ turn: 1, actorName: 'Sistema', actorType: 'player', action: 'Combattimento', message: `Incontro con ${enemies.map(e => e.name).join(', ')}!` }],
-          isVictory: false,
-          isDefeat: false,
-          fled: false,
-          statusDurations: {},
-          specialCooldowns: {},
-          special2Cooldowns: {},
-          tauntTargetId: null,
-          activeEffects: [],
-          comboCount: 0,
-          comboTargetId: null,
-          lastOffensiveAction: null,
+        turnCount: state.turnCount + 1,
+        searchCounts: newSearchCounts,
+        foundRoomItems: newFoundRoomItems,
+        notification: {
+          id: nextNotifId(),
+          type: 'item_found',
+          message: itemDef.name,
+          icon: itemDef.icon,
+          itemId: nextFindId,
+          subMessage: `Ricevuto da ${finder.name}`,
+          characterId: finder.id,
         },
-        messageLog: [...state.messageLog, ...logMessages],
       });
-
-      if (firstActor.type === 'enemy') {
-        setTimeout(() => get().advanceToNextActor(), 1200);
-      }
-      return;
     }
-
-    if (updatedParty.every(p => p.currentHp <= 0)) {
-      const newCompleted = state.completedEvents.includes(state.currentLocationId)
-        ? state.completedEvents
-        : [...state.completedEvents, state.currentLocationId];
-      set({
-        phase: 'game-over',
-        party: updatedParty,
-        activeEvent: null,
-        eventOutcome: outcome,
-        messageLog: [...state.messageLog, ...logMessages],
-        completedEvents: newCompleted,
-      });
-      return;
-    }
-
-    const newCompleted = state.completedEvents.includes(state.currentLocationId)
-      ? state.completedEvents
-      : [...state.completedEvents, state.currentLocationId];
-
-    const newStoryChoices = [...state.storyChoices];
-    if (state.currentLocationId === 'city_outskirts') {
-      if (choiceIndex === 0 && !newStoryChoices.includes('help_survivors')) newStoryChoices.push('help_survivors');
-      if (choiceIndex === 1 && !newStoryChoices.includes('ignore_survivors')) newStoryChoices.push('ignore_survivors');
-    }
-    if (state.currentLocationId === 'hospital_district') {
-      if (choiceIndex === 0 && !newStoryChoices.includes('enter_lab')) newStoryChoices.push('enter_lab');
-      if (choiceIndex === 1 && !newStoryChoices.includes('skip_lab')) newStoryChoices.push('skip_lab');
-    }
-    if (state.currentLocationId === 'sewers') {
-      if (choiceIndex === 0 && !newStoryChoices.includes('go_back_sewers')) newStoryChoices.push('go_back_sewers');
-      if (choiceIndex === 1 && !newStoryChoices.includes('proceed_sewers')) newStoryChoices.push('proceed_sewers');
-    }
-    if (state.currentLocationId === 'laboratory_entrance') {
-      if (choiceIndex === 0 && !newStoryChoices.includes('hack_computer')) newStoryChoices.push('hack_computer');
-      if (choiceIndex === 1 && !newStoryChoices.includes('skip_computer')) newStoryChoices.push('skip_computer');
-    }
-
-    set({
-      activeEvent: null,
-      eventOutcome: outcome,
-      party: updatedParty,
-      messageLog: [...state.messageLog, ...logMessages],
-      turnCount: state.turnCount + 1,
-      skipNextEncounter: true,
-      completedEvents: newCompleted,
-      storyChoices: newStoryChoices,
-    });
-    setTimeout(() => get().checkAchievements(), 100);
-  },
-
-  closeEvent: () => {
-    set({ activeEvent: null, eventOutcome: null, skipNextEncounter: true });
-  },
-
-  toggleInventory: () => {
-    set(state => ({ inventoryOpen: !state.inventoryOpen }));
-  },
-
-  selectCharacter: (characterId: string) => {
-    set({ selectedCharacterId: characterId });
   },
 });

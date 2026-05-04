@@ -81,6 +81,7 @@ export let COMBAT_CONFIG: Record<string, number> = {
   fleeSpdWeight: 5,
   fleeMinChance: 10,
   fleeMaxChance: 80,
+  fleeBehavior: 'return' as 'return' | 'stay' | 'retry',
 };
 
 // Game info config — loaded from GameSetting DB
@@ -211,6 +212,7 @@ interface DbDocument {
   content: string;
   type: string;
   locationId: string;
+  roomId: string | null;
   icon: string;
   rarity: string;
   isSecret: boolean;
@@ -252,6 +254,8 @@ interface DbLocation {
   searchMax: number | null;
   mapRow: number | null;
   mapCol: number | null;
+  mapX: number | null;
+  mapY: number | null;
   mapIcon: string | null;
   mapDanger: number;
   mapDangerAuto: boolean;
@@ -481,6 +485,12 @@ interface DbRoom {
   sortOrder: number;
   mapRow: number | null;
   mapCol: number | null;
+  mapX: number | null;
+  mapY: number | null;
+  mapWidth: number;
+  mapHeight: number;
+  orientation: string;
+  backgroundImage: string;
   createdAt: Date;
 }
 
@@ -555,6 +565,7 @@ function mapDbDocument(doc: DbDocument): GameDocument {
     content: doc.content,
     type: doc.type as DocumentType,
     locationId: doc.locationId,
+    ...(doc.roomId ? { roomId: doc.roomId } : {}),
     icon: doc.icon || '',
     rarity: doc.rarity as GameDocument['rarity'],
     isSecret: doc.isSecret,
@@ -602,6 +613,8 @@ function mapDbLocation(loc: DbLocation): LocationDefinition {
     ...(loc.shortName ? { shortName: loc.shortName } : {}),
     ...(loc.mapRow != null ? { mapRow: loc.mapRow } : {}),
     ...(loc.mapCol != null ? { mapCol: loc.mapCol } : {}),
+    ...(loc.mapX != null ? { mapX: loc.mapX } : {}),
+    ...(loc.mapY != null ? { mapY: loc.mapY } : {}),
     ...(loc.mapIcon ? { mapIcon: loc.mapIcon } : {}),
     mapDanger: loc.mapDanger ?? 0,
   };
@@ -935,8 +948,14 @@ function mapDbRoom(row: DbRoom): RoomDefinition {
     storyEvent: row.storyEvent ? JSON.parse(row.storyEvent) : undefined,
     ambientText: JSON.parse(row.ambientText || '[]'),
     sortOrder: row.sortOrder,
+    orientation: row.orientation || 'auto',
+    backgroundImage: row.backgroundImage || '',
     ...(row.mapRow != null ? { mapRow: row.mapRow } : {}),
     ...(row.mapCol != null ? { mapCol: row.mapCol } : {}),
+    ...(row.mapX != null ? { mapX: row.mapX } : {}),
+    ...(row.mapY != null ? { mapY: row.mapY } : {}),
+    ...(row.mapWidth ? { mapWidth: row.mapWidth } : {}),
+    ...(row.mapHeight ? { mapHeight: row.mapHeight } : {}),
   };
 }
 

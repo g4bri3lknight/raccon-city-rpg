@@ -241,11 +241,11 @@ export default function CharacterSelect() {
     return [...presets, ...customs];
   }, [customCharacters, dataVersion]);
 
-  const current = allItems[currentIndex] || allItems[0];
+  const current = allItems.length > 0 ? (allItems[currentIndex] || allItems[0]) : null;
   const totalSelected = selected.size;
-  const maxStat = Math.max(
-    ...allItems.map(item => Math.max(item.maxHp, item.atk * 5, item.def * 5, item.spd * 8))
-  );
+  const maxStat = allItems.length > 0
+    ? Math.max(...allItems.map(item => Math.max(item.maxHp, item.atk * 5, item.def * 5, item.spd * 8)))
+    : 100;
 
   // ── Toggle selection/deselection ──
   const toggleSelect = useCallback((itemId: string) => {
@@ -332,6 +332,15 @@ export default function CharacterSelect() {
           onCancel={() => setShowCreator(false)}
         />
       </Suspense>
+    );
+  }
+
+  // Guard: data may not be loaded yet (CHARACTERS_DATA starts empty)
+  if (!current || allItems.length === 0) {
+    return (
+      <div className="min-h-screen game-horror flex items-center justify-center">
+        <div className="text-gray-400 animate-pulse text-lg">Caricamento personaggi...</div>
+      </div>
     );
   }
 
