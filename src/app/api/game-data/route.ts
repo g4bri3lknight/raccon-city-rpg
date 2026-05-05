@@ -9,7 +9,7 @@ import { safeErrorResponse } from '@/lib/api-utils';
  */
 export async function GET() {
   try {
-    const [items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms] = await Promise.all([
+    const [items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms, doors] = await Promise.all([
       db.item.findMany({ orderBy: { createdAt: 'asc' } }),
       db.dynamicEvent.findMany({ orderBy: { createdAt: 'asc' } }),
       db.document.findMany({ orderBy: { createdAt: 'asc' } }),
@@ -30,9 +30,10 @@ export async function GET() {
       db.questChainStep.findMany({ orderBy: [{ chainId: 'asc' }, { stepIndex: 'asc' }] }),
       db.questChainFinalReward.findMany(),
       db.gameRoom.findMany({ orderBy: [{ locationId: 'asc' }, { sortOrder: 'asc' }] }),
+      db.gameDoor.findMany({ orderBy: { sortOrder: 'asc' } }),
     ]);
 
-    return NextResponse.json({ items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms });
+    return NextResponse.json({ items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms, doors });
   } catch (error) {
     return safeErrorResponse(error, '[Game Data]');
   }

@@ -4,7 +4,7 @@ import { getCustomPassiveDescription as _getCustomPassiveDescription } from './c
 import { ENEMY_IMAGES, CHARACTER_IMAGES } from './enemies';
 import { rebuildWeaponModsFromItems } from './weapon-mods';
 import { rebuildEquipmentFromItems } from './equipment';
-import type { ItemDefinition, ItemType, Rarity, LocationDefinition, MultiStepQuest, RoomDefinition, RoomType } from '../types';
+import type { ItemDefinition, ItemType, Rarity, LocationDefinition, MultiStepQuest, RoomDefinition, RoomType, DoorDefinition } from '../types';
 import type { DynamicEvent, DynamicEventType } from '../types';
 import type { GameDocument, DocumentType } from '../types';
 import type { NPCQuest, GameNPC, NPCTradeItem, CharacterArchetype, ItemInstance, SpecialAbilityDefinition, Archetype } from '../types';
@@ -26,6 +26,7 @@ export let BOSS_PHASES_DATA: Record<string, BossPhase[]> = {};
 export let ACHIEVEMENTS_DATA: Record<string, AchievementDefinition> = {};
 export let ENDINGS_DATA: Record<string, EndingDefinition> = {};
 export let AVATARS_DATA: AvatarDefinition[] = [];
+export let DOORS_DATA: DoorDefinition[] = [];
 export let QUEST_CHAINS_DATA: Record<string, MultiStepQuest> = {};
 export let NPC_QUEST_CHAIN_MAP: Record<string, string> = {};
 
@@ -466,6 +467,19 @@ interface DbQuestChainFinalReward {
   createdAt: Date;
 }
 
+interface DbDoor {
+  id: string;
+  fromRoomId: string;
+  toRoomId: string;
+  fromSide: string;
+  toSide: string;
+  state: string;
+  requiredItemId: string | null;
+  lockedMessage: string;
+  puzzle: string;
+  sortOrder: number;
+}
+
 interface DbRoom {
   id: string;
   locationId: string;
@@ -491,6 +505,7 @@ interface DbRoom {
   mapHeight: number;
   orientation: string;
   backgroundImage: string;
+  travelCost: number | null;
   createdAt: Date;
 }
 
@@ -956,6 +971,7 @@ function mapDbRoom(row: DbRoom): RoomDefinition {
     ...(row.mapY != null ? { mapY: row.mapY } : {}),
     ...(row.mapWidth ? { mapWidth: row.mapWidth } : {}),
     ...(row.mapHeight ? { mapHeight: row.mapHeight } : {}),
+    ...(row.travelCost != null ? { travelCost: row.travelCost } : {}),
   };
 }
 
@@ -972,6 +988,92 @@ function loadRooms(api: Awaited<ReturnType<typeof loadFromApi>>): void {
       if (loc) {
         if (!loc.rooms) loc.rooms = [];
         loc.rooms.push(room);
+      }
+    }
+  }
+}
+
+// ── Door loading: attaches doors to rooms and builds cross-location link map ──
+
+/** Map: roomId → DoorDefinition[] (all doors connected to this room, either direction) */
+let ROOM_DOORS_MAP: Record<string, DoorDefinition[]> = {};
+
+/** Get doors connected to a specific room */
+export function getRoomDoors(roomId: string): DoorDefinition[] {
+  return ROOM_DOORS_MAP[roomId] || [];
+}
+
+/** Get all doors */
+export function getAllDoors(): DoorDefinition[] {
+  return DOORS_DATA;
+}
+
+/**
+ * Get rooms reachable from a specific room via doors.
+ * Returns array of { roomId, door, isFromSide } where isFromSide indicates
+ * whether currentRoom is the fromRoom (true) or toRoom (false) of the door.
+ */
+export function getReachableRoomsViaDoors(roomId: string): { roomId: string; door: DoorDefinition }[] {
+  const doors = getRoomDoors(roomId);
+  const result: { roomId: string; door: DoorDefinition }[] = [];
+  for (const door of doors) {
+    if (door.state === 'inaccessible') continue;
+    if (door.fromRoomId === roomId) {
+      result.push({ roomId: door.toRoomId, door });
+    } else if (door.toRoomId === roomId) {
+      result.push({ roomId: door.fromRoomId, door });
+    }
+  }
+  return result;
+}
+
+/**
+ * Find which location a room belongs to.
+ * Searches all locations' rooms.
+ */
+export function findRoomLocation(roomId: string): { locationId: string; room: RoomDefinition } | null {
+  for (const [locId, loc] of Object.entries(LOCATIONS)) {
+    const room = loc.rooms?.find(r => r.id === roomId);
+    if (room) return { locationId: locId, room };
+  }
+  return null;
+}
+
+function loadDoors(api: Awaited<ReturnType<typeof loadFromApi>>): void {
+  DOORS_DATA = [];
+  ROOM_DOORS_MAP = {};
+  if (api?.doors && api.doors.length > 0) {
+    for (const row of api.doors) {
+      const d = row as DbDoor;
+      let puzzle: any = undefined;
+      if (d.puzzle) {
+        try { puzzle = JSON.parse(d.puzzle); } catch { /* ignore */ }
+      }
+      const door: DoorDefinition = {
+        id: d.id,
+        fromRoomId: d.fromRoomId,
+        toRoomId: d.toRoomId,
+        fromSide: d.fromSide,
+        toSide: d.toSide,
+        state: d.state as DoorDefinition['state'],
+        ...(d.requiredItemId ? { requiredItemId: d.requiredItemId } : {}),
+        lockedMessage: d.lockedMessage || '',
+        ...(puzzle ? { puzzle } : {}),
+        sortOrder: d.sortOrder,
+      };
+      DOORS_DATA.push(door);
+      // Attach to both rooms
+      if (!ROOM_DOORS_MAP[d.fromRoomId]) ROOM_DOORS_MAP[d.fromRoomId] = [];
+      if (!ROOM_DOORS_MAP[d.toRoomId]) ROOM_DOORS_MAP[d.toRoomId] = [];
+      ROOM_DOORS_MAP[d.fromRoomId].push(door);
+      ROOM_DOORS_MAP[d.toRoomId].push(door);
+    }
+  }
+  // Attach doors to room definitions
+  for (const loc of Object.values(LOCATIONS)) {
+    if (loc.rooms) {
+      for (const room of loc.rooms) {
+        room.doors = ROOM_DOORS_MAP[room.id] || [];
       }
     }
   }
@@ -1201,6 +1303,7 @@ async function loadFromApi(): Promise<{
   questChainSteps: DbQuestChainStep[];
   questChainFinalRewards: DbQuestChainFinalReward[];
   rooms: DbRoom[];
+  doors: DbDoor[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -1325,6 +1428,8 @@ export async function initGameData(): Promise<void> {
       ]);
       // Rooms must load AFTER locations (depends on LOCATIONS being populated)
       loadRooms(api);
+      // Doors must load AFTER rooms (attaches doors to room definitions)
+      loadDoors(api);
       // Boss phases must load AFTER enemy abilities (resolves ability IDs)
       loadBossPhases(api);
       // Rebuild archetype→special map AFTER both characters AND specials are loaded
@@ -1367,6 +1472,8 @@ export async function refreshGameData(): Promise<void> {
   ]);
   // Rooms must load AFTER locations (depends on LOCATIONS being populated)
   loadRooms(api);
+  // Doors must load AFTER rooms (attaches doors to room definitions)
+  loadDoors(api);
   // Boss phases must load AFTER enemy abilities (resolves ability IDs)
   loadBossPhases(api);
   // Rebuild archetype→special map AFTER both characters AND specials are loaded

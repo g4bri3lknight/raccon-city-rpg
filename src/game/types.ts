@@ -529,6 +529,27 @@ export interface RoomDefinition {
   mapHeight?: number;
   orientation?: string;
   backgroundImage?: string;
+  travelCost?: number;  // turn cost to travel from another location (1/2/3)
+  doors?: DoorDefinition[]; // doors connected to this room
+}
+
+// ==========================================
+// DOOR SYSTEM — Room-to-Room connections
+// ==========================================
+
+export type DoorState = 'open' | 'key_locked' | 'locked' | 'inaccessible';
+
+export interface DoorDefinition {
+  id: string;
+  fromRoomId: string;
+  toRoomId: string;
+  fromSide: string;     // 'north' | 'south' | 'east' | 'west'
+  toSide: string;
+  state: DoorState;
+  requiredItemId?: string;
+  lockedMessage: string;
+  puzzle?: any;         // puzzle config for 'locked' state
+  sortOrder: number;
 }
 
 export interface LocationDefinition {

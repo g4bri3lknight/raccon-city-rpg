@@ -16,6 +16,9 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { EntityForm } from '@/components/game/admin/EntityForm';
 import { FIELD_MAP } from '@/components/game/admin/config/fieldDefinitions';
 import { ROOM_TYPES, getRoomTypeInfo, getRoomTypeLabel, getRoomTypeBadgeClasses, getRoomTypeCardClasses } from '@/components/game/admin/config/roomTypes';
@@ -80,6 +83,7 @@ interface RoomData {
   locationId: string;
   orientation: string;
   backgroundImage: string;
+  travelCost: number;
   _doors: DoorData[];
 }
 
@@ -598,7 +602,7 @@ function DoorCard({
                 </button>
               </PopoverTrigger>
               <PopoverContent
-                className="w-64 p-1.5 bg-zinc-900 border-white/[0.1] shadow-xl"
+                className="w-64 p-1.5 bg-zinc-900 border-white/[0.1] shadow-xl z-[130]"
                 side="bottom"
                 align="start"
               >
@@ -786,7 +790,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dialogSaving, setDialogSaving] = useState(false);
-  const [doorHelpOpen, setDoorHelpOpen] = useState(false);
   const dialogOpen = creating || editingId !== null;
 
   // Corridor presets
@@ -845,6 +848,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         orientation: String(d.orientation ?? 'auto'),
         backgroundImage: String(d.backgroundImage ?? ''),
         corridorPreset: d.corridorPreset ? String(d.corridorPreset) : null,
+        travelCost: typeof d.travelCost === 'number' ? d.travelCost : 1,
         _doors: Array.isArray(d._doors) ? d._doors as DoorData[] : [],
       }));
       setRooms(rms);
@@ -2099,7 +2103,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
 
       {/* ── CRUD Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleDialogClose(); }}>
-        <DialogContent className="z-[120] max-w-2xl max-h-[85vh] overflow-y-auto admin-scrollbar">
+        <DialogContent className="z-[120] max-w-[95vw] sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl max-h-[85vh] overflow-y-auto admin-scrollbar">
           <DialogHeader>
             <DialogTitle>
               {creating ? '➕ Nuova Stanza' : '✏️ Modifica Stanza'}
@@ -2139,14 +2143,41 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                   <h4 className="text-xs font-bold text-white/50 uppercase tracking-wider">
                     🚪 Porte {hasDoors ? `(${editRoom._doors.length})` : ''}
                   </h4>
-                  <button
-                    type="button"
-                    onClick={() => setDoorHelpOpen(true)}
-                    className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.06] text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors"
-                    title="Informazioni sugli stati delle porte"
-                  >
-                    <CircleHelp className="w-3 h-3" />
-                  </button>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.06] text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors"
+                        >
+                          <CircleHelp className="w-3 h-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        align="start"
+                        className="z-[130] max-w-xs p-3 bg-zinc-900 border border-white/[0.1] text-white"
+                      >
+                        <p className="text-[11px] font-semibold text-white/80 mb-2">Stati delle porte</p>
+                        <div className="space-y-2">
+                          {DOOR_STATE_ORDER.map(stateKey => {
+                            const info = DOOR_STATE_HELP[stateKey];
+                            if (!info) return null;
+                            const color = DOOR_STATE_COLORS[stateKey] ?? '#666';
+                            return (
+                              <div key={stateKey} className="flex gap-2">
+                                <span className="text-sm shrink-0">{info.icon}</span>
+                                <div>
+                                  <span className="text-[10px] font-semibold" style={{ color }}>{info.title}</span>
+                                  <p className="text-[9px] text-white/50 leading-relaxed">{info.description}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[10px] text-white/25">Collega con un'altra stanza:</span>
@@ -2193,39 +2224,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
               </div>
             );
           })()}
-          {/* Door states help dialog */}
-          <Dialog open={doorHelpOpen} onOpenChange={setDoorHelpOpen}>
-            <DialogContent className="bg-zinc-900 border-white/[0.08] text-white max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-sm font-semibold text-white/90">Stati delle porte</DialogTitle>
-                <DialogDescription className="text-[11px] text-white/40">
-                  Ogni porta che collega due stanze può avere uno di questi stati. Lo stato determina come il giocatore interagisce con la porta.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3 mt-2">
-                {DOOR_STATE_ORDER.map(stateKey => {
-                  const info = DOOR_STATE_HELP[stateKey];
-                  if (!info) return null;
-                  const color = DOOR_STATE_COLORS[stateKey] ?? '#666';
-                  return (
-                    <div key={stateKey} className="flex gap-3 p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-                      <span className="text-lg shrink-0 mt-0.5">{info.icon}</span>
-                      <div>
-                        <span className="text-xs font-semibold" style={{ color }}>{info.title}</span>
-                        <p className="text-[10px] text-white/50 mt-0.5 leading-relaxed">{info.description}</p>
-                        {(stateKey === 'key_locked') && (
-                          <p className="text-[9px] text-yellow-400/50 mt-1">⚠️ Ricorda di selezionare l'oggetto chiave e di inserire un messaggio per il giocatore.</p>
-                        )}
-                        {(stateKey === 'locked') && (
-                          <p className="text-[9px] text-red-400/50 mt-1">🧩 Puoi collegare un puzzle (combinazione o sequenza) per sbloccare la porta.</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </DialogContent>
-          </Dialog>
           {/* Submit / Cancel buttons */}
           <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-white/[0.06]">
             <Button

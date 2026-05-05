@@ -180,6 +180,7 @@ model GameRoom {
   mapHeight       Int      @default(0)          // Visual height override (0 = auto based on room type)
   orientation     String   @default("auto")   // auto | horizontal | vertical (visual shape on map for corridors)
   backgroundImage String   @default("")
+  travelCost      Int      @default(1)        // turns to travel from another location
   createdAt       DateTime @default(now())
 
   location        GameLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)

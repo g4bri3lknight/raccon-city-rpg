@@ -80,10 +80,12 @@ export const FIELD_SECTIONS: Partial<Record<TabId, FieldSection[]>> = {
   ],
   locations: [
     { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'name', 'description'] },
-    { id: 'travel', label: 'Viaggio', icon: '🚶', fieldKeys: ['encounterRate'] },
-    { id: 'boss', label: 'Boss', icon: '💀', fieldKeys: ['isBossArea', 'bossId'] },
-    { id: 'navigation', label: 'Navigazione', icon: '🚪', fieldKeys: ['nextLocations', 'lockedLocations'] },
-    { id: 'map', label: 'Mappa', icon: '🗺️', fieldKeys: ['mapRow', 'mapCol', 'mapIcon', 'mapDanger', 'shortName', 'sortOrder'] },
+    { id: 'map', label: 'Mappa', icon: '🗺️', fieldKeys: ['mapIcon', 'mapDanger', 'shortName', 'sortOrder'] },
+  ],
+  rooms: [
+    { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'locationId', 'name', 'travelCost', 'description'] },
+    { id: 'type', label: 'Tipo & Proprietà', icon: '🏷️', fieldKeys: ['type', 'icon'] },
+    { id: 'content', label: 'Contenuto', icon: '📦', fieldKeys: ['enemyPool', 'itemPool', 'searchChance', 'searchMax', 'npcIds', 'storyEvent', 'ambientText'] },
   ],
   specials: [
     { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'name', 'icon', 'description', 'category', 'targetType', 'sortOrder'] },

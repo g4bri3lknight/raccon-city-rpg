@@ -88,6 +88,7 @@ export async function GET(request: NextRequest) {
       mapHeight: r.mapHeight,
       orientation: r.orientation,
       backgroundImage: r.backgroundImage,
+      travelCost: r.travelCost,
       createdAt: r.createdAt,
       _doors,
       };
@@ -137,6 +138,7 @@ export async function POST(request: NextRequest) {
         orientation: body.orientation ?? 'auto',
         backgroundImage: body.backgroundImage ?? '',
         corridorPreset: body.corridorPreset ?? null,
+        travelCost: Number(body.travelCost) || 1,
       },
     });
 
@@ -184,6 +186,7 @@ export async function PUT(request: NextRequest) {
     if (updateFields.orientation !== undefined) data.orientation = updateFields.orientation;
     if (updateFields.backgroundImage !== undefined) data.backgroundImage = updateFields.backgroundImage;
     if (updateFields.corridorPreset !== undefined) data.corridorPreset = updateFields.corridorPreset || null;
+    if (updateFields.travelCost !== undefined) data.travelCost = Number(updateFields.travelCost) || 1;
 
     const room = await db.gameRoom.update({
       where: { id },

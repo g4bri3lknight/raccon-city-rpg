@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Save, RefreshCw, Loader2, Lock, Plus, Pencil, Trash2, Upload, MapPin, DoorOpen,
   ZoomIn, ZoomOut, Maximize2, ChevronRight, ChevronLeft, ChevronDown, Layers, Grid3x3,
-  Link2, MousePointer2, Navigation, Crosshair, X, PanelLeftClose, PanelLeft, GripVertical, Keyboard,
+  MousePointer2, Navigation, Crosshair, X, PanelLeftClose, PanelLeft, GripVertical, Keyboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -29,18 +29,9 @@ interface LocationData {
   mapIcon: string | null;
   mapDanger: number;
   mapDangerAuto: boolean;
-  nextLocations: string[];
-  lockedLocations: { locationId: string; requiredItemId: string }[];
-  isBossArea: boolean;
 }
 
 type FullLocationData = Record<string, unknown>;
-
-interface ConnectionInfo {
-  id: string;
-  name: string;
-  locked: boolean;
-}
 
 // ═══════════════════════════════════════════════════════════
 // Constants
@@ -176,94 +167,10 @@ function Minimap({
 }
 
 // ═══════════════════════════════════════════════════════════
-// Connection Line Label (tooltip on hover)
-// ═══════════════════════════════════════════════════════════
-function ConnectionLine({
-  x1,
-  y1,
-  x2,
-  y2,
-  locked,
-  label,
-}: {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  locked: boolean;
-  label: string;
-}) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2;
-  // Offset perpendicular for slight curve
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const cpx = mx + (dy / dist) * dist * 0.12;
-  const cpy = my - (dx / dist) * dist * 0.12;
-  // Arrow angle
-  const angle = Math.atan2(dy, dx);
-  const arrowLen = 10;
-  const arrowX1 = x2 - arrowLen * Math.cos(angle - 0.35);
-  const arrowY1 = y2 - arrowLen * Math.sin(angle - 0.35);
-  const arrowX2 = x2 - arrowLen * Math.cos(angle + 0.35);
-  const arrowY2 = y2 - arrowLen * Math.sin(angle + 0.35);
-
-  return (
-    <g className="group/conn">
-      <defs>
-        <linearGradient id={`grad-${label.replace(/\s/g, '')}`} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={locked ? 'rgba(245,158,11,0.4)' : 'rgba(52,211,153,0.35)'} />
-          <stop offset="100%" stopColor={locked ? 'rgba(245,158,11,0.6)' : 'rgba(52,211,153,0.55)'} />
-        </linearGradient>
-      </defs>
-      {/* Main line */}
-      <path
-        d={`M${x1},${y1} Q${cpx},${cpy} ${x2},${y2}`}
-        fill="none"
-        stroke={locked ? 'rgba(245,158,11,0.35)' : 'rgba(52,211,153,0.25)'}
-        strokeWidth={locked ? 2 : 1.5}
-        strokeDasharray={locked ? '6,3' : 'none'}
-      />
-      {/* Arrowhead */}
-      <polygon
-        points={`${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
-        fill={locked ? 'rgba(245,158,11,0.5)' : 'rgba(52,211,153,0.4)'}
-      />
-      {/* Hover hotspot for label */}
-      <circle cx={mx} cy={my} r={30} fill="transparent" className="cursor-pointer" />
-      {/* Label (show on hover) */}
-      <g className="opacity-0 group-hover/conn:opacity-100 transition-opacity duration-150 pointer-events-none">
-        <rect
-          x={mx - 40}
-          y={my - 20}
-          width={80}
-          height={16}
-          rx={4}
-          fill="rgba(0,0,0,0.85)"
-          stroke={locked ? 'rgba(245,158,11,0.3)' : 'rgba(52,211,153,0.3)'}
-          strokeWidth={0.5}
-        />
-        <text
-          x={mx}
-          y={my - 10}
-          textAnchor="middle"
-          className="fill-white/70"
-          style={{ fontSize: '9px', fontFamily: 'system-ui' }}
-        >
-          {locked ? '🔒 ' : ''}{label.length > 12 ? label.slice(0, 12) + '…' : label}
-        </text>
-      </g>
-    </g>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
 // Location Card (absolutely positioned on canvas)
 // ═══════════════════════════════════════════════════════════
 function LocationCard({
   loc,
-  conns,
   dangerLevel,
   isSelected,
   isDragging,
@@ -275,7 +182,6 @@ function LocationCard({
   onDelete,
 }: {
   loc: LocationData;
-  conns: ConnectionInfo[];
   dangerLevel: number;
   isSelected: boolean;
   isDragging: boolean;
@@ -324,14 +230,9 @@ function LocationCard({
           <span className="text-[11px] font-bold text-white/80 truncate min-w-0 flex-1 leading-tight">
             {loc.name}
           </span>
-          {loc.isBossArea && (
-            <span className="text-[8px] text-red-400 font-black shrink-0 bg-red-500/15 px-1 py-0.5 rounded border border-red-500/20">
-              BOSS
-            </span>
-          )}
         </div>
 
-        {/* Danger badge + connection count */}
+        {/* Danger badge */}
         <div className="flex items-center gap-1.5 mt-0.5">
           <span
             className={`text-[8px] px-1.5 py-px rounded-sm border font-medium ${dangerBadgeColors[dangerLevel]}`}
@@ -342,11 +243,6 @@ function LocationCard({
             {loc.mapDangerAuto && <span className="opacity-60">⚙</span>}
             {dangerLabels[dangerLevel]}
           </span>
-          {showLabels && conns.length > 0 && (
-            <span className="text-[8px] px-1 py-px rounded-sm bg-white/[0.05] text-white/35 border border-white/[0.08]">
-              {conns.length} colleg.
-            </span>
-          )}
         </div>
 
         {/* Action buttons */}
@@ -460,7 +356,6 @@ export default function MapEditor() {
 
   // Sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showConnections, setShowConnections] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [unplacedOpen, setUnplacedOpen] = useState(true);
@@ -514,9 +409,6 @@ export default function MapEditor() {
         mapIcon: d.mapIcon ? String(d.mapIcon) : null,
         mapDanger: typeof d.mapDanger === 'number' ? d.mapDanger : 0,
         mapDangerAuto: !!d.mapDangerAuto,
-        nextLocations: (() => { try { return typeof d.nextLocations === 'string' ? JSON.parse(d.nextLocations) : (d.nextLocations as string[] ?? []); } catch { return []; } })(),
-        lockedLocations: (() => { try { return typeof d.lockedLocations === 'string' ? JSON.parse(d.lockedLocations) : (d.lockedLocations ?? []); } catch { return []; } })(),
-        isBossArea: !!d.isBossArea,
       }));
       setLocations(locs);
       const fd: Record<string, FullLocationData> = {};
@@ -542,59 +434,6 @@ export default function MapEditor() {
     () => locations.filter(l => l.mapX == null || l.mapY == null),
     [locations]
   );
-
-  // ── Connections helper ──
-  const getConnections = useCallback((loc: LocationData): ConnectionInfo[] => {
-    const result: ConnectionInfo[] = [];
-    const seen = new Set<string>();
-    for (const nextId of loc.nextLocations) {
-      if (seen.has(nextId)) continue;
-      seen.add(nextId);
-      const nextLoc = locations.find(l => l.id === nextId);
-      if (!nextLoc) continue;
-      const lock = loc.lockedLocations.find(ll => ll.locationId === nextId);
-      result.push({ id: nextId, name: nextLoc.name, locked: !!lock });
-    }
-    for (const otherLoc of locations) {
-      if (otherLoc.id === loc.id) continue;
-      if (otherLoc.nextLocations.includes(loc.id) && !seen.has(otherLoc.id)) {
-        seen.add(otherLoc.id);
-        const lock = otherLoc.lockedLocations.find(ll => ll.locationId === loc.id);
-        result.push({ id: otherLoc.id, name: otherLoc.name, locked: !!lock });
-      }
-    }
-    return result;
-  }, [locations]);
-
-  // ── Build connection lines for SVG ──
-  const connectionLines = useMemo(() => {
-    if (!showConnections) return [];
-    const lines: {
-      x1: number; y1: number; x2: number; y2: number;
-      locked: boolean; label: string; key: string;
-    }[] = [];
-    const seenPairs = new Set<string>();
-    for (const loc of placed) {
-      const conns = getConnections(loc);
-      for (const conn of conns) {
-        const target = locations.find(l => l.id === conn.id);
-        if (!target || target.mapX == null || target.mapY == null) continue;
-        const pairKey = [loc.id, target.id].sort().join('::');
-        if (seenPairs.has(pairKey)) continue;
-        seenPairs.add(pairKey);
-        lines.push({
-          x1: (loc.mapX ?? 0) + CARD_W / 2,
-          y1: (loc.mapY ?? 0) + CARD_H / 2,
-          x2: (target.mapX ?? 0) + CARD_W / 2,
-          y2: (target.mapY ?? 0) + CARD_H / 2,
-          locked: conn.locked,
-          label: conn.name,
-          key: pairKey,
-        });
-      }
-    }
-    return lines;
-  }, [placed, locations, showConnections, getConnections]);
 
   // ── Save positions (batch, debounced after drag) ──
   const savePositions = useCallback(async (locsToSave: LocationData[]) => {
@@ -858,7 +697,7 @@ export default function MapEditor() {
       if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
         processed[f.key] = JSON.stringify(processed[f.key]);
       }
-      const NULLABLE_FIELDS = new Set(['searchMax', 'bossId', 'mapIcon', 'mapRow', 'mapCol']);
+      const NULLABLE_FIELDS = new Set(['searchMax', 'mapIcon', 'mapRow', 'mapCol']);
       if (processed[f.key] === '' || processed[f.key] === undefined) {
         if (NULLABLE_FIELDS.has(f.key)) {
           processed[f.key] = null;
@@ -1050,17 +889,6 @@ export default function MapEditor() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Toggle: Connections */}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowConnections(!showConnections)}
-                className={`text-xs gap-1.5 h-7 ${showConnections ? 'text-emerald-300 bg-emerald-500/10 border border-emerald-500/20' : 'text-white/40 hover:text-white/60'}`}
-                title="Mostra/nascondi collegamenti"
-              >
-                <Link2 className="w-3 h-3" />
-                <span className="hidden sm:inline">Collegamenti</span>
-              </Button>
               {/* Toggle: Labels */}
               <Button
                 size="sm"
@@ -1241,9 +1069,6 @@ export default function MapEditor() {
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
                               <span className="text-[11px] text-white/60 truncate min-w-0 flex-1">{loc.name}</span>
-                              {loc.isBossArea && (
-                                <span className="text-[8px] text-red-400 font-bold">BOSS</span>
-                              )}
                             </div>
                           </div>
                         ))}
@@ -1378,56 +1203,11 @@ export default function MapEditor() {
                 className="absolute inset-0"
               />
 
-              {/* SVG overlay: Connection lines */}
-              {showConnections && (
-                <svg
-                  width={CANVAS_W}
-                  height={CANVAS_H}
-                  className="absolute inset-0 pointer-events-none z-0"
-                >
-                  {/* Arrow marker defs */}
-                  <defs>
-                    <marker
-                      id="arrowNormal"
-                      markerWidth="8"
-                      markerHeight="6"
-                      refX="8"
-                      refY="3"
-                      orient="auto"
-                    >
-                      <polygon points="0 0, 8 3, 0 6" fill="rgba(52,211,153,0.4)" />
-                    </marker>
-                    <marker
-                      id="arrowLocked"
-                      markerWidth="8"
-                      markerHeight="6"
-                      refX="8"
-                      refY="3"
-                      orient="auto"
-                    >
-                      <polygon points="0 0, 8 3, 0 6" fill="rgba(245,158,11,0.4)" />
-                    </marker>
-                  </defs>
-                  {connectionLines.map(cl => (
-                    <ConnectionLine
-                      key={cl.key}
-                      x1={cl.x1}
-                      y1={cl.y1}
-                      x2={cl.x2}
-                      y2={cl.y2}
-                      locked={cl.locked}
-                      label={cl.label}
-                    />
-                  ))}
-                </svg>
-              )}
-
               {/* Location cards */}
               {placed.map(loc => (
                 <LocationCard
                   key={loc.id}
                   loc={loc}
-                  conns={getConnections(loc)}
                   dangerLevel={loc.mapDanger ?? 0}
                   isSelected={highlightedLocationId === loc.id}
                   isDragging={draggingId === loc.id}
@@ -1541,6 +1321,29 @@ export default function MapEditor() {
                 isEdit={!!editingId}
                 activeTab="locations"
               />
+            </div>
+            {/* Submit / Cancel buttons */}
+            <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-white/[0.06]">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleDialogClose}
+                disabled={dialogSaving}
+                className="text-xs gap-1.5 h-8 text-white/50 hover:text-white/70 hover:bg-white/[0.06]"
+              >
+                Annulla
+              </Button>
+              <Button
+                type="submit"
+                form="entity-form"
+                size="sm"
+                disabled={dialogSaving}
+                className="text-xs gap-1.5 h-8 bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                {dialogSaving && <Loader2 className="w-3 h-3 animate-spin" />}
+                {editingId ? 'Salva Modifiche' : 'Crea Location'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

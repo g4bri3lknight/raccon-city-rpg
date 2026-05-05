@@ -15,6 +15,9 @@ import {
   SECRET_ROOMS,
   RECIPES_DATA,
   getLocationRooms,
+  getRoomDoors,
+  getReachableRoomsViaDoors,
+  findRoomLocation,
 } from '../../data/loader';
 import { generateRandomizedData, getEffectiveLocation } from '../../data/randomizer';
 import {
@@ -167,44 +170,78 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
 
   navigateToRoom: (roomId: string) => {
     const state = get();
-    const location = LOCATIONS[state.currentLocationId];
-    if (!location || !location.rooms || location.rooms.length === 0) return;
 
-    // Find current room (or null if not in any room)
-    const currentRoom = state.currentRoomId
-      ? location.rooms.find(r => r.id === state.currentRoomId)
+    // Find the target room in ANY location (supports cross-location navigation)
+    const targetInfo = findRoomLocation(roomId);
+    if (!targetInfo) return;
+    const { locationId: targetLocationId, room: targetRoom } = targetInfo;
+
+    // Find current room
+    const currentLocation = LOCATIONS[state.currentLocationId];
+    const currentRoom = state.currentRoomId && currentLocation?.rooms
+      ? currentLocation.rooms.find(r => r.id === state.currentRoomId)
       : null;
 
-    // Find target room
-    const targetRoom = location.rooms.find(r => r.id === roomId);
-    if (!targetRoom) return;
+    if (!currentRoom) {
+      // Not in any room yet — allow navigation to any room in the current location
+      if (targetLocationId !== state.currentLocationId) return;
+    } else {
+      // Check reachability: first check doors, then fallback to nextRooms
+      const doorConnections = getReachableRoomsViaDoors(state.currentRoomId!);
+      const doorEntry = doorConnections.find(d => d.roomId === roomId);
 
-    // Check if target is reachable from current room
-    if (currentRoom && !currentRoom.nextRooms.includes(roomId)) {
-      // Check locked rooms on current room
-      const lockedEntry = currentRoom.lockedRooms?.find(l => l.roomId === roomId);
-      if (!lockedEntry) {
-        // Also check if target room has this room in its nextRooms (bidirectional)
-        if (!targetRoom.nextRooms.includes(currentRoom.id)) {
+      if (doorEntry) {
+        // Door-based connection found — check door state
+        const door = doorEntry.door;
+        if (door.state === 'inaccessible') {
+          set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🚫 Passaggio bloccato. Non si può proseguire da questa parte.`] });
+          return;
+        }
+        if (door.state === 'key_locked' && door.requiredItemId) {
+          const hasKey = state.party.some(p => p.inventory.some(i => i.itemId === door.requiredItemId));
+          if (!hasKey) {
+            set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🔒 ${door.lockedMessage || 'Questa porta è chiusa a chiave. Serve una chiave.'}`] });
+            return;
+          }
+        }
+        if (door.state === 'locked') {
+          set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🔒 ${door.lockedMessage || 'Questa porta è bloccata. Risolvi il puzzle per aprirla.'}`] });
+          return;
+        }
+        // door.state === 'open' — proceed
+      } else {
+        // Fallback: check nextRooms / lockedRooms on current room
+        const isReachable = currentRoom.nextRooms.includes(roomId)
+          || targetRoom.nextRooms.includes(currentRoom.id);
+        if (!isReachable) {
           set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🚫 Non puoi raggiungere quella stanza da qui.`] });
           return;
         }
-      }
-    }
-
-    // Check locked rooms
-    const lockedEntry = currentRoom?.lockedRooms?.find(l => l.roomId === roomId);
-
-    if (lockedEntry) {
-      const hasKey = state.party.some(p => p.inventory.some(i => i.itemId === lockedEntry.requiredItemId));
-      if (!hasKey) {
-        set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🔒 ${lockedEntry.lockedMessage || 'Questa stanza è chiusa a chiave.'}`] });
-        return;
+        // Check lockedRooms (legacy)
+        const lockedEntry = currentRoom.lockedRooms?.find(l => l.roomId === roomId);
+        if (lockedEntry) {
+          const hasKey = state.party.some(p => p.inventory.some(i => i.itemId === lockedEntry.requiredItemId));
+          if (!hasKey) {
+            set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🔒 ${lockedEntry.lockedMessage || 'Questa stanza è chiusa a chiave.'}`] });
+            return;
+          }
+        }
       }
     }
 
     // Handle safe room type
     if (targetRoom.type === 'safe_room') {
+      // If moving to a safe room in a different location, update location first
+      if (targetLocationId !== state.currentLocationId) {
+        const newVisited = state.visitedLocations.includes(targetLocationId)
+          ? state.visitedLocations
+          : [...state.visitedLocations, targetLocationId];
+        set({
+          currentLocationId: targetLocationId,
+          visitedLocations: newVisited,
+          currentRoomId: roomId,
+        });
+      }
       get().enterSafeRoom();
       set({ currentRoomId: roomId });
       return;
@@ -220,9 +257,18 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       ? state.exploredRooms
       : [...state.exploredRooms, roomId];
 
+    // Determine if this is a cross-location move
+    const isCrossLocation = targetLocationId !== state.currentLocationId;
+    const targetLocation = LOCATIONS[targetLocationId];
+    const turnCost = isCrossLocation && targetRoom.travelCost
+      ? targetRoom.travelCost
+      : 1;
+
     const newLog = [
       ...state.messageLog,
-      `[${state.turnCount}] 🚪 Ti sposti in: ${targetRoom.icon} ${targetRoom.name}`,
+      isCrossLocation
+        ? `[${state.turnCount}] 📍 Ti sposti verso: ${targetLocation?.name || targetLocationId}`
+        : `[${state.turnCount}] 🚪 Ti sposti in: ${targetRoom.icon} ${targetRoom.name}`,
     ];
     if (targetRoom.description) {
       newLog.push(`[${state.turnCount}] ${targetRoom.description}`);
@@ -246,17 +292,29 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       ? [...state.roomHistory, state.currentRoomId]
       : state.roomHistory;
 
-    // Increment turn for room navigation (minor cost)
-    set({
+    // Build state updates
+    const stateUpdates: Record<string, any> = {
       currentRoomId: roomId,
       roomHistory: newRoomHistory,
       messageLog: newLog,
-      turnCount: state.turnCount + 1,
+      turnCount: state.turnCount + turnCost,
       exploredRooms: newExploredRooms,
       currentSubArea: null,
-      // Set combatRoomId so combat victory can mark room as cleared
       ...(shouldSpawnEnemies ? { combatRoomId: roomId } : { combatRoomId: null }),
-    });
+    };
+
+    // If cross-location, update location tracking
+    if (isCrossLocation) {
+      const newVisited = state.visitedLocations.includes(targetLocationId)
+        ? state.visitedLocations
+        : [...state.visitedLocations, targetLocationId];
+      stateUpdates.currentLocationId = targetLocationId;
+      stateUpdates.visitedLocations = newVisited;
+      stateUpdates.roomHistory = []; // Reset room history on location change
+      try { get().incrementRunStat('distanceTraveled', turnCost); } catch {}
+    }
+
+    set(stateUpdates);
 
     // ── Spawn enemies immediately on room entry if applicable ──
     if (shouldSpawnEnemies) {

@@ -10,7 +10,12 @@ export function buildStartState(
   startMessage: string,
 ) {
   const diffConfig = getDifficultyConfig(activeDifficulty, party.length);
-  const startLocation = LOCATIONS['city_outskirts'];
+
+  // Get first location by sortOrder
+  const allLocationIds = Object.keys(LOCATIONS);
+  const firstLocationId = allLocationIds[0] || 'city_outskirts';
+  const startLocation = LOCATIONS[firstLocationId];
+  const firstRoomId = startLocation?.rooms?.[0]?.id || null;
 
   // Validate effects integrity on game start
   const effectsWarnings = validateEffectsIntegrity();
@@ -34,13 +39,14 @@ export function buildStartState(
     // Game-specific overrides
     phase: 'exploration' as const,
     party,
-    currentLocationId: 'city_outskirts' as const,
-    activeEvent: startLocation.storyEvent || null,
+    currentLocationId: firstLocationId,
+    currentRoomId: firstRoomId,
+    activeEvent: null,
     eventOutcome: null,
     messageLog: [...warningLog, startMessage, `\n🎮 Difficoltà: ${diffConfig.icon} ${diffConfig.label} — ${diffConfig.description}`],
     selectedCharacterId: party[0]?.id || null,
     partySize: party.length,
-    visitedLocations: ['city_outskirts'],
+    visitedLocations: [firstLocationId],
     skipNextEncounter: false,
     isExploring: false,
     gameStartTime: Date.now(),
@@ -62,7 +68,7 @@ export function getDefaultState() {
   return {
     phase: 'title' as const,
     party: [],
-    currentLocationId: 'city_outskirts' as const,
+    currentLocationId: '' as const,
     combat: null,
     enemies: [],
     activeEvent: null as any,

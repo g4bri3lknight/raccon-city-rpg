@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import SafeRoomPanel from './SafeRoomPanel';
 import MissionsPanel from './MissionsPanel';
-import { getEffectiveLocation } from '@/game/data/randomizer';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { getArchetypeEmoji, getArchetypeLabel, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 
@@ -47,13 +46,11 @@ export default function ExplorationScreen() {
     npcQuestProgress: s.npcQuestProgress,
     readDocuments: s.readDocuments,
     randomizerMode: s.randomizerMode,
-    randomizedLocationData: s.randomizedLocationData,
     currentSubArea: s.currentSubArea,
     npcsEncountered: s.npcsEncountered,
     clearedRooms: s.clearedRooms,
     foundRoomItems: s.foundRoomItems,
     explore: s.explore,
-    travelTo: s.travelTo,
     searchArea: s.searchArea,
     handleEventChoice: s.handleEventChoice,
     closeEvent: s.closeEvent,
@@ -82,8 +79,8 @@ export default function ExplorationScreen() {
     difficulty, activeDynamicEvent, dynamicEventTurnsLeft, activeNpc,
     isExploring,
     collectedDocuments, npcQuestProgress, readDocuments, randomizerMode,
-    randomizedLocationData, currentSubArea, npcsEncountered,
-    clearedRooms, foundRoomItems, explore, travelTo, searchArea, handleEventChoice, closeEvent,
+    currentSubArea, npcsEncountered,
+    clearedRooms, foundRoomItems, explore, searchArea, handleEventChoice, closeEvent,
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
     toggleSettings, toggleHelp, handleDynamicEventChoice, enterSafeRoom, quickHeal,
@@ -685,38 +682,80 @@ export default function ExplorationScreen() {
               );
             })()}
 
-            {/* Travel Options */}
-            {/* #45 Randomizer: use randomized nextLocations */}
+            {/* Cross-location doors — rooms in other locations reachable from current room */}
             {(() => {
-              const effectiveLoc = getEffectiveLocation(currentLocationId, randomizedLocationData);
-              const travelLocations = (effectiveLoc?.nextLocations || location.nextLocations);
-              const lockedLocations = effectiveLoc?.lockedLocations || location.lockedLocations;
-              if (travelLocations.length === 0 || location.isBossArea) return null;
+              if (!currentRoom || !currentRoom.doors || currentRoom.doors.length === 0) return null;
+              const crossLocDoors = currentRoom.doors.filter(d => {
+                if (d.state === 'inaccessible' || d.state === 'locked') return false;
+                // Find the room on the other side of this door
+                const otherRoomId = d.fromRoomId === currentRoom.id ? d.toRoomId : d.fromRoomId;
+                const otherRoomInfo = LOCATIONS[currentLocationId]?.rooms?.find(r => r.id === otherRoomId);
+                // Only show if the other room is in a DIFFERENT location (not found in current)
+                if (otherRoomInfo) return false;
+                // Check that the room exists somewhere
+                let foundInOtherLoc = false;
+                for (const loc of Object.values(LOCATIONS)) {
+                  if (loc.id === currentLocationId) continue;
+                  if (loc.rooms?.some(r => r.id === otherRoomId)) {
+                    foundInOtherLoc = true;
+                    break;
+                  }
+                }
+                return foundInOtherLoc;
+              });
+              if (crossLocDoors.length === 0) return null;
+
+              // Get unique target rooms with location info
+              const crossLocTargets: { roomId: string; door: typeof crossLocDoors[0]; locationName: string; roomName: string; roomIcon: string }[] = [];
+              for (const door of crossLocDoors) {
+                const otherRoomId = door.fromRoomId === currentRoom.id ? door.toRoomId : door.fromRoomId;
+                // Avoid duplicates
+                if (crossLocTargets.some(t => t.roomId === otherRoomId)) continue;
+                for (const loc of Object.values(LOCATIONS)) {
+                  if (loc.id === currentLocationId) continue;
+                  const room = loc.rooms?.find(r => r.id === otherRoomId);
+                  if (room) {
+                    const isLocked = door.state === 'key_locked' && !party.some(p => p.inventory.some(i => i.itemId === door.requiredItemId));
+                    crossLocTargets.push({
+                      roomId: otherRoomId,
+                      door,
+                      locationName: loc.name,
+                      roomName: room.name,
+                      roomIcon: room.icon,
+                    });
+                    break;
+                  }
+                }
+              }
+
+              if (crossLocTargets.length === 0) return null;
+
               return (
                 <div className="mt-2">
-                  <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5">Spostati verso:</div>
+                  <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5 flex items-center gap-1.5">
+                    <ArrowRightLeft className="w-3 h-3" />
+                    Altre zone
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {travelLocations.map(locId => {
-                      const loc = LOCATIONS[locId];
-                      if (!loc) return null;
-                      const locked = lockedLocations?.find(l => l.locationId === locId);
-                      const hasKey = locked ? party.some(p => p.inventory.some(i => i.itemId === locked.requiredItemId)) : true;
-                      const isLocked = locked && !hasKey;
+                    {crossLocTargets.map(target => {
+                      const { roomId, door, locationName, roomName, roomIcon } = target;
+                      const isLocked = door.state === 'key_locked' && !party.some(p => p.inventory.some(i => i.itemId === door.requiredItemId));
+                      const canNavigate = !isLocked && !activeEvent && !activeDynamicEvent && !activeNpc;
                       return (
                         <Button
-                          key={locId}
+                          key={roomId}
                           variant="outline"
-                          onClick={() => travelTo(locId)}
-                          disabled={isLocked || !!(activeEvent || activeDynamicEvent || activeNpc)}
+                          onClick={() => canNavigate && navigateToRoom(roomId)}
+                          disabled={!canNavigate}
                           className={`text-[10px] sm:text-xs border ${
                             isLocked
                               ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
-                              : 'border-white/[0.08] hover:border-red-500/30 bg-white/[0.03] hover:bg-red-500/[0.06] text-white/60 hover:text-red-300'
+                              : 'border-amber-500/30 text-amber-300 hover:bg-amber-500/[0.06]'
                           }`}
                         >
-                          {isLocked ? '🔒' : <ArrowRightLeft className="w-3 h-3 mr-1" />}
-                          {loc.name}
-                          {!isLocked && <ChevronRight className="w-3 h-3 ml-1" />}
+                          {isLocked ? '🔑' : <ArrowRightLeft className="w-3 h-3 mr-1" />}
+                          {roomName}
+                          <span className="ml-1 text-[8px] opacity-50">({locationName})</span>
                         </Button>
                       );
                     })}
@@ -736,13 +775,45 @@ export default function ExplorationScreen() {
                   {location.rooms!.map(room => {
                     const isCurrent = room.id === currentRoomId;
                     const isExplored = exploredRooms.includes(room.id);
-                    const isLocked = currentRoom?.lockedRooms?.some(l => l.roomId === room.id);
-                    const hasKey = isLocked
-                      ? party.some(p => p.inventory.some(i => 
+
+                    // Determine door-based connectivity
+                    let doorState: string | null = null;
+                    let doorLockedMissingKey = false;
+                    if (currentRoom && currentRoom.id !== room.id) {
+                      const doorConns = currentRoom.doors?.filter(d =>
+                        (d.fromRoomId === currentRoom.id && d.toRoomId === room.id) ||
+                        (d.toRoomId === currentRoom.id && d.fromRoomId === room.id)
+                      );
+                      if (doorConns && doorConns.length > 0) {
+                        const activeDoor = doorConns[0];
+                        if (activeDoor.state === 'open') {
+                          doorState = 'open';
+                        } else if (activeDoor.state === 'key_locked') {
+                          doorState = 'key_locked';
+                          doorLockedMissingKey = !party.some(p => p.inventory.some(i =>
+                            i.itemId === activeDoor.requiredItemId
+                          ));
+                        } else if (activeDoor.state === 'locked') {
+                          doorState = 'locked';
+                        } else if (activeDoor.state === 'inaccessible') {
+                          doorState = 'inaccessible';
+                        }
+                      }
+                    }
+
+                    // Fallback to legacy lockedRooms check
+                    const isLockedLegacy = currentRoom?.lockedRooms?.some(l => l.roomId === room.id);
+                    const hasKeyLegacy = isLockedLegacy
+                      ? party.some(p => p.inventory.some(i =>
                           i.itemId === currentRoom!.lockedRooms!.find(l => l.roomId === room.id)!.requiredItemId
                         ))
                       : true;
-                    const canNavigate = !isCurrent && (!isLocked || hasKey);
+
+                    const isLocked = doorState === 'key_locked' && doorLockedMissingKey
+                      || doorState === 'locked'
+                      || doorState === 'inaccessible'
+                      || isLockedLegacy && !hasKeyLegacy;
+                    const canNavigate = !isCurrent && !isLocked;
                     
                     // Room type colors
                     const roomTypeColors: Record<string, string> = {
@@ -756,6 +827,13 @@ export default function ExplorationScreen() {
                     };
                     const roomColors = roomTypeColors[room.type] || roomTypeColors.normal;
 
+                    // Door state icons
+                    const doorIcon = doorState === 'key_locked'
+                      ? (doorLockedMissingKey ? '🔑' : '🔓')
+                      : doorState === 'locked' ? '🔒'
+                      : doorState === 'inaccessible' ? '🚫'
+                      : null;
+
                     return (
                       <Button
                         key={room.id}
@@ -765,12 +843,12 @@ export default function ExplorationScreen() {
                         className={`text-[10px] sm:text-xs border ${
                           isCurrent
                             ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200 ring-1 ring-emerald-500/30'
-                            : isLocked && !hasKey
+                            : isLocked
                               ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
                               : `${roomColors} hover:bg-white/[0.06]`
                         }`}
                       >
-                        {isLocked && !hasKey ? '🔒' : room.icon}
+                        {doorIcon || (isLocked ? '🔒' : room.icon)}
                         <span className="ml-1">{room.name}</span>
                         {clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] text-emerald-400">✅</span>}
                         {room.enemyPool?.length > 0 && !clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] text-red-400">💀</span>}
