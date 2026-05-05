@@ -275,6 +275,12 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
     }
   }, []);
 
+  // ── Dialog close ──
+  const handleDialogClose = () => {
+    setCreating(false);
+    setEditingId(null);
+  };
+
   // ── Entity link navigate from forms (#11) ──
   const handleEntityNavigate = useCallback((tabId: string, entityId: string) => {
     handleDialogClose();
@@ -618,11 +624,6 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
   const handleOpenEdit = (id: string) => {
     setEditingId(id);
     setCreating(false);
-  };
-
-  const handleDialogClose = () => {
-    setCreating(false);
-    setEditingId(null);
   };
 
   const handleTabClick = (tabId: TabId) => {

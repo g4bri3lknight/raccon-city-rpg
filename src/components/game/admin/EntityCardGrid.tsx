@@ -387,15 +387,16 @@ function CardInfoBadges({
     );
   }
 
-  // Character archetype badge
-  if (activeTab === 'characters' && archetype) {
+  // Character archetype badge — show resolved archetypeName if linked, otherwise fallback
+  const archetypeName = String(row.archetypeName ?? '');
+  if (activeTab === 'characters' && (archetypeName || archetype)) {
     badges.push(
       <Badge
         key="arch"
         variant="outline"
         className="text-[10px] px-1.5 py-0 border-white/[0.08] text-white/50 bg-white/[0.03]"
       >
-        {getEnumLabel('archetype', archetype)}
+        {archetypeName || getEnumLabel('archetype', archetype)}
       </Badge>
     );
   }
@@ -454,19 +455,15 @@ function CardInfoBadges({
     }
   }
 
-  // Location encounter rate + boss
+  // Location travel cost + boss + room count
   if (activeTab === 'locations') {
     const rate = Number(row.encounterRate ?? 0);
     if (rate > 0) {
-      const color =
-        rate >= 50
-          ? 'text-red-400'
-          : rate >= 35
-            ? 'text-emerald-400'
-            : 'text-green-400';
+      const turns = rate > 40 ? '2 turni' : '1 turn';
+      const color = rate > 40 ? 'text-amber-400' : 'text-white/40';
       badges.push(
-        <span key="enc" className={`text-[10px] font-mono ${color}`}>
-          ⚔️ {rate}%
+        <span key="travel" className={`text-[10px] font-mono ${color}`}>
+          🚶 {turns}
         </span>
       );
     }
@@ -477,6 +474,14 @@ function CardInfoBadges({
           className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-bold"
         >
           BOSS
+        </span>
+      );
+    }
+    const roomCount = Number(row._roomCount ?? 0);
+    if (roomCount > 0) {
+      badges.push(
+        <span key="rooms" className="text-[10px] text-white/35">
+          🚪 {roomCount} stanze
         </span>
       );
     }

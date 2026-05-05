@@ -133,7 +133,7 @@ function ArchetypeInheritBanner({ archetypeId }: { archetypeId: string }) {
 
       <p className="text-emerald-300/40 text-[11px] flex items-center gap-1">
         <Info className="w-3 h-3" />
-        Le sezioni Statistiche, Abilità e Passiva sono nascoste perché ereditate.
+        Le sezioni Statistiche, Abilità, Passiva e Equipaggiamento sono nascoste perché ereditate.
       </p>
     </div>
   );

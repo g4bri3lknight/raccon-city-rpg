@@ -23,26 +23,64 @@ export async function GET(request: NextRequest) {
     const rows = await db.gameRoom.findMany({
       where,
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        doorsFrom: {
+          include: { toRoom: { select: { id: true, name: true } } },
+        },
+        doorsTo: {
+          include: { fromRoom: { select: { id: true, name: true } } },
+        },
+      },
     });
 
-    const rooms = rows.map(r => ({
-      id: r.id,
-      locationId: r.locationId,
-      name: r.name,
-      description: r.description,
-      type: r.type,
-      icon: r.icon,
-      nextRooms: JSON.parse(r.nextRooms || '[]'),
-      lockedRooms: JSON.parse(r.lockedRooms || '[]'),
-      enemyPool: JSON.parse(r.enemyPool || '[]'),
-      itemPool: JSON.parse(r.itemPool || '[]'),
-      searchChance: r.searchChance,
-      searchMax: r.searchMax,
-      npcIds: JSON.parse(r.npcIds || '[]'),
-      storyEvent: r.storyEvent ? JSON.parse(r.storyEvent) : null,
-      ambientText: JSON.parse(r.ambientText || '[]'),
-      sortOrder: r.sortOrder,
-      mapRow: r.mapRow,
+    const rooms = rows.map(r => {
+      // Merge doorsFrom and doorsTo into a single _doors array
+      const _doors = [
+        ...r.doorsFrom.map(d => ({
+          id: d.id,
+          fromRoomId: d.fromRoomId,
+          toRoomId: d.toRoomId,
+          fromSide: d.fromSide,
+          toSide: d.toSide,
+          state: d.state,
+          requiredItemId: d.requiredItemId,
+          lockedMessage: d.lockedMessage,
+          puzzle: d.puzzle ? JSON.parse(d.puzzle) : null,
+          otherRoomName: d.toRoom.name,
+        })),
+        ...r.doorsTo.map(d => ({
+          id: d.id,
+          fromRoomId: d.fromRoomId,
+          toRoomId: d.toRoomId,
+          fromSide: d.fromSide,
+          toSide: d.toSide,
+          state: d.state,
+          requiredItemId: d.requiredItemId,
+          lockedMessage: d.lockedMessage,
+          puzzle: d.puzzle ? JSON.parse(d.puzzle) : null,
+          otherRoomName: d.fromRoom.name,
+        })),
+      ];
+
+      return {
+        id: r.id,
+        locationId: r.locationId,
+        name: r.name,
+        description: r.description,
+        type: r.type,
+        icon: r.icon,
+        corridorPreset: r.corridorPreset,
+        nextRooms: JSON.parse(r.nextRooms || '[]'),
+        lockedRooms: JSON.parse(r.lockedRooms || '[]'),
+        enemyPool: JSON.parse(r.enemyPool || '[]'),
+        itemPool: JSON.parse(r.itemPool || '[]'),
+        searchChance: r.searchChance,
+        searchMax: r.searchMax,
+        npcIds: JSON.parse(r.npcIds || '[]'),
+        storyEvent: r.storyEvent ? JSON.parse(r.storyEvent) : null,
+        ambientText: JSON.parse(r.ambientText || '[]'),
+        sortOrder: r.sortOrder,
+        mapRow: r.mapRow,
       mapCol: r.mapCol,
       mapX: r.mapX,
       mapY: r.mapY,
@@ -51,7 +89,9 @@ export async function GET(request: NextRequest) {
       orientation: r.orientation,
       backgroundImage: r.backgroundImage,
       createdAt: r.createdAt,
-    }));
+      _doors,
+      };
+    });
 
     return NextResponse.json(rooms);
   } catch (error) {
@@ -96,6 +136,7 @@ export async function POST(request: NextRequest) {
         mapHeight: Number(body.mapHeight) || 0,
         orientation: body.orientation ?? 'auto',
         backgroundImage: body.backgroundImage ?? '',
+        corridorPreset: body.corridorPreset ?? null,
       },
     });
 
@@ -142,6 +183,7 @@ export async function PUT(request: NextRequest) {
     if (updateFields.mapHeight !== undefined) data.mapHeight = Number(updateFields.mapHeight) || 0;
     if (updateFields.orientation !== undefined) data.orientation = updateFields.orientation;
     if (updateFields.backgroundImage !== undefined) data.backgroundImage = updateFields.backgroundImage;
+    if (updateFields.corridorPreset !== undefined) data.corridorPreset = updateFields.corridorPreset || null;
 
     const room = await db.gameRoom.update({
       where: { id },

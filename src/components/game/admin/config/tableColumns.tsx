@@ -523,13 +523,14 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
     { key: 'name', label: 'Nome', width: 'w-48' },
     {
       key: 'encounterRate',
-      label: 'Incontri',
+      label: 'Viaggio',
       width: 'w-20',
       render: (row) => {
         const rate = Number(row.encounterRate ?? 0);
-        if (rate === 0) return <span className="text-[12px] text-white/20">—</span>;
-        const color = rate >= 50 ? 'text-red-400' : rate >= 35 ? 'text-emerald-400' : 'text-green-400';
-        return <span className={`text-[13px] font-mono ${color}`}>{rate}%</span>;
+        if (rate === 0) return <span className="text-[12px] text-white/20">1 turn</span>;
+        const turns = rate > 40 ? '2 turni' : '1 turn';
+        const color = rate > 40 ? 'text-amber-400' : 'text-white/50';
+        return <span className={`text-[13px] font-mono ${color}`}>{turns}</span>;
       },
     },
     {
@@ -545,7 +546,7 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
     {
       key: 'nextLocations',
       label: 'Uscite',
-      width: 'w-24',
+      width: 'w-20',
       render: (row) => {
         let exits: string[] = [];
         try { exits = typeof row.nextLocations === 'string' ? JSON.parse(row.nextLocations) : (row.nextLocations as string[] ?? []); } catch { /* empty */ }
@@ -553,16 +554,12 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       },
     },
     {
-      key: 'hasStoryEvent',
-      label: 'Evento',
-      width: 'w-16',
+      key: '_roomCount',
+      label: 'Stanze',
+      width: 'w-20',
       render: (row) => {
-        const hasEvent = !!row.storyEvent && String(row.storyEvent).trim() !== '' && String(row.storyEvent) !== '{}';
-        return (
-          <span className={hasEvent ? 'text-emerald-400 text-[12px]' : 'text-white/15 text-[12px]'}>
-            {hasEvent ? '✓' : '—'}
-          </span>
-        );
+        const count = Number(row._roomCount ?? 0);
+        return <span className={`text-[12px] font-mono ${count > 0 ? 'text-white/50' : 'text-white/15'}`}>{count}</span>;
       },
     },
   ],

@@ -39,6 +39,9 @@ export async function GET() {
   try {
     const rows = await db.gameLocation.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        _count: { select: { rooms: true } },
+      },
     });
 
     const locations = rows.map(loc => ({
@@ -47,26 +50,20 @@ export async function GET() {
       description: loc.description,
       backgroundImage: `/api/media/image?id=bg_${loc.id}`,
       encounterRate: loc.encounterRate,
-      enemyPool: JSON.parse(loc.enemyPool || '[]'),
-      itemPool: JSON.parse(loc.itemPool || '[]'),
-      storyEvent: loc.storyEvent ? JSON.parse(loc.storyEvent) : null,
       nextLocations: JSON.parse(loc.nextLocations || '[]'),
       isBossArea: loc.isBossArea,
       bossId: loc.bossId ?? null,
-      ambientText: JSON.parse(loc.ambientText || '[]'),
       lockedLocations: JSON.parse(loc.lockedLocations || '[]'),
-      subAreas: JSON.parse(loc.subAreas || '[]'),
       sortOrder: loc.sortOrder,
-      searchChance: loc.searchChance,
-      docChance: loc.docChance,
-      searchMax: loc.searchMax,
       mapRow: loc.mapRow,
       mapCol: loc.mapCol,
+      mapX: loc.mapX,
+      mapY: loc.mapY,
       mapIcon: loc.mapIcon,
       mapDanger: loc.mapDanger,
       mapDangerAuto: loc.mapDangerAuto,
-      hasSubAreas: (JSON.parse(loc.subAreas || '[]') as unknown[]).length > 0,
-      hasStoryEvent: !!loc.storyEvent && loc.storyEvent !== '',
+      shortName: loc.shortName ?? null,
+      _roomCount: loc._count.rooms,
     }));
 
     return NextResponse.json(locations);

@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Save, RefreshCw, Loader2, Lock, Plus, Pencil, Trash2, Upload, MapPin, DoorOpen,
-  ZoomIn, ZoomOut, Maximize2, ChevronRight, ChevronLeft, Layers, Grid3x3,
-  Link2, MousePointer2, Navigation, Crosshair, Eye, X, PanelRightClose, PanelRight,
+  ZoomIn, ZoomOut, Maximize2, ChevronRight, ChevronLeft, ChevronDown, Layers, Grid3x3,
+  Link2, MousePointer2, Navigation, Crosshair, X, PanelLeftClose, PanelLeft, GripVertical, Keyboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -52,7 +52,7 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.15;
 const CARD_W = 172;
-const CARD_H = 72;
+const CARD_H = 84;
 const SNAP_GRID = 20;
 
 const ENDPOINT = '/api/admin/locations';
@@ -289,7 +289,7 @@ function LocationCard({
   return (
     <div
       className={`
-        absolute rounded-lg border select-none transition-shadow duration-150
+        absolute rounded-lg border select-none transition-shadow duration-150 flex flex-col overflow-hidden
         ${dangerBorderColors[dangerLevel]} ${dangerBgColors[dangerLevel]}
         ${isSelected
           ? 'ring-2 ring-emerald-400/60 shadow-lg shadow-emerald-500/10'
@@ -303,17 +303,21 @@ function LocationCard({
         width: CARD_W,
         height: CARD_H,
       }}
-      onMouseDown={(e) => {
-        if ((e.target as HTMLElement).closest('button')) return;
-        onMouseDown(e, loc.id);
-      }}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button')) return;
+        if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('[data-drag-handle]')) return;
         onSelect(loc.id);
       }}
     >
+      {/* Drag handle strip at top */}
+      <div
+        data-drag-handle="true"
+        className="flex items-center justify-center h-3.5 cursor-grab active:cursor-grabbing rounded-t-lg bg-white/[0.04] hover:bg-white/[0.08] border-b border-white/[0.06] select-none"
+        onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, loc.id); }}
+      >
+        <GripVertical className="w-2.5 h-2.5 text-white/20" />
+      </div>
       {/* Card content */}
-      <div className="flex flex-col h-full p-2 gap-0.5">
+      <div className="flex flex-col h-full p-2 gap-0.5 flex-1 min-h-0">
         {/* Top row: icon + name */}
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-base leading-none shrink-0">{loc.mapIcon || '📍'}</span>
@@ -394,11 +398,46 @@ export default function MapEditor() {
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [highlightedLocationId, setHighlightedLocationId] = useState<string | null>(null);
 
-  // Canvas controls
-  const [zoom, setZoom] = useState(0.6);
-  const [panX, setPanX] = useState(50);
-  const [panY, setPanY] = useState(50);
+  // Canvas controls — restore from localStorage
+  const MAP_VIEW_KEY = 'mapEditor-view';
+  const [zoom, setZoom] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(MAP_VIEW_KEY);
+      if (saved) { try { return JSON.parse(saved).zoom ?? 0.6; } catch { /* ignore */ } }
+    }
+    return 0.6;
+  });
+  const [panX, setPanX] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(MAP_VIEW_KEY);
+      if (saved) { try { return JSON.parse(saved).panX ?? 0; } catch { /* ignore */ } }
+    }
+    return 0;
+  });
+  const [panY, setPanY] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(MAP_VIEW_KEY);
+      if (saved) { try { return JSON.parse(saved).panY ?? 0; } catch { /* ignore */ } }
+    }
+    return 0;
+  });
+  const mapViewRestored = useRef(false);
+
+  // Debounced save of map view state to localStorage
+  const mapViewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveMapView = useCallback((z: number, px: number, py: number) => {
+    if (mapViewTimeoutRef.current) clearTimeout(mapViewTimeoutRef.current);
+    mapViewTimeoutRef.current = setTimeout(() => {
+      try { localStorage.setItem(MAP_VIEW_KEY, JSON.stringify({ zoom: z, panX: px, panY: py })); } catch { /* ignore */ }
+    }, 300);
+  }, []);
+
+  // Save view state when pan/zoom changes
+  useEffect(() => {
+    saveMapView(zoom, panX, panY);
+  }, [zoom, panX, panY, saveMapView]);
 
   // Drag state (mouse-based, NOT HTML drag/drop)
   const dragRef = useRef<{
@@ -418,13 +457,15 @@ export default function MapEditor() {
     startPanY: number;
   } | null>(null);
   const [isPanning, setIsPanning] = useState(false);
-  const spaceRef = useRef(false);
 
   // Sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showConnections, setShowConnections] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
+  const [unplacedOpen, setUnplacedOpen] = useState(true);
+  const [allOpen, setAllOpen] = useState(false);
+  const [controlsDialogOpen, setControlsDialogOpen] = useState(false);
 
   // Dialog
   const [creating, setCreating] = useState(false);
@@ -435,6 +476,20 @@ export default function MapEditor() {
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
+
+  // Track container dimensions for minimap
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // ── Status message helper ──
   const showStatus = useCallback((text: string, type: 'success' | 'error') => {
@@ -541,6 +596,29 @@ export default function MapEditor() {
     return lines;
   }, [placed, locations, showConnections, getConnections]);
 
+  // ── Save positions (batch, debounced after drag) ──
+  const savePositions = useCallback(async (locsToSave: LocationData[]) => {
+    const positions = locsToSave.map(loc => ({
+      id: loc.id,
+      mapX: loc.mapX,
+      mapY: loc.mapY,
+      mapRow: loc.mapRow,
+      mapCol: loc.mapCol,
+    }));
+    try {
+      const res = await adminFetch('/api/admin/locations/batch-positions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positions }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showStatus(`Salvate ${positions.length} posizioni!`, 'success');
+    } catch (err) {
+      showStatus(`Errore salvataggio: ${err}`, 'error');
+      console.error('[MapEditor] Save error:', err);
+    }
+  }, [showStatus]);
+
   // ── Auto-position unplaced locations in grid pattern ──
   const autoPositionAll = useCallback(() => {
     const cols = 5;
@@ -559,6 +637,13 @@ export default function MapEditor() {
       };
     });
 
+    // Compute new positioned locations and save them
+    const newlyPositioned = unplaced.map((loc, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      return { ...loc, mapX: startX + col * spacingX, mapY: startY + row * spacingY };
+    });
+
     setLocations(prev =>
       prev.map(l => {
         const u = updates[l.id];
@@ -566,7 +651,12 @@ export default function MapEditor() {
         return { ...l, mapX: u.mapX, mapY: u.mapY };
       })
     );
-  }, [unplaced]);
+
+    // Save positions after state update propagates
+    setTimeout(() => {
+      savePositions(newlyPositioned);
+    }, 100);
+  }, [unplaced, savePositions]);
 
   const autoPositionOne = useCallback((locId: string) => {
     const existingPositions = placed.map(l => ({ x: l.mapX!, y: l.mapY! }));
@@ -602,29 +692,6 @@ export default function MapEditor() {
     );
   }, [placed]);
 
-  // ── Save positions (batch, debounced after drag) ──
-  const savePositions = useCallback(async (locsToSave: LocationData[]) => {
-    const positions = locsToSave.map(loc => ({
-      id: loc.id,
-      mapX: loc.mapX,
-      mapY: loc.mapY,
-      mapRow: loc.mapRow,
-      mapCol: loc.mapCol,
-    }));
-    try {
-      const res = await adminFetch('/api/admin/locations/batch-positions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positions }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      showStatus(`Salvate ${positions.length} posizioni!`, 'success');
-    } catch (err) {
-      showStatus(`Errore salvataggio: ${err}`, 'error');
-      console.error('[MapEditor] Save error:', err);
-    }
-  }, [showStatus]);
-
   const debouncedSave = useCallback((locId: string) => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     const loc = locations.find(l => l.id === locId);
@@ -642,9 +709,10 @@ export default function MapEditor() {
 
   // ── Mouse drag on canvas ──
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // Middle-click or Space+left-click → start panning
-    if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
+    // Left-click or middle-click on empty canvas → start panning
+    if ((e.button === 0 || e.button === 1) && (e.target as HTMLElement).dataset.canvas === 'true') {
       e.preventDefault();
+      setSelectedLocationId(null);
       panRef.current = {
         startMouseX: e.clientX,
         startMouseY: e.clientY,
@@ -653,11 +721,6 @@ export default function MapEditor() {
       };
       setIsPanning(true);
       return;
-    }
-
-    // Left-click on empty canvas → deselect
-    if (e.button === 0 && (e.target as HTMLElement).dataset.canvas === 'true') {
-      setSelectedLocationId(null);
     }
   }, [panX, panY]);
 
@@ -688,9 +751,10 @@ export default function MapEditor() {
       newX = Math.max(0, Math.min(CANVAS_W - CARD_W, newX));
       newY = Math.max(0, Math.min(CANVAS_H - CARD_H, newY));
 
+      const dragId = dragRef.current.locId;
       setLocations(prev =>
         prev.map(l =>
-          l.id === dragRef.current!.locId ? { ...l, mapX: newX, mapY: newY } : l
+          l.id === dragId ? { ...l, mapX: newX, mapY: newY } : l
         )
       );
     }
@@ -725,21 +789,15 @@ export default function MapEditor() {
       startLocY: loc.mapY,
     };
     setDraggingId(locId);
-    setSelectedLocationId(locId);
   }, [locations]);
 
   // ── Zoom controls ──
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = -Math.sign(e.deltaY) * ZOOM_STEP;
-      setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round((prev + delta) * 100) / 100)));
-    } else {
-      // Scroll to pan
-      setPanX(prev => prev - e.deltaX / zoom);
-      setPanY(prev => prev - e.deltaY / zoom);
-    }
-  }, [zoom]);
+    // Always zoom on wheel, no modifier needed
+    e.preventDefault();
+    const delta = -Math.sign(e.deltaY) * ZOOM_STEP;
+    setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round((prev + delta) * 100) / 100)));
+  }, []);
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => Math.min(MAX_ZOOM, Math.round((prev + ZOOM_STEP) * 100) / 100));
@@ -748,35 +806,38 @@ export default function MapEditor() {
     setZoom(prev => Math.max(MIN_ZOOM, Math.round((prev - ZOOM_STEP) * 100) / 100));
   }, []);
   const handleZoomReset = useCallback(() => {
-    setZoom(0.6);
-    setPanX(50);
-    setPanY(50);
-  }, []);
+    if (containerRef.current && placed.length > 0) {
+      const rect = containerRef.current.getBoundingClientRect();
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const loc of placed) {
+        if (loc.mapX == null || loc.mapY == null) continue;
+        minX = Math.min(minX, loc.mapX);
+        minY = Math.min(minY, loc.mapY);
+        maxX = Math.max(maxX, loc.mapX + CARD_W);
+        maxY = Math.max(maxY, loc.mapY + CARD_H);
+      }
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const newZoom = 0.6;
+      setZoom(newZoom);
+      setPanX(rect.width / (2 * newZoom) - centerX);
+      setPanY(rect.height / (2 * newZoom) - centerY);
+    } else {
+      setZoom(0.6);
+      setPanX(0);
+      setPanY(0);
+    }
+  }, [placed]);
 
   // Minimap goto
   const handleMinimapGoto = useCallback((x: number, y: number) => {
     const container = containerRef.current;
     if (!container) return;
-    setPanX(-(x - container.clientWidth / (2 * zoom)));
-    setPanY(-(y - container.clientHeight / (2 * zoom)));
+    setPanX(container.clientWidth / (2 * zoom) - x);
+    setPanY(container.clientHeight / (2 * zoom) - y);
   }, [zoom]);
 
-  // ── Keyboard (Space for pan) ──
-  useEffect(() => {
-    const onDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        spaceRef.current = true;
-      }
-    };
-    const onUp = () => { spaceRef.current = false; };
-    window.addEventListener('keydown', onDown);
-    window.addEventListener('keyup', onUp);
-    return () => {
-      window.removeEventListener('keydown', onDown);
-      window.removeEventListener('keyup', onUp);
-    };
-  }, []);
+
 
   // ── CRUD ──
   const processFormData = (formData: Record<string, unknown>) => {
@@ -797,7 +858,7 @@ export default function MapEditor() {
       if (f.type === 'status-cured' && Array.isArray(processed[f.key])) {
         processed[f.key] = JSON.stringify(processed[f.key]);
       }
-      const NULLABLE_FIELDS = new Set(['searchChance', 'docChance', 'searchMax', 'bossId', 'mapIcon', 'mapRow', 'mapCol']);
+      const NULLABLE_FIELDS = new Set(['searchMax', 'bossId', 'mapIcon', 'mapRow', 'mapCol']);
       if (processed[f.key] === '' || processed[f.key] === undefined) {
         if (NULLABLE_FIELDS.has(f.key)) {
           processed[f.key] = null;
@@ -907,12 +968,37 @@ export default function MapEditor() {
     setEditingId(null);
   };
 
-  // ── Center canvas on load ──
+  // ── Navigate to a location (center + highlight) ──
+  const handleGotoLocation = useCallback((locId: string) => {
+    const loc = locations.find(l => l.id === locId);
+    if (!loc || loc.mapX == null || loc.mapY == null) return;
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const cx = loc.mapX + CARD_W / 2;
+    const cy = loc.mapY + CARD_H / 2;
+    setPanX(rect.width / (2 * zoom) - cx);
+    setPanY(rect.height / (2 * zoom) - cy);
+    setHighlightedLocationId(locId);
+  }, [locations, zoom]);
+
+  // ── Center canvas on load (only if no saved view) ──
   useEffect(() => {
     if (loading || placed.length === 0) return;
+    // Skip auto-centering if we already restored from localStorage
+    if (mapViewRestored.current) return;
+    mapViewRestored.current = true;
+    // Check if there's a saved view
+    try {
+      const saved = localStorage.getItem(MAP_VIEW_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.panX !== undefined && parsed.panX !== 0) return; // Already has a saved position
+        if (parsed.panY !== undefined && parsed.panY !== 0) return;
+      }
+    } catch { /* ignore */ }
+    // No saved view — center on content
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      // Calculate bounding box of all placed locations
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const loc of placed) {
         if (loc.mapX == null || loc.mapY == null) continue;
@@ -923,11 +1009,10 @@ export default function MapEditor() {
       }
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
-      setPanX(-(centerX * zoom - rect.width / (2 * zoom)));
-      setPanY(-(centerY * zoom - rect.height / (2 * zoom)));
+      setPanX(rect.width / (2 * zoom) - centerX);
+      setPanY(rect.height / (2 * zoom) - centerY);
     }
-    // Only center on initial load
-  }, [loading]);
+  }, [loading, zoom, placed]);
 
   // ── Loading state ──
   if (loading) {
@@ -1039,7 +1124,7 @@ export default function MapEditor() {
                 className={`text-xs gap-1.5 h-7 ${sidebarOpen ? 'text-purple-300 bg-purple-500/10 border border-purple-500/20' : 'text-white/40 hover:text-white/60'}`}
                 title="Mostra/nascondi pannello laterale"
               >
-                {sidebarOpen ? <PanelRightClose className="w-3 h-3" /> : <PanelRight className="w-3 h-3" />}
+                {sidebarOpen ? <PanelLeftClose className="w-3 h-3" /> : <PanelLeft className="w-3 h-3" />}
               </Button>
 
               {/* Refresh */}
@@ -1095,16 +1180,166 @@ export default function MapEditor() {
 
         {/* ── Main content: Canvas + Sidebar ── */}
         <div className="flex-1 flex overflow-hidden relative bg-[#0a0a12]">
+          {/* ── Sidebar Panel ── */}
+          {sidebarOpen && (
+            <div className="w-[260px] shrink-0 border-r border-white/[0.06] bg-[#0d0d14] flex flex-col overflow-hidden">
+              {/* Controls button */}
+              <div className="px-3 py-2 border-b border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setControlsDialogOpen(true)}
+                  className="flex items-center gap-1.5 w-full text-[10px] text-white/30 hover:text-white/50 transition-colors"
+                >
+                  <Keyboard className="w-3 h-3" />
+                  <span>Controlli</span>
+                </button>
+              </div>
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto p-3 admin-scrollbar">
+                {/* Non posizionate section */}
+                <div className="mb-3">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center justify-between w-full mb-1.5 cursor-pointer"
+                    onClick={() => setUnplacedOpen(!unplacedOpen)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setUnplacedOpen(!unplacedOpen); }}
+                  >
+                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                      Non posizionate
+                      <span className="ml-1.5 text-[10px] text-white/20">({unplaced.length})</span>
+                    </span>
+                    {unplaced.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); autoPositionAll(); }}
+                        className="text-[9px] text-emerald-400/60 hover:text-emerald-300 transition-colors border border-emerald-500/15 rounded px-1.5 py-0.5"
+                        title="Posiziona tutte automaticamente"
+                      >
+                        Auto tutte
+                      </button>
+                    )}
+                    <ChevronDown className={`w-3 h-3 text-white/25 transition-transform ${unplacedOpen ? '' : '-rotate-90'}`} />
+                  </div>
+                  {unplacedOpen && (
+                    unplaced.length === 0 ? (
+                      <div className="text-[11px] text-white/15 italic py-2">
+                        Tutte le location sono sulla mappa
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-[200px] overflow-y-auto admin-scrollbar">
+                        {unplaced.map(loc => (
+                          <div
+                            key={loc.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/location-id', loc.id);
+                              e.dataTransfer.effectAllowed = 'copy';
+                            }}
+                            className="p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-grab"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
+                              <span className="text-[11px] text-white/60 truncate min-w-0 flex-1">{loc.name}</span>
+                              {loc.isBossArea && (
+                                <span className="text-[8px] text-red-400 font-bold">BOSS</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {/* All locations navigation */}
+                <div>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center justify-between w-full mb-1.5 cursor-pointer"
+                    onClick={() => setAllOpen(!allOpen)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAllOpen(!allOpen); }}
+                  >
+                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                      Tutte le Location
+                      <span className="ml-1.5 text-[10px] text-white/20">({locations.length})</span>
+                    </span>
+                    <ChevronDown className={`w-3 h-3 text-white/25 transition-transform ${allOpen ? '' : '-rotate-90'}`} />
+                  </div>
+                  {allOpen && (
+                    <div className="space-y-0.5 max-h-[300px] overflow-y-auto admin-scrollbar">
+                      {locations.map(loc => {
+                        const isPlaced = loc.mapX != null && loc.mapY != null;
+                        return (
+                          <div
+                            key={loc.id}
+                            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] cursor-pointer transition-colors group ${
+                              highlightedLocationId === loc.id
+                                ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+                                : 'text-white/50 hover:bg-white/[0.04] hover:text-white/70 border border-transparent'
+                            }`}
+                            onClick={() => handleGotoLocation(loc.id)}
+                          >
+                            <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
+                            <span className="truncate min-w-0 flex-1">{loc.name}</span>
+                            {isPlaced && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setSelectedLocationId(loc.id); }}
+                                className="opacity-0 group-hover:opacity-100 text-[9px] font-medium text-emerald-400/50 hover:text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10 rounded px-1.5 py-0.5 transition-all border border-emerald-500/10 hover:border-emerald-500/20 shrink-0"
+                                title="Apri stanze"
+                              >
+                                Stanze
+                              </button>
+                            )}
+                            {!isPlaced && (
+                              <span className="text-[8px] text-amber-400/50 shrink-0">OFF</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Canvas container ── */}
           <div
             ref={containerRef}
             className="flex-1 overflow-hidden relative"
-            style={{ cursor: isPanning ? 'grabbing' : draggingId ? 'default' : spaceRef.current ? 'grab' : 'default' }}
+            style={{ cursor: isPanning ? 'grabbing' : draggingId ? 'default' : 'grab' }}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleCanvasMouseMove}
             onMouseUp={handleCanvasMouseUp}
             onMouseLeave={handleCanvasMouseUp}
             onWheel={handleWheel}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const locId = e.dataTransfer.getData('application/location-id');
+              if (!locId) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = (e.clientX - rect.left) / zoom - panX;
+              const y = (e.clientY - rect.top) / zoom - panY;
+              let newX = Math.round(x / SNAP_GRID) * SNAP_GRID;
+              let newY = Math.round(y / SNAP_GRID) * SNAP_GRID;
+              newX = Math.max(0, Math.min(CANVAS_W - CARD_W, newX));
+              newY = Math.max(0, Math.min(CANVAS_H - CARD_H, newY));
+              setLocations(prev => prev.map(l =>
+                l.id === locId ? { ...l, mapX: newX, mapY: newY } : l
+              ));
+              const loc = locations.find(l => l.id === locId);
+              if (loc) {
+                savePositions([{ ...loc, mapX: newX, mapY: newY }]);
+              }
+              showStatus(`"${locations.find(l => l.id === locId)?.name ?? locId}" posizionata!`, 'success');
+            }}
           >
             {/* Transform wrapper */}
             <div
@@ -1194,11 +1429,11 @@ export default function MapEditor() {
                   loc={loc}
                   conns={getConnections(loc)}
                   dangerLevel={loc.mapDanger ?? 0}
-                  isSelected={selectedLocationId === loc.id}
+                  isSelected={highlightedLocationId === loc.id}
                   isDragging={draggingId === loc.id}
                   showLabels={showLabels}
                   onMouseDown={handleCardMouseDown}
-                  onSelect={setSelectedLocationId}
+                  onSelect={setHighlightedLocationId}
                   onOpenRooms={setSelectedLocationId}
                   onEdit={(id) => { setEditingId(id); setCreating(false); }}
                   onDelete={handleDelete}
@@ -1212,9 +1447,9 @@ export default function MapEditor() {
               zoom={zoom}
               panX={panX}
               panY={panY}
-              containerW={containerRef.current?.clientWidth ?? 800}
-              containerH={containerRef.current?.clientHeight ?? 600}
-              selectedId={selectedLocationId}
+              containerW={containerSize.w}
+              containerH={containerSize.h}
+              selectedId={highlightedLocationId}
               onGoto={handleMinimapGoto}
             />
 
@@ -1231,8 +1466,8 @@ export default function MapEditor() {
             </div>
 
             {/* Coordinates of selected location */}
-            {selectedLocationId && (() => {
-              const sel = locations.find(l => l.id === selectedLocationId);
+            {highlightedLocationId && !selectedLocationId && (() => {
+              const sel = locations.find(l => l.id === highlightedLocationId);
               if (!sel || sel.mapX == null || sel.mapY == null) return null;
               return (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
@@ -1243,125 +1478,6 @@ export default function MapEditor() {
               );
             })()}
           </div>
-
-          {/* ── Sidebar Panel ── */}
-          {sidebarOpen && (
-            <div className="w-[260px] shrink-0 border-l border-white/[0.06] bg-[#0d0d14] flex flex-col overflow-hidden">
-              {/* Unplaced section */}
-              <div className="flex-1 overflow-y-auto p-3 admin-scrollbar">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
-                    Non posizionate
-                    <span className="ml-1.5 text-[10px] text-white/20">({unplaced.length})</span>
-                  </span>
-                  {unplaced.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={autoPositionAll}
-                      className="text-[10px] text-emerald-400/60 hover:text-emerald-300 transition-colors"
-                      title="Posiziona tutte automaticamente"
-                    >
-                      Auto tutte
-                    </button>
-                  )}
-                </div>
-
-                {unplaced.length === 0 ? (
-                  <div className="text-[11px] text-white/15 italic py-3 text-center">
-                    Tutte le location sono sulla mappa
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 max-h-[280px] overflow-y-auto admin-scrollbar">
-                    {unplaced.map(loc => (
-                      <div
-                        key={loc.id}
-                        className="p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors group/upl"
-                        onDoubleClick={() => autoPositionOne(loc.id)}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
-                          <span className="text-[11px] text-white/60 truncate min-w-0 flex-1">{loc.name}</span>
-                          {loc.isBossArea && (
-                            <span className="text-[8px] text-red-400 font-bold">BOSS</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 mt-1.5 pl-5">
-                          <button
-                            type="button"
-                            onClick={() => autoPositionOne(loc.id)}
-                            className="flex items-center gap-0.5 text-[9px] font-medium text-emerald-400/60 hover:text-emerald-300 bg-black/50 rounded px-1.5 py-0.5 transition-colors border border-emerald-500/10 hover:border-emerald-500/25"
-                            title="Posiziona sulla mappa"
-                          >
-                            <Crosshair className="w-2.5 h-2.5" />
-                            <span>Mappa</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setEditingId(loc.id); setCreating(false); }}
-                            className="flex items-center gap-0.5 text-[9px] font-medium text-cyan-400/60 hover:text-cyan-300 bg-black/50 rounded px-1.5 py-0.5 transition-colors border border-cyan-500/10 hover:border-cyan-500/25"
-                            title="Modifica"
-                          >
-                            <Pencil className="w-2.5 h-2.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(loc.id)}
-                            className="flex items-center gap-0.5 text-[9px] font-medium text-red-400/50 hover:text-red-300 bg-black/50 rounded px-1.5 py-0.5 transition-colors border border-red-500/10 hover:border-red-500/25"
-                            title="Elimina"
-                          >
-                            <Trash2 className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* All locations list */}
-                <div className="mt-4 pt-3 border-t border-white/[0.06]">
-                  <div className="text-[11px] font-bold text-white/40 uppercase tracking-wider mb-2">
-                    Tutte le Location
-                    <span className="ml-1.5 text-[10px] text-white/20">({locations.length})</span>
-                  </div>
-                  <div className="space-y-0.5 max-h-[300px] overflow-y-auto admin-scrollbar">
-                    {locations.map(loc => {
-                      const isPlaced = loc.mapX != null && loc.mapY != null;
-                      return (
-                        <div
-                          key={loc.id}
-                          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] cursor-pointer transition-colors ${
-                            selectedLocationId === loc.id
-                              ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                              : 'text-white/50 hover:bg-white/[0.04] hover:text-white/70 border border-transparent'
-                          }`}
-                          onClick={() => setSelectedLocationId(selectedLocationId === loc.id ? null : loc.id)}
-                        >
-                          <span className="text-sm shrink-0">{loc.mapIcon || '📍'}</span>
-                          <span className="truncate min-w-0 flex-1">{loc.name}</span>
-                          {isPlaced ? (
-                            <Eye className="w-2.5 h-2.5 text-white/20 shrink-0" />
-                          ) : (
-                            <span className="text-[8px] text-amber-400/50 shrink-0">OFF</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="mt-4 pt-3 border-t border-white/[0.06]">
-                  <div className="text-[10px] text-white/25 space-y-1.5">
-                    <p><span className="text-white/40 font-medium">ℹ️ Controlli</span></p>
-                    <p>🖱️ Trascina le card per spostarle</p>
-                    <p>🖱️ Click destro o <kbd className="text-white/40 bg-white/[0.06] px-1 rounded text-[9px]">Spazio</kbd>+drag per pan</p>
-                    <p>🔄 Scroll per zoom (o Ctrl+scroll)</p>
-                    <p>👆 Doppio click su non posizionata = auto</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── Sticky Footer ── */}
@@ -1429,6 +1545,38 @@ export default function MapEditor() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Controls Dialog ── */}
+      <Dialog open={controlsDialogOpen} onOpenChange={setControlsDialogOpen}>
+        <DialogContent className="sm:max-w-[320px]">
+          <DialogHeader>
+            <DialogTitle className="text-sm text-white/90">🎮 Controlli Mappa</DialogTitle>
+            <DialogDescription className="text-[11px] text-white/40">Come usare l'editor della mappa</DialogDescription>
+          </DialogHeader>
+          <div className="text-[12px] text-white/60 space-y-3 py-2">
+            <div className="flex items-start gap-2">
+              <span className="text-base">🖱️</span>
+              <div><span className="text-white/80 font-medium">Click sinistro</span> — sposta la mappa</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">⬆️</span>
+              <div><span className="text-white/80 font-medium">Trascina</span> — sposta una card (usando la maniglia)</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">🔍</span>
+              <div><span className="text-white/80 font-medium">Scroll</span> — zoom</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">📋</span>
+              <div><span className="text-white/80 font-medium">Trascina dalla sidebar</span> — posiziona sulla mappa</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">📍</span>
+              <div><span className="text-white/80 font-medium">Clicca nella sidebar "Tutte"</span> — centra sulla location</div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </React.Fragment>
   );
 }

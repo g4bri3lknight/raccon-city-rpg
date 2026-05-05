@@ -2,18 +2,30 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Save, RefreshCw, Loader2, Plus, Pencil, Trash2,
-  ZoomIn, ZoomOut, Link2, Layers, Grid3x3, PanelRightClose, PanelRight,
-  ArrowLeft, Eye, Image,
+  Save, RefreshCw, Loader2, Plus, Pencil, Trash2, RotateCw,
+  ZoomIn, ZoomOut, Link2, Layers, Grid3x3, PanelLeftClose, PanelLeft,
+  ArrowLeft, Eye, Image, ChevronDown, ChevronRight, Keyboard,
+  CircleHelp, Search, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { adminFetch } from '@/lib/admin-fetch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
 import { EntityForm } from '@/components/game/admin/EntityForm';
 import { FIELD_MAP } from '@/components/game/admin/config/fieldDefinitions';
 import { ROOM_TYPES, getRoomTypeInfo, getRoomTypeLabel, getRoomTypeBadgeClasses, getRoomTypeCardClasses } from '@/components/game/admin/config/roomTypes';
+import {
+  CORRIDOR_BASE_TYPES, resolvePreset, parsePresetKey, buildPresetKey,
+  rotatePreset, getBaseTypeInfo, getDefaultRotation,
+  scaleCorridorPath, getPreviewPath, DOOR_STATE_COLORS, DOOR_STATE_LABELS, DOOR_STATE_DESCRIPTIONS, DOOR_STATE_ORDER, DOOR_STATE_HELP,
+} from '@/lib/corridor-presets';
+import { getEnumLabel } from '@/components/game/admin/config/enumLabels';
+import { DoorPuzzleEditor } from '@/components/game/admin/fields/DoorPuzzleEditor';
 
 // ═══════════════════════════════════════════════════════════
 // Types
@@ -22,6 +34,25 @@ interface RoomEditorPanelProps {
   locationId: string;
   locationName: string;
   onBack?: () => void;
+}
+
+interface DoorData {
+  id: string;
+  fromRoomId: string;
+  toRoomId: string;
+  fromSide: string;
+  toSide: string;
+  state: string;
+  requiredItemId: string | null;
+  lockedMessage: string;
+  puzzle: {
+    type: string;
+    combinationCode?: string;
+    sequencePattern?: string[];
+    failMessage: string;
+    successOutcome: { description: string };
+  } | null;
+  otherRoomName: string;
 }
 
 interface RoomData {
@@ -35,6 +66,7 @@ interface RoomData {
   mapY: number | null;
   mapWidth: number;
   mapHeight: number;
+  corridorPreset: string | null;
   nextRooms: string[];
   enemyPool: string[];
   itemPool: unknown[];
@@ -48,6 +80,7 @@ interface RoomData {
   locationId: string;
   orientation: string;
   backgroundImage: string;
+  _doors: DoorData[];
 }
 
 type FullRoomData = Record<string, unknown>;
@@ -55,6 +88,8 @@ type FullRoomData = Record<string, unknown>;
 interface ConnectionInfo {
   id: string;
   name: string;
+  doorSide: string;
+  doorId: string;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -69,17 +104,16 @@ const SNAP_GRID = 20;
 
 const DEFAULT_ROOM_W = 140;
 const DEFAULT_ROOM_H = 100;
-const DEFAULT_CORRIDOR_H_W = 180;
-const DEFAULT_CORRIDOR_H_H = 50;
-const DEFAULT_CORRIDOR_V_W = 50;
-const DEFAULT_CORRIDOR_V_H = 120;
 
 const ENDPOINT = '/api/admin/rooms';
 
-// Form fields without position/map fields (managed via canvas)
-const roomFormFields = FIELD_MAP.rooms.filter(
-  f => !['mapCol', 'mapRow', 'sortOrder', 'mapX', 'mapY', 'mapWidth', 'mapHeight'].includes(f.key)
-);
+// Form fields without position/map fields (managed via canvas), exclude 'corridor' from type options
+const roomFormFields = FIELD_MAP.rooms
+  .filter(f => !['mapCol', 'mapRow', 'sortOrder', 'mapX', 'mapY', 'mapWidth', 'mapHeight', 'nextRooms', 'lockedRooms', 'corridorPreset'].includes(f.key))
+  .map(f => f.key === 'type'
+    ? { ...f, options: f.options?.filter(o => o !== 'corridor') }
+    : f
+  );
 
 const ARRAY_TYPES = new Set([
   'tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs',
@@ -102,55 +136,32 @@ function slugify(text: string): string {
 }
 
 /** Get room card dimensions based on type, orientation, and overrides */
-function getRoomDimensions(room: RoomData, rooms: RoomData[]): { w: number; h: number } {
-  // Use explicit overrides if set
+function getRoomDimensions(room: RoomData, _rooms: RoomData[]): { w: number; h: number } {
+  if (room.corridorPreset) {
+    const variant = resolvePreset(room.corridorPreset);
+    if (variant) {
+      if (room.mapWidth > 0 || room.mapHeight > 0) {
+        return {
+          w: room.mapWidth > 0 ? room.mapWidth : DEFAULT_ROOM_W,
+          h: room.mapHeight > 0 ? room.mapHeight : DEFAULT_ROOM_H,
+        };
+      }
+      return { w: variant.defaultWidth, h: variant.defaultHeight };
+    }
+  }
   if (room.mapWidth > 0 || room.mapHeight > 0) {
     return {
       w: room.mapWidth > 0 ? room.mapWidth : DEFAULT_ROOM_W,
       h: room.mapHeight > 0 ? room.mapHeight : DEFAULT_ROOM_H,
     };
   }
-
   if (room.type === 'corridor') {
-    const orientation = resolveCorridorOrientation(room, rooms);
-    return orientation === 'vertical'
-      ? { w: DEFAULT_CORRIDOR_V_W, h: DEFAULT_CORRIDOR_V_H }
-      : { w: DEFAULT_CORRIDOR_H_W, h: DEFAULT_CORRIDOR_H_H };
+    return { w: 180, h: 44 };
   }
-
   if (room.type === 'boss_room') {
     return { w: 160, h: 110 };
   }
-
   return { w: DEFAULT_ROOM_W, h: DEFAULT_ROOM_H };
-}
-
-/** Resolve corridor orientation from connections */
-function resolveCorridorOrientation(room: RoomData, rooms: RoomData[]): 'horizontal' | 'vertical' {
-  if (room.orientation === 'horizontal' || room.orientation === 'vertical') return room.orientation;
-
-  // Auto-detect from connections using pixel positions
-  let h = 0, v = 0;
-  for (const nextId of room.nextRooms) {
-    const other = rooms.find(r => r.id === nextId);
-    if (!other || other.mapX == null || other.mapY == null) continue;
-    if (room.mapX == null || room.mapY == null) continue;
-    const dx = Math.abs(other.mapX - room.mapX);
-    const dy = Math.abs(other.mapY - room.mapY);
-    if (dx >= dy) h++;
-    else v++;
-  }
-  // Also check reverse connections
-  for (const other of rooms) {
-    if (other.id === room.id || !other.nextRooms.includes(room.id)) continue;
-    if (other.mapX == null || other.mapY == null || room.mapX == null || room.mapY == null) continue;
-    const dx = Math.abs(other.mapX - room.mapX);
-    const dy = Math.abs(other.mapY - room.mapY);
-    if (dx >= dy) h++;
-    else v++;
-  }
-
-  return v >= h ? 'vertical' : 'horizontal';
 }
 
 /** Get the center point of a room card */
@@ -161,6 +172,121 @@ function getRoomCenter(room: RoomData, rooms: RoomData[]): { cx: number; cy: num
     cy: (room.mapY ?? 0) + dim.h / 2,
   };
 }
+
+/** Get door position (midpoint of edge) for a room */
+function getDoorPosition(room: RoomData, side: string, allRooms: RoomData[]): { x: number; y: number } | null {
+  if (room.mapX == null || room.mapY == null) return null;
+  const dim = getRoomDimensions(room, allRooms);
+  switch (side) {
+    case 'north': return { x: room.mapX + dim.w / 2, y: room.mapY };
+    case 'south': return { x: room.mapX + dim.w / 2, y: room.mapY + dim.h };
+    case 'east':  return { x: room.mapX + dim.w, y: room.mapY + dim.h / 2 };
+    case 'west':  return { x: room.mapX, y: room.mapY + dim.h / 2 };
+    default: return null;
+  }
+}
+
+/** Detect side between two rooms based on relative positions */
+function detectSide(fromRoom: RoomData, toRoom: RoomData, allRooms: RoomData[]): { fromSide: string; toSide: string } | null {
+  if (fromRoom.mapX == null || fromRoom.mapY == null || toRoom.mapX == null || toRoom.mapY == null) return null;
+  const fromDim = getRoomDimensions(fromRoom, allRooms);
+  const toDim = getRoomDimensions(toRoom, allRooms);
+  const fromCX = fromRoom.mapX + fromDim.w / 2;
+  const fromCY = fromRoom.mapY + fromDim.h / 2;
+  const toCX = toRoom.mapX + toDim.w / 2;
+  const toCY = toRoom.mapY + toDim.h / 2;
+  const dx = toCX - fromCX;
+  const dy = toCY - fromCY;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal: east or west
+    return dx > 0
+      ? { fromSide: 'east', toSide: 'west' }
+      : { fromSide: 'west', toSide: 'east' };
+  } else {
+    // Vertical: north or south
+    return dy > 0
+      ? { fromSide: 'south', toSide: 'north' }
+      : { fromSide: 'north', toSide: 'south' };
+  }
+}
+
+
+const AUTO_CONNECT_DISTANCE = 250;
+
+/** Find rooms near corridor edges and create doors between them */
+async function autoConnectCorridor(corridorId: string, corridorMapX: number, corridorMapY: number, corridorW: number, corridorH: number, existingRooms: RoomData[], corridorPreset: string | null): Promise<number> {
+  const variant = corridorPreset ? resolvePreset(corridorPreset) : null;
+  const cCX = corridorMapX + corridorW / 2;
+  const cCY = corridorMapY + corridorH / 2;
+  const placedNonCorridor = existingRooms.filter(r => r.mapX != null && r.mapY != null && r.type !== 'corridor');
+
+  // Build edge connection points for the corridor
+  const edges: { side: string; x: number; y: number }[] = [];
+  edges.push({ side: 'north', x: cCX, y: corridorMapY });
+  edges.push({ side: 'south', x: cCX, y: corridorMapY + corridorH });
+  edges.push({ side: 'east', x: corridorMapX + corridorW, y: cCY });
+  edges.push({ side: 'west', x: corridorMapX, y: cCY });
+
+  // For each corridor edge, find the nearest room
+  const connections: { fromSide: string; toRoomId: string; toSide: string }[] = [];
+  const usedSides = new Set<string>();
+
+  for (const edge of edges) {
+    if (usedSides.has(edge.side)) continue;
+    let bestRoom: RoomData | null = null;
+    let bestDist = AUTO_CONNECT_DISTANCE;
+    let bestRoomSide = '';
+
+    for (const room of placedNonCorridor) {
+      const dim = getRoomDimensions(room, existingRooms);
+      const rCX = (room.mapX ?? 0) + dim.w / 2;
+      const rCY = (room.mapY ?? 0) + dim.h / 2;
+      const roomEdges = [
+        { side: 'north', x: rCX, y: room.mapY ?? 0 },
+        { side: 'south', x: rCX, y: (room.mapY ?? 0) + dim.h },
+        { side: 'east', x: (room.mapX ?? 0) + dim.w, y: rCY },
+        { side: 'west', x: room.mapX ?? 0, y: rCY },
+      ];
+      for (const re of roomEdges) {
+        const dist = Math.sqrt((edge.x - re.x) ** 2 + (edge.y - re.y) ** 2);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestRoom = room;
+          bestRoomSide = re.side;
+        }
+      }
+    }
+
+    if (bestRoom && !connections.some(c => c.toRoomId === bestRoom!.id)) {
+      connections.push({ fromSide: edge.side, toRoomId: bestRoom.id, toSide: bestRoomSide });
+      usedSides.add(edge.side);
+    }
+  }
+
+  // Create doors
+  let created = 0;
+  for (const conn of connections) {
+    try {
+      const res = await adminFetch('/api/admin/doors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromRoomId: corridorId,
+          toRoomId: conn.toRoomId,
+          fromSide: conn.fromSide,
+          toSide: conn.toSide,
+          state: 'open',
+        }),
+      });
+      if (res.ok) created++;
+      // 409 = already exists, ignore
+    } catch { /* ignore */ }
+  }
+
+  return created;
+}
+
 
 // ═══════════════════════════════════════════════════════════
 // Connection Line SVG Component
@@ -175,21 +301,16 @@ function RoomConnectionLine({
   const dy = y2 - y1;
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-  const cpx = mx + (dy / dist) * dist * 0.1;
-  const cpy = my - (dx / dist) * dist * 0.1;
   const angle = Math.atan2(dy, dx);
   const arrowLen = 8;
   const arrowX1 = x2 - arrowLen * Math.cos(angle - 0.35);
   const arrowY1 = y2 - arrowLen * Math.sin(angle - 0.35);
   const arrowX2 = x2 - arrowLen * Math.cos(angle + 0.35);
   const arrowY2 = y2 - arrowLen * Math.sin(angle + 0.35);
-  const safeId = label.replace(/[^a-zA-Z0-9]/g, '');
-
   return (
     <g className="group/rconn">
       <path
-        d={`M${x1},${y1} Q${cpx},${cpy} ${x2},${y2}`}
+        d={`M${x1},${y1} L${x2},${y2}`}
         fill="none"
         stroke={'rgba(52,211,153,0.25)'}
         strokeWidth={1.5}
@@ -255,17 +376,18 @@ function RoomCard({
   const isCorridor = room.type === 'corridor';
   const isBoss = room.type === 'boss_room';
   const isSafe = room.type === 'safe_room';
-  const orientation = isCorridor ? resolveCorridorOrientation(room, rooms) : null;
-  const isHorizontal = orientation === 'horizontal';
-  const isVertical = orientation === 'vertical';
+  const corridorVariant = isCorridor && room.corridorPreset ? resolvePreset(room.corridorPreset) : null;
+  const isHorizontal = corridorVariant ? corridorVariant.defaultWidth > corridorVariant.defaultHeight : false;
+  const isVertical = corridorVariant ? corridorVariant.defaultHeight > corridorVariant.defaultWidth : false;
 
   const borderClasses = getRoomTypeCardClasses(typeInfo.color);
 
   return (
     <div
       className={`
-        absolute rounded-lg select-none transition-shadow duration-150
-        ${isCorridor ? 'border-dashed' : 'border-solid'}
+        absolute select-none transition-shadow duration-150
+        ${isCorridor ? 'rounded-none' : 'rounded-lg'}
+        border ${isCorridor ? 'border-slate-500/50' : 'border-solid'}
         ${borderClasses}
         ${isSelected
           ? 'ring-2 ring-emerald-400/60 shadow-lg shadow-emerald-500/10'
@@ -281,34 +403,19 @@ function RoomCard({
         width: dim.w,
         height: dim.h,
       }}
-      onMouseDown={(e) => {
-        if ((e.target as HTMLElement).closest('button')) return;
-        onMouseDown(e, room.id);
-      }}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button')) return;
         onSelect(room.id);
       }}
+      onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, room.id); }}
     >
-      {/* Background image preview strip */}
-      {room.backgroundImage && !isCorridor && (
-        <div className="absolute inset-0 rounded-lg overflow-hidden opacity-20">
-          <img
-            src={room.backgroundImage}
-            alt=""
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-black/80" />
-        </div>
-      )}
 
       <div className={`relative flex ${isCorridor ? (isHorizontal ? 'flex-row items-center' : 'flex-col items-center justify-center') : 'flex-col'} h-full p-2 gap-0.5`}>
         {/* Icon + Name */}
-        <div className={`flex items-center gap-1 min-w-0 ${isCorridor && isHorizontal ? 'flex-1' : ''}`}>
+        <div className={`flex items-center gap-1 min-w-0 ${isCorridor ? (isHorizontal ? 'flex-1 justify-center' : 'justify-center') : ''}`}>
           <span className="text-sm leading-none shrink-0">{room.icon || typeInfo.icon}</span>
           <span className={`font-bold text-white/80 truncate min-w-0 leading-tight ${
-            isCorridor ? (isHorizontal ? 'text-[10px] flex-1' : 'text-[10px] text-center') : 'text-[11px]'
+            isCorridor ? 'text-[10px] text-center' : 'text-[11px]'
           }`}>
             {room.name}
           </span>
@@ -373,6 +480,228 @@ function RoomCard({
 }
 
 // ═══════════════════════════════════════════════════════════
+// Door Card Sub-component with searchable item picker
+// ═══════════════════════════════════════════════════════════
+function DoorCard({
+  door,
+  editRoomId,
+  onUpdate,
+  onDelete,
+}: {
+  door: DoorData;
+  editRoomId: string;
+  onUpdate: (doorId: string, updates: Record<string, unknown>) => void;
+  onDelete: (doorId: string) => void;
+}) {
+  const [itemSearchOpen, setItemSearchOpen] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const [items, setItems] = useState<Array<{ id: string; name: string; type?: string; icon?: string }>>([]);
+  const [itemsFetched, setItemsFetched] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Loading is true when popover is open and items haven't been fetched yet
+  const itemsLoading = itemSearchOpen && !itemsFetched;
+
+  // Fetch items when popover opens
+  useEffect(() => {
+    if (!itemSearchOpen || itemsFetched) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await adminFetch('/api/admin/items');
+        const data = await r.json();
+        if (!cancelled) {
+          setItems(Array.isArray(data) ? data : []);
+          setItemsFetched(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setItems([]);
+          setItemsFetched(true);
+        }
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [itemSearchOpen, itemsFetched]);
+
+  // Focus search input when popover opens
+  useEffect(() => {
+    if (itemSearchOpen) {
+      setTimeout(() => searchRef.current?.focus(), 50);
+    }
+  }, [itemSearchOpen]);
+
+  const filteredItems = useMemo(() => {
+    if (!itemSearch.trim()) return items;
+    const q = itemSearch.toLowerCase();
+    return items.filter(i => i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q));
+  }, [items, itemSearch]);
+
+  const selectedItem = useMemo(() => {
+    if (!door.requiredItemId) return null;
+    return items.find(i => i.id === door.requiredItemId);
+  }, [door.requiredItemId, items]);
+
+  const color = DOOR_STATE_COLORS[door.state] ?? DOOR_STATE_COLORS.open;
+  const isFrom = door.fromRoomId === editRoomId;
+
+  return (
+    <div className="flex items-start gap-2 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+      {/* Door state indicator */}
+      <div
+        className="w-3 h-3 rounded-full shrink-0 mt-0.5"
+        style={{ backgroundColor: color }}
+      />
+      <div className="flex-1 min-w-0">
+        {/* Room name + state badge + side */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-white/70 font-medium truncate">
+            {door.otherRoomName}
+          </span>
+          <span
+            className="text-[8px] px-1.5 py-px rounded-full border font-medium"
+            style={{
+              borderColor: color,
+              color: color,
+              backgroundColor: `${color}15`,
+            }}
+          >
+            {getEnumLabel('doorState', door.state)}
+          </span>
+          <span className="text-[9px] text-white/20">
+            {isFrom ? `→ ${door.toSide}` : `← ${door.fromSide}`}
+          </span>
+        </div>
+
+        {/* Key item search — only for key_locked state */}
+        {door.state === 'key_locked' && (
+          <div className="mt-1">
+            <Popover open={itemSearchOpen} onOpenChange={setItemSearchOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-1.5 text-[9px] bg-black/40 border border-yellow-500/20 rounded px-1.5 py-0.5 text-left hover:border-yellow-500/40 transition-colors"
+                >
+                  {selectedItem ? (
+                    <>
+                      <span className="text-yellow-400/80">{selectedItem.icon || '🔑'}</span>
+                      <span className="text-yellow-400/80 truncate flex-1">{selectedItem.name}</span>
+                      <X
+                        className="w-2.5 h-2.5 text-yellow-500/40 hover:text-yellow-400 shrink-0"
+                        onClick={(e) => { e.stopPropagation(); onUpdate(door.id, { requiredItemId: null }); }}
+                      />
+                    </>
+                  ) : (
+                    <span className="text-yellow-500/30">🔑 Cerca oggetto chiave...</span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-64 p-1.5 bg-zinc-900 border-white/[0.1] shadow-xl"
+                side="bottom"
+                align="start"
+              >
+                <div className="flex items-center gap-1.5 px-1.5 py-1 mb-1">
+                  <Search className="w-3 h-3 text-white/30 shrink-0" />
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                    placeholder="Cerca oggetto..."
+                    className="flex-1 bg-transparent text-[10px] text-white/80 placeholder:text-white/25 focus:outline-none min-w-0"
+                  />
+                </div>
+                <div className="max-h-32 overflow-y-auto admin-scrollbar">
+                  {itemsLoading ? (
+                    <div className="flex items-center justify-center py-2">
+                      <Loader2 className="w-3 h-3 text-white/30 animate-spin" />
+                    </div>
+                  ) : filteredItems.length === 0 ? (
+                    <p className="text-[9px] text-white/25 italic text-center py-2">
+                      {itemSearch ? 'Nessun risultato' : 'Nessun oggetto creato'}
+                    </p>
+                  ) : (
+                    filteredItems.map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="w-full flex items-center gap-1.5 px-1.5 py-1 text-left rounded hover:bg-white/[0.06] transition-colors"
+                        onClick={() => {
+                          onUpdate(door.id, { requiredItemId: item.id });
+                          setItemSearchOpen(false);
+                          setItemSearch('');
+                        }}
+                      >
+                        <span className="text-[10px]">{item.icon || '📦'}</span>
+                        <span className="text-[10px] text-white/70 truncate flex-1">{item.name}</span>
+                        {door.requiredItemId === item.id && (
+                          <span className="text-[8px] text-emerald-400/60 shrink-0">✓</span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
+        {/* Locked message — for key_locked, locked, inaccessible */}
+        {(door.state === 'key_locked' || door.state === 'locked' || door.state === 'inaccessible') && (
+          <input
+            type="text"
+            placeholder={door.state === 'key_locked'
+              ? '💬 Messaggio se il giocatore non ha la chiave...'
+              : '💬 Messaggio quando bloccata...'
+            }
+            defaultValue={door.lockedMessage ?? ''}
+            onBlur={(e) => onUpdate(door.id, { lockedMessage: e.target.value })}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            className="w-full text-[9px] bg-black/40 border border-white/[0.06] rounded px-1.5 py-0.5 text-white/50 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] mt-1 italic"
+          />
+        )}
+
+        {/* Puzzle editor — only for locked state */}
+        {door.state === 'locked' && (
+          <DoorPuzzleEditor
+            value={door.puzzle}
+            onChange={(puzzle) => onUpdate(door.id, {
+              puzzle: puzzle ? JSON.stringify(puzzle) : '',
+            })}
+          />
+        )}
+
+        {/* State description */}
+        <span className="text-[8px] text-white/20 block mt-0.5">{DOOR_STATE_DESCRIPTIONS[door.state] ?? ''}</span>
+      </div>
+
+      {/* Door state selector */}
+      <select
+        value={door.state}
+        onChange={(e) => onUpdate(door.id, { state: e.target.value })}
+        className="text-[10px] bg-black/40 border border-white/[0.08] rounded px-1.5 py-0.5 text-white/60 focus:outline-none focus:border-emerald-500/30 shrink-0"
+      >
+        {DOOR_STATE_ORDER.map(s => (
+          <option key={s} value={s}>{DOOR_STATE_LABELS[s] ?? s}</option>
+        ))}
+      </select>
+
+      {/* Delete door */}
+      <button
+        type="button"
+        onClick={() => onDelete(door.id)}
+        className="p-1 text-red-400/40 hover:text-red-300 transition-colors shrink-0"
+        title="Elimina porta"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // Main Component — Room Editor Panel
 // ═══════════════════════════════════════════════════════════
 export default function RoomEditorPanel({ locationId, locationName, onBack }: RoomEditorPanelProps) {
@@ -383,11 +712,46 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [highlightedRoomId, setHighlightedRoomId] = useState<string | null>(null);
 
-  // Canvas controls
-  const [zoom, setZoom] = useState(0.7);
-  const [panX, setPanX] = useState(50);
-  const [panY, setPanY] = useState(50);
+  // Canvas controls — restore from localStorage per location
+  const ROOM_VIEW_KEY = `roomEditor-view-${locationId}`;
+  const [zoom, setZoom] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(ROOM_VIEW_KEY);
+      if (saved) { try { return JSON.parse(saved).zoom ?? 0.7; } catch { /* ignore */ } }
+    }
+    return 0.7;
+  });
+  const [panX, setPanX] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(ROOM_VIEW_KEY);
+      if (saved) { try { return JSON.parse(saved).panX ?? 0; } catch { /* ignore */ } }
+    }
+    return 0;
+  });
+  const [panY, setPanY] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(ROOM_VIEW_KEY);
+      if (saved) { try { return JSON.parse(saved).panY ?? 0; } catch { /* ignore */ } }
+    }
+    return 0;
+  });
+  const mapViewRestored = useRef(false);
+
+  // Debounced save of room map view state to localStorage
+  const mapViewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveMapView = useCallback((z: number, px: number, py: number) => {
+    if (mapViewTimeoutRef.current) clearTimeout(mapViewTimeoutRef.current);
+    mapViewTimeoutRef.current = setTimeout(() => {
+      try { localStorage.setItem(ROOM_VIEW_KEY, JSON.stringify({ zoom: z, panX: px, panY: py })); } catch { /* ignore */ }
+    }, 300);
+  }, [ROOM_VIEW_KEY]);
+
+  // Save view state when pan/zoom changes
+  useEffect(() => {
+    saveMapView(zoom, panX, panY);
+  }, [zoom, panX, panY, saveMapView]);
 
   // Drag state (mouse-based)
   const dragRef = useRef<{
@@ -406,19 +770,37 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
     startPanX: number;
     startPanY: number;
   } | null>(null);
-  const spaceRef = useRef(false);
+  const [isPanning, setIsPanning] = useState(false);
 
   // Sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showConnections, setShowConnections] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
+  const [unplacedOpen, setUnplacedOpen] = useState(true);
+  const [allOpen, setAllOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [controlsDialogOpen, setControlsDialogOpen] = useState(false);
 
   // Dialog
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dialogSaving, setDialogSaving] = useState(false);
+  const [doorHelpOpen, setDoorHelpOpen] = useState(false);
   const dialogOpen = creating || editingId !== null;
+
+  // Corridor presets
+  const [presetsOpen, setPresetsOpen] = useState(true);
+  const corridorCountRef = useRef(0);
+
+  // Corridor presets — track selected rotation per base type
+  const [presetRotations, setPresetRotations] = useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    for (const bt of CORRIDOR_BASE_TYPES) {
+      initial[bt.id] = getDefaultRotation(bt.id);
+    }
+    return initial;
+  });
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -462,6 +844,8 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         locationId: String(d.locationId ?? ''),
         orientation: String(d.orientation ?? 'auto'),
         backgroundImage: String(d.backgroundImage ?? ''),
+        corridorPreset: d.corridorPreset ? String(d.corridorPreset) : null,
+        _doors: Array.isArray(d._doors) ? d._doors as DoorData[] : [],
       }));
       setRooms(rms);
       const fd: Record<string, FullRoomData> = {};
@@ -492,19 +876,13 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const getConnections = useCallback((room: RoomData): ConnectionInfo[] => {
     const result: ConnectionInfo[] = [];
     const seen = new Set<string>();
-    for (const nextId of room.nextRooms) {
-      if (seen.has(nextId)) continue;
-      seen.add(nextId);
-      const nextRoom = rooms.find(r => r.id === nextId);
-      if (!nextRoom) continue;
-      result.push({ id: nextId, name: nextRoom.name });
-    }
-    for (const other of rooms) {
-      if (other.id === room.id) continue;
-      if (other.nextRooms.includes(room.id) && !seen.has(other.id)) {
-        seen.add(other.id);
-        result.push({ id: other.id, name: other.name });
-      }
+    if (!room._doors) return result;
+    for (const door of room._doors) {
+      const otherId = door.fromRoomId === room.id ? door.toRoomId : door.fromRoomId;
+      if (seen.has(otherId)) continue;
+      seen.add(otherId);
+      const doorSide = door.fromRoomId === room.id ? door.fromSide : door.toSide;
+      result.push({ id: otherId, name: door.otherRoomName, doorSide, doorId: door.id });
     }
     return result;
   }, [rooms]);
@@ -524,6 +902,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
     const lines: {
       x1: number; y1: number; x2: number; y2: number;
       label: string; key: string;
+      fromSide: string; toSide: string;
     }[] = [];
     const seenPairs = new Set<string>();
     for (const room of placed) {
@@ -534,20 +913,215 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         const pairKey = [room.id, target.id].sort().join('::');
         if (seenPairs.has(pairKey)) continue;
         seenPairs.add(pairKey);
-        const from = getRoomCenter(room, rooms);
-        const to = getRoomCenter(target, rooms);
+
+        // Use door positions instead of room centers
+        const fromPos = getDoorPosition(room, conn.doorSide, rooms);
+
+        // Find the reverse door on the target to get its side
+        const targetConns = getConnections(target);
+        const reverseConn = targetConns.find(tc => tc.id === room.id);
+        const toPos = reverseConn
+          ? getDoorPosition(target, reverseConn.doorSide, rooms)
+          : (() => { const c = getRoomCenter(target, rooms); return { x: c.cx, y: c.cy }; })();
+
+        if (!fromPos) continue;
+
         lines.push({
-          x1: from.cx,
-          y1: from.cy,
-          x2: to.cx,
-          y2: to.cy,
+          x1: fromPos.x,
+          y1: fromPos.y,
+          x2: toPos ? toPos.x : fromPos.x,
+          y2: toPos ? toPos.y : fromPos.y,
           label: conn.name,
           key: pairKey,
+          fromSide: conn.doorSide,
+          toSide: reverseConn?.doorSide ?? '',
         });
       }
     }
     return lines;
   }, [placed, rooms, showConnections, getConnections]);
+
+  // ── Door positions for map rendering ──
+  const doorPositions = useMemo(() => {
+    const positions: { x: number; y: number; color: string; state: string; doorId: string; roomName: string; otherRoomName: string; side: string }[] = [];
+    const seenDoors = new Set<string>();
+    for (const room of placed) {
+      if (!room._doors) continue;
+      for (const door of room._doors) {
+        if (seenDoors.has(door.id)) continue;
+        seenDoors.add(door.id);
+        // Determine which side this door is on for THIS room
+        const isFrom = door.fromRoomId === room.id;
+        const side = isFrom ? door.fromSide : door.toSide;
+        const pos = getDoorPosition(room, side, rooms);
+        if (!pos) continue;
+        positions.push({
+          x: pos.x,
+          y: pos.y,
+          color: DOOR_STATE_COLORS[door.state] ?? DOOR_STATE_COLORS.open,
+          state: door.state,
+          doorId: door.id,
+          roomName: room.name,
+          otherRoomName: door.otherRoomName,
+          side,
+        });
+      }
+    }
+    return positions;
+  }, [placed, rooms]);
+
+  // ── Corridor shape paths for SVG rendering ──
+  const corridorShapes = useMemo(() => {
+    const shapes: { path: string; x: number; y: number; w: number; h: number; presetId: string }[] = [];
+    for (const room of placed) {
+      if (!room.corridorPreset || room.mapX == null || room.mapY == null) continue;
+      const dim = getRoomDimensions(room, rooms);
+      const scaledPath = scaleCorridorPath(room.corridorPreset, dim.w, dim.h);
+      if (scaledPath) {
+        shapes.push({
+          path: scaledPath,
+          x: room.mapX,
+          y: room.mapY,
+          w: dim.w,
+          h: dim.h,
+          presetId: room.corridorPreset,
+        });
+      }
+    }
+    return shapes;
+  }, [placed, rooms]);
+
+  // ── Door creation helper ──
+  const createDoor = useCallback(async (fromRoomId: string, toRoomId: string) => {
+    const fromRoom = rooms.find(r => r.id === fromRoomId);
+    const toRoom = rooms.find(r => r.id === toRoomId);
+    if (!fromRoom || !toRoom) return;
+    const sides = detectSide(fromRoom, toRoom, rooms);
+    if (!sides) return;
+    try {
+      const res = await adminFetch('/api/admin/doors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromRoomId,
+          toRoomId,
+          fromSide: sides.fromSide,
+          toSide: sides.toSide,
+          state: 'open',
+        }),
+      });
+      if (!res.ok) {
+        // Door may already exist (409), that's fine
+        if (res.status !== 409) {
+          console.warn('[RoomEditorPanel] Door creation failed:', await res.text());
+        }
+        return;
+      }
+      // Refresh rooms to get new door data
+      fetchRooms();
+    } catch (err) {
+      console.warn('[RoomEditorPanel] Door creation error:', err);
+    }
+  }, [rooms, fetchRooms]);
+
+  // ── Door update helper ──
+  const updateDoor = useCallback(async (doorId: string, updates: Record<string, unknown>) => {
+    try {
+      const res = await adminFetch('/api/admin/doors', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: doorId, ...updates }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      fetchRooms();
+    } catch (err) {
+      showStatus(`Errore aggiornamento porta: ${err}`, 'error');
+    }
+  }, [fetchRooms, showStatus]);
+
+  // ── Door delete helper ──
+  const deleteDoor = useCallback(async (doorId: string) => {
+    if (!confirm('Eliminare questa porta?')) return;
+    try {
+      const res = await adminFetch(`/api/admin/doors?id=${encodeURIComponent(doorId)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
+      showStatus('Porta eliminata!', 'success');
+      fetchRooms();
+    } catch (err) {
+      showStatus(`Errore eliminazione porta: ${err}`, 'error');
+    }
+  }, [fetchRooms, showStatus]);
+
+  // ── Corridor preset drop handler ──
+  const handleCorridorDrop = useCallback(async (presetKey: string, mapX: number, mapY: number) => {
+    const variant = resolvePreset(presetKey);
+    if (!variant) return;
+    const parsed = parsePresetKey(presetKey);
+    corridorCountRef.current++;
+    const count = corridorCountRef.current;
+    const newId = `corridor_${Date.now()}`;
+    const baseInfo = parsed ? getBaseTypeInfo(parsed.baseType) : null;
+    const newName = `${baseInfo?.label ?? 'Corridoio'} #${count}`;
+    try {
+      const res = await adminFetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newId,
+          locationId,
+          name: newName,
+          type: 'corridor',
+          icon: '🚪',
+          corridorPreset: presetKey,
+          mapX,
+          mapY,
+          mapWidth: variant.defaultWidth,
+          mapHeight: variant.defaultHeight,
+          sortOrder: rooms.length,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      // Auto-connect to nearby rooms
+      const doorsCreated = await autoConnectCorridor(
+        newId, mapX, mapY,
+        variant.defaultWidth, variant.defaultHeight,
+        rooms, presetKey
+      );
+      if (doorsCreated > 0) {
+        showStatus(`${baseInfo?.label ?? 'Corridoio'} creato con ${doorsCreated} porte!`, 'success');
+      } else {
+        showStatus(`${baseInfo?.label ?? 'Corridoio'} (${parsed?.rotation ?? 0}°) creato!`, 'success');
+      }
+      fetchRooms();
+    } catch (err) {
+      showStatus(`Errore creazione corridoio: ${err}`, 'error');
+    }
+  }, [locationId, rooms.length, fetchRooms, showStatus]);
+
+  // ── Save positions (batch, debounced after drag) ──
+  const savePositions = useCallback(async (roomsToSave: RoomData[]) => {
+    const positions = roomsToSave.map(r => ({
+      id: r.id,
+      mapX: r.mapX,
+      mapY: r.mapY,
+      mapRow: r.mapRow,
+      mapCol: r.mapCol,
+      mapWidth: r.mapWidth,
+      mapHeight: r.mapHeight,
+    }));
+    try {
+      const res = await adminFetch('/api/admin/rooms/batch-positions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positions }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showStatus(`Salvate ${positions.length} posizioni!`, 'success');
+    } catch (err) {
+      showStatus(`Errore salvataggio: ${err}`, 'error');
+      console.error('[RoomEditorPanel] Save error:', err);
+    }
+  }, [showStatus]);
 
   // ── Auto-position unplaced rooms in grid pattern ──
   const autoPositionAll = useCallback(() => {
@@ -567,6 +1141,13 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
       };
     });
 
+    // Compute new positioned rooms and save them
+    const newlyPositioned = unplaced.map((room, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      return { ...room, mapX: startX + col * spacingX, mapY: startY + row * spacingY };
+    });
+
     setRooms(prev =>
       prev.map(r => {
         const u = updates[r.id];
@@ -574,7 +1155,12 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         return { ...r, mapX: u.mapX, mapY: u.mapY };
       })
     );
-  }, [unplaced]);
+
+    // Save positions after state update propagates
+    setTimeout(() => {
+      savePositions(newlyPositioned);
+    }, 100);
+  }, [unplaced, savePositions]);
 
   const autoPositionOne = useCallback((roomId: string) => {
     const existingPositions = placed.map(r => ({ x: r.mapX!, y: r.mapY! }));
@@ -607,32 +1193,15 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         r.id === roomId ? { ...r, mapX: targetX, mapY: targetY } : r
       )
     );
-  }, [placed]);
 
-  // ── Save positions (batch, debounced after drag) ──
-  const savePositions = useCallback(async (roomsToSave: RoomData[]) => {
-    const positions = roomsToSave.map(r => ({
-      id: r.id,
-      mapX: r.mapX,
-      mapY: r.mapY,
-      mapRow: r.mapRow,
-      mapCol: r.mapCol,
-      mapWidth: r.mapWidth,
-      mapHeight: r.mapHeight,
-    }));
-    try {
-      const res = await adminFetch('/api/admin/rooms/batch-positions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positions }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      showStatus(`Salvate ${positions.length} posizioni!`, 'success');
-    } catch (err) {
-      showStatus(`Errore salvataggio: ${err}`, 'error');
-      console.error('[RoomEditorPanel] Save error:', err);
+    // Save position after state update propagates
+    const room = rooms.find(r => r.id === roomId);
+    if (room) {
+      setTimeout(() => {
+        savePositions([{ ...room, mapX: targetX, mapY: targetY }]);
+      }, 100);
     }
-  }, [showStatus]);
+  }, [placed, rooms, savePositions]);
 
   const debouncedSave = useCallback((roomId: string) => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -651,18 +1220,18 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
 
   // ── Mouse drag on canvas ──
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
+    // Left-click or middle-click on empty canvas → start panning
+    if ((e.button === 0 || e.button === 1) && (e.target as HTMLElement).dataset.canvas === 'true') {
       e.preventDefault();
+      setSelectedRoomId(null);
       panRef.current = {
         startMouseX: e.clientX,
         startMouseY: e.clientY,
         startPanX: panX,
         startPanY: panY,
       };
+      setIsPanning(true);
       return;
-    }
-    if (e.button === 0 && (e.target as HTMLElement).dataset.canvas === 'true') {
-      setSelectedRoomId(null);
     }
   }, [panX, panY]);
 
@@ -689,17 +1258,20 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
       newX = Math.max(0, Math.min(CANVAS_W - DEFAULT_ROOM_W, newX));
       newY = Math.max(0, Math.min(CANVAS_H - DEFAULT_ROOM_H, newY));
 
+      const dragId = dragRef.current.roomId;
       setRooms(prev =>
         prev.map(r =>
-          r.id === dragRef.current!.roomId ? { ...r, mapX: newX, mapY: newY } : r
+          r.id === dragId ? { ...r, mapX: newX, mapY: newY } : r
         )
       );
     }
   }, [zoom, snapToGrid]);
 
   const handleCanvasMouseUp = useCallback(() => {
+    // End panning
     if (panRef.current) {
       panRef.current = null;
+      setIsPanning(false);
       return;
     }
     if (dragRef.current) {
@@ -727,15 +1299,11 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
 
   // ── Zoom controls ──
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = -Math.sign(e.deltaY) * ZOOM_STEP;
-      setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round((prev + delta) * 100) / 100)));
-    } else {
-      setPanX(prev => prev - e.deltaX / zoom);
-      setPanY(prev => prev - e.deltaY / zoom);
-    }
-  }, [zoom]);
+    // Always zoom on wheel, no modifier needed
+    e.preventDefault();
+    const delta = -Math.sign(e.deltaY) * ZOOM_STEP;
+    setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round((prev + delta) * 100) / 100)));
+  }, []);
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => Math.min(MAX_ZOOM, Math.round((prev + ZOOM_STEP) * 100) / 100));
@@ -744,27 +1312,29 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
     setZoom(prev => Math.max(MIN_ZOOM, Math.round((prev - ZOOM_STEP) * 100) / 100));
   }, []);
   const handleZoomReset = useCallback(() => {
-    setZoom(0.7);
-    setPanX(50);
-    setPanY(50);
-  }, []);
-
-  // ── Keyboard (Space for pan) ──
-  useEffect(() => {
-    const onDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        spaceRef.current = true;
+    if (containerRef.current && placed.length > 0) {
+      const rect = containerRef.current.getBoundingClientRect();
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const room of placed) {
+        if (room.mapX == null || room.mapY == null) continue;
+        const dim = getRoomDimensions(room, rooms);
+        minX = Math.min(minX, room.mapX);
+        minY = Math.min(minY, room.mapY);
+        maxX = Math.max(maxX, room.mapX + dim.w);
+        maxY = Math.max(maxY, room.mapY + dim.h);
       }
-    };
-    const onUp = () => { spaceRef.current = false; };
-    window.addEventListener('keydown', onDown);
-    window.addEventListener('keyup', onUp);
-    return () => {
-      window.removeEventListener('keydown', onDown);
-      window.removeEventListener('keyup', onUp);
-    };
-  }, []);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const newZoom = 0.7;
+      setZoom(newZoom);
+      setPanX(rect.width / (2 * newZoom) - centerX);
+      setPanY(rect.height / (2 * newZoom) - centerY);
+    } else {
+      setZoom(0.7);
+      setPanX(0);
+      setPanY(0);
+    }
+  }, [placed, rooms]);
 
   // ── CRUD ──
   const processFormData = (formData: Record<string, unknown>) => {
@@ -879,9 +1449,36 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
     setEditingId(null);
   };
 
-  // ── Center canvas on load ──
+  // ── Navigate to a room (center + select) ──
+  const handleGotoRoom = useCallback((roomId: string) => {
+    const room = rooms.find(r => r.id === roomId);
+    if (!room || room.mapX == null || room.mapY == null) return;
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const dim = getRoomDimensions(room, rooms);
+    const cx = room.mapX + dim.w / 2;
+    const cy = room.mapY + dim.h / 2;
+    setPanX(rect.width / (2 * zoom) - cx);
+    setPanY(rect.height / (2 * zoom) - cy);
+    setHighlightedRoomId(roomId);
+  }, [rooms, zoom]);
+
+  // ── Center canvas on load (only if no saved view) ──
   useEffect(() => {
     if (loading || placed.length === 0) return;
+    // Skip auto-centering if we already restored from localStorage
+    if (mapViewRestored.current) return;
+    mapViewRestored.current = true;
+    // Check if there's a saved view
+    try {
+      const saved = localStorage.getItem(ROOM_VIEW_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.panX !== undefined && parsed.panX !== 0) return;
+        if (parsed.panY !== undefined && parsed.panY !== 0) return;
+      }
+    } catch { /* ignore */ }
+    // No saved view — center on content
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -895,9 +1492,13 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
       }
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
-      setPanX(-(centerX * zoom - rect.width / (2 * zoom)));
-      setPanY(-(centerY * zoom - rect.height / (2 * zoom)));
+      // Center: matches MapEditor transform pattern
+      // Transform: translate(panX*zoom, panY*zoom) scale(zoom)
+      // screen_x = (panX + canvasX) * zoom → panX = containerW / (2*zoom) - centerX
+      setPanX(rect.width / (2 * zoom) - centerX);
+      setPanY(rect.height / (2 * zoom) - centerY);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
   // ── Loading state ──
@@ -934,7 +1535,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                   🏠 Stanze — {locationName}
                 </h2>
                 <p className="text-[11px] text-white/35 mt-0.5">
-                  Trascina per posizionare. Ctrl+scroll per zoom.
+                  Trascina per posizionare. Scroll per zoom.
                 </p>
               </div>
             </div>
@@ -1013,7 +1614,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                 className={`text-xs gap-1.5 h-7 ${sidebarOpen ? 'text-purple-300 bg-purple-500/10 border border-purple-500/20' : 'text-white/40 hover:text-white/60'}`}
                 title="Mostra/nascondi pannello laterale"
               >
-                {sidebarOpen ? <PanelRightClose className="w-3 h-3" /> : <PanelRight className="w-3 h-3" />}
+                {sidebarOpen ? <PanelLeftClose className="w-3 h-3" /> : <PanelLeft className="w-3 h-3" />}
               </Button>
 
               {/* Refresh */}
@@ -1047,8 +1648,262 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
           )}
         </div>
 
-        {/* ── Content area: Canvas + Sidebar ── */}
+        {/* ── Content area: Sidebar + Canvas ── */}
         <div className="flex-1 flex overflow-hidden relative">
+          {/* ── Sidebar ── */}
+          {sidebarOpen && (
+            <div className="w-[260px] shrink-0 border-r border-white/[0.06] bg-[#0d0d14] flex flex-col overflow-hidden">
+              {/* Controls button */}
+              <div className="px-3 py-2 border-b border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setControlsDialogOpen(true)}
+                  className="flex items-center gap-1.5 w-full text-[10px] text-white/30 hover:text-white/50 transition-colors"
+                >
+                  <Keyboard className="w-3 h-3" />
+                  <span>Controlli</span>
+                </button>
+              </div>
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto p-3 admin-scrollbar">
+                {/* Preset Corridoi section */}
+                <div className="mb-3">
+                  <button
+                    type="button"
+                    className="flex items-center justify-between w-full mb-1.5"
+                    onClick={() => setPresetsOpen(!presetsOpen)}
+                  >
+                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                      Preset Corridoi
+                    </span>
+                    {presetsOpen
+                      ? <ChevronDown className="w-3 h-3 text-white/30" />
+                      : <ChevronRight className="w-3 h-3 text-white/30" />
+                    }
+                  </button>
+                  {presetsOpen && (
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto admin-scrollbar">
+                      {CORRIDOR_BASE_TYPES.map(baseType => {
+                        const rotation = presetRotations[baseType.id] ?? 0;
+                        const presetKey = buildPresetKey(baseType.id, rotation);
+                        const previewW = 44;
+                        const previewPath = getPreviewPath(presetKey, previewW);
+                        const hasMultipleRotations = baseType.rotations.length > 1;
+                        return (
+                          <div
+                            key={baseType.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/corridor-preset', presetKey);
+                              e.dataTransfer.effectAllowed = 'copy';
+                            }}
+                            className="group flex items-center gap-2 p-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-grab"
+                            title={`${baseType.label} — trascina sulla mappa`}
+                          >
+                            <svg
+                              width={previewW}
+                              height={previewW}
+                              viewBox={`0 0 ${previewW} ${previewW}`}
+                              className="shrink-0 opacity-60 group-hover:opacity-100 transition-opacity"
+                            >
+                              {previewPath && (
+                                <path
+                                  d={previewPath}
+                                  fill="rgba(139,92,246,0.2)"
+                                  stroke="rgba(139,92,246,0.5)"
+                                  strokeWidth={1}
+                                />
+                              )}
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[10px] text-white/50 font-medium leading-tight block truncate">
+                                <span className="mr-1">{baseType.icon}</span>
+                                {baseType.label}
+                              </span>
+                              <span className="text-[8px] text-white/25 block truncate">
+                                {baseType.description} · {rotation}°
+                              </span>
+                            </div>
+                            {hasMultipleRotations && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPresetRotations(prev => {
+                                    const currentIdx = baseType.rotations.indexOf(rotation);
+                                    const nextIdx = (currentIdx + 1) % baseType.rotations.length;
+                                    return { ...prev, [baseType.id]: baseType.rotations[nextIdx] };
+                                  });
+                                }}
+                                className="shrink-0 p-1 rounded text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+                                title="Ruota preset"
+                              >
+                                <RotateCw className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Non posizionate section */}
+                <div className="mb-3">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center justify-between w-full mb-1.5 cursor-pointer"
+                    onClick={() => setUnplacedOpen(!unplacedOpen)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setUnplacedOpen(!unplacedOpen); }}
+                  >
+                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                      Non posizionate
+                      <span className="ml-1.5 text-[10px] text-white/20">({unplaced.length})</span>
+                    </span>
+                    {unplaced.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); autoPositionAll(); }}
+                        className="text-[9px] text-emerald-400/60 hover:text-emerald-300 transition-colors border border-emerald-500/15 rounded px-1.5 py-0.5"
+                        title="Posiziona tutte automaticamente"
+                      >
+                        Auto tutte
+                      </button>
+                    )}
+                    <ChevronDown className={`w-3 h-3 text-white/25 transition-transform ${unplacedOpen ? '' : '-rotate-90'}`} />
+                  </div>
+                  {unplacedOpen && (
+                    unplaced.length === 0 ? (
+                      <div className="text-[11px] text-white/15 italic py-2">
+                        Tutte le stanze sono posizionate
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-[200px] overflow-y-auto admin-scrollbar">
+                        {unplaced.map(room => {
+                          const typeInfo = getRoomTypeInfo(room.type);
+                          return (
+                            <div
+                              key={room.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('application/room-id', room.id);
+                                e.dataTransfer.effectAllowed = 'copy';
+                              }}
+                              className="group p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-grab"
+                              title="Trascina sulla mappa per posizionare"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm shrink-0">{room.icon || typeInfo.icon}</span>
+                                <span className="text-[11px] text-white/70 truncate min-w-0 flex-1 font-medium">
+                                  {room.name}
+                                </span>
+                                <span className={`text-[8px] px-1 py-px rounded-sm border font-medium shrink-0 ${getRoomTypeBadgeClasses(typeInfo.color)}`}>
+                                  {typeInfo.label}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 mt-1 pl-5">
+                                {connCountMap[room.id] > 0 && (
+                                  <span className="text-[8px] px-1 py-px rounded-sm bg-white/[0.04] text-white/30 border border-white/[0.06]">
+                                    🔗 {connCountMap[room.id]}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {/* All rooms navigation */}
+                <div className="mb-3">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center justify-between w-full mb-1.5 cursor-pointer"
+                    onClick={() => setAllOpen(!allOpen)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAllOpen(!allOpen); }}
+                  >
+                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                      Tutte le Stanze
+                      <span className="ml-1.5 text-[10px] text-white/20">({rooms.length})</span>
+                    </span>
+                    <ChevronDown className={`w-3 h-3 text-white/25 transition-transform ${allOpen ? '' : '-rotate-90'}`} />
+                  </div>
+                  {allOpen && (
+                    <div className="space-y-0.5 max-h-[300px] overflow-y-auto admin-scrollbar">
+                      {rooms.map(room => {
+                        const isPlaced = room.mapX != null && room.mapY != null;
+                        const typeInfo = getRoomTypeInfo(room.type);
+                        return (
+                          <div
+                            key={room.id}
+                            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] cursor-pointer transition-colors group ${
+                              highlightedRoomId === room.id
+                                ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+                                : 'text-white/50 hover:bg-white/[0.04] hover:text-white/70 border border-transparent'
+                            }`}
+                            onClick={() => handleGotoRoom(room.id)}
+                          >
+                            <span className="text-sm shrink-0">{room.icon || typeInfo.icon}</span>
+                            <span className="truncate min-w-0 flex-1">{room.name}</span>
+                            {isPlaced && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setEditingId(room.id); setCreating(false); }}
+                                className="opacity-0 group-hover:opacity-100 text-[9px] font-medium text-cyan-400/50 hover:text-cyan-300 bg-cyan-500/5 hover:bg-cyan-500/10 rounded px-1.5 py-0.5 transition-all border border-cyan-500/10 hover:border-cyan-500/20 shrink-0"
+                                title="Modifica stanza"
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                            {!isPlaced && (
+                              <span className="text-[8px] text-amber-400/50 shrink-0">OFF</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Room type legend — collapsed by default */}
+                <div>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center justify-between w-full mb-1.5 cursor-pointer"
+                    onClick={() => setLegendOpen(!legendOpen)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setLegendOpen(!legendOpen); }}
+                  >
+                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                      Legenda Tipi
+                    </span>
+                    <ChevronDown className={`w-3 h-3 text-white/25 transition-transform ${legendOpen ? '' : '-rotate-90'}`} />
+                  </div>
+                  {legendOpen && (
+                    <div className="space-y-1">
+                      {ROOM_TYPES.map(rt => (
+                        <div key={rt.value} className="flex items-center gap-2 text-[11px] text-white/30">
+                          <span className={`w-4 h-3 rounded-sm border ${getRoomTypeCardClasses(rt.color)}`} />
+                          <span className="text-base leading-none">{rt.icon}</span>
+                          <span className="flex-1 truncate">{rt.label}</span>
+                          {rooms.filter(r => r.type === rt.value).length > 0 && (
+                            <span className="text-[9px] text-white/20">
+                              {rooms.filter(r => r.type === rt.value).length}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Canvas ── */}
           <div
             ref={containerRef}
@@ -1058,28 +1913,81 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
             onMouseUp={handleCanvasMouseUp}
             onMouseLeave={handleCanvasMouseUp}
             onWheel={handleWheel}
-            style={{ cursor: spaceRef.current ? 'grab' : 'default' }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              // Check for corridor preset drop first
+              const presetId = e.dataTransfer.getData('application/corridor-preset');
+              if (presetId) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / zoom - panX;
+                const y = (e.clientY - rect.top) / zoom - panY;
+                let newX = Math.round(x / SNAP_GRID) * SNAP_GRID;
+                let newY = Math.round(y / SNAP_GRID) * SNAP_GRID;
+                const variant = resolvePreset(presetId);
+                const clampW = variant?.defaultWidth ?? 180;
+                const clampH = variant?.defaultHeight ?? 110;
+                newX = Math.max(0, Math.min(CANVAS_W - clampW, newX));
+                newY = Math.max(0, Math.min(CANVAS_H - clampH, newY));
+                handleCorridorDrop(presetId, newX, newY);
+                return;
+              }
+              // Room drop
+              const roomId = e.dataTransfer.getData('application/room-id');
+              if (!roomId) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = (e.clientX - rect.left) / zoom - panX;
+              const y = (e.clientY - rect.top) / zoom - panY;
+              let newX = Math.round(x / SNAP_GRID) * SNAP_GRID;
+              let newY = Math.round(y / SNAP_GRID) * SNAP_GRID;
+              newX = Math.max(0, Math.min(CANVAS_W - DEFAULT_ROOM_W, newX));
+              newY = Math.max(0, Math.min(CANVAS_H - DEFAULT_ROOM_H, newY));
+              setRooms(prev => prev.map(r =>
+                r.id === roomId ? { ...r, mapX: newX, mapY: newY } : r
+              ));
+              const room = rooms.find(r => r.id === roomId);
+              if (room) {
+                savePositions([{ ...room, mapX: newX, mapY: newY }]);
+              }
+              showStatus(`"${rooms.find(r => r.id === roomId)?.name ?? roomId}" posizionata!`, 'success');
+            }}
+            style={{ cursor: isPanning ? 'grabbing' : draggingId ? 'default' : 'grab' }}
           >
             {/* Dot grid background + transform layer */}
             <div
               data-canvas="true"
-              className="absolute origin-top-left"
+              className="absolute"
               style={{
                 width: CANVAS_W,
                 height: CANVAS_H,
-                transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+                transform: `translate(${panX * zoom}px, ${panY * zoom}px) scale(${zoom})`,
+                transformOrigin: '0 0',
                 backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)',
                 backgroundSize: '20px 20px',
                 backgroundPosition: '0 0',
               }}
             >
-              {/* SVG connection lines */}
+              {/* SVG connection lines + corridor shapes + door indicators */}
               <svg
                 className="absolute inset-0 pointer-events-none"
                 width={CANVAS_W}
                 height={CANVAS_H}
                 style={{ zIndex: 1 }}
               >
+                {/* Corridor shape fills */}
+                {corridorShapes.map(shape => (
+                  <path
+                    key={`corridor-${shape.presetId}-${shape.x}-${shape.y}`}
+                    d={shape.path}
+                    fill="rgba(148,163,184,0.15)"
+                    stroke="rgba(148,163,184,0.5)"
+                    strokeWidth={1}
+                    transform={`translate(${shape.x},${shape.y})`}
+                  />
+                ))}
                 {connectionLines.map(line => (
                   <RoomConnectionLine
                     key={line.key}
@@ -1090,6 +1998,56 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                     label={line.label}
                   />
                 ))}
+                {/* Door indicators */}
+                {doorPositions.map(dp => {
+                  const isHorizontal = dp.side === 'north' || dp.side === 'south';
+                  const rw = isHorizontal ? 10 : 6;
+                  const rh = isHorizontal ? 6 : 10;
+                  return (
+                    <g key={`door-${dp.doorId}`}>
+                      <rect
+                        x={dp.x - rw / 2}
+                        y={dp.y - rh / 2}
+                        width={rw}
+                        height={rh}
+                        rx={1}
+                        fill={dp.color}
+                        stroke="rgba(0,0,0,0.6)"
+                        strokeWidth={1.5}
+                        className="pointer-events-auto cursor-pointer"
+                      />
+                      <rect
+                        x={dp.x - rw / 2 - 4}
+                        y={dp.y - rh / 2 - 4}
+                        width={rw + 8}
+                        height={rh + 8}
+                        fill="transparent"
+                        className="pointer-events-auto cursor-pointer"
+                      />
+                      <g className="opacity-0 hover:opacity-100 transition-opacity duration-150 pointer-events-none">
+                        <rect
+                          x={dp.x - 28}
+                          y={dp.y - 22}
+                          width={56}
+                          height={14}
+                          rx={3}
+                          fill="rgba(0,0,0,0.9)"
+                          stroke="rgba(255,255,255,0.1)"
+                          strokeWidth={0.5}
+                        />
+                        <text
+                          x={dp.x}
+                          y={dp.y - 12}
+                          textAnchor="middle"
+                          className="fill-white/70"
+                          style={{ fontSize: '8px', fontFamily: 'system-ui' }}
+                        >
+                          {DOOR_STATE_LABELS[dp.state] ?? dp.state}
+                        </text>
+                      </g>
+                    </g>
+                  );
+                })}
               </svg>
 
               {/* Room cards */}
@@ -1098,12 +2056,12 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                   key={room.id}
                   room={room}
                   rooms={rooms}
-                  isSelected={selectedRoomId === room.id}
+                  isSelected={highlightedRoomId === room.id}
                   isDragging={draggingId === room.id}
                   showLabels={showLabels}
                   connCount={connCountMap[room.id] ?? 0}
                   onMouseDown={handleCardMouseDown}
-                  onSelect={setSelectedRoomId}
+                  onSelect={setHighlightedRoomId}
                   onEdit={(id) => { setEditingId(id); setCreating(false); }}
                   onDelete={handleDelete}
                 />
@@ -1119,111 +2077,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
               </div>
             )}
           </div>
-
-          {/* ── Sidebar ── */}
-          {sidebarOpen && (
-            <div className="shrink-0 w-[260px] border-l border-white/[0.06] bg-[#0c0c16] overflow-y-auto admin-scrollbar hidden sm:flex flex-col">
-              {/* Unplaced rooms */}
-              <div className="p-3 border-b border-white/[0.04]">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
-                    Non posizionate ({unplaced.length})
-                  </h3>
-                  {unplaced.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={autoPositionAll}
-                      className="text-[9px] font-medium text-emerald-400/70 hover:text-emerald-300 bg-emerald-600/10 rounded px-2 py-0.5 transition-colors border border-emerald-500/15 hover:border-emerald-500/30"
-                      title="Posiziona tutte automaticamente"
-                    >
-                      Auto-tutte
-                    </button>
-                  )}
-                </div>
-                {unplaced.length === 0 ? (
-                  <p className="text-[11px] text-white/15 italic py-2">
-                    Tutte le stanze sono posizionate
-                  </p>
-                ) : (
-                  <div className="space-y-1.5 max-h-64 overflow-y-auto admin-scrollbar">
-                    {unplaced.map(room => {
-                      const typeInfo = getRoomTypeInfo(room.type);
-                      return (
-                        <div
-                          key={room.id}
-                          className="group p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-pointer"
-                          onDoubleClick={() => autoPositionOne(room.id)}
-                          title="Doppio clic per posizionare automaticamente"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm shrink-0">{room.icon || typeInfo.icon}</span>
-                            <span className="text-[11px] text-white/70 truncate min-w-0 flex-1 font-medium">
-                              {room.name}
-                            </span>
-                            <span className={`text-[8px] px-1 py-px rounded-sm border font-medium shrink-0 ${getRoomTypeBadgeClasses(typeInfo.color)}`}>
-                              {typeInfo.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-1 pl-5">
-                            {connCountMap[room.id] > 0 && (
-                              <span className="text-[8px] px-1 py-px rounded-sm bg-white/[0.04] text-white/30 border border-white/[0.06]">
-                                🔗 {connCountMap[room.id]}
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); autoPositionOne(room.id); }}
-                              className="text-[8px] text-emerald-400/60 hover:text-emerald-300 ml-auto transition-colors"
-                              title="Posiziona sulla mappa"
-                            >
-                              <Eye className="w-2.5 h-2.5 inline mr-0.5" />
-                              Mappa
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Room type legend */}
-              <div className="p-3 border-b border-white/[0.04]">
-                <h3 className="text-[11px] font-bold text-white/40 uppercase tracking-wider mb-2">
-                  Legenda Tipi
-                </h3>
-                <div className="space-y-1">
-                  {ROOM_TYPES.map(rt => (
-                    <div key={rt.value} className="flex items-center gap-2 text-[11px] text-white/30">
-                      <span className={`w-4 h-3 rounded-sm border ${getRoomTypeCardClasses(rt.color)}`} />
-                      <span className="text-base leading-none">{rt.icon}</span>
-                      <span className="flex-1 truncate">{rt.label}</span>
-                      {rooms.filter(r => r.type === rt.value).length > 0 && (
-                        <span className="text-[9px] text-white/20">
-                          {rooms.filter(r => r.type === rt.value).length}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Controls help */}
-              <div className="p-3 mt-auto">
-                <h3 className="text-[11px] font-bold text-white/40 uppercase tracking-wider mb-2">
-                  Controlli
-                </h3>
-                <div className="text-[10px] text-white/20 space-y-1.5">
-                  <p>🖱️ <span className="text-white/30">Trascina</span> — sposta stanza</p>
-                  <p>🖐️ <span className="text-white/30">Middle-click</span> — sposta canvas</p>
-                  <p>⌨️ <span className="text-white/30">Space+drag</span> — sposta canvas</p>
-                  <p>🔍 <span className="text-white/30">Ctrl+scroll</span> — zoom</p>
-                  <p>🖱️ <span className="text-white/30">Scroll</span> — sposta canvas</p>
-                  <p>📋 <span className="text-white/30">Doppio clic</span> — posiziona stanza</p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── Sticky Footer ── */}
@@ -1259,7 +2112,14 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
             </DialogDescription>
           </DialogHeader>
           <EntityForm
-            fields={roomFormFields}
+            fields={
+              !creating && editingId && rooms.find(r => r.id === editingId)?.type === 'corridor'
+                ? roomFormFields.map(f => f.key === 'type'
+                    ? { ...f, options: ['corridor'], disabled: true, helpText: 'I corridoi hanno tipo fisso' }
+                    : f
+                  )
+                : roomFormFields
+            }
             initialData={creating ? { locationId, type: 'normal' } : editingData}
             onSubmit={creating ? handleCreate : handleUpdate}
             onCancel={handleDialogClose}
@@ -1267,6 +2127,105 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
             isEdit={!creating}
             activeTab="rooms"
           />
+          {/* Porte section — only in edit mode */}
+          {!creating && editingId && (() => {
+            const editRoom = rooms.find(r => r.id === editingId);
+            if (!editRoom) return null;
+            const hasDoors = editRoom._doors && editRoom._doors.length > 0;
+            const otherRooms = rooms.filter(r => r.id !== editingId && !editRoom._doors?.some(d => d.fromRoomId === r.id || d.toRoomId === r.id));
+            return (
+              <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <h4 className="text-xs font-bold text-white/50 uppercase tracking-wider">
+                    🚪 Porte {hasDoors ? `(${editRoom._doors.length})` : ''}
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setDoorHelpOpen(true)}
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/[0.06] text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors"
+                    title="Informazioni sugli stati delle porte"
+                  >
+                    <CircleHelp className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] text-white/25">Collega con un'altra stanza:</span>
+                  <select
+                    className="text-[10px] bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white/50 flex-1 min-w-0 focus:outline-none focus:border-emerald-500/30"
+                    id="new-door-target"
+                    defaultValue=""
+                  >
+                    <option value="">— Seleziona stanza —</option>
+                    {otherRooms.map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-[10px] gap-1 h-6 bg-emerald-600/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-600/20"
+                    onClick={() => {
+                      const sel = document.getElementById('new-door-target') as HTMLSelectElement;
+                      if (!sel || !sel.value || !editingId) return;
+                      createDoor(editingId, sel.value);
+                    }}
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    Connetti
+                  </Button>
+                </div>
+                {!hasDoors && (
+                  <p className="text-[10px] text-white/20 italic px-1">Nessuna porta collegata. Usa il selettore sopra per collegare questa stanza.</p>
+                )}
+                {hasDoors && (
+                <div className="space-y-1.5 max-h-64 overflow-y-auto admin-scrollbar">
+                  {editRoom._doors.map(door => (
+                    <DoorCard
+                      key={door.id}
+                      door={door}
+                      editRoomId={editRoom.id}
+                      onUpdate={updateDoor}
+                      onDelete={deleteDoor}
+                    />
+                  ))}
+                </div>
+                )}
+              </div>
+            );
+          })()}
+          {/* Door states help dialog */}
+          <Dialog open={doorHelpOpen} onOpenChange={setDoorHelpOpen}>
+            <DialogContent className="bg-zinc-900 border-white/[0.08] text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-semibold text-white/90">Stati delle porte</DialogTitle>
+                <DialogDescription className="text-[11px] text-white/40">
+                  Ogni porta che collega due stanze può avere uno di questi stati. Lo stato determina come il giocatore interagisce con la porta.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 mt-2">
+                {DOOR_STATE_ORDER.map(stateKey => {
+                  const info = DOOR_STATE_HELP[stateKey];
+                  if (!info) return null;
+                  const color = DOOR_STATE_COLORS[stateKey] ?? '#666';
+                  return (
+                    <div key={stateKey} className="flex gap-3 p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                      <span className="text-lg shrink-0 mt-0.5">{info.icon}</span>
+                      <div>
+                        <span className="text-xs font-semibold" style={{ color }}>{info.title}</span>
+                        <p className="text-[10px] text-white/50 mt-0.5 leading-relaxed">{info.description}</p>
+                        {(stateKey === 'key_locked') && (
+                          <p className="text-[9px] text-yellow-400/50 mt-1">⚠️ Ricorda di selezionare l'oggetto chiave e di inserire un messaggio per il giocatore.</p>
+                        )}
+                        {(stateKey === 'locked') && (
+                          <p className="text-[9px] text-red-400/50 mt-1">🧩 Puoi collegare un puzzle (combinazione o sequenza) per sbloccare la porta.</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
           {/* Submit / Cancel buttons */}
           <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-white/[0.06]">
             <Button
@@ -1289,6 +2248,37 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
               {dialogSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
               {creating ? 'Crea Stanza' : 'Salva Modifiche'}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* ── Controls Dialog ── */}
+      <Dialog open={controlsDialogOpen} onOpenChange={setControlsDialogOpen}>
+        <DialogContent className="sm:max-w-[320px]">
+          <DialogHeader>
+            <DialogTitle className="text-sm text-white/90">🎮 Controlli Mappa Stanze</DialogTitle>
+            <DialogDescription className="text-[11px] text-white/40">Come usare l'editor delle stanze</DialogDescription>
+          </DialogHeader>
+          <div className="text-[12px] text-white/60 space-y-3 py-2">
+            <div className="flex items-start gap-2">
+              <span className="text-base">🖱️</span>
+              <div><span className="text-white/80 font-medium">Click sinistro</span> — sposta la mappa</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">⬆️</span>
+              <div><span className="text-white/80 font-medium">Trascina</span> — sposta una stanza (usando la maniglia)</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">🔍</span>
+              <div><span className="text-white/80 font-medium">Scroll</span> — zoom</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">📋</span>
+              <div><span className="text-white/80 font-medium">Trascina dalla sidebar</span> — posiziona sulla mappa</div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-base">📍</span>
+              <div><span className="text-white/80 font-medium">Clicca nella sidebar "Tutte"</span> — centra sulla stanza</div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -137,6 +137,38 @@ export const ENUM_LABELS: Record<string, Record<string, { it: string; hint?: str
     horizontal: { it: '↔️ Orizzontale', hint: 'Rettangolo largo — ideale per corridoi che collegano stanze a sinistra/destra' },
     vertical:   { it: '↕️ Verticale', hint: 'Rettangolo alto — ideale per corridoi che collegano stanze sopra/sotto' },
   },
+  // corridorPreset labels — kept for backward compat; new format is "baseType:rotation"
+  corridorPreset: {
+    'straight:0':  { it: '━ Orizzontale' },
+    'straight:90': { it: '┃ Verticale' },
+    'L:0':          { it: '┏ Curva SE' },
+    'L:90':         { it: '┓ Curva SO' },
+    'L:180':        { it: '┛ Curva NO' },
+    'L:270':        { it: '┗ Curva NE' },
+    'T:0':          { it: '┳ T Sud' },
+    'T:90':         { it: '┫ T Ovest' },
+    'T:180':        { it: '┻ T Nord' },
+    'T:270':        { it: '┣ T Est' },
+    'cross:0':      { it: '╋ Croce' },
+    // Legacy IDs (backward compat)
+    straight_h: { it: '━ Orizzontale' },
+    straight_v: { it: '┃ Verticale' },
+    L_ne:       { it: '┗ Curva NE' },
+    L_nw:       { it: '┛ Curva NO' },
+    L_se:       { it: '┏ Curva SE' },
+    L_sw:       { it: '┓ Curva SO' },
+    T_n:        { it: '┻ T Nord' },
+    T_s:        { it: '┳ T Sud' },
+    T_e:        { it: '┣ T Est' },
+    T_w:        { it: '┫ T Ovest' },
+    cross:      { it: '╋ Croce' },
+  },
+  doorState: {
+    open:          { it: '🟢 Sbloccata' },
+    key_locked:    { it: '🟡 Chiave' },
+    locked:        { it: '🔴 Bloccata' },
+    inaccessible: { it: '⬜ Inaccessibile' },
+  },
 };
 
 // Helper: get Italian label for an enum value

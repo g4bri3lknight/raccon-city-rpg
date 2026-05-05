@@ -25,16 +25,39 @@ export function EntitySearchInput({
   disabled?: boolean;
 }) {
   const [query, setQuery] = useState(value);
+  const [resolvedLabel, setResolvedLabel] = useState<string | null>(null);
+  const [resolvedIcon, setResolvedIcon] = useState<string | null>(null);
   const [results, setResults] = useState<{ id: string; label: string; icon?: string }[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searching, setSearching] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync external value
+  // Resolve current value to label on mount / when value changes
   useEffect(() => {
+    if (!value) {
+      setResolvedLabel(null);
+      setResolvedIcon(null);
+      setQuery('');
+      return;
+    }
     setQuery(value);
-  }, [value]);
+    (async () => {
+      try {
+        const res = await adminFetch(endpoint);
+        if (!res.ok) return;
+        const data: Record<string, unknown>[] = await res.json();
+        const found = data.find(r => String(r.id) === value);
+        if (found) {
+          setResolvedLabel(String(found[labelKey] ?? value));
+          setResolvedIcon(iconKey ? String(found[iconKey] ?? '') : null);
+        } else {
+          setResolvedLabel(null);
+          setResolvedIcon(null);
+        }
+      } catch { /* silent */ }
+    })();
+  }, [value, endpoint, labelKey, iconKey]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -78,14 +101,21 @@ export function EntitySearchInput({
 
   const handleInputChange = (v: string) => {
     setQuery(v);
-    onChange(v);
+    // If user clears the field, clear the value
+    if (!v.trim()) {
+      onChange('');
+      setResolvedLabel(null);
+      setResolvedIcon(null);
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(v), 300);
   };
 
-  const handleSelect = (id: string) => {
+  const handleSelect = (id: string, label: string, icon?: string) => {
     setQuery(id);
     onChange(id);
+    setResolvedLabel(label);
+    setResolvedIcon(icon ?? null);
     setShowDropdown(false);
   };
 
@@ -93,17 +123,35 @@ export function EntitySearchInput({
     doSearch(query);
   };
 
+  // Show resolved label or ID in input
+  const displayValue = showDropdown ? query : (resolvedLabel ?? value);
+  const showResolved = !showDropdown && value && resolvedLabel;
+
   return (
     <div ref={wrapperRef} className="relative">
       <div className="flex gap-1">
-        <input
-          type="text"
-          value={query}
-          onChange={e => handleInputChange(e.target.value)}
-          placeholder={placeholder ?? 'Cerca...'}
-          disabled={disabled}
-          className="flex-1 min-w-0 text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 font-mono disabled:opacity-50"
-        />
+        <div className="relative flex-1 min-w-0">
+          {resolvedIcon && showResolved && (
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm pointer-events-none">{resolvedIcon}</span>
+          )}
+          <input
+            type="text"
+            value={displayValue}
+            onChange={e => handleInputChange(e.target.value)}
+            onFocus={() => {
+              // When focusing, show the raw ID so user can edit/search
+              if (value) setQuery(value);
+            }}
+            placeholder={placeholder ?? 'Cerca...'}
+            disabled={disabled}
+            className={`w-full text-[13px] bg-white/[0.04] border border-white/[0.1] rounded px-2 py-1.5 text-white/80 placeholder-white/20 focus:outline-none focus:border-emerald-500/50 disabled:opacity-50 ${showResolved ? 'pr-20' : ''} ${resolvedIcon && showResolved ? 'pl-7' : ''}`}
+          />
+          {showResolved && (
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-white/20 font-mono truncate max-w-[100px] pointer-events-none">
+              {value}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           onClick={handleSearchClick}
@@ -119,12 +167,12 @@ export function EntitySearchInput({
             <button
               key={r.id}
               type="button"
-              onClick={() => handleSelect(r.id)}
+              onClick={() => handleSelect(r.id, r.label, r.icon)}
               className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 flex items-center gap-2"
             >
               {r.icon && <span className="shrink-0 w-5 text-center">{r.icon}</span>}
-              <span className="text-white/90 font-mono">{r.id}</span>
-              <span className="text-white/30 ml-2 truncate">{r.label}</span>
+              <span className="text-white/90 truncate">{r.label}</span>
+              <span className="text-white/25 font-mono text-[11px] ml-auto shrink-0">{r.id}</span>
             </button>
           ))}
         </div>

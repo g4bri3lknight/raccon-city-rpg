@@ -9,6 +9,13 @@ function jsonStr(val: unknown, fallback: string): string {
   try { return JSON.stringify(val); } catch { return fallback; }
 }
 
+/** Fields that are read-only or computed — must be stripped before Prisma write */
+const READONLY_KEYS = new Set([
+  'createdAt', 'updatedAt',
+  'archetypeName',       // computed from archetype relation in GET
+  'archetype',            // frontend sends legacy archetypeFallback as 'archetype'
+]);
+
 /**
  * When archetypeId is set, auto-fill character fields from the archetype.
  * This ensures the game engine has all data it needs without changes.
@@ -49,7 +56,7 @@ async function applyArchetypeInheritance(data: Record<string, unknown>): Promise
 
   // Copy starting items (only if character doesn't have its own)
   const charItems = data.startingItems;
-  const charItemsEmpty = !charItems || 
+  const charItemsEmpty = !charItems ||
     (typeof charItems === 'string' && (charItems === '[]' || charItems === '')) ||
     (Array.isArray(charItems) && charItems.length === 0);
   if (charItemsEmpty) {
@@ -67,11 +74,13 @@ export async function GET() {
   try {
     const rows = await db.gameCharacter.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      include: { archetype: { select: { id: true, name: true, displayName: true, portraitEmoji: true } } },
     });
 
     const characters = rows.map(row => ({
       id: row.id,
       archetypeId: row.archetypeId,
+      archetypeName: row.archetype?.displayName || row.archetype?.name || null,
       archetype: row.archetypeFallback,
       name: row.name,
       displayName: row.displayName,
@@ -113,10 +122,13 @@ export async function POST(request: NextRequest) {
     // Auto-populate from archetype if archetypeId is set
     await applyArchetypeInheritance(body);
 
+    // Extract archetypeId — handle as relation
+    const archetypeId = body.archetypeId || null;
+
     const character = await db.gameCharacter.create({
       data: {
         id: body.id,
-        archetypeId: body.archetypeId || null,
+        ...(archetypeId ? { archetype: { connect: { id: archetypeId } } } : {}),
         archetypeFallback: body.archetypeFallback ?? body.archetype ?? 'custom',
         name: body.name,
         displayName: body.displayName,
@@ -150,7 +162,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, archetype, ...data } = body;
+    const { id, archetype, ...rawData } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -158,29 +170,47 @@ export async function PUT(request: NextRequest) {
 
     // Map frontend 'archetype' (string) back to DB 'archetypeFallback' (legacy compat)
     if (archetype !== undefined) {
-      data.archetypeFallback = archetype;
+      rawData.archetypeFallback = archetype;
     }
 
     // Auto-populate from archetype if archetypeId is set
-    await applyArchetypeInheritance(data);
+    await applyArchetypeInheritance(rawData);
 
-    // Coerce number fields from string to number
-    if (data.maxHp !== undefined) data.maxHp = Number(data.maxHp) || 100;
-    if (data.atk !== undefined) data.atk = Number(data.atk) || 0;
-    if (data.def !== undefined) data.def = Number(data.def) || 0;
-    if (data.spd !== undefined) data.spd = Number(data.spd) || 0;
-    if (data.specialCost !== undefined) data.specialCost = Number(data.specialCost) || 0;
-    if (data.special2Cost !== undefined) data.special2Cost = Number(data.special2Cost) || 0;
-    if (data.sortOrder !== undefined) data.sortOrder = Number(data.sortOrder) || 0;
-
-    // Serialize startingItems if it's not already a string
-    if (data.startingItems !== undefined) {
-      data.startingItems = jsonStr(data.startingItems, '[]');
+    // Strip read-only / computed fields
+    for (const key of READONLY_KEYS) {
+      delete rawData[key];
     }
+
+    // Coerce number fields
+    if (rawData.maxHp !== undefined) rawData.maxHp = Number(rawData.maxHp) || 100;
+    if (rawData.atk !== undefined) rawData.atk = Number(rawData.atk) || 0;
+    if (rawData.def !== undefined) rawData.def = Number(rawData.def) || 0;
+    if (rawData.spd !== undefined) rawData.spd = Number(rawData.spd) || 0;
+    if (rawData.specialCost !== undefined) rawData.specialCost = Number(rawData.specialCost) || 0;
+    if (rawData.special2Cost !== undefined) rawData.special2Cost = Number(rawData.special2Cost) || 0;
+    if (rawData.sortOrder !== undefined) rawData.sortOrder = Number(rawData.sortOrder) || 0;
+
+    // Serialize startingItems
+    if (rawData.startingItems !== undefined) {
+      rawData.startingItems = jsonStr(rawData.startingItems, '[]');
+    }
+
+    // Extract archetypeId — handle as Prisma relation
+    const archetypeId = rawData.archetypeId as string | null | undefined;
+    delete rawData.archetypeId;
 
     const character = await db.gameCharacter.update({
       where: { id },
-      data,
+      data: {
+        ...rawData,
+        // Handle archetype relation separately
+        ...(archetypeId
+          ? { archetype: { connect: { id: archetypeId } } }
+          : archetypeId === null || archetypeId === ''
+            ? { archetype: { disconnect: true } }
+            : {}
+        ),
+      },
     });
 
     return NextResponse.json(character);
