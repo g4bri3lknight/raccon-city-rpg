@@ -82,9 +82,11 @@ export function SelectField({ field, value, onChange }: SelectFieldProps) {
         {field.options?.map(opt => {
           const label = field.enumGroup ? getEnumLabel(field.enumGroup, opt) : opt;
           const hint = field.enumGroup ? getEnumHint(field.enumGroup, opt) : undefined;
+          const isIcon = /^[\p{Emoji}\p{Emoji_Presentation}\u200D\uFE0F]/u.test(opt);
+          const displayText = isIcon || label === opt ? label : `${label} (${opt})`;
           return (
             <option key={opt} value={opt} className="bg-black text-white" title={hint}>
-              {label} ({opt})
+              {displayText}
             </option>
           );
         })}
