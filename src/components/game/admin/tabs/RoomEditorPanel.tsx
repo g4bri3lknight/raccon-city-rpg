@@ -362,6 +362,97 @@ function RoomConnectionLine({
 }
 
 // ═══════════════════════════════════════════════════════════
+// Room Minimap Component
+// ═══════════════════════════════════════════════════════════
+function RoomMinimap({
+  rooms,
+  zoom,
+  panX,
+  panY,
+  containerW,
+  containerH,
+  selectedId,
+  onGoto,
+}: {
+  rooms: RoomData[];
+  zoom: number;
+  panX: number;
+  panY: number;
+  containerW: number;
+  containerH: number;
+  selectedId: string | null;
+  onGoto: (x: number, y: number) => void;
+}) {
+  const mmW = 180;
+  const mmH = Math.round((CANVAS_H / CANVAS_W) * mmW);
+  const scale = mmW / CANVAS_W;
+
+  const viewX = Math.max(0, -panX * scale);
+  const viewY = Math.max(0, -panY * scale);
+  const viewW = Math.min(mmW, containerW * scale * zoom);
+  const viewH = Math.min(mmH, containerH * scale * zoom);
+
+  return (
+    <div className="absolute bottom-3 right-3 z-30 rounded-lg border border-white/[0.12] bg-black/80 backdrop-blur-sm overflow-hidden shadow-lg shadow-black/40">
+      <div className="px-2 py-1 text-[9px] text-white/30 font-medium border-b border-white/[0.06] uppercase tracking-wider">
+        Mappa
+      </div>
+      <svg
+        width={mmW}
+        height={mmH}
+        className="block cursor-pointer"
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const cx = (e.clientX - rect.left) / scale;
+          const cy = (e.clientY - rect.top) / scale;
+          onGoto(cx, cy);
+        }}
+      >
+        {/* Viewport rectangle */}
+        <rect
+          x={viewX}
+          y={viewY}
+          width={viewW}
+          height={viewH}
+          fill="rgba(16,185,129,0.06)"
+          stroke="rgba(16,185,129,0.3)"
+          strokeWidth={1}
+          rx={2}
+        />
+        {/* Room dots */}
+        {rooms.map(room => {
+          if (room.mapX == null || room.mapY == null) return null;
+          const dim = getRoomDimensions(room, rooms);
+          const x = room.mapX * scale + (dim.w / 2) * scale;
+          const y = room.mapY * scale + (dim.h / 2) * scale;
+          const isSelected = room.id === selectedId;
+          // Color by room type
+          const typeInfo = getRoomTypeInfo(room.type);
+          const dotColor = isSelected ? '#34d399' : typeInfo.color;
+          return (
+            <g key={room.id}>
+              {isSelected && (
+                <circle cx={x} cy={y} r={5} fill="rgba(16,185,129,0.3)" />
+              )}
+              <rect
+                x={room.mapX * scale}
+                y={room.mapY * scale}
+                width={dim.w * scale}
+                height={dim.h * scale}
+                rx={1}
+                fill={isSelected ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.1)'}
+                stroke={isSelected ? '#34d399' : dotColor}
+                strokeWidth={isSelected ? 1 : 0.5}
+              />
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // Room Card Component (absolutely positioned on canvas)
 // ═══════════════════════════════════════════════════════════
 function RoomCard({
@@ -398,11 +489,11 @@ function RoomCard({
 
   const borderClasses = getRoomTypeCardClasses(typeInfo.color);
 
-  // For corridors with SVG shape, render a transparent drag overlay
+  // For corridors with SVG shape, render a solid drag overlay
   if (isCorridor && corridorVariant) {
     return (
       <div
-        className={`absolute select-none ${isDragging ? 'z-50' : 'z-5'}`}
+        className={`absolute select-none ${isDragging ? 'z-50' : 'z-5'} border-2 border-solid bg-[#0d0d14] ${borderClasses}`}
         style={{
           left: room.mapX ?? 0,
           top: room.mapY ?? 0,
@@ -837,6 +928,20 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const containerRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Track container dimensions for minimap
+  const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // ── Status message helper ──
   const showStatus = useCallback((text: string, type: 'success' | 'error') => {
     setStatusMsg({ text, type });
@@ -893,33 +998,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   }, [locationId, showStatus]);
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
-
-  // ── Debug: log all door data when rooms change ──
-  useEffect(() => {
-    if (rooms.length === 0) return;
-    const doorLog: Array<Record<string, unknown>> = [];
-    for (const room of rooms) {
-      if (!room._doors || room._doors.length === 0) continue;
-      for (const door of room._doors) {
-        doorLog.push({
-          roomId: room.id,
-          roomName: room.name,
-          roomType: room.type,
-          roomMapX: room.mapX,
-          roomMapY: room.mapY,
-          doorId: door.id,
-          fromRoomId: door.fromRoomId,
-          toRoomId: door.toRoomId,
-          fromSide: door.fromSide,
-          toSide: door.toSide,
-          state: door.state,
-        });
-      }
-    }
-    if (doorLog.length > 0) {
-      console.table(doorLog);
-    }
-  }, [rooms]);
 
   // ── Derived data ──
   const placed = useMemo(
@@ -984,16 +1062,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
           : (() => { const c = getRoomCenter(target, rooms); return { x: c.cx, y: c.cy }; })();
 
         if (!fromPos) continue;
-
-        // Debug: log all connections
-        const fromDim = getRoomDimensions(room, rooms);
-        const toDim = getRoomDimensions(target, rooms);
-        console.log(`[CONN] ${room.name}(${conn.doorSide})→${target.name}(${reverseConn?.doorSide ?? 'NO-REVERSE'}):`, {
-          from: { id: room.id, mapX: room.mapX, mapY: room.mapY, dimW: fromDim.w, dimH: fromDim.h, type: room.type },
-          to: { id: target.id, mapX: target.mapX, mapY: target.mapY, dimW: toDim.w, dimH: toDim.h, type: target.type },
-          endpoints: { x1: fromPos.x, y1: fromPos.y, x2: toPos?.x, y2: toPos?.y },
-          reverseConnFound: !!reverseConn,
-        });
 
         lines.push({
           x1: fromPos.x,
@@ -1319,8 +1387,13 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
 
   // ── Mouse drag on canvas ──
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // Left-click or middle-click on empty canvas → start panning
-    if ((e.button === 0 || e.button === 1) && (e.target as HTMLElement).dataset.canvas === 'true') {
+    // Left-click or middle-click on canvas container (not on a room/corridor card or button) → start panning
+    const target = e.target as HTMLElement;
+    if (e.button === 0 || e.button === 1) {
+      // Allow panning when clicking on empty canvas area, grid background, or SVG layers
+      // Block panning on buttons, room cards, and interactive elements
+      if (target.closest('button') || target.closest('[data-room-card]')) return;
+
       e.preventDefault();
       setSelectedRoomId(null);
       panRef.current = {
@@ -1566,6 +1639,15 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
     setPanY(rect.height / (2 * zoom) - cy);
     setHighlightedRoomId(roomId);
   }, [rooms, zoom]);
+
+  // ── Center canvas on load (only if no saved view) ──
+  // ── Minimap goto ──
+  const handleMinimapGoto = useCallback((x: number, y: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+    setPanX(container.clientWidth / (2 * zoom) - x);
+    setPanY(container.clientHeight / (2 * zoom) - y);
+  }, [zoom]);
 
   // ── Center canvas on load (only if no saved view) ──
   useEffect(() => {
@@ -2137,13 +2219,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                 height={CANVAS_H}
                 style={{ zIndex: 20 }}
               >
-                {/* DEBUG: Visual endpoint markers (remove after fixing) */}
-                {connectionLines.map(line => (
-                  <g key={`debug-${line.key}`}>
-                    <circle cx={line.x1} cy={line.y1} r={6} fill="rgba(0,200,255,0.7)" stroke="white" strokeWidth={1} />
-                    <circle cx={line.x2} cy={line.y2} r={6} fill="rgba(255,100,0,0.7)" stroke="white" strokeWidth={1} />
-                  </g>
-                ))}
                 {connectionLines.map(line => (
                   <RoomConnectionLine
                     key={line.key}
@@ -2207,6 +2282,18 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
               </svg>
             </div>
 
+            {/* ── Minimap ── */}
+            <RoomMinimap
+              rooms={placed}
+              zoom={zoom}
+              panX={panX}
+              panY={panY}
+              containerW={containerSize.w}
+              containerH={containerSize.h}
+              selectedId={highlightedRoomId}
+              onGoto={handleMinimapGoto}
+            />
+
             {/* Empty state */}
             {rooms.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white/20">
@@ -2219,20 +2306,10 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         </div>
 
         {/* ── Sticky Footer ── */}
-        <div className="shrink-0 px-3 sm:px-4 py-2.5 border-t border-white/[0.06] bg-black/95 backdrop-blur flex items-center justify-between">
+        <div className="shrink-0 px-3 sm:px-4 py-2.5 border-t border-white/[0.06] bg-black/95 backdrop-blur flex items-center">
           <span className="text-[12px] text-white/25">
             {rooms.length} stanze · {unplaced.length} non posizionat{unplaced.length === 1 ? 'a' : 'e'}
           </span>
-          <Button
-            size="sm"
-            onClick={handleSaveAll}
-            disabled={saving}
-            className="text-xs gap-1.5 bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200"
-            title="Salva tutte le posizioni"
-          >
-            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-            Salva Posizioni
-          </Button>
         </div>
       </div>
 
