@@ -109,6 +109,7 @@ export default function GameNotification() {
   // When a new notification arrives while one is still visible, the previous one is pushed here.
   // When the current notification finishes, the next one is dequeued into the store.
   const [queuedNotifications, setQueuedNotifications] = useState<GameNotification[]>([]);
+  const queuedNotificationsRef = useRef<GameNotification[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const isVisibleRef = useRef(false);
   const prevStoreNotifRef = useRef<GameNotification | null>(null);
@@ -129,17 +130,17 @@ export default function GameNotification() {
   // Dequeue the next notification from the local queue into the store,
   // or clear the store notification if the queue is empty.
   const dequeueNext = useCallback(() => {
-    // Use setTimeout(0) to avoid setState-during-render
+    // Use setTimeout to avoid calling Zustand setState during React render
     setTimeout(() => {
-      setQueuedNotifications(prev => {
-        if (prev.length === 0) {
-          useGameStore.setState({ notification: null });
-          return prev;
-        }
-        const [next, ...rest] = prev;
-        useGameStore.setState({ notification: next });
-        return rest;
-      });
+      const queue = queuedNotificationsRef.current;
+      if (queue.length === 0) {
+        useGameStore.setState({ notification: null });
+        return;
+      }
+      const [next, ...rest] = queue;
+      queuedNotificationsRef.current = rest;
+      setQueuedNotifications(rest);
+      useGameStore.setState({ notification: next });
     }, 0);
   }, []);
 
@@ -178,6 +179,7 @@ export default function GameNotification() {
         notifIdRef.current = null;
         clearAllTimers();
         setQueuedNotifications([]);
+        queuedNotificationsRef.current = [];
         setState(p => ({ ...p, visible: false }));
         isVisibleRef.current = false;
       }
@@ -214,6 +216,11 @@ export default function GameNotification() {
       timersRef.current.push(hideTimer, clearTimer);
     }
   }, [notification, playSound, clearAllTimers, dequeueNext]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    queuedNotificationsRef.current = queuedNotifications;
+  }, [queuedNotifications]);
 
   // Cleanup timers on unmount
   useEffect(() => {

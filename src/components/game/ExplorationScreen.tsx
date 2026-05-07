@@ -14,10 +14,14 @@ import { getKeyItemIds } from '@/game/store/helpers';
 import {
   Search, Package, MapPin, ChevronRight,
   Skull, ArrowRightLeft, AlertTriangle, Users, Map, Trophy, BookOpen,
-  FileText, Zap, Dices, Home, ScrollText, MessageSquare, Settings, Pill, ChevronDown, HelpCircle
+  FileText, Zap, Dices, Home, ScrollText, MessageSquare, Settings, Pill, ChevronDown, HelpCircle,
+  DoorOpen, Menu,
 } from 'lucide-react';
 import SafeRoomPanel from './SafeRoomPanel';
 import MissionsPanel from './MissionsPanel';
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { getArchetypeEmoji, getArchetypeLabel, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 
@@ -89,6 +93,7 @@ export default function ExplorationScreen() {
 
   const location = LOCATIONS[currentLocationId];
   const explorationLogRef = useRef<HTMLDivElement>(null);
+  const [topMenuOpen, setTopMenuOpen] = useState(false);
   const partyAvatarData = useMemo(() => party.map(p => ({
     name: p.name,
     avatarSrc: mediaUrl(p.avatarUrl || CHARACTER_IMAGES[p.archetype] || '', dataVersion)
@@ -206,27 +211,41 @@ export default function ExplorationScreen() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/30" />
         
-        {/* Settings + Save/Load + Collectibles — top right */}
+        {/* Menu + Save/Load + Collectibles — top right */}
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 flex items-center gap-2">
-          {/* Help button — keyboard shortcuts */}
-          <button
-            onClick={toggleHelp}
-            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] hover:border-white/25 text-white/60 hover:text-white transition-all duration-200 backdrop-blur-sm"
-            title="Scorciatoie tastiera (H)"
-            aria-label="Scorciatoie tastiera"
-          >
-            <HelpCircle className="w-4 h-4 sm:w-3.5 sm:h-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline text-xs font-medium">Scorciatoie</span>
-          </button>
-          {/* Settings button — always in header */}
-          <button
-            onClick={toggleSettings}
-            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] hover:border-white/25 text-white/60 hover:text-white transition-all duration-200 backdrop-blur-sm"
-            title="Impostazioni"
-          >
-            <Settings className="w-4 h-4 sm:w-3.5 sm:h-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline text-xs font-medium">Impostazioni</span>
-          </button>
+          {/* Dropdown menu: Traguardi, Scorciatoie, Impostazioni */}
+          <Popover open={topMenuOpen} onOpenChange={setTopMenuOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] hover:border-white/25 text-white/60 hover:text-white transition-all duration-200 backdrop-blur-sm"
+                title="Menu"
+                aria-label="Menu"
+              >
+                <Menu className="w-4 h-4 sm:w-3.5 sm:h-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline text-xs font-medium">Menu</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1.5 bg-zinc-900/95 border-white/[0.12] backdrop-blur-md z-[60]" side="bottom" align="end">
+              <button
+                onClick={() => { toggleAchievements(); setTopMenuOpen(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+              >
+                <Trophy className="w-4 h-4" /> Traguardi
+              </button>
+              <button
+                onClick={() => { toggleHelp(); setTopMenuOpen(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+              >
+                <HelpCircle className="w-4 h-4" /> Scorciatoie
+              </button>
+              <button
+                onClick={() => { toggleSettings(); setTopMenuOpen(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+              >
+                <Settings className="w-4 h-4" /> Impostazioni
+              </button>
+            </PopoverContent>
+          </Popover>
           {isNewGamePlus && (
             <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 backdrop-blur-sm">
               <span className="text-[10px] font-bold text-amber-300">✨ NG+</span>
@@ -556,223 +575,26 @@ export default function ExplorationScreen() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="shrink-0 p-2 sm:p-3 border-t border-white/[0.06] glass-dark-accent max-h-[40vh] sm:max-h-none overflow-y-auto inventory-scrollbar">
-            {(() => {
-              const isActionBlocked = !!(activeEvent || activeDynamicEvent || activeNpc);
-              return (
-              <div className={`grid grid-cols-3 sm:grid-cols-3 gap-1 sm:gap-2 ${isActionBlocked ? 'opacity-40 pointer-events-none' : ''}`}>
-              {/* Room Status Badge (replaces Esplora button) */}
-              <Badge
-                className={`flex items-center justify-center py-1.5 sm:py-2.5 rounded-lg text-[10px] sm:text-sm font-medium border ${
-                  currentRoom && (currentRoom.enemyPool?.length > 0) && !clearedRooms.includes(currentRoom.id)
-                    ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                    : currentRoom && clearedRooms.includes(currentRoom.id)
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                    : currentRoom
-                      ? 'bg-white/[0.06] border-white/10 text-white/50'
-                      : 'bg-white/[0.04] border-white/[0.06] text-white/30'
-                }`}
-              >
+          {/* Room Navigation — when location has rooms, show PROMINENTLY before action buttons */}
+          {locationHasRooms && !location.isBossArea && currentRoom && (
+            <div className="shrink-0 px-2 sm:px-3 py-2 border-t border-white/[0.06] bg-white/[0.02]">
+              <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5 flex items-center gap-1.5">
+                <DoorOpen className="w-3 h-3" /> Navigazione
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 {(() => {
-                  if (currentRoom && (currentRoom.enemyPool?.length > 0) && !clearedRooms.includes(currentRoom.id)) {
-                    return <span>⚠️ Pericolo</span>;
+                  // Only show current room + directly reachable rooms via doors
+                  const reachableRoomIds = new Set<string>([currentRoom.id]);
+                  if (currentRoom.doors) {
+                    for (const door of currentRoom.doors) {
+                      if (door.state === 'inaccessible') continue;
+                      const otherRoomId = door.fromRoomId === currentRoom.id ? door.toRoomId : door.fromRoomId;
+                      reachableRoomIds.add(otherRoomId);
+                    }
                   }
-                  if (currentRoom && clearedRooms.includes(currentRoom.id)) {
-                    return <span>✅ Stanza Sicura</span>;
-                  }
-                  if (currentRoom) {
-                    return <span>🏠 {currentRoom.icon}</span>;
-                  }
-                  return null;
-                })()}
-              </Badge>
-              <Button
-                onClick={searchArea}
-                disabled={aliveParty.length === 0 || searchDisabled || isActionBlocked}
-                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Cerca oggetti"
-              >
-                <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Cerca
-                <span className="ml-1 text-[9px] sm:text-[10px] font-mono font-bold text-amber-300/70">{searchBadge}</span>
-              </Button>
-              <Button
-                onClick={toggleInventory}
-                disabled={isActionBlocked}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-                aria-label="Apri inventario"
-              >
-                <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Inventario</span><span className="sm:hidden">Invent.</span>
-              </Button>
+                  const visibleRooms = location.rooms!.filter(r => reachableRoomIds.has(r.id));
 
-              <Button
-                onClick={toggleMap}
-                disabled={isActionBlocked}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-              >
-                <Map className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Mappa
-              </Button>
-              <Button
-                onClick={toggleAchievements}
-                disabled={isActionBlocked}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-              >
-                <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Traguardi</span><span className="sm:hidden">Trag.</span>
-              </Button>
-              <Button
-                onClick={toggleBestiary}
-                disabled={isActionBlocked}
-                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-              >
-                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Bestiario
-              </Button>
-              <Button
-                onClick={toggleDocuments}
-                disabled={isActionBlocked}
-                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-              >
-                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Documenti</span><span className="sm:hidden">Doc.</span>
-                {(() => {
-                  const unread = collectedDocuments.filter(id => !readDocuments.includes(id)).length;
-                  return unread > 0 ? (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-blue-500 text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center border border-black/30">
-                      {unread}
-                    </span>
-                  ) : null;
-                })()}
-              </Button>
-              <Button
-                onClick={toggleMissions}
-                disabled={isActionBlocked}
-                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-              >
-                <ScrollText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Missioni
-                {activeMissions > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-cyan-500 text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center border border-black/30">
-                    {activeMissions}
-                  </span>
-                )}
-              </Button>
-              {hasSafeRoom && !locationHasRooms && (
-                <Button
-                  onClick={enterSafeRoom}
-                  disabled={isActionBlocked}
-                  className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-                >
-                  <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Safe Room</span><span className="sm:hidden">Safe</span>
-                </Button>
-              )}
-              <Button
-                onClick={quickHeal}
-                disabled={!canQuickHeal || isActionBlocked}
-                className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Pill className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Cura Rapida</span><span className="sm:hidden">Cura</span>
-              </Button>
-              {location.isBossArea && (
-                <Button
-                  onClick={startBossFight}
-                  disabled={aliveParty.length === 0 || isActionBlocked}
-                  className="col-span-3 sm:col-span-1 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-white text-[10px] sm:text-sm py-1.5 sm:py-2.5 font-bold animate-pulse"
-                >
-                  <Skull className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Affronta il Boss
-                </Button>
-              )}
-            </div>
-              );
-            })()}
-
-            {/* Cross-location doors — rooms in other locations reachable from current room */}
-            {(() => {
-              if (!currentRoom || !currentRoom.doors || currentRoom.doors.length === 0) return null;
-              const crossLocDoors = currentRoom.doors.filter(d => {
-                if (d.state === 'inaccessible' || d.state === 'locked') return false;
-                // Find the room on the other side of this door
-                const otherRoomId = d.fromRoomId === currentRoom.id ? d.toRoomId : d.fromRoomId;
-                const otherRoomInfo = LOCATIONS[currentLocationId]?.rooms?.find(r => r.id === otherRoomId);
-                // Only show if the other room is in a DIFFERENT location (not found in current)
-                if (otherRoomInfo) return false;
-                // Check that the room exists somewhere
-                let foundInOtherLoc = false;
-                for (const loc of Object.values(LOCATIONS)) {
-                  if (loc.id === currentLocationId) continue;
-                  if (loc.rooms?.some(r => r.id === otherRoomId)) {
-                    foundInOtherLoc = true;
-                    break;
-                  }
-                }
-                return foundInOtherLoc;
-              });
-              if (crossLocDoors.length === 0) return null;
-
-              // Get unique target rooms with location info
-              const crossLocTargets: { roomId: string; door: typeof crossLocDoors[0]; locationName: string; roomName: string; roomIcon: string }[] = [];
-              for (const door of crossLocDoors) {
-                const otherRoomId = door.fromRoomId === currentRoom.id ? door.toRoomId : door.fromRoomId;
-                // Avoid duplicates
-                if (crossLocTargets.some(t => t.roomId === otherRoomId)) continue;
-                for (const loc of Object.values(LOCATIONS)) {
-                  if (loc.id === currentLocationId) continue;
-                  const room = loc.rooms?.find(r => r.id === otherRoomId);
-                  if (room) {
-                    const isLocked = door.state === 'key_locked' && !party.some(p => p.inventory.some(i => i.itemId === door.requiredItemId));
-                    crossLocTargets.push({
-                      roomId: otherRoomId,
-                      door,
-                      locationName: loc.name,
-                      roomName: room.name,
-                      roomIcon: room.icon,
-                    });
-                    break;
-                  }
-                }
-              }
-
-              if (crossLocTargets.length === 0) return null;
-
-              return (
-                <div className="mt-2">
-                  <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5 flex items-center gap-1.5">
-                    <ArrowRightLeft className="w-3 h-3" />
-                    Altre zone
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {crossLocTargets.map(target => {
-                      const { roomId, door, locationName, roomName, roomIcon } = target;
-                      const isLocked = door.state === 'key_locked' && !party.some(p => p.inventory.some(i => i.itemId === door.requiredItemId));
-                      const canNavigate = !isLocked && !activeEvent && !activeDynamicEvent && !activeNpc;
-                      return (
-                        <Button
-                          key={roomId}
-                          variant="outline"
-                          onClick={() => canNavigate && navigateToRoom(roomId)}
-                          disabled={!canNavigate}
-                          className={`text-[10px] sm:text-xs border ${
-                            isLocked
-                              ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
-                              : 'border-amber-500/30 text-amber-300 hover:bg-amber-500/[0.06]'
-                          }`}
-                        >
-                          {isLocked ? '🔑' : <ArrowRightLeft className="w-3 h-3 mr-1" />}
-                          {roomName}
-                          <span className="ml-1 text-[8px] opacity-50">({locationName})</span>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Room Navigation — when location has rooms */}
-            {locationHasRooms && !location.isBossArea && (
-              <div className="mt-2">
-                <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5 flex items-center gap-1.5">
-                  <ChevronRight className="w-3 h-3" />
-                  Stanze ({location.rooms!.filter(r => exploredRooms.includes(r.id)).length}/{location.rooms!.length} esplorate · {clearedRooms.filter(id => location.rooms!.some(r => r.id === id)).length} pulite)
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {location.rooms!.map(room => {
+                  return visibleRooms.map(room => {
                     const isCurrent = room.id === currentRoomId;
                     const isExplored = exploredRooms.includes(room.id);
 
@@ -838,28 +660,200 @@ export default function ExplorationScreen() {
                       <Button
                         key={room.id}
                         variant="outline"
+                        size="lg"
                         onClick={() => canNavigate && navigateToRoom(room.id)}
                         disabled={!canNavigate || !!(activeEvent || activeDynamicEvent || activeNpc)}
-                        className={`text-[10px] sm:text-xs border ${
+                        className={`text-[11px] sm:text-sm border px-3 sm:px-4 py-2 sm:py-2.5 ${
                           isCurrent
-                            ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200 ring-1 ring-emerald-500/30'
+                            ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200 ring-1 ring-emerald-500/30 font-bold'
                             : isLocked
                               ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
                               : `${roomColors} hover:bg-white/[0.06]`
                         }`}
                       >
                         {doorIcon || (isLocked ? '🔒' : room.icon)}
-                        <span className="ml-1">{room.name}</span>
+                        <span className="ml-1.5">{room.name}</span>
                         {clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] text-emerald-400">✅</span>}
                         {room.enemyPool?.length > 0 && !clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] text-red-400">💀</span>}
                         {isExplored && !isCurrent && !clearedRooms.includes(room.id) && <span className="ml-1 text-[8px] opacity-40">✓</span>}
-                        {isCurrent && <span className="ml-1 text-[8px]">●</span>}
+                        {isCurrent && <span className="ml-1 text-[8px]">● Qui</span>}
+                      </Button>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Cross-location doors — rooms in other locations reachable from current room */}
+          {(() => {
+            if (!currentRoom || !currentRoom.doors || currentRoom.doors.length === 0) return null;
+            const crossLocDoors = currentRoom.doors.filter(d => {
+              if (d.state === 'inaccessible' || d.state === 'locked') return false;
+              // Find the room on the other side of this door
+              const otherRoomId = d.fromRoomId === currentRoom.id ? d.toRoomId : d.fromRoomId;
+              const otherRoomInfo = LOCATIONS[currentLocationId]?.rooms?.find(r => r.id === otherRoomId);
+              // Only show if the other room is in a DIFFERENT location (not found in current)
+              if (otherRoomInfo) return false;
+              // Check that the room exists somewhere
+              let foundInOtherLoc = false;
+              for (const loc of Object.values(LOCATIONS)) {
+                if (loc.id === currentLocationId) continue;
+                if (loc.rooms?.some(r => r.id === otherRoomId)) {
+                  foundInOtherLoc = true;
+                  break;
+                }
+              }
+              return foundInOtherLoc;
+            });
+            if (crossLocDoors.length === 0) return null;
+
+            // Get unique target rooms with location info
+            const crossLocTargets: { roomId: string; door: typeof crossLocDoors[0]; locationName: string; roomName: string; roomIcon: string }[] = [];
+            for (const door of crossLocDoors) {
+              const otherRoomId = door.fromRoomId === currentRoom.id ? door.toRoomId : door.fromRoomId;
+              // Avoid duplicates
+              if (crossLocTargets.some(t => t.roomId === otherRoomId)) continue;
+              for (const loc of Object.values(LOCATIONS)) {
+                if (loc.id === currentLocationId) continue;
+                const room = loc.rooms?.find(r => r.id === otherRoomId);
+                if (room) {
+                  const isLocked = door.state === 'key_locked' && !party.some(p => p.inventory.some(i => i.itemId === door.requiredItemId));
+                  crossLocTargets.push({
+                    roomId: otherRoomId,
+                    door,
+                    locationName: loc.name,
+                    roomName: room.name,
+                    roomIcon: room.icon,
+                  });
+                  break;
+                }
+              }
+            }
+
+            if (crossLocTargets.length === 0) return null;
+
+            return (
+              <div className="shrink-0 px-2 sm:px-3 py-2 border-t border-white/[0.06] bg-amber-500/[0.02]">
+                <div className="text-[10px] sm:text-xs uppercase tracking-wider text-amber-400/50 mb-1.5 flex items-center gap-1.5">
+                  <ArrowRightLeft className="w-3 h-3" />
+                  Altre zone
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {crossLocTargets.map(target => {
+                    const { roomId, door, locationName, roomName, roomIcon } = target;
+                    const isLocked = door.state === 'key_locked' && !party.some(p => p.inventory.some(i => i.itemId === door.requiredItemId));
+                    const canNavigate = !isLocked && !activeEvent && !activeDynamicEvent && !activeNpc;
+                    return (
+                      <Button
+                        key={roomId}
+                        variant="outline"
+                        size="lg"
+                        onClick={() => canNavigate && navigateToRoom(roomId)}
+                        disabled={!canNavigate}
+                        className={`text-[11px] sm:text-sm border px-3 sm:px-4 py-2 sm:py-2.5 ${
+                          isLocked
+                            ? 'border-white/[0.04] bg-white/[0.02] text-white/30 cursor-not-allowed opacity-50'
+                            : 'border-amber-500/30 text-amber-300 hover:bg-amber-500/[0.06]'
+                        }`}
+                      >
+                        {isLocked ? '🔑' : <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />}
+                        {roomName}
+                        <span className="ml-1.5 text-[9px] opacity-50">({locationName})</span>
                       </Button>
                     );
                   })}
                 </div>
               </div>
-            )}
+            );
+          })()}
+
+          {/* Action Buttons */}
+          <div className="shrink-0 p-2 sm:p-3 border-t border-white/[0.06] glass-dark-accent max-h-[40vh] sm:max-h-none overflow-y-auto inventory-scrollbar">
+            {(() => {
+              const isActionBlocked = !!(activeEvent || activeDynamicEvent || activeNpc);
+              return (
+              <div className={`grid grid-cols-3 sm:grid-cols-3 gap-1 sm:gap-2 ${isActionBlocked ? 'opacity-40 pointer-events-none' : ''}`}>
+              <Button
+                onClick={searchArea}
+                disabled={aliveParty.length === 0 || searchDisabled || isActionBlocked}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Cerca oggetti"
+              >
+                <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Cerca
+              </Button>
+              <Button
+                onClick={toggleInventory}
+                disabled={isActionBlocked}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+                aria-label="Apri inventario"
+              >
+                <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Inventario</span><span className="sm:hidden">Invent.</span>
+              </Button>
+
+              <Button
+                onClick={toggleMap}
+                disabled={isActionBlocked}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+              >
+                <Map className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Mappa
+              </Button>
+              <Button
+                onClick={toggleBestiary}
+                disabled={isActionBlocked}
+                className="bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+              >
+                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Bestiario
+              </Button>
+              <Button
+                onClick={toggleDocuments}
+                disabled={isActionBlocked}
+                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+              >
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Documenti</span><span className="sm:hidden">Doc.</span>
+                {(() => {
+                  const unread = collectedDocuments.filter(id => !readDocuments.includes(id)).length;
+                  return unread > 0 ? (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-blue-500 text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center border border-black/30">
+                      {unread}
+                    </span>
+                  ) : null;
+                })()}
+              </Button>
+              <Button
+                onClick={toggleMissions}
+                disabled={isActionBlocked}
+                className="relative bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/70 hover:text-white hover:border-white/20 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+              >
+                <ScrollText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Missioni
+                {activeMissions > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-cyan-500 text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center border border-black/30">
+                    {activeMissions}
+                  </span>
+                )}
+              </Button>
+              {hasSafeRoom && !locationHasRooms && (
+                <Button
+                  onClick={enterSafeRoom}
+                  disabled={isActionBlocked}
+                  className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+                >
+                  <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Safe Room</span><span className="sm:hidden">Safe</span>
+                </Button>
+              )}
+
+              {location.isBossArea && (
+                <Button
+                  onClick={startBossFight}
+                  disabled={aliveParty.length === 0 || isActionBlocked}
+                  className="col-span-3 sm:col-span-1 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-white text-[10px] sm:text-sm py-1.5 sm:py-2.5 font-bold animate-pulse"
+                >
+                  <Skull className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> Affronta il Boss
+                </Button>
+              )}
+            </div>
+              );
+            })()}
 
             {/* Quest Tracker — collapsible */}
             {activeMissions > 0 && (

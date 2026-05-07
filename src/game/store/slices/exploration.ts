@@ -8,6 +8,7 @@ import {
 import { getDifficultyConfig } from '../../data/difficulty';
 import {
   ITEMS,
+  ENEMIES,
   DYNAMIC_EVENTS,
   DOCUMENTS,
   LOCATIONS,
@@ -275,7 +276,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     }
 
     // ── Room types that should NOT spawn enemies ──
-    const NO_ENEMY_TYPES = ['safe_room', 'shop', 'puzzle', 'corridor'];
+    const NO_ENEMY_TYPES = ['safe_room', 'shop', 'puzzle'];
     const hasEnemies = !!(targetRoom.enemyPool && targetRoom.enemyPool.length > 0);
     const isCleared = state.clearedRooms.includes(roomId);
     const shouldSpawnEnemies = hasEnemies
@@ -331,8 +332,17 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
 
       const enemies: EnemyInstance[] = [];
+      // Filter out invalid enemy IDs from the pool
+      const validEnemyIds = enemyPool.filter(id => !!ENEMIES[id]);
+      if (validEnemyIds.length === 0) {
+        console.warn(`[navigateToRoom] Room "${targetRoom.name}" has enemyPool but no valid enemy IDs. Pool:`, enemyPool);
+        return;
+      }
+      if (validEnemyIds.length < enemyPool.length) {
+        console.warn(`[navigateToRoom] Room "${targetRoom.name}" has ${enemyPool.length - validEnemyIds.length} invalid enemy IDs in pool.`);
+      }
       for (let i = 0; i < numEnemies; i++) {
-        const enemyId = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+        const enemyId = validEnemyIds[Math.floor(Math.random() * validEnemyIds.length)];
         enemies.push(createEnemyInstance(enemyId, diff.statMult * ngMult, avgLevel));
       }
 
@@ -465,6 +475,23 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     const searchCount = state.searchCounts[searchKey] || 0;
     const foundItems = state.foundRoomItems[searchKey] || [];
 
+    // Apply searchMax limit from room/location config
+    const roomSearchMax = currentRoom?.searchMax != null
+      ? (currentRoom.searchMax === 0 ? Infinity : currentRoom.searchMax)
+      : (location.searchMax != null ? (location.searchMax === 0 ? Infinity : location.searchMax) : Infinity);
+    if (searchCount >= roomSearchMax) {
+      const maxMessages = [
+        'Avete già esplorato a fondo questa zona.',
+        'Non c\'è più nulla da trovare qui.',
+        'La zona è stata completamente perlustrata.',
+      ];
+      const msg = maxMessages[Math.floor(Math.random() * maxMessages.length)];
+      set({
+        messageLog: [...state.messageLog, `[${state.turnCount}] 🔍 ${msg}`],
+      });
+      return;
+    }
+
     // Track run stats: searches performed
     try { get().incrementRunStat('searchesPerformed'); } catch {}
 
@@ -511,7 +538,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     // Total findable = items + documents not yet found
     const allFindableIds = [...findableItems, ...findableDocIds];
     const allFoundCount = foundItems.length;
-    const totalFindable = allFindableIds.length;
+    const totalFindable = allFindableIds.length + foundItems.length;
 
     // Check if everything is exhausted
     if (allFoundCount >= totalFindable && totalFindable > 0) {
@@ -522,6 +549,26 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         'Avete già controllato tutto a fondo.',
       ];
       const msg = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
+      set({
+        messageLog: [...newLog, `[${state.turnCount}] 🔍 ${msg}`],
+        turnCount: state.turnCount + 1,
+        searchCounts: newSearchCounts,
+      });
+      return;
+    }
+
+    // ── Apply searchChance probability ──
+    const effectiveChance = currentRoom?.searchChance != null
+      ? currentRoom.searchChance
+      : (location.searchChance ?? 70);
+    const roll = Math.random() * 100;
+    if (roll > effectiveChance) {
+      const failMessages = [
+        `${searcherName} ispeziona la zona ma non trova nulla...`,
+        `${searcherName} fruga tra i detriti senza successo.`,
+        `${searcherName} controlla ogni angolo ma non c'è nulla di utile.`,
+      ];
+      const msg = failMessages[Math.floor(Math.random() * failMessages.length)];
       set({
         messageLog: [...newLog, `[${state.turnCount}] 🔍 ${msg}`],
         turnCount: state.turnCount + 1,
@@ -546,6 +593,8 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     if (!nextFindId) {
       for (const itemId of findableItems) {
         if (!foundItems.includes(itemId)) {
+          // Validate item exists in registry before consuming the find
+          if (!ITEMS[itemId]) continue;
           nextFindId = itemId;
           break;
         }

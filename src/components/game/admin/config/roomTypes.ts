@@ -47,13 +47,13 @@ export function getRoomTypeBadgeClasses(color: string): string {
 
 // Color → card border classes mapping (room card containers)
 const CARD_CLASS_MAP: Record<string, string> = {
-  gray:    'border-gray-500/40 bg-gray-900/70',
-  emerald: 'border-emerald-500/40 bg-emerald-950/70',
-  red:     'border-red-500/40 bg-red-950/70',
-  violet:  'border-violet-500/40 bg-violet-950/70',
-  amber:   'border-amber-500/40 bg-amber-950/70',
-  cyan:    'border-cyan-500/40 bg-cyan-950/70',
-  slate:   'border-slate-500/40 bg-slate-900/70',
+  gray:    'border-gray-500/40',
+  emerald: 'border-emerald-500/40',
+  red:     'border-red-500/40',
+  violet:  'border-violet-500/40',
+  amber:   'border-amber-500/40',
+  cyan:    'border-cyan-500/40',
+  slate:   'border-slate-500/40',
 };
 
 /** Get Tailwind classes for a room-type card container */

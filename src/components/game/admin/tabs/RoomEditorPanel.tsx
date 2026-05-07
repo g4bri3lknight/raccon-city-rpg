@@ -307,10 +307,17 @@ function RoomConnectionLine({
   const my = (y1 + y2) / 2;
   const angle = Math.atan2(dy, dx);
   const arrowLen = 8;
+  // Arrow at (x2, y2) — forward
   const arrowX1 = x2 - arrowLen * Math.cos(angle - 0.35);
   const arrowY1 = y2 - arrowLen * Math.sin(angle - 0.35);
   const arrowX2 = x2 - arrowLen * Math.cos(angle + 0.35);
   const arrowY2 = y2 - arrowLen * Math.sin(angle + 0.35);
+  // Arrow at (x1, y1) — backward (bidirectional)
+  const revAngle = angle + Math.PI;
+  const revArrowX1 = x1 - arrowLen * Math.cos(revAngle - 0.35);
+  const revArrowY1 = y1 - arrowLen * Math.sin(revAngle - 0.35);
+  const revArrowX2 = x1 - arrowLen * Math.cos(revAngle + 0.35);
+  const revArrowY2 = y1 - arrowLen * Math.sin(revAngle + 0.35);
   return (
     <g className="group/rconn">
       <path
@@ -319,8 +326,13 @@ function RoomConnectionLine({
         stroke={'rgba(52,211,153,0.25)'}
         strokeWidth={1.5}
       />
+      {/* Bidirectional arrows */}
       <polygon
         points={`${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
+        fill={'rgba(52,211,153,0.4)'}
+      />
+      <polygon
+        points={`${x1},${y1} ${revArrowX1},${revArrowY1} ${revArrowX2},${revArrowY2}`}
         fill={'rgba(52,211,153,0.4)'}
       />
       <circle cx={mx} cy={my} r={30} fill="transparent" className="cursor-pointer" />
@@ -386,12 +398,48 @@ function RoomCard({
 
   const borderClasses = getRoomTypeCardClasses(typeInfo.color);
 
+  // For corridors with SVG shape, render a transparent drag overlay
+  if (isCorridor && corridorVariant) {
+    return (
+      <div
+        className={`absolute select-none ${isDragging ? 'z-50' : 'z-5'}`}
+        style={{
+          left: room.mapX ?? 0,
+          top: room.mapY ?? 0,
+          width: dim.w,
+          height: dim.h,
+        }}
+        onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, room.id); }}
+        onClick={(e) => { if ((e.target as HTMLElement).closest('button')) return; onSelect(room.id); }}
+      >
+        {/* Edit/Delete buttons — bottom right for corridors */}
+        <div className="flex items-center gap-0.5" style={{ position: 'absolute', bottom: 2, right: 2 }}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit(room.id); }}
+            className="flex items-center justify-center w-5 h-5 rounded bg-black/70 border border-cyan-500/30 text-cyan-400/70 hover:text-cyan-300 hover:bg-black/90 transition-colors"
+            title="Modifica corridoio"
+          >
+            <Pencil className="w-2.5 h-2.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(room.id); }}
+            className="flex items-center justify-center w-5 h-5 rounded bg-black/70 border border-red-500/30 text-red-400/70 hover:text-red-300 hover:bg-black/90 transition-colors"
+            title="Elimina corridoio"
+          >
+            <Trash2 className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`
         absolute select-none transition-shadow duration-150
-        ${isCorridor ? 'rounded-none' : 'rounded-lg'}
-        border ${isCorridor ? 'border-slate-500/50' : 'border-solid'}
+        border-2 border-solid bg-[#0d0d14]
         ${borderClasses}
         ${isSelected
           ? 'ring-2 ring-emerald-400/60 shadow-lg shadow-emerald-500/10'
@@ -413,66 +461,46 @@ function RoomCard({
       }}
       onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, room.id); }}
     >
-
-      <div className={`relative flex ${isCorridor ? (isHorizontal ? 'flex-row items-center' : 'flex-col items-center justify-center') : 'flex-col'} h-full p-2 gap-0.5`}>
+      <div className="relative flex flex-col h-full p-2 gap-0.5">
         {/* Icon + Name */}
-        <div className={`flex items-center gap-1 min-w-0 ${isCorridor ? (isHorizontal ? 'flex-1 justify-center' : 'justify-center') : ''}`}>
+        <div className="flex items-center gap-1 min-w-0">
           <span className="text-sm leading-none shrink-0">{room.icon || typeInfo.icon}</span>
-          <span className={`font-bold text-white/80 truncate min-w-0 leading-tight ${
-            isCorridor ? 'text-[10px] text-center' : 'text-[11px]'
-          }`}>
+          <span className="font-bold text-white/80 truncate min-w-0 leading-tight text-[11px]">
             {room.name}
           </span>
         </div>
 
         {/* Type badge + info badges */}
-        {(!isCorridor || isVertical) && (
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className={`text-[8px] px-1 py-px rounded-sm border font-medium ${getRoomTypeBadgeClasses(typeInfo.color)}`}>
-              {getRoomTypeLabel(room.type)}
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className={`text-[8px] px-1 py-px rounded-sm border font-medium ${getRoomTypeBadgeClasses(typeInfo.color)}`}>
+            {getRoomTypeLabel(room.type)}
+          </span>
+          {room.enemyPool.length > 0 && (
+            <span className="text-[8px] px-1 py-px rounded-sm border border-red-700/30 text-red-400/70 bg-red-900/15 font-medium">
+              👾 {room.enemyPool.length}
             </span>
-            {room.enemyPool.length > 0 && (
-              <span className="text-[8px] px-1 py-px rounded-sm border border-red-700/30 text-red-400/70 bg-red-900/15 font-medium">
-                👾 {room.enemyPool.length}
-              </span>
-            )}
-            {showLabels && connCount > 0 && (
-              <span className="text-[8px] px-1 py-px rounded-sm bg-white/[0.05] text-white/35 border border-white/[0.08]">
-                🔗 {connCount}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Horizontal corridor: badge inline */}
-        {isCorridor && isHorizontal && (
-          <div className="flex items-center gap-1 shrink-0">
-            <span className={`text-[8px] px-1 py-px rounded-sm border font-medium ${getRoomTypeBadgeClasses(typeInfo.color)}`}>
-              {getRoomTypeLabel(room.type)}
+          )}
+          {showLabels && connCount > 0 && (
+            <span className="text-[8px] px-1 py-px rounded-sm bg-white/[0.05] text-white/35 border border-white/[0.08]">
+              🔗 {connCount}
             </span>
-            {room.enemyPool.length > 0 && (
-              <span className="text-[7px] px-1 py-px rounded-sm border border-red-700/30 text-red-400/60 bg-red-900/10">
-                👾{room.enemyPool.length}
-              </span>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Action buttons */}
-        <div className={`flex items-center gap-1 ${isCorridor ? (isHorizontal ? 'shrink-0 ml-auto' : 'mt-auto') : 'mt-auto'} pt-0.5`}>
+        {/* Action buttons — bottom right, always visible */}
+        <div className="absolute bottom-1 right-1 flex items-center gap-0.5">
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onEdit(room.id); }}
-            className="flex items-center gap-0.5 text-[9px] font-medium text-cyan-400/60 hover:text-cyan-300 bg-black/40 rounded px-1.5 py-0.5 transition-colors border border-cyan-500/10 hover:border-cyan-500/25"
+            className="flex items-center justify-center w-5 h-5 rounded bg-black/70 border border-cyan-500/30 text-cyan-400/70 hover:text-cyan-300 hover:bg-black/90 transition-colors"
             title="Modifica stanza"
           >
             <Pencil className="w-2.5 h-2.5" />
-            {!isCorridor && <span>Modifica</span>}
           </button>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(room.id); }}
-            className="flex items-center gap-0.5 text-[9px] font-medium text-red-400/50 hover:text-red-300 bg-black/40 rounded px-1.5 py-0.5 transition-colors border border-red-500/10 hover:border-red-500/25"
+            className="flex items-center justify-center w-5 h-5 rounded bg-black/70 border border-red-500/30 text-red-400/70 hover:text-red-300 hover:bg-black/90 transition-colors"
             title="Elimina stanza"
           >
             <Trash2 className="w-2.5 h-2.5" />
@@ -780,7 +808,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showConnections, setShowConnections] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
-  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [snapToGrid, setSnapToGrid] = useState(false);
   const [unplacedOpen, setUnplacedOpen] = useState(true);
   const [allOpen, setAllOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -866,6 +894,33 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
 
+  // ── Debug: log all door data when rooms change ──
+  useEffect(() => {
+    if (rooms.length === 0) return;
+    const doorLog: Array<Record<string, unknown>> = [];
+    for (const room of rooms) {
+      if (!room._doors || room._doors.length === 0) continue;
+      for (const door of room._doors) {
+        doorLog.push({
+          roomId: room.id,
+          roomName: room.name,
+          roomType: room.type,
+          roomMapX: room.mapX,
+          roomMapY: room.mapY,
+          doorId: door.id,
+          fromRoomId: door.fromRoomId,
+          toRoomId: door.toRoomId,
+          fromSide: door.fromSide,
+          toSide: door.toSide,
+          state: door.state,
+        });
+      }
+    }
+    if (doorLog.length > 0) {
+      console.table(doorLog);
+    }
+  }, [rooms]);
+
   // ── Derived data ──
   const placed = useMemo(
     () => rooms.filter(r => r.mapX != null && r.mapY != null),
@@ -930,6 +985,16 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
 
         if (!fromPos) continue;
 
+        // Debug: log all connections
+        const fromDim = getRoomDimensions(room, rooms);
+        const toDim = getRoomDimensions(target, rooms);
+        console.log(`[CONN] ${room.name}(${conn.doorSide})→${target.name}(${reverseConn?.doorSide ?? 'NO-REVERSE'}):`, {
+          from: { id: room.id, mapX: room.mapX, mapY: room.mapY, dimW: fromDim.w, dimH: fromDim.h, type: room.type },
+          to: { id: target.id, mapX: target.mapX, mapY: target.mapY, dimW: toDim.w, dimH: toDim.h, type: target.type },
+          endpoints: { x1: fromPos.x, y1: fromPos.y, x2: toPos?.x, y2: toPos?.y },
+          reverseConnFound: !!reverseConn,
+        });
+
         lines.push({
           x1: fromPos.x,
           y1: fromPos.y,
@@ -976,7 +1041,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
 
   // ── Corridor shape paths for SVG rendering ──
   const corridorShapes = useMemo(() => {
-    const shapes: { path: string; x: number; y: number; w: number; h: number; presetId: string }[] = [];
+    const shapes: { path: string; x: number; y: number; w: number; h: number; presetId: string; name: string; roomId: string; typeInfo: ReturnType<typeof getRoomTypeInfo> }[] = [];
     for (const room of placed) {
       if (!room.corridorPreset || room.mapX == null || room.mapY == null) continue;
       const dim = getRoomDimensions(room, rooms);
@@ -989,13 +1054,43 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
           w: dim.w,
           h: dim.h,
           presetId: room.corridorPreset,
+          name: room.name,
+          roomId: room.id,
+          typeInfo: getRoomTypeInfo(room.type),
         });
       }
     }
     return shapes;
   }, [placed, rooms]);
 
-  // ── Door creation helper ──
+  // ── Cross-location rooms for door connections ──
+  const [allRoomsForConnect, setAllRoomsForConnect] = useState<Array<{ id: string; name: string; locationId: string; locationName: string }>>([]);
+  const [connectLoading, setConnectLoading] = useState(false);
+
+  const loadAllRoomsForConnect = useCallback(async () => {
+    setConnectLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/rooms');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      // Fetch locations for names
+      const locRes = await adminFetch('/api/admin/locations');
+      const locs: Array<{ id: string; name: string }> = locRes.ok ? await locRes.json() : [];
+      const locMap = new Map(locs.map((l: { id: string; name: string }) => [l.id, l.name]));
+      setAllRoomsForConnect(data.map((d: Record<string, unknown>) => ({
+        id: String(d.id),
+        name: String(d.name ?? ''),
+        locationId: String(d.locationId ?? ''),
+        locationName: locMap.get(String(d.locationId ?? '')) || String(d.locationId ?? ''),
+      })));
+    } catch {
+      setAllRoomsForConnect([]);
+    } finally {
+      setConnectLoading(false);
+    }
+  }, []);
+
+  // ── Door creation helper (always auto-detects sides from positions) ──
   const createDoor = useCallback(async (fromRoomId: string, toRoomId: string) => {
     const fromRoom = rooms.find(r => r.id === fromRoomId);
     const toRoom = rooms.find(r => r.id === toRoomId);
@@ -1419,6 +1514,11 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const handleDelete = async (id: string) => {
     const room = rooms.find(r => r.id === id);
     if (!confirm(`Eliminare la stanza "${room?.name ?? id}"?`)) return;
+    // Clear any pending debounced save to prevent stale position updates
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
     try {
       const res = await adminFetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await res.text());
@@ -1502,8 +1602,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
       setPanX(rect.width / (2 * zoom) - centerX);
       setPanY(rect.height / (2 * zoom) - centerY);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, zoom, placed]);
 
   // ── Loading state ──
   if (loading) {
@@ -1974,23 +2073,76 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                 backgroundPosition: '0 0',
               }}
             >
-              {/* SVG connection lines + corridor shapes + door indicators */}
+              {/* SVG layer 1 (behind cards): corridor shape fills */}
               <svg
-                className="absolute inset-0 pointer-events-none"
+                className="absolute inset-0"
                 width={CANVAS_W}
                 height={CANVAS_H}
                 style={{ zIndex: 1 }}
               >
                 {/* Corridor shape fills */}
-                {corridorShapes.map(shape => (
-                  <path
-                    key={`corridor-${shape.presetId}-${shape.x}-${shape.y}`}
-                    d={shape.path}
-                    fill="rgba(148,163,184,0.15)"
-                    stroke="rgba(148,163,184,0.5)"
-                    strokeWidth={1}
-                    transform={`translate(${shape.x},${shape.y})`}
-                  />
+                {corridorShapes.map(shape => {
+                  const isSel = selectedRoomId === shape.roomId;
+                  const isHl = highlightedRoomId === shape.roomId;
+                  return (
+                    <g
+                      key={`corridor-${shape.presetId}-${shape.x}-${shape.y}`}
+                      transform={`translate(${shape.x},${shape.y})`}
+                      onClick={() => setSelectedRoomId(shape.roomId)}
+                      className="cursor-pointer"
+                    >
+                      <path
+                        d={shape.path}
+                        fill={isSel ? 'rgba(52,211,153,0.25)' : isHl ? 'rgba(52,211,153,0.18)' : 'rgba(148,163,184,0.2)'}
+                        stroke={isSel ? 'rgba(52,211,153,0.6)' : 'rgba(148,163,184,0.45)'}
+                        strokeWidth={isSel ? 2 : 1}
+                      />
+                      {/* Corridor label */}
+                      <text
+                        x={shape.w / 2}
+                        y={shape.h / 2}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        className="fill-white/60 pointer-events-none select-none"
+                        style={{ fontSize: '9px', fontFamily: 'system-ui' }}
+                      >
+                        {shape.name}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+
+              {/* Room cards */}
+              {placed.map(room => (
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  rooms={rooms}
+                  isSelected={highlightedRoomId === room.id}
+                  isDragging={draggingId === room.id}
+                  showLabels={showLabels}
+                  connCount={connCountMap[room.id] ?? 0}
+                  onMouseDown={handleCardMouseDown}
+                  onSelect={setHighlightedRoomId}
+                  onEdit={(id) => { setEditingId(id); setCreating(false); }}
+                  onDelete={handleDelete}
+                />
+              ))}
+
+              {/* SVG layer 2 (above cards): connection lines + door indicators */}
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                width={CANVAS_W}
+                height={CANVAS_H}
+                style={{ zIndex: 20 }}
+              >
+                {/* DEBUG: Visual endpoint markers (remove after fixing) */}
+                {connectionLines.map(line => (
+                  <g key={`debug-${line.key}`}>
+                    <circle cx={line.x1} cy={line.y1} r={6} fill="rgba(0,200,255,0.7)" stroke="white" strokeWidth={1} />
+                    <circle cx={line.x2} cy={line.y2} r={6} fill="rgba(255,100,0,0.7)" stroke="white" strokeWidth={1} />
+                  </g>
                 ))}
                 {connectionLines.map(line => (
                   <RoomConnectionLine
@@ -2053,23 +2205,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                   );
                 })}
               </svg>
-
-              {/* Room cards */}
-              {placed.map(room => (
-                <RoomCard
-                  key={room.id}
-                  room={room}
-                  rooms={rooms}
-                  isSelected={highlightedRoomId === room.id}
-                  isDragging={draggingId === room.id}
-                  showLabels={showLabels}
-                  connCount={connCountMap[room.id] ?? 0}
-                  onMouseDown={handleCardMouseDown}
-                  onSelect={setHighlightedRoomId}
-                  onEdit={(id) => { setEditingId(id); setCreating(false); }}
-                  onDelete={handleDelete}
-                />
-              ))}
             </div>
 
             {/* Empty state */}
@@ -2124,7 +2259,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                   )
                 : roomFormFields
             }
-            initialData={creating ? { locationId, type: 'normal' } : editingData}
+            initialData={creating ? { locationId, type: 'normal', searchChance: 70, searchMax: 100 } : editingData}
             onSubmit={creating ? handleCreate : handleUpdate}
             onCancel={handleDialogClose}
             submitLabel={creating ? 'Crea Stanza' : 'Salva Modifiche'}
@@ -2187,22 +2322,59 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                     defaultValue=""
                   >
                     <option value="">— Seleziona stanza —</option>
-                    {otherRooms.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
+                    <optgroup label={`📍 ${locationName} (questa location)`}>
+                      {otherRooms.map(r => (
+                        <option key={r.id} value={`local:${r.id}`}>{r.name}</option>
+                      ))}
+                    </optgroup>
+                    {allRoomsForConnect.length > 0 && (
+                      <optgroup label="🌐 Altre location">
+                        {allRoomsForConnect
+                          .filter(r => r.locationId !== locationId && !editRoom._doors?.some(d => d.fromRoomId === r.id || d.toRoomId === r.id))
+                          .map(r => (
+                            <option key={r.id} value={`remote:${r.id}`}>{r.locationName} › {r.name}</option>
+                          ))
+                        }
+                      </optgroup>
+                    )}
                   </select>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-[10px] gap-1 h-6 bg-emerald-600/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-600/20"
-                    onClick={() => {
+                    className="text-[10px] gap-1 h-6 bg-emerald-600/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-600/20 disabled:opacity-40"
+                    disabled={connectLoading}
+                    onClick={async () => {
                       const sel = document.getElementById('new-door-target') as HTMLSelectElement;
                       if (!sel || !sel.value || !editingId) return;
-                      createDoor(editingId, sel.value);
+                      const val = sel.value;
+                      if (val.startsWith('local:')) {
+                        createDoor(editingId, val.replace('local:', ''));
+                      } else if (val.startsWith('remote:')) {
+                        // Remote connection: create door directly with east/west defaults
+                        const toRoomId = val.replace('remote:', '');
+                        try {
+                          const res = await adminFetch('/api/admin/doors', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fromRoomId: editingId, toRoomId, fromSide: 'east', toSide: 'west', state: 'open' }),
+                          });
+                          if (res.ok) fetchRooms();
+                        } catch { /* ignore */ }
+                      }
                     }}
                   >
-                    <Plus className="w-2.5 h-2.5" />
+                    {connectLoading ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Plus className="w-2.5 h-2.5" />}
                     Connetti
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-[10px] gap-1 h-6 bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50 hover:bg-white/[0.06] disabled:opacity-40"
+                    disabled={connectLoading || allRoomsForConnect.length > 0}
+                    onClick={loadAllRoomsForConnect}
+                    title="Carica stanze da altre location"
+                  >
+                    <Layers className="w-2.5 h-2.5" />
                   </Button>
                 </div>
                 {!hasDoors && (

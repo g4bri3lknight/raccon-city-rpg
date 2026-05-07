@@ -18,6 +18,8 @@ export interface FieldSection {
     hasValue?: boolean;
     /** Hide when the field equals this exact value */
     equals?: string;
+    /** Hide when the field equals any of these values */
+    equalsAny?: string[];
   };
 }
 
@@ -85,7 +87,8 @@ export const FIELD_SECTIONS: Partial<Record<TabId, FieldSection[]>> = {
   rooms: [
     { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'locationId', 'name', 'travelCost', 'description'] },
     { id: 'type', label: 'Tipo & Proprietà', icon: '🏷️', fieldKeys: ['type', 'icon'] },
-    { id: 'content', label: 'Contenuto', icon: '📦', fieldKeys: ['enemyPool', 'itemPool', 'searchChance', 'searchMax', 'npcIds', 'storyEvent', 'ambientText'] },
+    { id: 'enemies', label: 'Pool Nemici', icon: '👾', fieldKeys: ['enemyPool'], hiddenWhen: { field: 'type', equalsAny: ['safe_room', 'shop', 'puzzle'] } },
+    { id: 'content', label: 'Contenuto', icon: '📦', fieldKeys: ['itemPool', 'searchChance', 'searchMax', 'npcIds', 'storyEvent', 'ambientText'] },
   ],
   specials: [
     { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'name', 'icon', 'description', 'category', 'targetType', 'sortOrder'] },
@@ -140,7 +143,7 @@ export const FIELD_SECTIONS: Partial<Record<TabId, FieldSection[]>> = {
  */
 export function isSectionHidden(section: FieldSection, formData: Record<string, unknown>): boolean {
   if (!section.hiddenWhen) return false;
-  const { field, hasValue, equals } = section.hiddenWhen;
+  const { field, hasValue, equals, equalsAny } = section.hiddenWhen;
   const val = formData[field];
   if (hasValue === true) {
     // Hide when field has a truthy non-empty value
@@ -152,6 +155,9 @@ export function isSectionHidden(section: FieldSection, formData: Record<string, 
   }
   if (equals !== undefined) {
     return String(val) === equals;
+  }
+  if (equalsAny !== undefined) {
+    return equalsAny.some(v => String(val) === v);
   }
   return false;
 }

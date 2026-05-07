@@ -31,9 +31,10 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update all positions in a single transaction
+    // Use updateMany to gracefully skip non-existent room IDs
     await db.$transaction(
       body.positions.map((p) =>
-        db.gameRoom.update({
+        db.gameRoom.updateMany({
           where: { id: p.id },
           data: {
             ...(p.mapRow !== undefined ? { mapRow: p.mapRow ?? null } : {}),
