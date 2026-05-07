@@ -530,6 +530,7 @@ export interface RoomDefinition {
   orientation?: string;
   backgroundImage?: string;
   travelCost?: number;  // turn cost to travel from another location (1/2/3)
+  corridorPreset?: string; // corridor SVG shape preset (e.g. 'straight:0', 'L:90', 'T:0', 'cross:0')
   doors?: DoorDefinition[]; // doors connected to this room
 }
 

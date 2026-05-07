@@ -76,7 +76,7 @@ export function SelectField({ field, value, onChange }: SelectFieldProps) {
       <select
         value={typeof value === 'string' ? value : ''}
         onChange={e => onChange(field.key, e.target.value)}
-        className="w-full text-[13px] bg-black text-white border border-white/[0.1] rounded px-2 py-1.5 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+        className="w-full text-[13px] bg-emerald-950/40 text-emerald-300/80 border border-emerald-500/20 rounded px-2 py-1.5 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
       >
         <option value="" className="bg-black text-white">— Nessuno —</option>
         {field.options?.map(opt => {

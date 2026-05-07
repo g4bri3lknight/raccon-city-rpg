@@ -28,7 +28,7 @@ import { KeyboardShortcutsOverlay } from '@/components/game/KeyboardShortcutsOve
 import Footer from '@/components/Footer';
 import { ErrorBoundary } from '@/components/game/ErrorBoundary';
 import StandaloneLogPanel from '@/components/game/StandaloneLogPanel';
-import { playBgm, stopBgm, resumeAmbient, playLocationAmbient, playSafeRoomAmbient } from '@/game/engine/sounds';
+import { playBgm, stopBgm, resumeAmbient, playLocationAmbient, playSafeRoomAmbient, stopAllSounds } from '@/game/engine/sounds';
 
 interface PlayShellProps {
   gameId: string;
@@ -47,6 +47,61 @@ export default function PlayShell({ gameId, onBack, isStandalone = false }: Play
   const [dataReady, setDataReady] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
+  // ── Draggable close button state ──
+  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  const [btnPos, setBtnPos] = useState<{ left: number; top: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const btnSize = 36;
+  const btnMargin = 12;
+
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const rect = (e.target as HTMLElement).closest('button')?.getBoundingClientRect();
+    if (rect) {
+      setBtnPos({ left: rect.left, top: rect.top });
+    }
+    setIsDragging(false);
+    dragRef.current = {
+      startX: clientX,
+      startY: clientY,
+      origLeft: btnPos?.left ?? (window.innerWidth - btnSize - btnMargin),
+      origTop: btnPos?.top ?? btnMargin,
+    };
+  };
+
+  const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!dragRef.current) return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - dragRef.current.startX;
+    const dy = clientY - dragRef.current.startY;
+    // Only consider it a drag if moved more than 5px
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      setIsDragging(true);
+    }
+    setBtnPos({
+      left: Math.max(0, Math.min(window.innerWidth - btnSize, dragRef.current.origLeft + dx)),
+      top: Math.max(0, Math.min(window.innerHeight - btnSize, dragRef.current.origTop + dy)),
+    });
+  };
+
+  const handleDragEnd = () => {
+    if (!dragRef.current || !btnPos) { dragRef.current = null; return; }
+    // Snap to nearest corner
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cx = btnPos.left + btnSize / 2;
+    const cy = btnPos.top + btnSize / 2;
+    const snapLeft = cx < vw / 2;
+    const snapTop = cy < vh / 2;
+    setBtnPos({
+      left: snapLeft ? btnMargin : vw - btnSize - btnMargin,
+      top: snapTop ? btnMargin : vh - btnSize - btnMargin,
+    });
+    dragRef.current = null;
+  };
+
   // ── Set activeGameId cookie so API routes use the correct game DB ──
   useEffect(() => {
     document.cookie = `activeGameId=${encodeURIComponent(gameId)}; path=/; SameSite=Lax`;
@@ -57,6 +112,24 @@ export default function PlayShell({ gameId, onBack, isStandalone = false }: Play
       document.cookie = 'activeGameId=; path=/; max-age=0';
     };
   }, [gameId]);
+
+  // ── Global mouse/touch move/up for draggable button ──
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => handleDragMove(e);
+    const onTouchMove = (e: TouchEvent) => handleDragMove(e);
+    const onMouseUp = () => handleDragEnd();
+    const onTouchEnd = () => handleDragEnd();
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchend', onTouchEnd);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  });
 
   // After fade-out animation completes, show game
   useEffect(() => {
@@ -78,6 +151,7 @@ export default function PlayShell({ gameId, onBack, isStandalone = false }: Play
         const confirmed = window.confirm('Are you sure you want to exit? Unsaved progress will be lost.');
         if (!confirmed) return;
       }
+      stopAllSounds();
       onBack();
     };
     window.addEventListener('keydown', handleKey);
@@ -183,15 +257,24 @@ export default function PlayShell({ gameId, onBack, isStandalone = false }: Play
     <div className="game-root">
       {!isStandalone && dataReady && (
         <button
-          onClick={() => {
+          onMouseDown={handleDragStart}
+          onTouchStart={handleDragStart}
+          onClick={(e) => {
+            // Only trigger click if we didn't actually drag
+            if (isDragging) {
+              setIsDragging(false);
+              return;
+            }
             if (IN_PROGRESS_PHASES.has(phase)) {
               const confirmed = window.confirm('Are you sure you want to exit? Unsaved progress will be lost.');
               if (!confirmed) return;
             }
+            stopAllSounds();
             onBack();
           }}
-          className="fixed top-3 right-3 z-50 flex items-center justify-center w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/[0.1] text-white/40 hover:text-white hover:bg-black/80 hover:border-white/[0.25] transition-all cursor-pointer"
-          title="Exit Game (Esc)"
+          className="fixed z-50 flex items-center justify-center w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/[0.1] text-white/40 hover:text-white hover:bg-black/80 hover:border-white/[0.25] active:scale-95 transition-all cursor-grab active:cursor-grabbing select-none"
+          style={btnPos ? { left: btnPos.left, top: btnPos.top } : { top: 12, right: 12 }}
+          title="Exit Game (Esc) — drag to move"
           aria-label="Exit Game"
         >
           <X className="w-4 h-4" />

@@ -669,9 +669,9 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
                   onChange={e => setEditStatus(e.target.value)}
                   className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 focus:outline-none focus:border-emerald-500/50 [&>option]:bg-[#1a1a2e] [&>option]:text-white/80"
                 >
-                  <option value="active">Attivo</option>
-                  <option value="draft">Bozza</option>
-                  <option value="archived">Archiviato</option>
+                  <option value="active" className="bg-black text-white">Attivo</option>
+                  <option value="draft" className="bg-black text-white">Bozza</option>
+                  <option value="archived" className="bg-black text-white">Archiviato</option>
                 </select>
               </div>
 
@@ -765,9 +765,9 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
                   onChange={e => setCreateClone(e.target.value)}
                   className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 focus:outline-none focus:border-emerald-500/50 [&>option]:bg-[#1a1a2e] [&>option]:text-white/80"
                 >
-                  <option value="">— Nuovo gioco vuoto —</option>
+                  <option value="" className="bg-black text-white">— Nuovo gioco vuoto —</option>
                   {games.map(g => (
-                    <option key={g.id} value={g.id}>{g.name} ({g.id})</option>
+                    <option key={g.id} value={g.id} className="bg-black text-white">{g.name} ({g.id})</option>
                   ))}
                 </select>
                 <p className="text-[11px] text-white/20 mt-1">Clonare copia tutti i dati (oggetti, nemici, location, ecc.) nel nuovo gioco</p>

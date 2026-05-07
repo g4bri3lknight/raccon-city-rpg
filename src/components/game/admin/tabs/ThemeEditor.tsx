@@ -904,7 +904,7 @@ function SettingControl({ def, value, onChange }: SettingControlProps) {
           className="w-full mt-1 bg-black/30 border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-emerald-500/40 transition-colors appearance-none cursor-pointer [&>option]:bg-[#1a1a2e] [&>option]:text-white"
         >
           {def.options?.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
+            <option key={opt} value={opt} className="bg-black text-white">{opt}</option>
           ))}
         </select>
       )}

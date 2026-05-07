@@ -679,11 +679,11 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                           className="text-[12px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1.5 text-white/60 focus:outline-none focus:border-emerald-500/30 cursor-pointer shrink-0 max-w-[130px]"
                           style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.6)' }}
                         >
-                          <option value="" style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.5)' }}>
+                          <option value="" className="bg-black text-white" style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.5)' }}>
                             {f.label}...
                           </option>
                           {options.map(o => (
-                            <option key={o.value} value={o.value} style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.85)' }}>
+                            <option key={o.value} value={o.value} className="bg-black text-white" style={{ backgroundColor: '#111827', color: 'rgba(255,255,255,0.85)' }}>
                               {o.label}
                             </option>
                           ))}

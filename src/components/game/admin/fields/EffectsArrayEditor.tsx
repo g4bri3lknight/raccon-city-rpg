@@ -63,9 +63,9 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
               onChange={e => setAddType(e.target.value)}
               className="text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
             >
-              <option value="">Tipo effetto...</option>
+              <option value="" className="bg-black text-white">Tipo effetto...</option>
               {EFFECT_TYPES_CONFIG.map(et => (
-                <option key={et.key} value={et.key}>{et.emoji} {et.label}</option>
+                <option key={et.key} value={et.key} className="bg-black text-white">{et.emoji} {et.label}</option>
               ))}
             </select>
             <button
@@ -143,9 +143,9 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                                 onChange={e => updateField(idx, 'trigger', e.target.value)}
                                 className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
                               >
-                                <option value="">— Nessun trigger —</option>
+                                <option value="" className="bg-black text-white">— Nessun trigger —</option>
                                 {TRIGGER_OPTIONS.map(t => (
-                                  <option key={t.value} value={t.value} title={t.tooltip}>{t.emoji} {t.label}</option>
+                                  <option key={t.value} value={t.value} title={t.tooltip} className="bg-black text-white">{t.emoji} {t.label}</option>
                                 ))}
                               </select>
                             </div>
@@ -162,7 +162,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                               className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
                             >
                               {EFFECT_TARGET_OPTIONS.map(t => (
-                                <option key={t.key} value={t.key}>{t.label}</option>
+                                <option key={t.key} value={t.key} className="bg-black text-white">{t.label}</option>
                               ))}
                             </select>
                           </div>
@@ -214,7 +214,7 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
                                             className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer mt-0.5"
                                           >
                                             {(field.options ?? []).map(opt => (
-                                              <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                              <option key={opt.key} value={opt.key} className="bg-black text-white">{opt.label}</option>
                                             ))}
                                           </select>
                                         </div>
@@ -287,9 +287,9 @@ export function EffectsArrayEditor({ value, onChange, showTrigger = false }: { v
               onChange={e => setAddType(e.target.value)}
               className="flex-1 text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
             >
-              <option value="">➕ Aggiungi effetto...</option>
+              <option value="" className="bg-black text-white">➕ Aggiungi effetto...</option>
               {EFFECT_TYPES_CONFIG.map(et => (
-                <option key={et.key} value={et.key}>{et.emoji} {et.label}</option>
+                <option key={et.key} value={et.key} className="bg-black text-white">{et.emoji} {et.label}</option>
               ))}
             </select>
             <button

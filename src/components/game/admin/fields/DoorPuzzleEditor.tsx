@@ -186,8 +186,8 @@ export function DoorPuzzleEditor({ value, onChange }: DoorPuzzleEditorProps) {
                 onChange={e => updatePuzzle({ type: e.target.value as DoorPuzzleData['type'] })}
                 className="w-full text-[10px] bg-black/40 border border-white/[0.06] rounded px-1.5 py-0.5 text-white/60 focus:outline-none focus:border-red-500/30"
               >
-                <option value="combination">Combinazione (codice)</option>
-                <option value="sequence">Sequenza (frecce)</option>
+                <option value="combination" className="bg-black text-white">Combinazione (codice)</option>
+                <option value="sequence" className="bg-black text-white">Sequenza (frecce)</option>
               </select>
             </div>
 

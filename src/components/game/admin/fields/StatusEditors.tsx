@@ -74,10 +74,10 @@ export function StatusApplyEditor({ value, onChange }: { value: unknown; onChang
                 onChange={e => handleTypeChange(e.target.value)}
                 className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
               >
-                <option value="poison">Avvelenamento</option>
-                <option value="bleeding">Sanguinamento</option>
-                <option value="stunned">Stordimento</option>
-                <option value="adrenaline">Adrenalina</option>
+                <option value="poison" className="bg-black text-white">Avvelenamento</option>
+                <option value="bleeding" className="bg-black text-white">Sanguinamento</option>
+                <option value="stunned" className="bg-black text-white">Stordimento</option>
+                <option value="adrenaline" className="bg-black text-white">Adrenalina</option>
               </select>
             </div>
             <div>
@@ -245,7 +245,7 @@ export function SpecialEffectEditor({ value, onChange }: { value: unknown; onCha
                 className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
               >
                 {EFFECT_OPTIONS.map(opt => (
-                  <option key={opt.key} value={opt.key} title={opt.tooltip}>
+                  <option key={opt.key} value={opt.key} title={opt.tooltip} className="bg-black text-white">
                     {opt.label}
                   </option>
                 ))}

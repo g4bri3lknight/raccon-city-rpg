@@ -23,6 +23,8 @@ export interface CorridorVariant {
   defaultHeight: number;
   /** SVG path data (relative to 0,0) */
   path: string;
+  /** Connection points in default coordinate space (edge midpoints of actual shape openings) */
+  connectionPoints: Record<string, { x: number; y: number }>;
 }
 
 export interface CorridorBaseType {
@@ -80,12 +82,14 @@ const VARIANTS: Record<string, CorridorVariant> = {
     defaultWidth: 180,
     defaultHeight: 44,
     path: 'M 0,0 L 180,0 L 180,44 L 0,44 Z',
+    connectionPoints: { east: { x: 180, y: 22 }, west: { x: 0, y: 22 } },
   },
   'straight:90': {
     connections: ['north', 'south'],
     defaultWidth: 44,
     defaultHeight: 180,
     path: 'M 0,0 L 44,0 L 44,180 L 0,180 Z',
+    connectionPoints: { north: { x: 22, y: 0 }, south: { x: 22, y: 180 } },
   },
 
   // ── L-shaped corridors (clockwise rotation from 0°=SE) ─────
@@ -98,24 +102,28 @@ const VARIANTS: Record<string, CorridorVariant> = {
     defaultWidth: 110,
     defaultHeight: 110,
     path: 'M 0,0 L 110,0 L 110,44 L 44,44 L 44,110 L 0,110 Z',
+    connectionPoints: { south: { x: 22, y: 110 }, east: { x: 110, y: 22 } },
   },
   'L:90': {
     connections: ['south', 'west'],
     defaultWidth: 110,
     defaultHeight: 110,
     path: 'M 0,0 L 110,0 L 110,110 L 44,110 L 44,44 L 0,44 Z',
+    connectionPoints: { south: { x: 77, y: 110 }, west: { x: 0, y: 22 } },
   },
   'L:180': {
     connections: ['north', 'west'],
     defaultWidth: 110,
     defaultHeight: 110,
     path: 'M 66,0 L 110,0 L 110,110 L 0,110 L 0,66 L 66,66 Z',
+    connectionPoints: { north: { x: 88, y: 0 }, west: { x: 0, y: 88 } },
   },
   'L:270': {
     connections: ['north', 'east'],
     defaultWidth: 110,
     defaultHeight: 110,
     path: 'M 0,0 L 44,0 L 44,66 L 110,66 L 110,110 L 0,110 Z',
+    connectionPoints: { north: { x: 22, y: 0 }, east: { x: 110, y: 88 } },
   },
 
   // ── T-shaped corridors (clockwise rotation from 0°=S) ──────
@@ -128,24 +136,28 @@ const VARIANTS: Record<string, CorridorVariant> = {
     defaultWidth: 180,
     defaultHeight: 110,
     path: 'M 0,0 L 180,0 L 180,44 L 112,44 L 112,88 L 68,88 L 68,44 L 0,44 Z',
+    connectionPoints: { south: { x: 90, y: 88 }, east: { x: 180, y: 22 }, west: { x: 0, y: 22 } },
   },
   'T:90': {
     connections: ['west', 'north', 'south'],
     defaultWidth: 110,
     defaultHeight: 180,
     path: 'M 66,0 L 110,0 L 110,180 L 66,180 L 66,112 L 0,112 L 0,68 L 66,68 Z',
+    connectionPoints: { west: { x: 0, y: 90 }, north: { x: 88, y: 0 }, south: { x: 88, y: 180 } },
   },
   'T:180': {
     connections: ['north', 'east', 'west'],
     defaultWidth: 180,
     defaultHeight: 110,
     path: 'M 68,0 L 112,0 L 112,44 L 180,44 L 180,88 L 0,88 L 0,44 L 68,44 Z',
+    connectionPoints: { north: { x: 90, y: 0 }, east: { x: 180, y: 66 }, west: { x: 0, y: 66 } },
   },
   'T:270': {
     connections: ['east', 'north', 'south'],
     defaultWidth: 110,
     defaultHeight: 180,
     path: 'M 0,0 L 44,0 L 44,68 L 110,68 L 110,112 L 44,112 L 44,180 L 0,180 Z',
+    connectionPoints: { east: { x: 110, y: 90 }, north: { x: 22, y: 0 }, south: { x: 22, y: 180 } },
   },
 
   // ── Cross corridor (symmetric) ──────────────────────────────
@@ -154,6 +166,7 @@ const VARIANTS: Record<string, CorridorVariant> = {
     defaultWidth: 180,
     defaultHeight: 180,
     path: 'M 68,0 L 112,0 L 112,68 L 180,68 L 180,112 L 112,112 L 112,180 L 68,180 L 68,112 L 0,112 L 0,68 L 68,68 Z',
+    connectionPoints: { north: { x: 90, y: 0 }, south: { x: 90, y: 180 }, east: { x: 180, y: 90 }, west: { x: 0, y: 90 } },
   },
 };
 
@@ -241,7 +254,7 @@ export function getDefaultRotation(baseType: string): number {
   return info?.rotations[0] ?? 0;
 }
 
-/** Get connection positions (center point on the edge) for given dimensions */
+/** Get connection positions (edge midpoint of actual shape openings) for given dimensions */
 export function getConnectionPoints(
   key: string,
   width: number,
@@ -250,13 +263,22 @@ export function getConnectionPoints(
   const variant = resolvePreset(key);
   if (!variant) return {};
 
+  const sx = width / variant.defaultWidth;
+  const sy = height / variant.defaultHeight;
   const points: Record<string, { x: number; y: number }> = {};
+
   for (const side of variant.connections) {
-    switch (side) {
-      case 'north': points.north = { x: width / 2, y: 0 }; break;
-      case 'south': points.south = { x: width / 2, y: height }; break;
-      case 'east': points.east = { x: width, y: height / 2 }; break;
-      case 'west': points.west = { x: 0, y: height / 2 }; break;
+    const defaultPt = variant.connectionPoints[side];
+    if (defaultPt) {
+      points[side] = { x: defaultPt.x * sx, y: defaultPt.y * sy };
+    } else {
+      // Fallback: bounding box edge center
+      switch (side) {
+        case 'north': points.north = { x: width / 2, y: 0 }; break;
+        case 'south': points.south = { x: width / 2, y: height }; break;
+        case 'east': points.east = { x: width, y: height / 2 }; break;
+        case 'west': points.west = { x: 0, y: height / 2 }; break;
+      }
     }
   }
   return points;

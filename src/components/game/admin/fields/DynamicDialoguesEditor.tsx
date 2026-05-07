@@ -350,7 +350,7 @@ export function DynamicDialoguesEditor({
                                       className="w-full text-[11px] bg-black text-white/70 border border-white/[0.08] rounded px-1.5 py-1 focus:outline-none focus:border-violet-500/40 cursor-pointer"
                                     >
                                       {CONDITION_TYPES.map(t => (
-                                        <option key={t.value} value={t.value}>{t.label}</option>
+                                        <option key={t.value} value={t.value} className="bg-black text-white">{t.label}</option>
                                       ))}
                                     </select>
                                   </div>
@@ -364,7 +364,7 @@ export function DynamicDialoguesEditor({
                                       className="w-full text-[11px] bg-black text-white/70 border border-white/[0.08] rounded px-1.5 py-1 focus:outline-none focus:border-violet-500/40 cursor-pointer"
                                     >
                                       {COMPARE_OPTIONS.map(o => (
-                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                        <option key={o.value} value={o.value} className="bg-black text-white">{o.label}</option>
                                       ))}
                                     </select>
                                   </div>

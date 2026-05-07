@@ -338,9 +338,9 @@ function StepIdSelector({
         onChange={e => onChange(e.target.value)}
         className="w-full text-[12px] bg-black text-white/70 border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/30 cursor-pointer font-mono"
       >
-        <option value="">— Fine catena (ricompensa finale) —</option>
+        <option value="" className="bg-black text-white">— Fine catena (ricompensa finale) —</option>
         {availableSteps.map((s) => (
-          <option key={s.id} value={s.id}>
+          <option key={s.id} value={s.id} className="bg-black text-white">
             {s.id} {s.description ? `— ${s.description.slice(0, 40)}` : ''}
           </option>
         ))}
@@ -594,11 +594,11 @@ export function QuestChainsEditor({
                             onChange={e => updateStep(idx, 'type', e.target.value)}
                             className="w-full text-[12px] bg-black text-white/70 border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/30 cursor-pointer"
                           >
-                            <option value="fetch">📦 Fetch (Raccogli)</option>
-                            <option value="kill">⚔️ Kill (Elimina)</option>
-                            <option value="explore">🔍 Explore (Esplora)</option>
-                            <option value="talk">💬 Talk (Parla)</option>
-                            <option value="choose">🔀 Choose (Scegli)</option>
+                            <option value="fetch" className="bg-black text-white">📦 Fetch (Raccogli)</option>
+                            <option value="kill" className="bg-black text-white">⚔️ Kill (Elimina)</option>
+                            <option value="explore" className="bg-black text-white">🔍 Explore (Esplora)</option>
+                            <option value="talk" className="bg-black text-white">💬 Talk (Parla)</option>
+                            <option value="choose" className="bg-black text-white">🔀 Choose (Scegli)</option>
                           </select>
                         </div>
 

@@ -232,4 +232,12 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
       runStats: buildStartState([], 'normale', false, '').runStats,
     });
   },
+
+  toggleInventory: () => {
+    set(state => ({ inventoryOpen: !state.inventoryOpen }));
+  },
+
+  selectCharacter: (characterId: string) => {
+    set({ selectedCharacterId: characterId });
+  },
 });

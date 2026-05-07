@@ -17,6 +17,7 @@ import {
   ENEMIES,
   BOSS_PHASES,
   NPCS,
+  LOCATIONS,
   getSpecialById as getSpecialByIdFromLoader,
   getCombatDelay,
   COMBAT_CONFIG,

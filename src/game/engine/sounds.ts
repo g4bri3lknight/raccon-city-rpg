@@ -554,6 +554,22 @@ class AudioEngine {
     this._bgmCache = new LruCache<AudioBuffer>(10);
     this._loading.clear();
   }
+
+  /** Stop ALL audio — BGM, ambient, any playing sources. Used when exiting the game. */
+  stopAll(): void {
+    this.stopBgm();
+    this._stopAmbientSource();
+    // Also stop any playing SFX by closing and recreating the audio context
+    if (this.ctx && this.ctx.state !== 'closed') {
+      try { this.ctx.close(); } catch {}
+      this._initialized = false;
+      this.ctx = null;
+      this.masterGain = null;
+      this._bgmGain = null;
+      this._sfxGain = null;
+      this.sfxGain = null;
+    }
+  }
 }
 
 export const audio = new AudioEngine();
@@ -578,6 +594,7 @@ export type BgmType = 'title' | 'combat' | 'gameover' | 'victory';
 
 export function playBgm(type: BgmType | string): void { audio.playBgm(type); }
 export function stopBgm(): void { audio.stopBgm(); }
+export function stopAllSounds(): void { audio.stopAll(); }
 export function resumeAmbient(): void { audio.resumeAmbient(); }
 
 /** Dispatch a sound-updated event to invalidate engine caches. Call after admin upload. */

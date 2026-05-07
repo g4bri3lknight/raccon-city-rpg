@@ -49,7 +49,7 @@ export function RequirementsEditor({ value, onChange }: { value: unknown; onChan
                 className="shrink-0 text-[12px] bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-1 text-white/70 focus:outline-none focus:border-emerald-500/40"
               >
                 {REQUIREMENT_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
+                  <option key={t.value} value={t.value} className="bg-black text-white">{t.icon} {t.label}</option>
                 ))}
               </select>
               <input

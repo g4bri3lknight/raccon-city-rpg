@@ -362,9 +362,9 @@ export function StoryEventEditor({ value, onChange }: { value: unknown; onChange
                       onChange={e => updatePuzzle('type', e.target.value)}
                       className="w-full text-[12px] bg-black text-white border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-emerald-500/40 cursor-pointer"
                     >
-                      <option value="combination">Combinazione (codice)</option>
-                      <option value="sequence">Sequenza (frecce)</option>
-                      <option value="key_required">Chiave richiesta</option>
+                      <option value="combination" className="bg-black text-white">Combinazione (codice)</option>
+                      <option value="sequence" className="bg-black text-white">Sequenza (frecce)</option>
+                      <option value="key_required" className="bg-black text-white">Chiave richiesta</option>
                     </select>
                   </div>
                   {(event.puzzle.type === 'combination' || event.puzzle.type === 'sequence') && event.puzzle.type === 'combination' && (

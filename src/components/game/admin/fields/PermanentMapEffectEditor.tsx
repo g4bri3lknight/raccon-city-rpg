@@ -150,7 +150,7 @@ export function PermanentMapEffectEditor({
               className="w-full text-[12px] bg-black text-white/70 border border-white/[0.08] rounded px-2 py-1 focus:outline-none focus:border-orange-500/40 cursor-pointer"
             >
               {EFFECT_TYPE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value} className="bg-black text-white">{opt.label}</option>
               ))}
             </select>
             {selectedTypeHint && (

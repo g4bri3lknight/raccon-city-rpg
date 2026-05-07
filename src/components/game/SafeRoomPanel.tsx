@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS, CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
+import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, getRoomDoors, findRoomLocation } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Home, LogOut, Package, Hammer, Wrench,
-  Save, Upload, Search, CheckCircle2, Eye, Heart
+  Home, Package, Hammer, Wrench,
+  Save, Upload, Search, CheckCircle2, Heart, DoorOpen, ArrowRightLeft,
 } from 'lucide-react';
 import SaveLoadPanel from './SaveLoadPanel';
 import ItemBoxPanel from './ItemBoxPanel';
@@ -21,18 +21,65 @@ type SaveMode = 'save' | 'load';
 
 export default function SafeRoomPanel() {
   const currentLocationId = useGameStore(s => s.currentLocationId);
+  const currentRoomId = useGameStore(s => s.currentRoomId);
   const searchedSafeRooms = useGameStore(s => s.searchedSafeRooms);
   const searchSafeRoom = useGameStore(s => s.searchSafeRoom);
-  const exitSafeRoom = useGameStore(s => s.exitSafeRoom);
+  const navigateToRoom = useGameStore(s => s.navigateToRoom);
   const party = useGameStore(s => s.party);
+  const exploredRooms = useGameStore(s => s.exploredRooms);
   const dataVersion = useGameStore(s => s.dataVersion);
   const [activeTab, setActiveTab] = useState<SafeRoomTab>('itembox');
   const [saveModal, setSaveModal] = useState<SaveMode | null>(null);
 
   const location = LOCATIONS[currentLocationId];
-  const safeRoomDef = location?.subAreas?.find(sa => sa.id === 'safe_room');
-  const hasBeenSearched = searchedSafeRooms.includes(currentLocationId);
-  const hasItemPool = (location?.itemPool?.length ?? 0) > 0;
+
+  // Find the current safe room from the room system
+  const safeRoom = currentRoomId && location?.rooms
+    ? location.rooms.find(r => r.id === currentRoomId && r.type === 'safe_room')
+    : null;
+
+  // Also check for legacy safe room (non-room-based)
+  const legacySafeRoomDef = location?.subAreas?.find(sa => sa.id === 'safe_room');
+
+  // Use room's description if available, fallback to legacy
+  const safeRoomDescription = safeRoom?.description || legacySafeRoomDef?.description || '';
+
+  // Search key: use currentRoomId (room-based system) or fallback to locationId (legacy)
+  const safeRoomSearchKey = currentRoomId || currentLocationId;
+  const hasBeenSearched = searchedSafeRooms.includes(safeRoomSearchKey);
+
+  // Item pool: use room's itemPool if available, fallback to location's
+  const roomItemPool = safeRoom?.itemPool?.length ? safeRoom.itemPool : (location?.itemPool?.length ? location.itemPool : []);
+  const hasItemPool = roomItemPool.length > 0;
+
+  // Compute available doors from this safe room for navigation
+  const navigationDoors = useMemo(() => {
+    if (!currentRoomId) return [];
+    const doors = getRoomDoors(currentRoomId);
+    return doors
+      .filter(d => d.state !== 'inaccessible' && d.state !== 'locked')
+      .map(d => {
+        const otherRoomId = d.fromRoomId === currentRoomId ? d.toRoomId : d.fromRoomId;
+        const otherRoomInfo = findRoomLocation(otherRoomId);
+        return {
+          door: d,
+          roomId: otherRoomId,
+          roomName: otherRoomInfo?.room?.name || '???',
+          roomIcon: otherRoomInfo?.room?.icon || '🚪',
+          locationId: otherRoomInfo?.locationId,
+          locationName: otherRoomInfo
+            ? (LOCATIONS[otherRoomInfo.locationId]?.name || otherRoomInfo.locationId)
+            : '???',
+          isCrossLocation: otherRoomInfo ? otherRoomInfo.locationId !== currentLocationId : false,
+          isKeyLocked: d.state === 'key_locked',
+          requiredItemId: d.requiredItemId,
+          hasRequiredKey: d.state === 'key_locked' && d.requiredItemId
+            ? party.some(p => p.inventory.some(i => i.itemId === d.requiredItemId))
+            : true,
+        };
+      })
+      .filter(d => !d.isKeyLocked || d.hasRequiredKey);
+  }, [currentRoomId, currentLocationId, party]);
 
   const tabs: { id: SafeRoomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'itembox', label: 'Item Box', icon: <Package className="w-5 h-5" /> },
@@ -65,20 +112,10 @@ export default function SafeRoomPanel() {
                 SAFE ROOM
               </Badge>
               <Badge variant="outline" className="border-white/[0.1] text-white/50 text-sm">
-                {location?.name}
+                {safeRoom?.name || location?.name}
               </Badge>
-              {/* Header buttons: Esci first, then Salva/Carica */}
+              {/* Header buttons: Salva/Carica */}
               <div className="ml-auto flex gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={exitSafeRoom}
-                  className="text-sm border-red-500/20 hover:border-red-400/40 text-red-400/70 hover:text-red-300 bg-red-950/20 hover:bg-red-900/30 h-9 px-3"
-                  title="Esci dalla Safe Room"
-                >
-                  <LogOut className="w-4 h-4 mr-1.5" />
-                  <span className="hidden sm:inline">Esci</span>
-                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -103,12 +140,45 @@ export default function SafeRoomPanel() {
                 </Button>
               </div>
             </div>
-            {safeRoomDef && (
-              <p className="text-sm text-white/50 mt-1 max-w-lg hidden sm:block">{safeRoomDef.description}</p>
+            {safeRoomDescription && (
+              <p className="text-sm text-white/50 mt-1 max-w-lg hidden sm:block">{safeRoomDescription}</p>
             )}
           </motion.div>
         </div>
       </div>
+
+      {/* Navigation — doors from safe room to other rooms */}
+      {navigationDoors.length > 0 && (
+        <div className="shrink-0 px-2 sm:px-3 py-2 border-b border-white/[0.06] bg-white/[0.02]">
+          <div className="text-[10px] sm:text-xs uppercase tracking-wider text-white/30 mb-1.5 flex items-center gap-1.5">
+            <DoorOpen className="w-3 h-3" /> Navigazione
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {navigationDoors.map(target => {
+              const isExplored = exploredRooms.includes(target.roomId);
+              return (
+                <Button
+                  key={target.roomId}
+                  variant="outline"
+                  size="lg"
+                  onClick={() => navigateToRoom(target.roomId)}
+                  className={`text-[11px] sm:text-sm border px-3 sm:px-4 py-2 sm:py-2.5 ${
+                    target.isCrossLocation
+                      ? 'border-amber-500/30 text-amber-300 hover:bg-amber-500/[0.06]'
+                      : `${isExplored ? 'border-white/[0.08] text-white/60 hover:bg-white/[0.06]' : 'border-white/[0.04] text-white/30'}`
+                  }`}
+                >
+                  {target.isCrossLocation ? <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" /> : null}
+                  {target.roomIcon} {target.roomName}
+                  {target.isCrossLocation && (
+                    <span className="ml-1.5 text-[9px] opacity-50">({target.locationName})</span>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Search bar */}
       {hasItemPool && (

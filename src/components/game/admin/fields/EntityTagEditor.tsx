@@ -110,7 +110,7 @@ export function EntityTagEditor({ value, onChange, endpoint, labelKey, iconKey, 
           onKeyDown={e => {
             if (e.key === 'Escape') { setShowDropdown(false); e.stopPropagation(); }
           }}
-          placeholder={selected.length === 0 ? placeholder : 'Cerca...'}
+          placeholder={selected.length > 0 ? 'Cerca...' : ''}
           className="flex-1 min-w-[100px] text-[12px] bg-transparent border-none outline-none text-white/70 placeholder-white/20"
         />
       </div>

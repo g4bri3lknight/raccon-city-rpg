@@ -506,6 +506,7 @@ interface DbRoom {
   orientation: string;
   backgroundImage: string;
   travelCost: number | null;
+  corridorPreset: string | null;
   createdAt: Date;
 }
 
@@ -972,6 +973,7 @@ function mapDbRoom(row: DbRoom): RoomDefinition {
     ...(row.mapWidth ? { mapWidth: row.mapWidth } : {}),
     ...(row.mapHeight ? { mapHeight: row.mapHeight } : {}),
     ...(row.travelCost != null ? { travelCost: row.travelCost } : {}),
+    ...(row.corridorPreset ? { corridorPreset: row.corridorPreset } : {}),
   };
 }
 

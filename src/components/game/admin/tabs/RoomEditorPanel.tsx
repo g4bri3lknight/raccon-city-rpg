@@ -4,11 +4,10 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Save, RefreshCw, Loader2, Plus, Pencil, Trash2, RotateCw,
   ZoomIn, ZoomOut, Link2, Layers, Grid3x3, PanelLeftClose, PanelLeft,
-  ArrowLeft, Eye, Image, ChevronDown, ChevronRight, Keyboard,
+  ArrowLeft, ChevronDown, ChevronRight, Keyboard,
   CircleHelp, Search, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { adminFetch } from '@/lib/admin-fetch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -25,7 +24,8 @@ import { ROOM_TYPES, getRoomTypeInfo, getRoomTypeLabel, getRoomTypeBadgeClasses,
 import {
   CORRIDOR_BASE_TYPES, resolvePreset, parsePresetKey, buildPresetKey,
   rotatePreset, getBaseTypeInfo, getDefaultRotation,
-  scaleCorridorPath, getPreviewPath, DOOR_STATE_COLORS, DOOR_STATE_LABELS, DOOR_STATE_DESCRIPTIONS, DOOR_STATE_ORDER, DOOR_STATE_HELP,
+  scaleCorridorPath, getPreviewPath, getConnectionPoints, OPPOSITE_SIDE,
+  DOOR_STATE_COLORS, DOOR_STATE_LABELS, DOOR_STATE_DESCRIPTIONS, DOOR_STATE_ORDER, DOOR_STATE_HELP,
 } from '@/lib/corridor-presets';
 import { getEnumLabel } from '@/components/game/admin/config/enumLabels';
 import { DoorPuzzleEditor } from '@/components/game/admin/fields/DoorPuzzleEditor';
@@ -87,7 +87,35 @@ interface RoomData {
   _doors: DoorData[];
 }
 
-type FullRoomData = Record<string, unknown>;
+interface ItemLookup {
+  id: string;
+  name: string;
+  icon: string | null;
+}
+
+interface EnemyLookup {
+  id: string;
+  name: string;
+  icon: string | null;
+}
+
+interface NpcLookup {
+  id: string;
+  name: string;
+  icon: string | null;
+}
+
+interface RoomTooltipData {
+  roomId: string;
+  roomName: string;
+  roomType: string;
+  roomIcon: string | null;
+  itemPool: Array<{ itemId: string; chance: number; quantity: number }>;
+  enemyPool: string[];
+  npcIds: string[];
+  mouseX: number;
+  mouseY: number;
+}
 
 interface ConnectionInfo {
   id: string;
@@ -95,6 +123,8 @@ interface ConnectionInfo {
   doorSide: string;
   doorId: string;
 }
+
+type FullRoomData = Record<string, unknown>;
 
 // ═══════════════════════════════════════════════════════════
 // Constants
@@ -181,6 +211,13 @@ function getRoomCenter(room: RoomData, rooms: RoomData[]): { cx: number; cy: num
 function getDoorPosition(room: RoomData, side: string, allRooms: RoomData[]): { x: number; y: number } | null {
   if (room.mapX == null || room.mapY == null) return null;
   const dim = getRoomDimensions(room, allRooms);
+  // For corridors with presets, use actual shape connection points
+  if (room.corridorPreset) {
+    const pts = getConnectionPoints(room.corridorPreset, dim.w, dim.h);
+    if (pts[side]) {
+      return { x: room.mapX + pts[side].x, y: room.mapY + pts[side].y };
+    }
+  }
   switch (side) {
     case 'north': return { x: room.mapX + dim.w / 2, y: room.mapY };
     case 'south': return { x: room.mapX + dim.w / 2, y: room.mapY + dim.h };
@@ -216,97 +253,26 @@ function detectSide(fromRoom: RoomData, toRoom: RoomData, allRooms: RoomData[]):
 }
 
 
-const AUTO_CONNECT_DISTANCE = 250;
-
-/** Find rooms near corridor edges and create doors between them */
-async function autoConnectCorridor(corridorId: string, corridorMapX: number, corridorMapY: number, corridorW: number, corridorH: number, existingRooms: RoomData[], corridorPreset: string | null): Promise<number> {
-  const variant = corridorPreset ? resolvePreset(corridorPreset) : null;
-  const cCX = corridorMapX + corridorW / 2;
-  const cCY = corridorMapY + corridorH / 2;
-  const placedNonCorridor = existingRooms.filter(r => r.mapX != null && r.mapY != null && r.type !== 'corridor');
-
-  // Build edge connection points for the corridor
-  const edges: { side: string; x: number; y: number }[] = [];
-  edges.push({ side: 'north', x: cCX, y: corridorMapY });
-  edges.push({ side: 'south', x: cCX, y: corridorMapY + corridorH });
-  edges.push({ side: 'east', x: corridorMapX + corridorW, y: cCY });
-  edges.push({ side: 'west', x: corridorMapX, y: cCY });
-
-  // For each corridor edge, find the nearest room
-  const connections: { fromSide: string; toRoomId: string; toSide: string }[] = [];
-  const usedSides = new Set<string>();
-
-  for (const edge of edges) {
-    if (usedSides.has(edge.side)) continue;
-    let bestRoom: RoomData | null = null;
-    let bestDist = AUTO_CONNECT_DISTANCE;
-    let bestRoomSide = '';
-
-    for (const room of placedNonCorridor) {
-      const dim = getRoomDimensions(room, existingRooms);
-      const rCX = (room.mapX ?? 0) + dim.w / 2;
-      const rCY = (room.mapY ?? 0) + dim.h / 2;
-      const roomEdges = [
-        { side: 'north', x: rCX, y: room.mapY ?? 0 },
-        { side: 'south', x: rCX, y: (room.mapY ?? 0) + dim.h },
-        { side: 'east', x: (room.mapX ?? 0) + dim.w, y: rCY },
-        { side: 'west', x: room.mapX ?? 0, y: rCY },
-      ];
-      for (const re of roomEdges) {
-        const dist = Math.sqrt((edge.x - re.x) ** 2 + (edge.y - re.y) ** 2);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestRoom = room;
-          bestRoomSide = re.side;
-        }
-      }
-    }
-
-    if (bestRoom && !connections.some(c => c.toRoomId === bestRoom!.id)) {
-      connections.push({ fromSide: edge.side, toRoomId: bestRoom.id, toSide: bestRoomSide });
-      usedSides.add(edge.side);
-    }
-  }
-
-  // Create doors
-  let created = 0;
-  for (const conn of connections) {
-    try {
-      const res = await adminFetch('/api/admin/doors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromRoomId: corridorId,
-          toRoomId: conn.toRoomId,
-          fromSide: conn.fromSide,
-          toSide: conn.toSide,
-          state: 'open',
-        }),
-      });
-      if (res.ok) created++;
-      // 409 = already exists, ignore
-    } catch { /* ignore */ }
-  }
-
-  return created;
-}
-
-
 // ═══════════════════════════════════════════════════════════
 // Connection Line SVG Component
 // ═══════════════════════════════════════════════════════════
 function RoomConnectionLine({
-  x1, y1, x2, y2, label,
+  x1, y1, x2, y2, label, isCrossLocation,
 }: {
   x1: number; y1: number; x2: number; y2: number;
   label: string;
+  isCrossLocation?: boolean;
 }) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
   const angle = Math.atan2(dy, dx);
-  const arrowLen = 8;
+  const arrowLen = isCrossLocation ? 6 : 8;
+  const strokeColor = isCrossLocation ? 'rgba(245,158,11,0.35)' : 'rgba(52,211,153,0.25)';
+  const fillColor = isCrossLocation ? 'rgba(245,158,11,0.5)' : 'rgba(52,211,153,0.4)';
+  const strokeHover = isCrossLocation ? 'rgba(245,158,11,0.4)' : 'rgba(52,211,153,0.3)';
+  const dashArray = isCrossLocation ? '6 4' : undefined;
   // Arrow at (x2, y2) — forward
   const arrowX1 = x2 - arrowLen * Math.cos(angle - 0.35);
   const arrowY1 = y2 - arrowLen * Math.sin(angle - 0.35);
@@ -323,38 +289,39 @@ function RoomConnectionLine({
       <path
         d={`M${x1},${y1} L${x2},${y2}`}
         fill="none"
-        stroke={'rgba(52,211,153,0.25)'}
-        strokeWidth={1.5}
+        stroke={strokeColor}
+        strokeWidth={isCrossLocation ? 1.2 : 1.5}
+        strokeDasharray={dashArray}
       />
       {/* Bidirectional arrows */}
       <polygon
         points={`${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
-        fill={'rgba(52,211,153,0.4)'}
+        fill={fillColor}
       />
       <polygon
         points={`${x1},${y1} ${revArrowX1},${revArrowY1} ${revArrowX2},${revArrowY2}`}
-        fill={'rgba(52,211,153,0.4)'}
+        fill={fillColor}
       />
       <circle cx={mx} cy={my} r={30} fill="transparent" className="cursor-pointer" />
       <g className="opacity-0 group-hover/rconn:opacity-100 transition-opacity duration-150 pointer-events-none">
         <rect
-          x={mx - 40}
+          x={mx - (isCrossLocation ? 50 : 40)}
           y={my - 20}
-          width={80}
+          width={isCrossLocation ? 100 : 80}
           height={16}
           rx={4}
           fill="rgba(0,0,0,0.85)"
-          stroke={'rgba(52,211,153,0.3)'}
+          stroke={strokeHover}
           strokeWidth={0.5}
         />
         <text
           x={mx}
           y={my - 10}
           textAnchor="middle"
-          className="fill-white/70"
+          className={isCrossLocation ? 'fill-amber-300/80' : 'fill-white/70'}
           style={{ fontSize: '9px', fontFamily: 'system-ui' }}
         >
-          {label.length > 12 ? label.slice(0, 12) + '…' : label}
+          {label.length > (isCrossLocation ? 16 : 12) ? label.slice(0, isCrossLocation ? 16 : 12) + '…' : label}
         </text>
       </g>
     </g>
@@ -466,6 +433,8 @@ function RoomCard({
   onSelect,
   onEdit,
   onDelete,
+  onHover,
+  onHoverEnd,
 }: {
   room: RoomData;
   rooms: RoomData[];
@@ -477,6 +446,8 @@ function RoomCard({
   onSelect: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onHover: (e: React.MouseEvent, id: string) => void;
+  onHoverEnd: () => void;
 }) {
   const typeInfo = getRoomTypeInfo(room.type);
   const dim = getRoomDimensions(room, rooms);
@@ -484,16 +455,15 @@ function RoomCard({
   const isBoss = room.type === 'boss_room';
   const isSafe = room.type === 'safe_room';
   const corridorVariant = isCorridor && room.corridorPreset ? resolvePreset(room.corridorPreset) : null;
-  const isHorizontal = corridorVariant ? corridorVariant.defaultWidth > corridorVariant.defaultHeight : false;
-  const isVertical = corridorVariant ? corridorVariant.defaultHeight > corridorVariant.defaultWidth : false;
 
   const borderClasses = getRoomTypeCardClasses(typeInfo.color);
 
-  // For corridors with SVG shape, render a solid drag overlay
+  // For corridors with SVG shape: invisible container, visible SVG shape with solid fill
   if (isCorridor && corridorVariant) {
+    const scaledPath = scaleCorridorPath(room.corridorPreset!, dim.w, dim.h);
     return (
       <div
-        className={`absolute select-none ${isDragging ? 'z-50' : 'z-5'} border-2 border-solid bg-[#0d0d14] ${borderClasses}`}
+        className={`absolute select-none ${isDragging ? 'z-50' : 'z-5'}`}
         style={{
           left: room.mapX ?? 0,
           top: room.mapY ?? 0,
@@ -501,8 +471,37 @@ function RoomCard({
           height: dim.h,
         }}
         onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, room.id); }}
+        onMouseEnter={(e) => onHover(e, room.id)}
+        onMouseLeave={onHoverEnd}
         onClick={(e) => { if ((e.target as HTMLElement).closest('button')) return; onSelect(room.id); }}
       >
+        {/* Corridor SVG shape — solid fill, type-colored stroke */}
+        {scaledPath && (
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox={`0 0 ${dim.w} ${dim.h}`}
+            preserveAspectRatio="none"
+          >
+            <path
+              d={scaledPath}
+              fill="#0d0d14"
+              stroke={isSelected
+                ? 'rgba(52,211,153,0.7)'
+                : typeInfo.color === 'red' ? 'rgba(239,68,68,0.5)'
+                  : typeInfo.color === 'amber' ? 'rgba(245,158,11,0.5)'
+                    : typeInfo.color === 'emerald' ? 'rgba(52,211,153,0.5)'
+                      : typeInfo.color === 'purple' ? 'rgba(168,85,247,0.5)'
+                        : 'rgba(148,163,184,0.45)'}
+              strokeWidth={isSelected ? 2 : 1.5}
+            />
+          </svg>
+        )}
+        {/* Corridor name label */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="font-bold text-white/50 truncate max-w-[90%] text-center leading-tight text-[10px]">
+            {room.name}
+          </span>
+        </div>
         {/* Edit/Delete buttons — bottom right for corridors */}
         <div className="flex items-center gap-0.5" style={{ position: 'absolute', bottom: 2, right: 2 }}>
           <button
@@ -546,11 +545,13 @@ function RoomCard({
         width: dim.w,
         height: dim.h,
       }}
+      onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, room.id); }}
+      onMouseEnter={(e) => onHover(e, room.id)}
+      onMouseLeave={onHoverEnd}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button')) return;
         onSelect(room.id);
       }}
-      onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, room.id); }}
     >
       <div className="relative flex flex-col h-full p-2 gap-0.5">
         {/* Icon + Name */}
@@ -603,8 +604,142 @@ function RoomCard({
 }
 
 // ═══════════════════════════════════════════════════════════
-// Door Card Sub-component with searchable item picker
+// Pending Door Key Picker — lightweight version for pending doors
 // ═══════════════════════════════════════════════════════════
+function PendingDoorKeyPicker({
+  requiredItemId,
+  onChange,
+}: {
+  requiredItemId: string | null;
+  onChange: (itemId: string | null) => void;
+}) {
+  const [itemSearchOpen, setItemSearchOpen] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const [items, setItems] = useState<Array<{ id: string; name: string; type?: string; icon?: string }>>([]);
+  const [itemsFetched, setItemsFetched] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (itemsFetched) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await adminFetch('/api/admin/items?type=key');
+        const data = await r.json();
+        if (!cancelled) {
+          setItems(Array.isArray(data) ? data : []);
+          setItemsFetched(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setItems([]);
+          setItemsFetched(true);
+        }
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [itemsFetched]);
+
+  useEffect(() => {
+    if (itemSearchOpen) {
+      setTimeout(() => searchRef.current?.focus(), 50);
+    }
+  }, [itemSearchOpen]);
+
+  const filteredItems = useMemo(() => {
+    if (!itemSearch.trim()) return items;
+    const q = itemSearch.toLowerCase();
+    return items.filter(i => i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q));
+  }, [items, itemSearch]);
+
+  const selectedItem = useMemo(() => {
+    if (!requiredItemId) return null;
+    return items.find(i => i.id === requiredItemId);
+  }, [requiredItemId, items]);
+
+  return (
+    <Popover open={itemSearchOpen} onOpenChange={setItemSearchOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center gap-1.5 text-[9px] bg-black/40 border border-yellow-500/20 rounded px-1.5 py-0.5 text-left hover:border-yellow-500/40 transition-colors"
+        >
+          {selectedItem ? (
+            <>
+              <span className="text-yellow-400/80">{selectedItem.icon || '🔑'}</span>
+              <span className="text-yellow-400/80 truncate flex-1">{selectedItem.name}</span>
+              <X
+                className="w-2.5 h-2.5 text-yellow-500/40 hover:text-yellow-400 shrink-0"
+                onClick={(e) => { e.stopPropagation(); onChange(null); }}
+              />
+            </>
+          ) : (
+            <span className="text-yellow-500/30">🔑 Cerca oggetto chiave...</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-64 p-1.5 bg-zinc-900 border-white/[0.1] shadow-xl z-[130]"
+        side="bottom"
+        align="start"
+      >
+        <div className="flex items-center gap-1.5 px-1.5 py-1 mb-1">
+          <Search className="w-3 h-3 text-white/30 shrink-0" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={itemSearch}
+            onChange={(e) => setItemSearch(e.target.value)}
+            placeholder="Cerca oggetto..."
+            className="flex-1 bg-transparent text-[10px] text-white/80 placeholder:text-white/25 focus:outline-none min-w-0"
+          />
+        </div>
+        <div className="max-h-32 overflow-y-auto admin-scrollbar">
+          {!itemsFetched ? (
+            <div className="flex items-center justify-center py-2">
+              <Loader2 className="w-3 h-3 text-white/30 animate-spin" />
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <p className="text-[9px] text-white/25 italic text-center py-2">
+              {itemSearch ? 'Nessun risultato' : 'Nessun oggetto creato'}
+            </p>
+          ) : (
+            filteredItems.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className="w-full flex items-center gap-1.5 px-1.5 py-1 text-left rounded hover:bg-white/[0.06] transition-colors"
+                onClick={() => {
+                  onChange(item.id);
+                  setItemSearchOpen(false);
+                  setItemSearch('');
+                }}
+              >
+                <span className="text-[10px]">{item.icon || '📦'}</span>
+                <span className="text-[10px] text-white/70 truncate flex-1">{item.name}</span>
+                {requiredItemId === item.id && (
+                  <span className="text-[8px] text-emerald-400/60 shrink-0">✓</span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Door Card Sub-component with searchable item picker + editable sides
+// ═══════════════════════════════════════════════════════════
+const SIDE_OPTIONS = [
+  { value: 'north', label: 'Nord' },
+  { value: 'south', label: 'Sud' },
+  { value: 'east', label: 'Est' },
+  { value: 'west', label: 'Ovest' },
+];
+
 function DoorCard({
   door,
   editRoomId,
@@ -622,16 +757,15 @@ function DoorCard({
   const [itemsFetched, setItemsFetched] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Loading is true when popover is open and items haven't been fetched yet
-  const itemsLoading = itemSearchOpen && !itemsFetched;
+  const itemsLoading = !itemsFetched;
 
-  // Fetch items when popover opens
+  // Fetch items on mount so selectedItem resolves even when popover is closed
   useEffect(() => {
-    if (!itemSearchOpen || itemsFetched) return;
+    if (itemsFetched) return;
     let cancelled = false;
     const load = async () => {
       try {
-        const r = await adminFetch('/api/admin/items');
+        const r = await adminFetch('/api/admin/items?type=key');
         const data = await r.json();
         if (!cancelled) {
           setItems(Array.isArray(data) ? data : []);
@@ -646,7 +780,7 @@ function DoorCard({
     };
     load();
     return () => { cancelled = true; };
-  }, [itemSearchOpen, itemsFetched]);
+  }, [itemsFetched]);
 
   // Focus search input when popover opens
   useEffect(() => {
@@ -676,9 +810,9 @@ function DoorCard({
         className="w-3 h-3 rounded-full shrink-0 mt-0.5"
         style={{ backgroundColor: color }}
       />
-      <div className="flex-1 min-w-0">
-        {/* Room name + state badge + side */}
-        <div className="flex items-center gap-1.5">
+      <div className="flex-1 min-w-0 space-y-1.5">
+        {/* Row 1: Room name + state badge + side selects */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[11px] text-white/70 font-medium truncate">
             {door.otherRoomName}
           </span>
@@ -692,14 +826,33 @@ function DoorCard({
           >
             {getEnumLabel('doorState', door.state)}
           </span>
-          <span className="text-[9px] text-white/20">
-            {isFrom ? `→ ${door.toSide}` : `← ${door.fromSide}`}
-          </span>
+          {/* Editable side selects */}
+          <select
+            value={door.fromSide || ''}
+            onChange={(e) => onUpdate(door.id, { fromSide: e.target.value })}
+            className="text-[9px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1 py-px text-emerald-300/70 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+            title="Lato da cui esce"
+          >
+            {SIDE_OPTIONS.map(s => (
+              <option key={s.value} value={s.value} className="bg-black text-white">{s.label}</option>
+            ))}
+          </select>
+          <span className="text-[8px] text-white/15">→</span>
+          <select
+            value={door.toSide || ''}
+            onChange={(e) => onUpdate(door.id, { toSide: e.target.value })}
+            className="text-[9px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1 py-px text-emerald-300/70 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+            title="Lato in cui entra"
+          >
+            {SIDE_OPTIONS.map(s => (
+              <option key={s.value} value={s.value} className="bg-black text-white">{s.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* Key item search — only for key_locked state */}
         {door.state === 'key_locked' && (
-          <div className="mt-1">
+          <div>
             <Popover open={itemSearchOpen} onOpenChange={setItemSearchOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -782,7 +935,7 @@ function DoorCard({
             defaultValue={door.lockedMessage ?? ''}
             onBlur={(e) => onUpdate(door.id, { lockedMessage: e.target.value })}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-            className="w-full text-[9px] bg-black/40 border border-white/[0.06] rounded px-1.5 py-0.5 text-white/50 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] mt-1 italic"
+            className="w-full text-[9px] bg-black/40 border border-white/[0.06] rounded px-1.5 py-0.5 text-white/50 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] italic"
           />
         )}
 
@@ -797,17 +950,17 @@ function DoorCard({
         )}
 
         {/* State description */}
-        <span className="text-[8px] text-white/20 block mt-0.5">{DOOR_STATE_DESCRIPTIONS[door.state] ?? ''}</span>
+        <span className="text-[8px] text-white/20 block">{DOOR_STATE_DESCRIPTIONS[door.state] ?? ''}</span>
       </div>
 
       {/* Door state selector */}
       <select
         value={door.state}
         onChange={(e) => onUpdate(door.id, { state: e.target.value })}
-        className="text-[10px] bg-black/40 border border-white/[0.08] rounded px-1.5 py-0.5 text-white/60 focus:outline-none focus:border-emerald-500/30 shrink-0"
+        className="text-[10px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1.5 py-0.5 text-emerald-300/70 focus:outline-none focus:border-emerald-500/50 shrink-0 cursor-pointer"
       >
         {DOOR_STATE_ORDER.map(s => (
-          <option key={s} value={s}>{DOOR_STATE_LABELS[s] ?? s}</option>
+          <option key={s} value={s} className="bg-black text-white">{DOOR_STATE_LABELS[s] ?? s}</option>
         ))}
       </select>
 
@@ -836,6 +989,91 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [highlightedRoomId, setHighlightedRoomId] = useState<string | null>(null);
+
+  // ── Room hover tooltip ──
+  const [tooltipData, setTooltipData] = useState<RoomTooltipData | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [itemsLookup, setItemsLookup] = useState<Record<string, ItemLookup>>({});
+  const [enemiesLookup, setEnemiesLookup] = useState<Record<string, EnemyLookup>>({});
+  const [npcsLookup, setNpcsLookup] = useState<Record<string, NpcLookup>>({});
+  const lookupsFetched = useRef(false);
+
+  // Fetch lookups once (items, enemies, NPCs) for tooltip resolution
+  const fetchLookups = useCallback(async () => {
+    if (lookupsFetched.current) return;
+    lookupsFetched.current = true;
+    try {
+      const [itemsRes, enemiesRes, npcsRes] = await Promise.all([
+        adminFetch('/api/admin/items'),
+        adminFetch('/api/admin/enemies'),
+        adminFetch('/api/admin/npcs'),
+      ]);
+      if (itemsRes.ok) {
+        const data = await itemsRes.json();
+        const map: Record<string, ItemLookup> = {};
+        for (const i of Array.isArray(data) ? data : []) {
+          map[String(i.id)] = { id: String(i.id), name: String(i.name ?? ''), icon: i.icon ? String(i.icon) : null };
+        }
+        setItemsLookup(map);
+      }
+      if (enemiesRes.ok) {
+        const data = await enemiesRes.json();
+        const map: Record<string, EnemyLookup> = {};
+        for (const e of Array.isArray(data) ? data : []) {
+          map[String(e.id)] = { id: String(e.id), name: String(e.name ?? ''), icon: e.icon ? String(e.icon) : null };
+        }
+        setEnemiesLookup(map);
+      }
+      if (npcsRes.ok) {
+        const data = await npcsRes.json();
+        const map: Record<string, NpcLookup> = {};
+        for (const n of Array.isArray(data) ? data : []) {
+          map[String(n.id)] = { id: String(n.id), name: String(n.name ?? ''), icon: n.icon ? String(n.icon) : null };
+        }
+        setNpcsLookup(map);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchLookups(); }, [fetchLookups]);
+
+  const handleRoomHover = useCallback((e: React.MouseEvent, roomId: string) => {
+    // Small delay to avoid flicker when moving between cards/buttons
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    tooltipTimerRef.current = setTimeout(() => {
+      const room = rooms.find(r => r.id === roomId);
+      if (!room) return;
+      const typeInfo = getRoomTypeInfo(room.type);
+      // Parse itemPool from unknown[]
+      const itemPool: Array<{ itemId: string; chance: number; quantity: number }> = Array.isArray(room.itemPool)
+        ? room.itemPool.map((r: unknown) => {
+            if (typeof r === 'object' && r !== null) {
+              const o = r as Record<string, unknown>;
+              return { itemId: String(o.itemId ?? ''), chance: Number(o.chance ?? 0), quantity: Number(o.quantity ?? 1) };
+            }
+            return { itemId: String(r), chance: 0, quantity: 1 };
+          })
+        : [];
+      const hasContent = itemPool.length > 0 || room.enemyPool.length > 0 || room.npcIds.length > 0;
+      if (!hasContent) return;
+      setTooltipData({
+        roomId: room.id,
+        roomName: room.name,
+        roomType: typeInfo.label,
+        roomIcon: room.icon,
+        itemPool,
+        enemyPool: room.enemyPool,
+        npcIds: room.npcIds,
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+      });
+    }, 150);
+  }, [rooms]);
+
+  const handleRoomHoverEnd = useCallback(() => {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    setTooltipData(null);
+  }, []);
 
   // Canvas controls — restore from localStorage per location
   const ROOM_VIEW_KEY = `roomEditor-view-${locationId}`;
@@ -1040,19 +1278,46 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
       x1: number; y1: number; x2: number; y2: number;
       label: string; key: string;
       fromSide: string; toSide: string;
+      isCrossLocation?: boolean;
     }[] = [];
     const seenPairs = new Set<string>();
     for (const room of placed) {
       const conns = getConnections(room);
       for (const conn of conns) {
-        const target = rooms.find(r => r.id === conn.id);
-        if (!target || target.mapX == null || target.mapY == null) continue;
-        const pairKey = [room.id, target.id].sort().join('::');
+        const pairKey = [room.id, conn.id].sort().join('::');
         if (seenPairs.has(pairKey)) continue;
         seenPairs.add(pairKey);
 
         // Use door positions instead of room centers
         const fromPos = getDoorPosition(room, conn.doorSide, rooms);
+        if (!fromPos) continue;
+
+        const target = rooms.find(r => r.id === conn.id);
+
+        if (!target || target.mapX == null || target.mapY == null) {
+          // Cross-location connection: draw a stub line outward from the door
+          const stubLen = 50;
+          let endX = fromPos.x;
+          let endY = fromPos.y;
+          switch (conn.doorSide) {
+            case 'north': endY = fromPos.y - stubLen; break;
+            case 'south': endY = fromPos.y + stubLen; break;
+            case 'east':  endX = fromPos.x + stubLen; break;
+            case 'west':  endX = fromPos.x - stubLen; break;
+          }
+          lines.push({
+            x1: fromPos.x,
+            y1: fromPos.y,
+            x2: endX,
+            y2: endY,
+            label: `→ ${conn.name}`,
+            key: `cross-${pairKey}`,
+            fromSide: conn.doorSide,
+            toSide: '',
+            isCrossLocation: true,
+          });
+          continue;
+        }
 
         // Find the reverse door on the target to get its side
         const targetConns = getConnections(target);
@@ -1060,8 +1325,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         const toPos = reverseConn
           ? getDoorPosition(target, reverseConn.doorSide, rooms)
           : (() => { const c = getRoomCenter(target, rooms); return { x: c.cx, y: c.cy }; })();
-
-        if (!fromPos) continue;
 
         lines.push({
           x1: fromPos.x,
@@ -1132,92 +1395,155 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   }, [placed, rooms]);
 
   // ── Cross-location rooms for door connections ──
-  const [allRoomsForConnect, setAllRoomsForConnect] = useState<Array<{ id: string; name: string; locationId: string; locationName: string }>>([]);
+  const [allLocations, setAllLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [roomsByLocation, setRoomsByLocation] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(locationId);
   const [connectLoading, setConnectLoading] = useState(false);
 
-  const loadAllRoomsForConnect = useCallback(async () => {
+  const loadLocationsAndRooms = useCallback(async () => {
     setConnectLoading(true);
     try {
-      const res = await adminFetch('/api/admin/rooms');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      // Fetch locations for names
-      const locRes = await adminFetch('/api/admin/locations');
+      const [locRes, roomRes] = await Promise.all([
+        adminFetch('/api/admin/locations'),
+        adminFetch('/api/admin/rooms'),
+      ]);
       const locs: Array<{ id: string; name: string }> = locRes.ok ? await locRes.json() : [];
-      const locMap = new Map(locs.map((l: { id: string; name: string }) => [l.id, l.name]));
-      setAllRoomsForConnect(data.map((d: Record<string, unknown>) => ({
-        id: String(d.id),
-        name: String(d.name ?? ''),
-        locationId: String(d.locationId ?? ''),
-        locationName: locMap.get(String(d.locationId ?? '')) || String(d.locationId ?? ''),
-      })));
+      const allRooms: Array<Record<string, unknown>> = roomRes.ok ? await roomRes.json() : [];
+      setAllLocations(locs);
+      const byLoc: Record<string, Array<{ id: string; name: string }>> = {};
+      for (const r of allRooms) {
+        const lid = String(r.locationId ?? '');
+        if (!byLoc[lid]) byLoc[lid] = [];
+        byLoc[lid].push({ id: String(r.id), name: String(r.name ?? '') });
+      }
+      setRoomsByLocation(byLoc);
     } catch {
-      setAllRoomsForConnect([]);
+      setAllLocations([]);
+      setRoomsByLocation({});
     } finally {
       setConnectLoading(false);
     }
   }, []);
 
-  // ── Door creation helper (always auto-detects sides from positions) ──
-  const createDoor = useCallback(async (fromRoomId: string, toRoomId: string) => {
-    const fromRoom = rooms.find(r => r.id === fromRoomId);
-    const toRoom = rooms.find(r => r.id === toRoomId);
-    if (!fromRoom || !toRoom) return;
-    const sides = detectSide(fromRoom, toRoom, rooms);
-    if (!sides) return;
-    try {
-      const res = await adminFetch('/api/admin/doors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromRoomId,
-          toRoomId,
-          fromSide: sides.fromSide,
-          toSide: sides.toSide,
-          state: 'open',
-        }),
-      });
-      if (!res.ok) {
-        // Door may already exist (409), that's fine
-        if (res.status !== 409) {
-          console.warn('[RoomEditorPanel] Door creation failed:', await res.text());
+  // Load locations/rooms when dialog opens in edit mode
+  useEffect(() => {
+    if (editingId) {
+      setSelectedLocationId(locationId);
+      loadLocationsAndRooms();
+    }
+  }, [editingId]);
+
+  // ── Pending doors state (created on connect, persisted on save) ──
+  const [pendingDoors, setPendingDoors] = useState<Array<{ fromRoomId: string; toRoomId: string; fromSide: string; toSide: string; state: string; requiredItemId: string | null; lockedMessage: string }>>([]);
+
+  // ── Door creation helper (auto-detect sides if not provided) ──
+  const createDoor = useCallback((fromRoomId: string, toRoomId: string, fromSide?: string, toSide?: string) => {
+    // Try auto-detect if sides not provided
+    let finalFromSide = fromSide;
+    let finalToSide = toSide;
+    if (!finalFromSide || !finalToSide) {
+      const fromRoom = rooms.find(r => r.id === fromRoomId);
+      const toRoom = rooms.find(r => r.id === toRoomId);
+      if (fromRoom && toRoom) {
+        const sides = detectSide(fromRoom, toRoom, rooms);
+        if (sides) {
+          finalFromSide = finalFromSide || sides.fromSide;
+          finalToSide = finalToSide || sides.toSide;
         }
-        return;
       }
-      // Refresh rooms to get new door data
-      fetchRooms();
-    } catch (err) {
-      console.warn('[RoomEditorPanel] Door creation error:', err);
     }
-  }, [rooms, fetchRooms]);
+    if (!finalFromSide || !finalToSide) return;
+    // Add to pending state instead of creating immediately
+    setPendingDoors(prev => [...prev, {
+      fromRoomId,
+      toRoomId,
+      fromSide: finalFromSide,
+      toSide: finalToSide,
+      state: 'open',
+      requiredItemId: null,
+      lockedMessage: '',
+    }]);
+  }, [rooms]);
 
-  // ── Door update helper ──
-  const updateDoor = useCallback(async (doorId: string, updates: Record<string, unknown>) => {
-    try {
-      const res = await adminFetch('/api/admin/doors', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: doorId, ...updates }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      fetchRooms();
-    } catch (err) {
-      showStatus(`Errore aggiornamento porta: ${err}`, 'error');
-    }
-  }, [fetchRooms, showStatus]);
+  // ── Door update helper — LOCAL only, no API call, no fetchRooms() ──
+  // Also queues the update for persistence on save
+  const doorUpdateQueueRef = useRef<Array<{ doorId: string; updates: Record<string, unknown> }>>([]);
+  const doorDeleteQueueRef = useRef<Array<string>>([]);
 
-  // ── Door delete helper ──
-  const deleteDoor = useCallback(async (doorId: string) => {
-    if (!confirm('Eliminare questa porta?')) return;
-    try {
-      const res = await adminFetch(`/api/admin/doors?id=${encodeURIComponent(doorId)}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(await res.text());
-      showStatus('Porta eliminata!', 'success');
-      fetchRooms();
-    } catch (err) {
-      showStatus(`Errore eliminazione porta: ${err}`, 'error');
+  const updateDoor = useCallback((doorId: string, updates: Record<string, unknown>) => {
+    // Queue for API persistence on save
+    const existing = doorUpdateQueueRef.current.find(q => q.doorId === doorId);
+    if (existing) {
+      Object.assign(existing.updates, updates);
+    } else {
+      doorUpdateQueueRef.current.push({ doorId, updates });
     }
-  }, [fetchRooms, showStatus]);
+    // Update locally in fullData
+    setFullData(prev => {
+      const next = { ...prev };
+      for (const [roomId, data] of Object.entries(next)) {
+        const doors: DoorData[] = (data as Record<string, unknown>)._doors as DoorData[] ?? [];
+        if (doors.some(d => d.id === doorId)) {
+          next[roomId] = {
+            ...(data as Record<string, unknown>),
+            _doors: doors.map(d => d.id === doorId ? { ...d, ...updates } : d),
+          };
+          break;
+        }
+      }
+      return next;
+    });
+    // Also update rooms state so the dialog and canvas update immediately
+    setRooms(prev => prev.map(room => {
+      if (!room._doors || !room._doors.some(d => d.id === doorId)) return room;
+      return { ...room, _doors: room._doors.map(d => d.id === doorId ? { ...d, ...updates } : d) };
+    }));
+  }, []);
+
+  // ── Door delete helper — LOCAL only, removes from fullData AND rooms state ──
+  const deleteDoor = useCallback((doorId: string) => {
+    // Queue for API persistence on save (unless it was a pending door being removed)
+    doorDeleteQueueRef.current.push(doorId);
+    // Remove locally from fullData
+    setFullData(prev => {
+      const next = { ...prev };
+      for (const [roomId, data] of Object.entries(next)) {
+        const doors: DoorData[] = (data as Record<string, unknown>)._doors as DoorData[] ?? [];
+        if (doors.some(d => d.id === doorId)) {
+          next[roomId] = {
+            ...(data as Record<string, unknown>),
+            _doors: doors.filter(d => d.id !== doorId),
+          };
+          break;
+        }
+      }
+      return next;
+    });
+    // Also remove from rooms state so the dialog and canvas update immediately
+    setRooms(prev => prev.map(room => {
+      if (!room._doors || !room._doors.some(d => d.id === doorId)) return room;
+      return { ...room, _doors: room._doors.filter(d => d.id !== doorId) };
+    }));
+  }, []);
+
+  // ── Door field update for pending doors ──
+  const updatePendingDoor = useCallback((idx: number, updates: Record<string, unknown>) => {
+    setPendingDoors(prev => prev.map((pd, i) => i === idx ? { ...pd, ...updates } : pd));
+  }, []);
+
+  // ── Persist pending doors on save ──
+  const persistPendingDoors = useCallback(async (pDoors: Array<{ fromRoomId: string; toRoomId: string; fromSide: string; toSide: string; state: string; requiredItemId: string | null; lockedMessage: string }>) => {
+    for (const pd of pDoors) {
+      try {
+        await adminFetch('/api/admin/doors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pd),
+        });
+      } catch { /* ignore individual failures */ }
+    }
+  }, []);
+
 
   // ── Corridor preset drop handler ──
   const handleCorridorDrop = useCallback(async (presetKey: string, mapX: number, mapY: number) => {
@@ -1248,17 +1574,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         }),
       });
       if (!res.ok) throw new Error(await res.text());
-      // Auto-connect to nearby rooms
-      const doorsCreated = await autoConnectCorridor(
-        newId, mapX, mapY,
-        variant.defaultWidth, variant.defaultHeight,
-        rooms, presetKey
-      );
-      if (doorsCreated > 0) {
-        showStatus(`${baseInfo?.label ?? 'Corridoio'} creato con ${doorsCreated} porte!`, 'success');
-      } else {
-        showStatus(`${baseInfo?.label ?? 'Corridoio'} (${parsed?.rotation ?? 0}°) creato!`, 'success');
-      }
+      showStatus(`${baseInfo?.label ?? 'Corridoio'} (${parsed?.rotation ?? 0}°) creato!`, 'success');
       fetchRooms();
     } catch (err) {
       showStatus(`Errore creazione corridoio: ${err}`, 'error');
@@ -1574,6 +1890,30 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         body: JSON.stringify(processed),
       });
       if (!res.ok) throw new Error(await res.text());
+      // Persist pending door creations
+      if (pendingDoors.length > 0) {
+        await persistPendingDoors(pendingDoors);
+      }
+      // Persist door updates (queued locally)
+      for (const q of doorUpdateQueueRef.current) {
+        try {
+          await adminFetch('/api/admin/doors', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: q.doorId, ...q.updates }),
+          });
+        } catch { /* ignore individual failures */ }
+      }
+      // Persist door deletes (queued locally)
+      for (const doorId of doorDeleteQueueRef.current) {
+        try {
+          await adminFetch(`/api/admin/doors?id=${encodeURIComponent(doorId)}`, { method: 'DELETE' });
+        } catch { /* ignore individual failures */ }
+      }
+      // Clear queues
+      setPendingDoors([]);
+      doorUpdateQueueRef.current = [];
+      doorDeleteQueueRef.current = [];
       showStatus('Stanza aggiornata con successo!', 'success');
       setEditingId(null);
       fetchRooms();
@@ -1624,6 +1964,11 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
   const handleDialogClose = () => {
     setCreating(false);
     setEditingId(null);
+    setPendingDoors([]);
+    doorUpdateQueueRef.current = [];
+    doorDeleteQueueRef.current = [];
+    // Revert local door changes by refetching
+    fetchRooms();
   };
 
   // ── Navigate to a room (center + select) ──
@@ -2155,46 +2500,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                 backgroundPosition: '0 0',
               }}
             >
-              {/* SVG layer 1 (behind cards): corridor shape fills */}
-              <svg
-                className="absolute inset-0"
-                width={CANVAS_W}
-                height={CANVAS_H}
-                style={{ zIndex: 1 }}
-              >
-                {/* Corridor shape fills */}
-                {corridorShapes.map(shape => {
-                  const isSel = selectedRoomId === shape.roomId;
-                  const isHl = highlightedRoomId === shape.roomId;
-                  return (
-                    <g
-                      key={`corridor-${shape.presetId}-${shape.x}-${shape.y}`}
-                      transform={`translate(${shape.x},${shape.y})`}
-                      onClick={() => setSelectedRoomId(shape.roomId)}
-                      className="cursor-pointer"
-                    >
-                      <path
-                        d={shape.path}
-                        fill={isSel ? 'rgba(52,211,153,0.25)' : isHl ? 'rgba(52,211,153,0.18)' : 'rgba(148,163,184,0.2)'}
-                        stroke={isSel ? 'rgba(52,211,153,0.6)' : 'rgba(148,163,184,0.45)'}
-                        strokeWidth={isSel ? 2 : 1}
-                      />
-                      {/* Corridor label */}
-                      <text
-                        x={shape.w / 2}
-                        y={shape.h / 2}
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        className="fill-white/60 pointer-events-none select-none"
-                        style={{ fontSize: '9px', fontFamily: 'system-ui' }}
-                      >
-                        {shape.name}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-
               {/* Room cards */}
               {placed.map(room => (
                 <RoomCard
@@ -2209,6 +2514,8 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                   onSelect={setHighlightedRoomId}
                   onEdit={(id) => { setEditingId(id); setCreating(false); }}
                   onDelete={handleDelete}
+                  onHover={handleRoomHover}
+                  onHoverEnd={handleRoomHoverEnd}
                 />
               ))}
 
@@ -2227,6 +2534,7 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                     x2={line.x2}
                     y2={line.y2}
                     label={line.label}
+                    isCrossLocation={line.isCrossLocation}
                   />
                 ))}
                 {/* Door indicators */}
@@ -2313,6 +2621,96 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
         </div>
       </div>
 
+      {/* ── Room Content Tooltip (fixed position, outside canvas transform) ── */}
+      {tooltipData && (
+        <div
+          className="fixed z-[200] pointer-events-none"
+          style={{
+            left: Math.min(tooltipData.mouseX + 16, (typeof window !== 'undefined' ? window.innerWidth - 280 : tooltipData.mouseX + 16)),
+            top: Math.min(tooltipData.mouseY - 10, (typeof window !== 'undefined' ? window.innerHeight - 300 : tooltipData.mouseY - 10)),
+          }}
+        >
+          <div className="w-64 rounded-lg border border-white/[0.12] bg-[#111118]/95 backdrop-blur-sm shadow-xl shadow-black/50 overflow-hidden">
+            {/* Header */}
+            <div className="px-2.5 py-1.5 border-b border-white/[0.08] bg-white/[0.03]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm leading-none">{tooltipData.roomIcon || '🏠'}</span>
+                <span className="text-[11px] font-bold text-white/80 truncate">{tooltipData.roomName}</span>
+                <span className="text-[9px] text-white/30 ml-auto shrink-0">{tooltipData.roomType}</span>
+              </div>
+            </div>
+            {/* Content */}
+            <div className="p-2 space-y-2 max-h-56 overflow-y-auto admin-scrollbar">
+              {/* Items */}
+              {tooltipData.itemPool.length > 0 && (
+                <div>
+                  <div className="text-[9px] font-bold text-emerald-400/60 uppercase tracking-wider mb-1">
+                    📦 Oggetti ({tooltipData.itemPool.length})
+                  </div>
+                  <div className="space-y-0.5">
+                    {tooltipData.itemPool.map((item, i) => {
+                      const lookup = itemsLookup[item.itemId];
+                      return (
+                        <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                          <span className="shrink-0">{lookup?.icon || '📦'}</span>
+                          <span className="text-white/70 truncate flex-1">
+                            {lookup?.name || item.itemId || '?'}
+                          </span>
+                          {item.quantity > 1 && (
+                            <span className="text-white/30 shrink-0">×{item.quantity}</span>
+                          )}
+                          {item.chance > 0 && (
+                            <span className="text-emerald-400/40 shrink-0 text-[9px]">{item.chance}%</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Enemies */}
+              {tooltipData.enemyPool.length > 0 && (
+                <div>
+                  <div className="text-[9px] font-bold text-red-400/60 uppercase tracking-wider mb-1">
+                    👾 Nemici ({tooltipData.enemyPool.length})
+                  </div>
+                  <div className="space-y-0.5">
+                    {tooltipData.enemyPool.map((enemyId, i) => {
+                      const lookup = enemiesLookup[enemyId];
+                      return (
+                        <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                          <span className="shrink-0">{lookup?.icon || '👾'}</span>
+                          <span className="text-white/70 truncate">{lookup?.name || enemyId}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* NPCs */}
+              {tooltipData.npcIds.length > 0 && (
+                <div>
+                  <div className="text-[9px] font-bold text-cyan-400/60 uppercase tracking-wider mb-1">
+                    🗣️ NPC ({tooltipData.npcIds.length})
+                  </div>
+                  <div className="space-y-0.5">
+                    {tooltipData.npcIds.map((npcId, i) => {
+                      const lookup = npcsLookup[npcId];
+                      return (
+                        <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                          <span className="shrink-0">{lookup?.icon || '🧑'}</span>
+                          <span className="text-white/70 truncate">{lookup?.name || npcId}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── CRUD Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleDialogClose(); }}>
         <DialogContent className="z-[120] max-w-[95vw] sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl max-h-[85vh] overflow-y-auto admin-scrollbar">
@@ -2348,7 +2746,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
             const editRoom = rooms.find(r => r.id === editingId);
             if (!editRoom) return null;
             const hasDoors = editRoom._doors && editRoom._doors.length > 0;
-            const otherRooms = rooms.filter(r => r.id !== editingId && !editRoom._doors?.some(d => d.fromRoomId === r.id || d.toRoomId === r.id));
             return (
               <div className="mt-4 pt-4 border-t border-white/[0.06]">
                 <div className="flex items-center gap-1.5 mb-2">
@@ -2391,73 +2788,161 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] text-white/25">Collega con un'altra stanza:</span>
+                {/* Connection UI: Location + Room selects + Side selects */}
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <select
-                    className="text-[10px] bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white/50 flex-1 min-w-0 focus:outline-none focus:border-emerald-500/30"
+                    className="text-[10px] bg-emerald-950/40 border border-emerald-500/20 rounded px-2 py-1 text-emerald-300/70 min-w-[120px] focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                    value={selectedLocationId}
+                    onChange={(e) => setSelectedLocationId(e.target.value)}
+                  >
+                    {allLocations.map(loc => (
+                      <option key={loc.id} value={loc.id} className="bg-black text-white">{loc.id === locationId ? `📍 ${loc.name}` : `🌐 ${loc.name}`}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="text-[10px] bg-emerald-950/40 border border-emerald-500/20 rounded px-2 py-1 text-emerald-300/70 flex-1 min-w-[120px] focus:outline-none focus:border-emerald-500/50 cursor-pointer"
                     id="new-door-target"
                     defaultValue=""
                   >
-                    <option value="">— Seleziona stanza —</option>
-                    <optgroup label={`📍 ${locationName} (questa location)`}>
-                      {otherRooms.map(r => (
-                        <option key={r.id} value={`local:${r.id}`}>{r.name}</option>
-                      ))}
-                    </optgroup>
-                    {allRoomsForConnect.length > 0 && (
-                      <optgroup label="🌐 Altre location">
-                        {allRoomsForConnect
-                          .filter(r => r.locationId !== locationId && !editRoom._doors?.some(d => d.fromRoomId === r.id || d.toRoomId === r.id))
-                          .map(r => (
-                            <option key={r.id} value={`remote:${r.id}`}>{r.locationName} › {r.name}</option>
-                          ))
-                        }
-                      </optgroup>
-                    )}
+                    <option value="" className="bg-black text-white">— Seleziona stanza —</option>
+                    {(roomsByLocation[selectedLocationId] ?? [])
+                      .filter(r => r.id !== editingId && !editRoom._doors?.some(d => d.fromRoomId === r.id || d.toRoomId === r.id))
+                      .map(r => (
+                        <option key={r.id} value={r.id} className="bg-black text-white">{r.name}</option>
+                      ))
+                    }
+                  </select>
+                  <select
+                    className="text-[10px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1.5 py-1 text-emerald-300/70 min-w-[70px] focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                    id="new-door-from-side"
+                    defaultValue=""
+                  >
+                    <option value="" className="bg-black text-white">Da</option>
+                    <option value="north" className="bg-black text-white">Nord</option>
+                    <option value="south" className="bg-black text-white">Sud</option>
+                    <option value="east" className="bg-black text-white">Est</option>
+                    <option value="west" className="bg-black text-white">Ovest</option>
+                  </select>
+                  <select
+                    className="text-[10px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1.5 py-1 text-emerald-300/70 min-w-[70px] focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                    id="new-door-to-side"
+                    defaultValue=""
+                  >
+                    <option value="" className="bg-black text-white">A</option>
+                    <option value="north" className="bg-black text-white">Nord</option>
+                    <option value="south" className="bg-black text-white">Sud</option>
+                    <option value="east" className="bg-black text-white">Est</option>
+                    <option value="west" className="bg-black text-white">Ovest</option>
                   </select>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="text-[10px] gap-1 h-6 bg-emerald-600/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-600/20 disabled:opacity-40"
                     disabled={connectLoading}
-                    onClick={async () => {
-                      const sel = document.getElementById('new-door-target') as HTMLSelectElement;
-                      if (!sel || !sel.value || !editingId) return;
-                      const val = sel.value;
-                      if (val.startsWith('local:')) {
-                        createDoor(editingId, val.replace('local:', ''));
-                      } else if (val.startsWith('remote:')) {
-                        // Remote connection: create door directly with east/west defaults
-                        const toRoomId = val.replace('remote:', '');
-                        try {
-                          const res = await adminFetch('/api/admin/doors', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ fromRoomId: editingId, toRoomId, fromSide: 'east', toSide: 'west', state: 'open' }),
-                          });
-                          if (res.ok) fetchRooms();
-                        } catch { /* ignore */ }
-                      }
+                    onClick={() => {
+                      const targetSel = document.getElementById('new-door-target') as HTMLSelectElement;
+                      const fromSideSel = document.getElementById('new-door-from-side') as HTMLSelectElement;
+                      const toSideSel = document.getElementById('new-door-to-side') as HTMLSelectElement;
+                      if (!targetSel || !targetSel.value || !editingId) return;
+                      const toRoomId = targetSel.value;
+                      const fromSide = fromSideSel?.value || undefined;
+                      const toSide = toSideSel?.value || undefined;
+                      createDoor(editingId, toRoomId, fromSide, toSide);
+                      // Reset selects
+                      targetSel.value = '';
+                      if (fromSideSel) fromSideSel.value = '';
+                      if (toSideSel) toSideSel.value = '';
                     }}
                   >
                     {connectLoading ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Plus className="w-2.5 h-2.5" />}
                     Connetti
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-[10px] gap-1 h-6 bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50 hover:bg-white/[0.06] disabled:opacity-40"
-                    disabled={connectLoading || allRoomsForConnect.length > 0}
-                    onClick={loadAllRoomsForConnect}
-                    title="Carica stanze da altre location"
-                  >
-                    <Layers className="w-2.5 h-2.5" />
-                  </Button>
                 </div>
-                {!hasDoors && (
+                {/* Pending doors — fully editable */}
+                {pendingDoors.length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    <span className="text-[9px] text-amber-400/50 uppercase tracking-wider font-bold">In attesa ({pendingDoors.length})</span>
+                    {pendingDoors.map((pd, idx) => {
+                      const toRoom = rooms.find(r => r.id === pd.toRoomId);
+                      const pdColor = DOOR_STATE_COLORS[pd.state] ?? DOOR_STATE_COLORS.open;
+                      return (
+                        <div key={idx} className="flex items-start gap-2 p-2 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                          <div className="w-3 h-3 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: pdColor }} />
+                          <div className="flex-1 min-w-0 space-y-1">
+                            {/* Row 1: Room name + state badge + side selects */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[11px] text-amber-200/80 font-medium truncate">
+                                → {toRoom?.name ?? pd.toRoomId}
+                              </span>
+                              <select
+                                value={pd.state}
+                                onChange={(e) => updatePendingDoor(idx, { state: e.target.value })}
+                                className="text-[9px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1 py-px text-emerald-300/70 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                              >
+                                {DOOR_STATE_ORDER.map(s => (
+                                  <option key={s} value={s} className="bg-black text-white">{DOOR_STATE_LABELS[s] ?? s}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={pd.fromSide || ''}
+                                onChange={(e) => updatePendingDoor(idx, { fromSide: e.target.value })}
+                                className="text-[9px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1 py-px text-emerald-300/70 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                              >
+                                {SIDE_OPTIONS.map(s => (
+                                  <option key={s.value} value={s.value} className="bg-black text-white">{s.label}</option>
+                                ))}
+                              </select>
+                              <span className="text-[8px] text-white/15">→</span>
+                              <select
+                                value={pd.toSide || ''}
+                                onChange={(e) => updatePendingDoor(idx, { toSide: e.target.value })}
+                                className="text-[9px] bg-emerald-950/40 border border-emerald-500/20 rounded px-1 py-px text-emerald-300/70 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                              >
+                                {SIDE_OPTIONS.map(s => (
+                                  <option key={s.value} value={s.value} className="bg-black text-white">{s.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {/* Key item picker — only for key_locked state */}
+                            {pd.state === 'key_locked' && (
+                              <PendingDoorKeyPicker
+                                requiredItemId={pd.requiredItemId}
+                                onChange={(itemId) => updatePendingDoor(idx, { requiredItemId: itemId })}
+                              />
+                            )}
+                            {/* Locked message for locked states */}
+                            {(pd.state === 'key_locked' || pd.state === 'locked' || pd.state === 'inaccessible') && (
+                              <input
+                                type="text"
+                                placeholder={pd.state === 'key_locked'
+                                  ? '💬 Messaggio se il giocatore non ha la chiave...'
+                                  : '💬 Messaggio quando bloccata...'}
+                                value={pd.lockedMessage || ''}
+                                onChange={(e) => updatePendingDoor(idx, { lockedMessage: e.target.value })}
+                                className="w-full text-[9px] bg-black/40 border border-white/[0.06] rounded px-1.5 py-0.5 text-white/50 placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] italic"
+                              />
+                            )}
+                            {/* State description */}
+                            <span className="text-[8px] text-white/20 block">{DOOR_STATE_DESCRIPTIONS[pd.state] ?? ''}</span>
+                          </div>
+                          {/* Delete pending door */}
+                          <button
+                            type="button"
+                            onClick={() => setPendingDoors(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1 text-amber-400/30 hover:text-red-300 transition-colors shrink-0"
+                            title="Rimuovi"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {!(hasDoors || pendingDoors.length > 0) && (
                   <p className="text-[10px] text-white/20 italic px-1">Nessuna porta collegata. Usa il selettore sopra per collegare questa stanza.</p>
                 )}
-                {hasDoors && (
+                {(hasDoors || pendingDoors.length > 0) && (
                 <div className="space-y-1.5 max-h-64 overflow-y-auto admin-scrollbar">
                   {editRoom._doors.map(door => (
                     <DoorCard
