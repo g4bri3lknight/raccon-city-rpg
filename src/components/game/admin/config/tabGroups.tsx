@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  MapPin, Users, Scroll, Zap, FileText, DoorOpen,
+  MapPin, Users, Scroll, FileText,
   Swords, Sparkles, Skull, Flame, Crown,
   Package, Wrench, Trophy, Flag, Bell,
   Monitor, Settings, Link2, Gamepad2, Palette,
@@ -9,7 +9,7 @@ import {
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-export type TabId = 'games' | 'items' | 'quests' | 'events' | 'documents' | 'notifications' | 'locations' | 'rooms' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'secret-rooms' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
+export type TabId = 'games' | 'items' | 'quests' | 'documents' | 'notifications' | 'locations' | 'rooms' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
 
 export interface TabConfig {
   id: TabId;
@@ -38,11 +38,9 @@ export const TAB_GROUPS: TabGroupDef[] = [
     { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC', group: 'world' },
     { id: 'quests', label: 'Missioni', icon: <Scroll className="w-4 h-4" />, endpoint: '/api/admin/quests', entityLabel: 'Missione', group: 'world' },
     { id: 'quest-chains', label: 'Quest Chain', icon: <Link2 className="w-4 h-4" />, endpoint: '/api/admin/quest-chains', entityLabel: 'Quest Chain', group: 'world' },
-    { id: 'events', label: 'Eventi', icon: <Zap className="w-4 h-4" />, endpoint: '/api/admin/events', entityLabel: 'Evento', group: 'world' },
     { id: 'documents', label: 'Documenti', icon: <FileText className="w-4 h-4" />, endpoint: '/api/admin/documents', entityLabel: 'Documento', group: 'world' },
-    { id: 'secret-rooms', label: 'Stanze Segrete', icon: <DoorOpen className="w-4 h-4" />, endpoint: '/api/admin/secret-rooms', entityLabel: 'Stanza Segreta', group: 'world' },
   ]},
-  { id: 'combat', label: 'Combattimento', icon: '⚔️', defaultOpen: true, tabs: [
+  { id: 'combat', label: 'Combattimento', icon: '⚔️', tabs: [
     { id: 'archetypes', label: 'Archetipi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/archetypes', entityLabel: 'Archetipo', group: 'combat' },
     { id: 'characters', label: 'Personaggi', icon: <Swords className="w-4 h-4" />, endpoint: '/api/admin/characters', entityLabel: 'Personaggio', group: 'combat' },
     { id: 'specials', label: 'Abilità', icon: <Sparkles className="w-4 h-4" />, endpoint: '/api/admin/specials', entityLabel: 'Abilità', group: 'combat' },
@@ -50,7 +48,7 @@ export const TAB_GROUPS: TabGroupDef[] = [
     { id: 'enemy-abilities', label: 'Abilità Nemici', icon: <Flame className="w-4 h-4" />, endpoint: '/api/admin/enemy-abilities', entityLabel: 'Abilità Nemica', group: 'combat' },
     { id: 'boss-phases', label: 'Fasi Boss', icon: <Crown className="w-4 h-4" />, endpoint: '/api/admin/boss-phases', entityLabel: 'Fase Boss', group: 'combat' },
   ]},
-  { id: 'items', label: 'Oggetti', icon: '📦', defaultOpen: true, tabs: [
+  { id: 'items', label: 'Oggetti', icon: '📦', tabs: [
     { id: 'items', label: 'Oggetti', icon: <Package className="w-4 h-4" />, endpoint: '/api/admin/items', entityLabel: 'Oggetto', group: 'items' },
     { id: 'recipes', label: 'Ricette', icon: <Wrench className="w-4 h-4" />, endpoint: '/api/admin/recipes', entityLabel: 'Ricetta', group: 'items' },
   ]},

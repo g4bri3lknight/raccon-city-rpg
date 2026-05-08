@@ -80,6 +80,7 @@ export async function GET() {
       characters,
       specials,
       achievements,
+      enemyAbilities,
     ] = await Promise.all([
       db.sideQuest.findMany(),
       db.gameNPC.findMany(),
@@ -98,6 +99,7 @@ export async function GET() {
       db.gameCharacter.findMany(),
       db.gameSpecial.findMany(),
       db.gameAchievement.findMany(),
+      db.gameEnemyAbility.findMany(),
     ]);
 
     // Build index sets for fast lookups
@@ -108,6 +110,7 @@ export async function GET() {
     const documentIds = new Set(documents.map((d) => d.id));
     const itemIds = new Set(items.map((i) => i.id));
     const abilityIds = new Set(specials.map((s) => s.id));
+    const enemyAbilityIds = new Set(enemyAbilities.map((a) => a.id));
     const questChainIds = new Set(questChains.map((qc) => qc.id));
 
     // Boss enemies index: enemyId → phases
@@ -124,7 +127,7 @@ export async function GET() {
           'endings',
           null,
           'Aggiungi almeno un finale nella sezione Progressione',
-          'progression',
+          'endings',
         ),
       );
     }
@@ -138,7 +141,7 @@ export async function GET() {
           'locations',
           null,
           'Imposta mapRow=0 per almeno una locazione nella Mappa',
-          'map',
+          'locations',
         ),
       );
     }
@@ -313,10 +316,10 @@ export async function GET() {
           info.push(
             issue(
               `Evento "${ev.title}" (${ev.id}) — chainId "${ev.chainId}" isolato (nessun altro evento nella catena)`,
-              'events',
+              'locations',
               ev.id,
               'Aggiungi altri eventi alla catena o rimuovi il chainId',
-              'events',
+              'locations',
             ),
           );
         }
@@ -326,10 +329,10 @@ export async function GET() {
           warnings.push(
             issue(
               `Evento "${ev.title}" (${ev.id}) — nextEventId "${ev.nextEventId}" non trovato`,
-              'events',
+              'locations',
               ev.id,
               `Correggi nextEventId o crea l'evento "${ev.nextEventId}"`,
-              'events',
+              'locations',
             ),
           );
         }
@@ -342,10 +345,10 @@ export async function GET() {
         warnings.push(
           issue(
             `Secret Room "${sr.name}" (${sr.id}) — requiredDocumentId "${sr.requiredDocumentId}" inesistente`,
-            'secret-rooms',
+            'locations',
             sr.id,
             `Correggi il documento richiesto o crea "${sr.requiredDocumentId}"`,
-            'secret-rooms',
+            'locations',
           ),
         );
       }
@@ -353,10 +356,10 @@ export async function GET() {
         warnings.push(
           issue(
             `Secret Room "${sr.name}" (${sr.id}) — requiredNpcQuestId "${sr.requiredNpcQuestId}" inesistente`,
-            'secret-rooms',
+            'locations',
             sr.id,
             `Correggi la quest richiesta o crea "${sr.requiredNpcQuestId}"`,
-            'secret-rooms',
+            'locations',
           ),
         );
       }
@@ -365,10 +368,10 @@ export async function GET() {
         critical.push(
           issue(
             `Secret Room "${sr.name}" (${sr.id}) — locationId "${sr.locationId}" inesistente`,
-            'secret-rooms',
+            'locations',
             sr.id,
             `Correggi locationId o crea la locazione "${sr.locationId}"`,
-            'secret-rooms',
+            'locations',
           ),
         );
       }
@@ -380,10 +383,10 @@ export async function GET() {
           warnings.push(
             issue(
               `Secret Room "${sr.name}" (${sr.id}) — lootTable riferisce a item "${entry.itemId}" inesistente`,
-              'secret-rooms',
+              'locations',
               sr.id,
               `Correggi l'itemId o crea l'item "${entry.itemId}"`,
-              'secret-rooms',
+              'locations',
             ),
           );
         }
@@ -394,10 +397,10 @@ export async function GET() {
         warnings.push(
           issue(
             `Secret Room "${sr.name}" (${sr.id}) — uniqueItemId "${sr.uniqueItemId}" inesistente`,
-            'secret-rooms',
+            'locations',
             sr.id,
             `Correggi uniqueItemId o crea l'item "${sr.uniqueItemId}"`,
-            'secret-rooms',
+            'locations',
           ),
         );
       }
@@ -481,7 +484,7 @@ export async function GET() {
     for (const enemy of enemies) {
       const abIds = jsonStrArray(enemy.abilities);
       for (const abId of abIds) {
-        if (!abilityIds.has(abId)) {
+        if (!enemyAbilityIds.has(abId)) {
           warnings.push(
             issue(
               `Nemico "${enemy.name}" (${enemy.id}) — ability "${abId}" non trovata`,
@@ -584,7 +587,7 @@ export async function GET() {
               'archetypes',
               arch.id,
               `Correggi startingItems o crea l'item "${itemId}"`,
-              'characters',
+              'archetypes',
             ),
           );
         }
@@ -596,7 +599,7 @@ export async function GET() {
             'archetypes',
             arch.id,
             `Correggi specialId o crea la special "${arch.specialId}"`,
-            'characters',
+            'archetypes',
           ),
         );
       }
@@ -607,7 +610,7 @@ export async function GET() {
             'archetypes',
             arch.id,
             `Correggi special2Id o crea la special "${arch.special2Id}"`,
-            'characters',
+            'archetypes',
           ),
         );
       }

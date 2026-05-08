@@ -15,6 +15,7 @@ function validateDoor(body: Record<string, unknown>): string | null {
 }
 
 /**
+ * GET /api/admin/doors — list all doors (or filter by roomId / locationId)
  * GET /api/admin/doors?roomId=xxx — list doors for a room (both directions)
  * GET /api/admin/doors?locationId=xxx — list all doors in a location
  */
@@ -56,7 +57,14 @@ export async function GET(request: NextRequest) {
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       });
     } else {
-      return NextResponse.json({ error: 'roomId o locationId sono richiesti' }, { status: 400 });
+      // No filter — return all doors
+      doors = await db.gameDoor.findMany({
+        include: {
+          fromRoom: { select: { id: true, name: true, icon: true } },
+          toRoom: { select: { id: true, name: true, icon: true } },
+        },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      });
     }
 
     return NextResponse.json(doors);

@@ -774,8 +774,125 @@ function CardStatsRow({
 // Entity types that have image preview headers
 // ═══════════════════════════════════════════════════════════════
 const TABS_WITH_IMAGE_HEADER = new Set<string>([
-  'items', 'locations', 'characters', 'enemies', 'npcs', 'recipes', 'specials',
+  'locations',
 ]);
+
+const TABS_WITH_COMPACT_LAYOUT = new Set<string>([
+  'items', 'recipes', 'npcs', 'characters', 'enemies', 'archetypes', 'specials', 'enemy-abilities', 'boss-phases',
+]);
+
+// ═══════════════════════════════════════════════════════════════
+// CompactCardImage — 92×92 image thumbnail for horizontal cards
+// ═══════════════════════════════════════════════════════════════
+function CompactCardImage({
+  activeTab,
+  row,
+}: {
+  activeTab: TabId;
+  row: Record<string, unknown>;
+}) {
+  // Items
+  if (activeTab === 'items') {
+    return (
+      <div className="w-[92px] h-[92px] shrink-0 flex items-center justify-center bg-white/[0.03] rounded-lg border border-white/[0.06]">
+        <ItemIcon
+          itemId={String(row.id)}
+          rarity={(String(row.rarity) as Rarity) || 'common'}
+          size={72}
+          showBorder
+        />
+      </div>
+    );
+  }
+
+  // Characters
+  if (activeTab === 'characters') {
+    const emoji = String(row.portraitEmoji ?? '🎮');
+    return (
+      <ImgWithFallback
+        src={`/api/media/image?id=${encodeURIComponent(String(row.id))}`}
+        alt={String(row.displayName ?? row.name ?? '')}
+        fallbackIcon={emoji}
+        className="w-[92px] h-[92px] object-cover rounded-lg"
+        containerClassName="w-[92px] h-[92px] shrink-0 rounded-lg overflow-hidden border border-white/[0.08]"
+      />
+    );
+  }
+
+  // Enemies
+  if (activeTab === 'enemies') {
+    const emoji = String(row.icon ?? '🧟');
+    return (
+      <ImgWithFallback
+        src={`/api/media/image?id=${encodeURIComponent(String(row.id))}`}
+        alt={String(row.name ?? '')}
+        fallbackIcon={emoji}
+        className="w-[92px] h-[92px] object-contain"
+        containerClassName="w-[92px] h-[92px] shrink-0"
+      />
+    );
+  }
+
+  // NPCs
+  if (activeTab === 'npcs') {
+    const emoji = String(row.portrait ?? '❓');
+    return (
+      <ImgWithFallback
+        src={`/api/media/image?id=${encodeURIComponent(`portrait_${String(row.id)}`)}`}
+        alt={String(row.name ?? '')}
+        fallbackIcon={emoji}
+        className="w-[92px] h-[92px] object-cover rounded-full"
+        containerClassName="w-[92px] h-[92px] shrink-0 rounded-full overflow-hidden border border-white/[0.08]"
+      />
+    );
+  }
+
+  // Recipes
+  if (activeTab === 'recipes') {
+    const resultItemId = String(row.resultItemId ?? '');
+    const emoji = String(row.icon ?? '🔧');
+    return (
+      <div className="w-[92px] h-[92px] shrink-0 flex items-center justify-center bg-white/[0.03] rounded-lg border border-white/[0.06] relative">
+        {resultItemId ? (
+          <ImgWithFallback
+            src={`/api/media/image?id=${encodeURIComponent(`icon_${resultItemId}`)}`}
+            alt={resultItemId}
+            fallbackIcon={emoji}
+            className="w-[72px] h-[72px] object-contain"
+            containerClassName="w-[72px] h-[72px]"
+          />
+        ) : (
+          <span className="text-4xl opacity-30">{emoji}</span>
+        )}
+        {row.resultQty && Number(row.resultQty) > 1 && (
+          <span className="absolute bottom-1 right-1 text-[9px] font-mono text-white/40 bg-black/50 px-1 py-px rounded">×{row.resultQty}</span>
+        )}
+      </div>
+    );
+  }
+
+  // Specials
+  if (activeTab === 'specials') {
+    const emoji = String(row.icon ?? '⚡');
+    return (
+      <ImgWithFallback
+        src={`/api/media/image?id=${encodeURIComponent(`special_${String(row.id)}`)}`}
+        alt={String(row.name ?? '')}
+        fallbackIcon={emoji}
+        className="w-[92px] h-[92px] object-contain"
+        containerClassName="w-[92px] h-[92px] shrink-0"
+      />
+    );
+  }
+
+  // Archetypes, enemy-abilities, boss-phases: emoji fallback
+  const emoji = String(row.icon ?? (activeTab === 'archetypes' ? '⚔️' : activeTab === 'enemy-abilities' ? '🔥' : '👑'));
+  return (
+    <div className="w-[92px] h-[92px] shrink-0 flex items-center justify-center bg-white/[0.03] rounded-lg border border-white/[0.06]">
+      <span className="text-4xl opacity-25">{emoji}</span>
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // EntityCardGrid — main exported component
@@ -798,6 +915,7 @@ export function EntityCardGrid({
   entityColor,
 }: EntityCardGridProps) {
   const hasImageHeader = TABS_WITH_IMAGE_HEADER.has(activeTab);
+  const hasCompactLayout = TABS_WITH_COMPACT_LAYOUT.has(activeTab);
   const canEdit = true;
 
   // ── #13 — Compute entity color styles ──
@@ -924,6 +1042,149 @@ export function EntityCardGrid({
     );
   }
 
+  // ── Compact horizontal cards for combat, items, recipes, NPCs ──
+  if (hasCompactLayout) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+        {data.map((row, idx) => {
+          const rowId = String(row.id ?? '');
+          const name = activeTab === 'characters'
+            ? String(row.displayName ?? row.name ?? row.id ?? '')
+            : String(row.name ?? row.title ?? row.id ?? '');
+          const description = String(row.description ?? '');
+          const subtitle = activeTab === 'characters'
+            ? String(row.name ?? row.id ?? '')
+            : String(row.id ?? '');
+
+          const rowBroken = brokenRefs[rowId];
+          const rowCross = crossRefs[rowId];
+          const hasBroken = rowBroken && rowBroken.length > 0;
+          const crossEntries = rowCross ? Object.entries(rowCross) : [];
+          const crossTotal = crossEntries.reduce((s, [, c]) => s + c, 0);
+          const isSelected = selectionMode && selectedIds.has(rowId);
+          const isEditing = editingNameId === rowId;
+          const isDragging = dragId === rowId;
+          const isDragOver = dragOverId === rowId;
+
+          return (
+            <div
+              key={rowId || `row-${idx}`}
+              draggable={reorderable && !isEditing}
+              onDragStart={(e) => handleDragStart(e, rowId)}
+              onDragOver={(e) => handleDragOver(e, rowId)}
+              onDrop={(e) => handleDrop(e, rowId)}
+              onDragEnd={handleDragEnd}
+              className={`group flex gap-2.5 p-2 rounded-lg border bg-white/[0.02] hover:bg-white/[0.04] transition-all relative ${
+                hasBroken
+                  ? 'border-red-500/30 hover:border-red-500/50'
+                  : isSelected
+                    ? 'border-emerald-500/40 hover:border-emerald-500/60'
+                    : entityColor
+                      ? 'hover:border-[var(--entity-color)]/60'
+                      : 'border-white/[0.06] hover:border-white/[0.12]'
+              } ${
+                isDragging ? 'opacity-50 scale-95' : ''
+              } ${
+                isDragOver && !isDragging ? 'border-emerald-500/50 ring-2 ring-emerald-500/20' : ''
+              }`}
+              style={entityColor ? { borderColor: `${entityColor}30`, ...entityColorStyle } : undefined}
+            >
+              {entityColor && (
+                <div className="absolute top-0 left-0 right-0 h-[2px] z-30" style={{ backgroundColor: entityColor }} />
+              )}
+              {reorderable && (
+                <div className="absolute top-1.5 left-1.5 z-20 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-60 md:opacity-0 md:group-hover:opacity-60 transition-opacity">
+                  <GripVertical className="w-3.5 h-3.5 text-white/60" />
+                </div>
+              )}
+              {selectionMode && (
+                <div className="absolute top-1.5 right-1.5 z-20 cursor-pointer" onClick={(e) => { e.stopPropagation(); onToggleSelect?.(rowId); }}>
+                  <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
+                    isSelected ? 'bg-emerald-500 border border-emerald-400' : 'bg-black/40 border border-white/20 hover:border-white/40'
+                  }`}>
+                    {isSelected && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Image (left) */}
+              <CompactCardImage activeTab={activeTab} row={row} />
+
+              {/* Content (right) */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                <div className="min-w-0">
+                  {isEditing && onInlineRename ? (
+                    <input
+                      ref={editInputRef}
+                      type="text"
+                      value={editingNameValue}
+                      onChange={(e) => setEditingNameValue(e.target.value)}
+                      onBlur={handleSaveEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit(); }
+                        else if (e.key === 'Escape') { e.preventDefault(); handleCancelEdit(); }
+                      }}
+                      className="text-xs font-medium text-white/85 bg-transparent border-b border-emerald-500 outline-none w-full py-0 focus:border-emerald-400 transition-colors"
+                    />
+                  ) : (
+                    <h3
+                      className="text-xs font-medium text-white/85 truncate leading-snug cursor-text hover:text-emerald-300/90 transition-colors"
+                      onDoubleClick={(e) => { e.stopPropagation(); if (onInlineRename) handleStartEdit(rowId, name); }}
+                      onClick={(e) => { if (!onInlineRename) return; if (window.matchMedia('(hover: none)').matches) { e.stopPropagation(); handleStartEdit(rowId, name); } }}
+                      title="Doppio clic per rinominare"
+                    >{name}</h3>
+                  )}
+                  <p className="text-[10px] text-white/20 font-mono truncate">{subtitle}</p>
+                  <CardInfoBadges activeTab={activeTab} row={row} />
+                </div>
+                <div>
+                  {description && (
+                    <p className="text-[11px] text-white/25 line-clamp-1 mt-1 leading-relaxed">{description}</p>
+                  )}
+                  <CardStatsRow activeTab={activeTab} row={row} />
+                  {crossTotal > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap mt-1">
+                      <span className="text-[9px] text-sky-400/60">🔗</span>
+                      {crossEntries.slice(0, 3).map(([type, count]) => (
+                        <span key={type} className="text-[9px] px-1 py-px rounded-full bg-sky-500/8 border border-sky-500/15 text-sky-400/80">
+                          {count}× {typeLabels[type] || type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" onClick={() => onEdit(rowId)} className="p-1 rounded hover:bg-white/[0.06] text-white/30 hover:text-emerald-300 transition-colors" title="Modifica">
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    {onClone && (
+                      <button type="button" onClick={() => onClone(rowId)} className="p-1 rounded hover:bg-white/[0.06] text-white/30 hover:text-sky-300 transition-colors" title="Duplica">
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    )}
+                    <button type="button" onClick={() => onDelete(rowId)} className="p-1 rounded hover:bg-white/[0.06] text-white/30 hover:text-red-300 transition-colors" title="Elimina">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                  {hasBroken && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <AlertTriangle className="w-3 h-3 text-red-400" />
+                      <span className="text-[9px] text-red-400">{rowBroken.length} ref errate</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Standard vertical cards (locations, etc.) ──
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
       {data.map((row, idx) => {

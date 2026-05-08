@@ -39,7 +39,7 @@ import MapEditor from './admin/tabs/MapEditor';
 // ═══════════════════════════════════════════════════════════════
 export default function AdminPanel({ isStandalone = false }: { isStandalone?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabId>('items');
+  const [activeTab, setActiveTab] = useState<TabId>('locations');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const g of TAB_GROUPS) {

@@ -62,7 +62,7 @@ interface EditorShellProps {
 }
 
 export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('items');
+  const [activeTab, setActiveTab] = useState<TabId>('locations');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const g of EDITOR_TAB_GROUPS) {

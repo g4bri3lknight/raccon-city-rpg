@@ -36,7 +36,7 @@ const EDITOR_TAB_GROUPS = TAB_GROUPS.filter(g => g.id !== 'hub');
 
 export default function EditorPage({ params }: { params: Promise<{ gameId: string }> }) {
   const [gameId, setGameId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<TabId>('items');
+  const [activeTab, setActiveTab] = useState<TabId>('locations');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const g of EDITOR_TAB_GROUPS) {

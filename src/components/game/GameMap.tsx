@@ -7,14 +7,14 @@ import {
   LOCATIONS, ITEMS, ENEMIES, NPCS_DATA, DATA_VERSION,
   getRoomDoors, findRoomLocation,
 } from '@/game/data/loader';
-import type { RoomDefinition, DoorDefinition, LootEntry } from '@/game/types';
+import type { RoomDefinition, LootEntry } from '@/game/types';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import {
   MapPin, X, ZoomIn, ZoomOut, RotateCw,
-  ExternalLink, Eye, EyeOff,
+  ExternalLink, Eye, EyeOff, Globe, Building2,
 } from 'lucide-react';
 import {
   resolvePreset, scaleCorridorPath, getConnectionPoints,
@@ -44,11 +44,16 @@ interface RoomTooltipData {
 // ═══════════════════════════════════════════════════════════
 const CANVAS_W = 2500;
 const CANVAS_H = 1800;
+const LOC_CANVAS_W = 2000;
+const LOC_CANVAS_H = 1400;
+const LOC_CARD_W = 160;
+const LOC_CARD_H = 76;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.15;
 const DEFAULT_ROOM_W = 140;
 const DEFAULT_ROOM_H = 100;
+const ELBOW_STUB_LEN = 15;
 
 // ═══════════════════════════════════════════════════════════
 // Helpers
@@ -74,7 +79,7 @@ function getRoomDimensions(room: RoomDefinition): { w: number; h: number } {
   }
   if (room.type === 'corridor') return { w: 180, h: 44 };
   if (room.type === 'boss_room') return { w: 160, h: 110 };
-  return { w: DEFAULT_ROOM_H, h: DEFAULT_ROOM_H };
+  return { w: DEFAULT_ROOM_W, h: DEFAULT_ROOM_H };
 }
 
 /** Get door position on a room's edge, accounting for corridor connection points */
@@ -96,65 +101,127 @@ function getDoorPosition(room: RoomDefinition, side: string): { x: number; y: nu
   }
 }
 
+/** Extend a point outward from a room edge by stubLen pixels */
+function extendOutward(pos: { x: number; y: number }, side: string, stubLen: number): { x: number; y: number } {
+  switch (side) {
+    case 'north': return { x: pos.x, y: pos.y - stubLen };
+    case 'south': return { x: pos.x, y: pos.y + stubLen };
+    case 'east':  return { x: pos.x + stubLen, y: pos.y };
+    case 'west':  return { x: pos.x - stubLen, y: pos.y };
+    default: return { ...pos };
+  }
+}
+
 /** Look up a room name across all locations */
 function findRoomName(roomId: string): string {
   const found = findRoomLocation(roomId);
   return found ? found.room.name : '???';
 }
 
+/** Compute edge-to-edge intersection between two location cards */
+function computeLocationEdgePoints(
+  xA: number, yA: number,
+  xB: number, yB: number,
+  cardW: number, cardH: number,
+): { x1: number; y1: number; x2: number; y2: number } {
+  const cxA = xA + cardW / 2, cyA = yA + cardH / 2;
+  const cxB = xB + cardW / 2, cyB = yB + cardH / 2;
+  const hw = cardW / 2, hh = cardH / 2;
+  const dx = cxB - cxA, dy = cyB - cyA;
+  // Edge point A
+  let x1: number, y1: number;
+  if (Math.abs(dx / hw) > Math.abs(dy / hh)) {
+    x1 = dx > 0 ? xA + cardW : xA;
+    y1 = cyA + dy * (hw / Math.abs(dx));
+  } else {
+    y1 = dy > 0 ? yA + cardH : yA;
+    x1 = cxA + dx * (hh / Math.abs(dy));
+  }
+  // Edge point B
+  let x2: number, y2: number;
+  if (Math.abs(dx / hw) > Math.abs(dy / hh)) {
+    x2 = dx > 0 ? xB : xB + cardW;
+    y2 = cyB - dy * (hw / Math.abs(dx));
+  } else {
+    y2 = dy > 0 ? yB : yB + cardH;
+    x2 = cxB - dx * (hh / Math.abs(dy));
+  }
+  return { x1, y1, x2, y2 };
+}
+
 // ═══════════════════════════════════════════════════════════
-// Door Connection Line Component
+// Door Connection Line Component (elbow/Z-path routing)
 // ═══════════════════════════════════════════════════════════
 function DoorConnectionLine({
-  x1, y1, x2, y2, doorState, label, isCrossLocation,
+  points,
+  doorState,
+  label,
+  isCrossLocation,
 }: {
-  x1: number; y1: number; x2: number; y2: number;
+  points: Array<{ x: number; y: number }>;
   doorState: string;
   label: string;
   isCrossLocation?: boolean;
 }) {
   const color = DOOR_STATE_COLORS[doorState] ?? DOOR_STATE_COLORS.open;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2;
-  const angle = Math.atan2(dy, dx);
-  const arrowLen = 7;
-
-  const arrowX1 = x2 - arrowLen * Math.cos(angle - 0.35);
-  const arrowY1 = y2 - arrowLen * Math.sin(angle - 0.35);
-  const arrowX2 = x2 - arrowLen * Math.cos(angle + 0.35);
-  const arrowY2 = y2 - arrowLen * Math.sin(angle + 0.35);
-  const revAngle = angle + Math.PI;
-  const revArrowX1 = x1 - arrowLen * Math.cos(revAngle - 0.35);
-  const revArrowY1 = y1 - arrowLen * Math.sin(revAngle - 0.35);
-  const revArrowX2 = x1 - arrowLen * Math.cos(revAngle + 0.35);
-  const revArrowY2 = y1 - arrowLen * Math.sin(revAngle + 0.35);
-
   const strokeOpacity = isCrossLocation ? 0.4 : 0.5;
   const dashArray = doorState === 'inaccessible' ? '6 4' : undefined;
+  const arrowLen = 7;
+
+  // Build SVG path from points
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+
+  // Midpoint: between points[1] and points[2] for elbow, or center of 2-point line
+  let mx: number, my: number;
+  if (points.length >= 4) {
+    mx = (points[1].x + points[2].x) / 2;
+    my = (points[1].y + points[2].y) / 2;
+  } else {
+    mx = (points[0].x + points[points.length - 1].x) / 2;
+    my = (points[0].y + points[points.length - 1].y) / 2;
+  }
+
+  // End arrow: direction from second-to-last point to last point
+  const endPt = points[points.length - 1];
+  const endPrev = points[points.length - 2];
+  const endAngle = Math.atan2(endPt.y - endPrev.y, endPt.x - endPrev.x);
+  const arrowEndX1 = endPt.x - arrowLen * Math.cos(endAngle - 0.35);
+  const arrowEndY1 = endPt.y - arrowLen * Math.sin(endAngle - 0.35);
+  const arrowEndX2 = endPt.x - arrowLen * Math.cos(endAngle + 0.35);
+  const arrowEndY2 = endPt.y - arrowLen * Math.sin(endAngle + 0.35);
+
+  // Start arrow: direction from first point to second point
+  const startPt = points[0];
+  const startNext = points[1];
+  const startAngle = Math.atan2(startNext.y - startPt.y, startNext.x - startPt.x);
+  const arrowStartX1 = startPt.x + arrowLen * Math.cos(startAngle - 0.35);
+  const arrowStartY1 = startPt.y + arrowLen * Math.sin(startAngle - 0.35);
+  const arrowStartX2 = startPt.x + arrowLen * Math.cos(startAngle + 0.35);
+  const arrowStartY2 = startPt.y + arrowLen * Math.sin(startAngle + 0.35);
 
   return (
     <g className="group/gconn">
       <path
-        d={`M${x1},${y1} L${x2},${y2}`}
+        d={pathD}
         fill="none"
         stroke={color}
         strokeOpacity={strokeOpacity}
         strokeWidth={doorState === 'inaccessible' ? 1 : 1.5}
         strokeDasharray={dashArray}
       />
+      {/* End arrow (at last point) */}
       <polygon
-        points={`${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
+        points={`${endPt.x},${endPt.y} ${arrowEndX1},${arrowEndY1} ${arrowEndX2},${arrowEndY2}`}
         fill={color}
         fillOpacity={strokeOpacity + 0.1}
       />
+      {/* Start arrow (at first point) */}
       <polygon
-        points={`${x1},${y1} ${revArrowX1},${revArrowY1} ${revArrowX2},${revArrowY2}`}
+        points={`${startPt.x},${startPt.y} ${arrowStartX1},${arrowStartY1} ${arrowStartX2},${arrowStartY2}`}
         fill={color}
         fillOpacity={strokeOpacity + 0.1}
       />
-      {/* Label on hover */}
+      {/* Label on hover area */}
       <circle cx={mx} cy={my} r={28} fill="transparent" className="cursor-pointer" />
       <g className="opacity-0 group-hover/gconn:opacity-100 transition-opacity duration-150 pointer-events-none">
         <rect
@@ -355,7 +422,6 @@ export default function GameMap() {
   const dataVersion = useGameStore(s => s.dataVersion);
 
   // ── Derived from LOCATIONS (reactive via dataVersion + DATA_VERSION) ──
-  // Using both store dataVersion and module-level DATA_VERSION as cache-bust dependencies
   const _cacheBust = dataVersion + DATA_VERSION;
 
   const locations = useMemo(() => {
@@ -365,15 +431,45 @@ export default function GameMap() {
       name: loc.name,
       shortName: loc.shortName ?? null,
       mapIcon: loc.mapIcon ?? null,
+      mapX: loc.mapX ?? null,
+      mapY: loc.mapY ?? null,
+      mapDanger: loc.mapDanger ?? 0,
     }));
   }, [_cacheBust]);
 
-  // Compute effective selected location: user selection, or player's current, or first available
+  // Compute effective selected location: user selection, or player's current, or first with placed rooms
   const [selectedLocationId, setSelectedLocationId] = useState<string>(() => {
+    // Try current location first
+    if (currentLocationId && LOCATIONS[currentLocationId]) {
+      const hasPlaced = (LOCATIONS[currentLocationId].rooms ?? []).some(r => r.mapX != null && r.mapY != null);
+      if (hasPlaced) return currentLocationId;
+    }
+    // Fallback: first location with at least one placed room
+    for (const loc of Object.values(LOCATIONS)) {
+      if ((loc.rooms ?? []).some(r => r.mapX != null && r.mapY != null)) return loc.id;
+    }
+    // Last resort: first location
     const firstLoc = Object.values(LOCATIONS)[0];
-    if (!firstLoc) return '';
-    return currentLocationId && LOCATIONS[currentLocationId] ? currentLocationId : firstLoc.id;
+    return firstLoc?.id ?? '';
   });
+
+  // When map opens, re-evaluate if the selected location has no placed rooms
+  useEffect(() => {
+    if (!mapOpen) return;
+    const loc = LOCATIONS[selectedLocationId];
+    const hasPlaced = (loc?.rooms ?? []).some(r => r.mapX != null && r.mapY != null);
+    if (hasPlaced) return;
+    // Auto-switch to a location with placed rooms (deferred to avoid cascading render)
+    const timer = setTimeout(() => {
+      for (const l of Object.values(LOCATIONS)) {
+        if ((l.rooms ?? []).some(r => r.mapX != null && r.mapY != null)) {
+          setSelectedLocationId(l.id);
+          return;
+        }
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [mapOpen, selectedLocationId, _cacheBust]);
 
   // Rooms for the selected location — derived from LOCATIONS
   const rooms = useMemo((): RoomDefinition[] => {
@@ -410,11 +506,39 @@ export default function GameMap() {
     return map;
   }, [_cacheBust]);
 
+  // ── View mode: 'local' (rooms) or 'global' (locations) ──
+  const [viewMode, setViewMode] = useState<'local' | 'global'>('local');
+
+  // ── Cross-location connection pairs (global view) ──
+  const crossLocationPairs = useMemo(() => {
+    const pairs: Array<{ locA: string; locB: string; doorCount: number }> = [];
+    const pairCounts = new Map<string, number>();
+    for (const room of Object.values(LOCATIONS).flatMap(loc => loc.rooms ?? [])) {
+      const doors = getRoomDoors(room.id);
+      for (const door of doors) {
+        const locA = findRoomLocation(door.fromRoomId)?.locationId;
+        const locB = findRoomLocation(door.toRoomId)?.locationId;
+        if (!locA || !locB || locA === locB) continue;
+        const key = [locA, locB].sort().join('::');
+        pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+      }
+    }
+    return Array.from(pairCounts.entries()).map(([key, doorCount]) => {
+      const [a, b] = key.split('::');
+      return { locA: a, locB: b, doorCount };
+    });
+  }, [_cacheBust]);
+
+  // ── Placed locations for global view (only those with mapX/mapY) ──
+  const placedLocations = useMemo(() => {
+    return locations.filter(l => l.mapX != null && l.mapY != null);
+  }, [locations]);
+
   // ── Tooltip ──
   const [tooltipData, setTooltipData] = useState<RoomTooltipData | null>(null);
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Zoom & Pan ──
+  // ── Zoom & Pan (local view) ──
   const [zoom, setZoom] = useState(0.7);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
@@ -422,16 +546,23 @@ export default function GameMap() {
   const [isPanning, setIsPanning] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // ── Zoom & Pan (global view) ──
+  const [globalPanX, setGlobalPanX] = useState(0);
+  const [globalPanY, setGlobalPanY] = useState(0);
+  const globalPanRef = useRef<{ startMouseX: number; startMouseY: number; startPanX: number; startPanY: number } | null>(null);
+  const [isGlobalPanning, setIsGlobalPanning] = useState(false);
+  const globalContainerRef = useRef<HTMLDivElement>(null);
+
   // ── Derived: placed rooms with positions ──
   const placed = useMemo(
     () => rooms.filter(r => r.mapX != null && r.mapY != null),
     [rooms]
   );
 
-  // ── Build door connection lines ──
+  // ── Build door connection lines (elbow routing) ──
   const connectionLines = useMemo(() => {
     const lines: {
-      x1: number; y1: number; x2: number; y2: number;
+      points: Array<{ x: number; y: number }>;
       doorState: string; label: string; key: string; isCrossLocation: boolean;
     }[] = [];
     const seenPairs = new Set<string>();
@@ -452,8 +583,8 @@ export default function GameMap() {
         const toRoom = isFrom ? rooms.find(r => r.id === targetId) : room;
         if (!fromRoom) continue;
 
-        const fromSide = isFrom ? door.fromSide : door.toSide;
-        const toSide = isFrom ? door.toSide : door.fromSide;
+        const fromSide = door.fromSide;
+        const toSide = door.toSide;
 
         // Cross-location check: if target room is not in our rooms list
         const isCrossLocation = !localRoomIds.has(targetId);
@@ -466,30 +597,27 @@ export default function GameMap() {
         if (!fromPos) continue;
 
         if (isCrossLocation) {
-          // Draw a stub line from the door outward to indicate cross-location
-          const dim = getRoomDimensions(fromRoom);
-          let endX = fromPos.x;
-          let endY = fromPos.y;
-          const stubLen = 40;
-          switch (fromSide) {
-            case 'north': endY = fromPos.y - stubLen; break;
-            case 'south': endY = fromPos.y + stubLen; break;
-            case 'east':  endX = fromPos.x + stubLen; break;
-            case 'west':  endX = fromPos.x - stubLen; break;
-          }
+          // Stub line: straight line from door position outward (2 points)
+          const endPos = extendOutward(fromPos, fromSide, 40);
           const targetName = findRoomName(targetId);
           lines.push({
-            x1: fromPos.x, y1: fromPos.y,
-            x2: endX, y2: endY,
+            points: [
+              { x: fromPos.x, y: fromPos.y },
+              { x: endPos.x, y: endPos.y },
+            ],
             doorState: door.state,
             label: targetName || 'Altra zona',
             key: `cross-${room.id}-${door.id}`,
             isCrossLocation: true,
           });
         } else if (toPos) {
+          // Elbow/Z-path routing: 4 waypoints
+          const p0 = fromPos; // door position on room A's edge
+          const p1 = extendOutward(fromPos, fromSide, ELBOW_STUB_LEN); // extended outward from A
+          const p2 = extendOutward(toPos, toSide, ELBOW_STUB_LEN); // extended outward from B
+          const p3 = toPos; // door position on room B's edge
           lines.push({
-            x1: fromPos.x, y1: fromPos.y,
-            x2: toPos.x, y2: toPos.y,
+            points: [p0, p1, p2, p3],
             doorState: door.state,
             label: toRoom!.name,
             key: `${room.id}-${targetId}`,
@@ -540,13 +668,7 @@ export default function GameMap() {
     setTooltipData(null);
   }, []);
 
-  // ── Zoom / Pan handlers ──
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const delta = -Math.sign(e.deltaY) * ZOOM_STEP;
-    setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round((prev + delta) * 100) / 100)));
-  }, []);
-
+  // ── Local view Zoom / Pan handlers ──
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('[data-room-card]')) return;
@@ -611,7 +733,46 @@ export default function GameMap() {
     }
   }, [placed]);
 
-  // ── Auto-scroll to current room ──
+  // ── Local view wheel zoom ──
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = -Math.sign(e.deltaY) * ZOOM_STEP;
+    setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round((prev + delta) * 100) / 100)));
+  }, []);
+
+  // ── Global view Pan handlers ──
+  const handleGlobalCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) return;
+    if (e.button === 0 || e.button === 1) {
+      e.preventDefault();
+      globalPanRef.current = {
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startPanX: globalPanX,
+        startPanY: globalPanY,
+      };
+      setIsGlobalPanning(true);
+    }
+  }, [globalPanX, globalPanY]);
+
+  const handleGlobalCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (globalPanRef.current) {
+      const dx = e.clientX - globalPanRef.current.startMouseX;
+      const dy = e.clientY - globalPanRef.current.startMouseY;
+      setGlobalPanX(globalPanRef.current.startPanX + dx);
+      setGlobalPanY(globalPanRef.current.startPanY + dy);
+    }
+  }, []);
+
+  const handleGlobalCanvasMouseUp = useCallback(() => {
+    if (globalPanRef.current) {
+      globalPanRef.current = null;
+      setIsGlobalPanning(false);
+    }
+  }, []);
+
+  // ── Auto-scroll to current room (local view) ──
   useEffect(() => {
     if (!mapOpen || !currentRoomId || !containerRef.current) return;
     const timer = setTimeout(() => {
@@ -629,11 +790,63 @@ export default function GameMap() {
     return () => clearTimeout(timer);
   }, [mapOpen, selectedLocationId, rooms, currentRoomId]);
 
+  // ── Auto-center global view on mount / when switching to global ──
+  useEffect(() => {
+    if (viewMode !== 'global' || placedLocations.length === 0 || !globalContainerRef.current) return;
+    const timer = setTimeout(() => {
+      const rect = globalContainerRef.current!.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const loc of placedLocations) {
+        minX = Math.min(minX, loc.mapX!);
+        minY = Math.min(minY, loc.mapY!);
+        maxX = Math.max(maxX, loc.mapX! + LOC_CARD_W);
+        maxY = Math.max(maxY, loc.mapY! + LOC_CARD_H);
+      }
+      const contentW = maxX - minX;
+      const contentH = maxY - minY;
+      const centerX = minX + contentW / 2;
+      const centerY = minY + contentH / 2;
+      setGlobalPanX(rect.width / 2 - centerX);
+      setGlobalPanY(rect.height / 2 - centerY);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [viewMode, placedLocations]);
+
   // ── Current selected location name ──
   const selectedLocationName = useMemo(
     () => locations.find(l => l.id === selectedLocationId)?.name ?? 'Mappa',
     [locations, selectedLocationId]
   );
+
+  // ── Danger level color for location cards ──
+  function getDangerClasses(danger: number, isCurrent: boolean): string {
+    if (isCurrent) return 'border-red-500/50 bg-red-950/20 ring-1 ring-red-500/30';
+    switch (danger) {
+      case 3: return 'border-red-500/30 bg-red-950/10 hover:border-red-500/50';
+      case 2: return 'border-amber-500/25 bg-amber-950/10 hover:border-amber-500/45';
+      case 1: return 'border-yellow-500/20 bg-yellow-950/10 hover:border-yellow-500/40';
+      default: return 'border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15] hover:bg-white/[0.04]';
+    }
+  }
+
+  function getDangerAccent(danger: number): string {
+    switch (danger) {
+      case 3: return 'text-red-300';
+      case 2: return 'text-amber-300';
+      case 1: return 'text-yellow-300';
+      default: return 'text-white/70';
+    }
+  }
+
+  function getDangerDots(danger: number): string {
+    switch (danger) {
+      case 3: return '🔴🔴🔴';
+      case 2: return '🟡🟡';
+      case 1: return '🟡';
+      default: return '🟢';
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════
   // Render
@@ -651,21 +864,53 @@ export default function GameMap() {
             initial={{ scale: 0.92, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.92, opacity: 0 }}
-            className="w-full max-w-5xl max-h-[94vh] glass-dark rounded-xl overflow-hidden flex flex-col"
+            className="w-full max-w-5xl h-[92vh] glass-dark rounded-xl overflow-hidden flex flex-col"
           >
             {/* ── Header ── */}
             <div className="flex items-center justify-between p-2 sm:p-3 border-b border-white/[0.06] shrink-0 gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <MapPin className="w-4 h-4 text-red-400 shrink-0" />
+                {viewMode === 'global'
+                  ? <Globe className="w-4 h-4 text-amber-400 shrink-0" />
+                  : <MapPin className="w-4 h-4 text-red-400 shrink-0" />
+                }
                 <h3 className="text-sm sm:text-lg font-bold text-white truncate">
-                  {selectedLocationName}
+                  {viewMode === 'global' ? 'Mappa Globale' : selectedLocationName}
                 </h3>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Location selector */}
-                {locations.length > 0 && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* View mode toggle */}
+                <div className="flex rounded-md border border-white/[0.12] overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('local')}
+                    className={`flex items-center gap-1 px-2 sm:px-2.5 h-8 text-[10px] sm:text-xs transition-colors ${
+                      viewMode === 'local'
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-white/30 hover:text-white/50 hover:bg-white/[0.03]'
+                    }`}
+                    title="Mappa locale (stanze)"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Stanze</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('global')}
+                    className={`flex items-center gap-1 px-2 sm:px-2.5 h-8 text-[10px] sm:text-xs transition-colors ${
+                      viewMode === 'global'
+                        ? 'bg-white/[0.08] text-white'
+                        : 'text-white/30 hover:text-white/50 hover:bg-white/[0.03]'
+                    }`}
+                    title="Mappa globale (location)"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Globale</span>
+                  </button>
+                </div>
+                {/* Location selector (local mode only) */}
+                {viewMode === 'local' && locations.length > 0 && (
                   <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
-                    <SelectTrigger className="w-[130px] sm:w-[180px] h-8 text-[10px] sm:text-xs bg-white/[0.04] border-white/[0.1] text-white/70">
+                    <SelectTrigger className="w-[110px] sm:w-[160px] h-8 text-[10px] sm:text-xs bg-white/[0.04] border-white/[0.1] text-white/70">
                       <SelectValue placeholder="Seleziona..." />
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-white/[0.12]">
@@ -692,8 +937,8 @@ export default function GameMap() {
             </div>
 
             {/* ── Legend row ── */}
+            {viewMode === 'local' ? (
             <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 border-b border-white/[0.04] text-[9px] sm:text-[10px] overflow-x-auto inventory-scrollbar shrink-0">
-              {/* Room status */}
               <span className="flex items-center gap-1 text-green-400/70 shrink-0">
                 <Eye className="w-3 h-3" /> Visitata
               </span>
@@ -703,11 +948,7 @@ export default function GameMap() {
               <span className="flex items-center gap-1 text-red-400 shrink-0">
                 <MapPin className="w-3 h-3" /> Posizione attuale
               </span>
-
-              {/* Separator */}
               <span className="text-white/[0.06]">│</span>
-
-              {/* Door state legend */}
               {DOOR_STATE_ORDER.map(state => (
                 <span key={state} className="flex items-center gap-1 shrink-0" title={DOOR_STATE_DESCRIPTIONS[state]}>
                   <span
@@ -717,26 +958,145 @@ export default function GameMap() {
                   <span className="text-white/40">{DOOR_STATE_LABELS[state]}</span>
                 </span>
               ))}
-
-              {/* Separator */}
               <span className="text-white/[0.06]">│</span>
-
-              {/* Cross-location indicator */}
               <span className="flex items-center gap-1 text-amber-400/60 shrink-0">
                 <ExternalLink className="w-3 h-3" /> Altra zona
               </span>
             </div>
+            ) : (
+            <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 border-b border-white/[0.04] text-[9px] sm:text-[10px] overflow-x-auto inventory-scrollbar shrink-0">
+              <span className="flex items-center gap-1 text-red-400 shrink-0">
+                <MapPin className="w-3 h-3" /> Posizione attuale
+              </span>
+              <span className="text-white/[0.06]">│</span>
+              <span className="flex items-center gap-1 text-amber-400/60 shrink-0">
+                <span className="w-5 h-0 border-t-2 border-dashed border-amber-400/60 inline-block" /> Collegamento
+              </span>
+              <span className="text-white/[0.06]">│</span>
+              <span className="text-[9px] text-white/25 shrink-0">Pericolo: 🟢 🟡 🔴</span>
+            </div>
+            )}
 
             {/* ── Canvas area ── */}
             <div className="flex-1 relative min-h-0">
-              {placed.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <span className="text-sm text-white/30">Nessuna stanza posizionata per questa zona.</span>
+              {viewMode === 'global' ? (
+                /* ── Global view: canvas-based with positioned location cards ── */
+                <div
+                  ref={globalContainerRef}
+                  className="absolute inset-0 overflow-hidden bg-[#0a0a12]"
+                  onMouseDown={handleGlobalCanvasMouseDown}
+                  onMouseMove={handleGlobalCanvasMouseMove}
+                  onMouseUp={handleGlobalCanvasMouseUp}
+                  onMouseLeave={handleGlobalCanvasMouseUp}
+                  onWheel={(e) => e.preventDefault()}
+                  style={{ cursor: isGlobalPanning ? 'grabbing' : 'grab' }}
+                >
+                  {placedLocations.length === 0 ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center gap-2">
+                        <span className="text-sm text-white/30">Nessuna location posizionata sulla mappa globale.</span>
+                        <p className="text-xs text-white/20 mt-1">Le location devono avere coordinate mapX/mapY nell'editor.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="absolute"
+                      style={{
+                        width: LOC_CANVAS_W,
+                        height: LOC_CANVAS_H,
+                        transform: `translate(${globalPanX}px, ${globalPanY}px)`,
+                        transformOrigin: '0 0',
+                        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)',
+                        backgroundSize: '24px 24px',
+                      }}
+                    >
+                      {/* SVG connection lines between locations */}
+                      <svg
+                        className="absolute inset-0 pointer-events-none"
+                        style={{ width: LOC_CANVAS_W, height: LOC_CANVAS_H, zIndex: 1 }}
+                      >
+                        {crossLocationPairs.map(pair => {
+                          const locA = placedLocations.find(l => l.id === pair.locA);
+                          const locB = placedLocations.find(l => l.id === pair.locB);
+                          if (!locA || !locB || locA.mapX == null || locA.mapY == null || locB.mapX == null || locB.mapY == null) return null;
+                          const edge = computeLocationEdgePoints(locA.mapX, locA.mapY, locB.mapX, locB.mapY, LOC_CARD_W, LOC_CARD_H);
+                          const mx = (edge.x1 + edge.x2) / 2;
+                          const my = (edge.y1 + edge.y2) / 2;
+                          return (
+                            <g key={`${pair.locA}::${pair.locB}`}>
+                              <line
+                                x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2}
+                                stroke="rgba(245,158,11,0.35)"
+                                strokeWidth={1.5}
+                                strokeDasharray="8 4"
+                              />
+                              <circle cx={mx} cy={my} r={3} fill="rgba(245,158,11,0.6)" />
+                              {pair.doorCount > 1 && (
+                                <text
+                                  x={mx} y={my - 7}
+                                  textAnchor="middle"
+                                  fill="rgba(245,158,11,0.5)"
+                                  style={{ fontSize: '9px', fontFamily: 'system-ui' }}
+                                >
+                                  {pair.doorCount}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        })}
+                      </svg>
+
+                      {/* Location cards */}
+                      {placedLocations.map(loc => {
+                        const isCurrent = currentLocationId === loc.id;
+                        const roomCount = (LOCATIONS[loc.id]?.rooms ?? []).length;
+                        return (
+                          <button
+                            key={loc.id}
+                            onClick={() => { setViewMode('local'); setSelectedLocationId(loc.id); }}
+                            className={`
+                              absolute rounded-lg border select-none z-10
+                              ${getDangerClasses(loc.mapDanger, isCurrent)}
+                              hover:bg-white/[0.04] transition-all
+                            `}
+                            style={{ left: loc.mapX, top: loc.mapY, width: LOC_CARD_W, height: LOC_CARD_H }}
+                          >
+                            <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1">
+                              <span className="text-base leading-none shrink-0">{loc.mapIcon || '📍'}</span>
+                              <span className={`text-[11px] font-bold truncate ${isCurrent ? 'text-red-300' : getDangerAccent(loc.mapDanger)}`}>
+                                {loc.shortName || loc.name}
+                              </span>
+                              {isCurrent && (
+                                <MapPin className="w-3 h-3 text-red-400 ml-auto shrink-0" />
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between px-2.5 pb-2">
+                              <span className="text-[9px] text-white/25">{roomCount} stanze</span>
+                              <span className="text-[9px]">{getDangerDots(loc.mapDanger)}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : placed.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+                  <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-white/20" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white/40 font-medium">Nessuna stanza posizionata</p>
+                    <p className="text-xs text-white/20 mt-1">Le stanze di questa zona non hanno coordinate sulla mappa.</p>
+                  </div>
+                  {locations.some(l => l.id !== selectedLocationId) && (
+                    <p className="text-[10px] text-white/15">Prova a selezionare un'altra zona dal menu in alto.</p>
+                  )}
                 </div>
               ) : (
                 <div
                   ref={containerRef}
-                  className="absolute inset-0 overflow-hidden bg-[#0a0a12] inventory-scrollbar"
+                  className="absolute inset-0 overflow-hidden bg-[#0a0a12]"
                   onMouseDown={handleCanvasMouseDown}
                   onMouseMove={handleCanvasMouseMove}
                   onMouseUp={handleCanvasMouseUp}
@@ -764,10 +1124,7 @@ export default function GameMap() {
                       {connectionLines.map(line => (
                         <DoorConnectionLine
                           key={line.key}
-                          x1={line.x1}
-                          y1={line.y1}
-                          x2={line.x2}
-                          y2={line.y2}
+                          points={line.points}
                           doorState={line.doorState}
                           label={line.label}
                           isCrossLocation={line.isCrossLocation}
@@ -787,37 +1144,39 @@ export default function GameMap() {
                       />
                     ))}
                   </div>
+                </div>
+              )}
 
-                  {/* Zoom controls — bottom left */}
-                  <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={handleZoomOut}
-                      className="flex items-center justify-center w-7 h-7 rounded-md bg-black/70 border border-white/[0.12] text-white/50 hover:text-white hover:bg-black/90 transition-colors backdrop-blur-sm"
-                      title="Riduci zoom"
-                    >
-                      <ZoomOut className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-[10px] text-white/30 min-w-[36px] text-center font-mono">
-                      {Math.round(zoom * 100)}%
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleZoomIn}
-                      className="flex items-center justify-center w-7 h-7 rounded-md bg-black/70 border border-white/[0.12] text-white/50 hover:text-white hover:bg-black/90 transition-colors backdrop-blur-sm"
-                      title="Aumenta zoom"
-                    >
-                      <ZoomIn className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleZoomReset}
-                      className="flex items-center justify-center w-7 h-7 rounded-md bg-black/70 border border-white/[0.12] text-white/50 hover:text-white hover:bg-black/90 transition-colors backdrop-blur-sm"
-                      title="Centra mappa"
-                    >
-                      <RotateCw className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+              {/* Zoom controls — anchored outside scrollable area (local view) */}
+              {viewMode === 'local' && placed.length > 0 && (
+                <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleZoomOut}
+                    className="flex items-center justify-center w-7 h-7 rounded-md bg-black/70 border border-white/[0.12] text-white/50 hover:text-white hover:bg-black/90 transition-colors backdrop-blur-sm"
+                    title="Riduci zoom"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] text-white/30 min-w-[36px] text-center font-mono">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleZoomIn}
+                    className="flex items-center justify-center w-7 h-7 rounded-md bg-black/70 border border-white/[0.12] text-white/50 hover:text-white hover:bg-black/90 transition-colors backdrop-blur-sm"
+                    title="Aumenta zoom"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleZoomReset}
+                    className="flex items-center justify-center w-7 h-7 rounded-md bg-black/70 border border-white/[0.12] text-white/50 hover:text-white hover:bg-black/90 transition-colors backdrop-blur-sm"
+                    title="Centra mappa"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
             </div>

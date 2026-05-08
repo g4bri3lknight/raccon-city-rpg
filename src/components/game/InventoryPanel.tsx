@@ -11,7 +11,7 @@ import { CombatHpPanel } from './HpBar';
 import { CHARACTER_IMAGES, ITEMS, RECIPES_DATA, mediaUrl } from '@/game/data/loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Shield, FlaskConical, Blend, ArrowRightLeft, Backpack, Hammer, Lock, BookOpen, AlertCircle, Minus, Plus } from 'lucide-react';
+import { X, Shield, FlaskConical, ArrowRightLeft, Backpack, Hammer, Lock, BookOpen, AlertCircle, Minus, Plus } from 'lucide-react';
 import { getCharacterAtk, getCharacterDef, getCharacterSpd, getCharacterMaxHp } from '@/game/engine/combat';
 import { getArchetypeEmoji } from '@/game/utils/archetype-helpers';
 import { RARITY_LABEL, TYPE_LABELS } from '@/game/utils/rarity-helpers';
@@ -30,7 +30,6 @@ export default function InventoryPanel() {
   const equipAccessory = useGameStore(s => s.equipAccessory);
   const unequipAccessory = useGameStore(s => s.unequipAccessory);
   const consumeItemOutsideCombat = useGameStore(s => s.consumeItemOutsideCombat);
-  const combineHerbs = useGameStore(s => s.combineHerbs);
   const selectCharacter = useGameStore(s => s.selectCharacter);
   const transferItem = useGameStore(s => s.transferItem);
   const swapInventoryItems = useGameStore(s => s.swapInventoryItems);
@@ -473,21 +472,7 @@ export default function InventoryPanel() {
                     <FlaskConical className="w-3.5 h-3.5 mr-1.5" /> {selectedItem.type === 'bag' ? 'Equipaggia' : 'Usa'}
                   </Button>
                 )}
-                {selectedItem.itemId === 'herb_red' && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => { combineHerbs(selectedChar.id, selectedItem.uid); setSelectedItem(null); }}
-                    disabled={!selectedChar.inventory.some(i => i.itemId === 'herb_green')}
-                    className={`bg-transparent text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/15 transition-all ${
-                      selectedChar.inventory.some(i => i.itemId === 'herb_green')
-                        ? ''
-                        : 'cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    <Blend className="w-3.5 h-3.5 mr-1.5" /> Combina con Erba Verde
-                  </Button>
-                )}
+
                 {party.length > 1 && (
                   <Button
                     size="sm"

@@ -392,11 +392,16 @@ export default function MapEditor() {
     setTimeout(() => setStatusMsg(null), 4000);
   }, []);
 
-  // ── Fetch locations ──
+  // ── Fetch locations + doors for cross-location connections ──
+  const [crossLocationPairs, setCrossLocationPairs] = useState<Array<{ locA: string; locB: string; doorCount: number }>>([]);
   const fetchLocations = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminFetch(ENDPOINT);
+      const [res, doorRes, roomRes] = await Promise.all([
+        adminFetch(ENDPOINT),
+        adminFetch('/api/admin/doors').catch(() => null),
+        adminFetch('/api/admin/rooms').catch(() => null),
+      ]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: Record<string, unknown>[] = await res.json();
       const locs: LocationData[] = data.map(d => ({
@@ -416,6 +421,27 @@ export default function MapEditor() {
         fd[String(d.id)] = { ...d };
       }
       setFullData(fd);
+
+      // Build cross-location connection pairs from doors + rooms
+      if (doorRes?.ok && roomRes?.ok) {
+        const doors: Array<{ fromRoomId: string; toRoomId: string }> = await doorRes.json();
+        const rooms: Array<{ id: string; locationId: string }> = await roomRes.json();
+        const roomLocMap = new Map(rooms.map(r => [r.id, r.locationId]));
+        const pairCounts = new Map<string, number>();
+        for (const door of doors) {
+          const locA = roomLocMap.get(door.fromRoomId);
+          const locB = roomLocMap.get(door.toRoomId);
+          if (!locA || !locB || locA === locB) continue;
+          const key = [locA, locB].sort().join('::');
+          pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+        }
+        setCrossLocationPairs(
+          Array.from(pairCounts.entries()).map(([key, doorCount]) => {
+            const [a, b] = key.split('::');
+            return { locA: a, locB: b, doorCount };
+          })
+        );
+      }
     } catch (err) {
       showStatus(`Errore caricamento: ${err}`, 'error');
     } finally {
@@ -1195,6 +1221,67 @@ export default function MapEditor() {
                   </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#dotGrid)" />
+              </svg>
+
+              {/* Cross-location connection lines */}
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                width={CANVAS_W}
+                height={CANVAS_H}
+                style={{ zIndex: 5 }}
+              >
+                {crossLocationPairs.map(pair => {
+                  const locA = placed.find(l => l.id === pair.locA);
+                  const locB = placed.find(l => l.id === pair.locB);
+                  if (!locA || !locB) return null;
+                  // Compute edge intersection points (line from center A to center B clipped to each card's rectangle)
+                  const cxA = locA.mapX! + CARD_W / 2, cyA = locA.mapY! + CARD_H / 2;
+                  const cxB = locB.mapX! + CARD_W / 2, cyB = locB.mapY! + CARD_H / 2;
+                  const hwA = CARD_W / 2, hhA = CARD_H / 2;
+                  const hwB = CARD_W / 2, hhB = CARD_H / 2;
+                  const dx = cxB - cxA, dy = cyB - cyA;
+                  // Edge point for A
+                  let x1: number, y1: number;
+                  if (Math.abs(dx / hwA) > Math.abs(dy / hhA)) {
+                    x1 = dx > 0 ? locA.mapX! + CARD_W : locA.mapX!;
+                    y1 = cyA + dy * (hwA / Math.abs(dx));
+                  } else {
+                    y1 = dy > 0 ? locA.mapY! + CARD_H : locA.mapY!;
+                    x1 = cxA + dx * (hhA / Math.abs(dy));
+                  }
+                  // Edge point for B
+                  let x2: number, y2: number;
+                  if (Math.abs(dx / hwB) > Math.abs(dy / hhB)) {
+                    x2 = dx > 0 ? locB.mapX! : locB.mapX! + CARD_W;
+                    y2 = cyB - dy * (hwB / Math.abs(dx));
+                  } else {
+                    y2 = dy > 0 ? locB.mapY! : locB.mapY! + CARD_H;
+                    x2 = cxB - dx * (hhB / Math.abs(dy));
+                  }
+                  const mx = (x1 + x2) / 2;
+                  const my = (y1 + y2) / 2;
+                  return (
+                    <g key={`${pair.locA}::${pair.locB}`}>
+                      <line
+                        x1={x1} y1={y1} x2={x2} y2={y2}
+                        stroke="rgba(245,158,11,0.35)"
+                        strokeWidth={1.5}
+                        strokeDasharray="8 4"
+                      />
+                      <circle cx={mx} cy={my} r={3} fill="rgba(245,158,11,0.6)" />
+                      {pair.doorCount > 1 && (
+                        <text
+                          x={mx} y={my - 7}
+                          textAnchor="middle"
+                          fill="rgba(245,158,11,0.5)"
+                          style={{ fontSize: '9px', fontFamily: 'system-ui' }}
+                        >
+                          {pair.doorCount}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
               </svg>
 
               {/* Canvas click area (for deselecting) */}
