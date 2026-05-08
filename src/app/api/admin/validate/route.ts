@@ -81,6 +81,8 @@ export async function GET() {
       specials,
       achievements,
       enemyAbilities,
+      rooms,
+      doors,
     ] = await Promise.all([
       db.sideQuest.findMany(),
       db.gameNPC.findMany(),
@@ -100,6 +102,8 @@ export async function GET() {
       db.gameSpecial.findMany(),
       db.gameAchievement.findMany(),
       db.gameEnemyAbility.findMany(),
+      db.gameRoom.findMany(),
+      db.gameDoor.findMany(),
     ]);
 
     // Build index sets for fast lookups
@@ -715,6 +719,323 @@ export async function GET() {
             step.id,
             `Correggi chainId o crea la catena di quest "${step.chainId}"`,
             'quest-chains',
+          ),
+        );
+      }
+    }
+
+    // ── 26. Room with invalid locationId ──
+    const roomIds = new Set(rooms.map((r) => r.id));
+    const roomsByLocation = new Map<string, typeof rooms>();
+    for (const room of rooms) {
+      const arr = roomsByLocation.get(room.locationId) ?? [];
+      arr.push(room);
+      roomsByLocation.set(room.locationId, arr);
+    }
+    for (const room of rooms) {
+      if (!locationIds.has(room.locationId)) {
+        critical.push(
+          issue(
+            `Stanza "${room.name}" (${room.id}) — locationId "${room.locationId}" inesistente`,
+            'rooms',
+            room.id,
+            `Correggi locationId o crea la locazione "${room.locationId}"`,
+            'locations',
+          ),
+        );
+      }
+    }
+
+    // ── 27. Door with invalid from/to rooms ──
+    for (const door of doors) {
+      if (!roomIds.has(door.fromRoomId)) {
+        critical.push(
+          issue(
+            `Porta "${door.id}" — fromRoomId "${door.fromRoomId}" inesistente`,
+            'doors',
+            door.id,
+            `Correggi fromRoomId o crea la stanza`,
+            'locations',
+          ),
+        );
+      }
+      if (!roomIds.has(door.toRoomId)) {
+        critical.push(
+          issue(
+            `Porta "${door.id}" — toRoomId "${door.toRoomId}" inesistente`,
+            'doors',
+            door.id,
+            `Correggi toRoomId o crea la stanza`,
+            'locations',
+          ),
+        );
+      }
+    }
+
+    // ── 28. Key-locked door with invalid requiredItemId ──
+    for (const door of doors) {
+      if (door.state === 'key_locked' && door.requiredItemId && !itemIds.has(door.requiredItemId)) {
+        warnings.push(
+          issue(
+            `Porta "${door.id}" — requiredItemId "${door.requiredItemId}" inesistente`,
+            'doors',
+            door.id,
+            `Correggi requiredItemId o crea l'item "${door.requiredItemId}"`,
+            'locations',
+          ),
+        );
+      }
+    }
+
+    // ── 29. Room with invalid enemy/item/NPC references ──
+    for (const room of rooms) {
+      // enemyPool
+      const pool = jsonStrArray(room.enemyPool);
+      for (const eId of pool) {
+        if (!enemyIds.has(eId)) {
+          warnings.push(
+            issue(
+              `Stanza "${room.name}" (${room.id}) — enemyPool contiene nemico "${eId}" inesistente`,
+              'rooms',
+              room.id,
+              `Rimuovi "${eId}" dall'enemyPool o crea il nemico`,
+              'locations',
+            ),
+          );
+        }
+      }
+      // itemPool
+      const roomItems = safeJson<{ itemId: string }[]>(room.itemPool, []);
+      for (const entry of roomItems) {
+        if (entry.itemId && !itemIds.has(entry.itemId)) {
+          warnings.push(
+            issue(
+              `Stanza "${room.name}" (${room.id}) — itemPool contiene item "${entry.itemId}" inesistente`,
+              'rooms',
+              room.id,
+              `Correggi l'itemId o crea l'item "${entry.itemId}"`,
+              'locations',
+            ),
+          );
+        }
+      }
+      // npcIds
+      const roomNpcIds = jsonStrArray(room.npcIds);
+      for (const npcId of roomNpcIds) {
+        if (!npcIds.has(npcId)) {
+          warnings.push(
+            issue(
+              `Stanza "${room.name}" (${room.id}) — npcIds contiene NPC "${npcId}" inesistente`,
+              'rooms',
+              room.id,
+              `Rimuovi "${npcId}" dagli npcIds o crea l'NPC`,
+              'locations',
+            ),
+          );
+        }
+      }
+    }
+
+    // ── 30. NPC in different location than room ──
+    for (const room of rooms) {
+      const roomNpcIds = jsonStrArray(room.npcIds);
+      for (const npcId of roomNpcIds) {
+        const npc = npcs.find((n) => n.id === npcId);
+        if (npc && npc.locationId !== room.locationId) {
+          warnings.push(
+            issue(
+              `Stanza "${room.name}" (${room.id}) — NPC "${npc.name}" (${npcId}) appartiene alla locazione "${npc.locationId}" ma la stanza è in "${room.locationId}"`,
+              'rooms',
+              room.id,
+              `Sposta l'NPC nella stessa locazione della stanza o rimuovi dal npcIds`,
+              'locations',
+            ),
+          );
+        }
+      }
+    }
+
+    // ── 31. Isolated rooms (no doors) ──
+    const roomsWithDoors = new Set<string>();
+    for (const door of doors) {
+      roomsWithDoors.add(door.fromRoomId);
+      roomsWithDoors.add(door.toRoomId);
+    }
+    for (const room of rooms) {
+      if (!roomsWithDoors.has(room.id)) {
+        // Also check deprecated nextRooms
+        const nextRooms = jsonStrArray(room.nextRooms);
+        if (nextRooms.length === 0) {
+          info.push(
+            issue(
+              `Stanza "${room.name}" (${room.id}) — isolata (nessuna porta collegata)`,
+              'rooms',
+              room.id,
+              `Aggiungi porte per collegare la stanza`,
+              'locations',
+            ),
+          );
+        }
+      }
+    }
+
+    // ── 32. Boss room without boss enemy ──
+    for (const room of rooms) {
+      if (room.type === 'boss_room') {
+        const pool = jsonStrArray(room.enemyPool);
+        const hasBoss = pool.some((eId) => {
+          const enemy = enemies.find((e) => e.id === eId);
+          return enemy && enemy.isBoss;
+        });
+        if (!hasBoss) {
+          warnings.push(
+            issue(
+              `Stanza "${room.name}" (${room.id}) — boss_room ma nessun boss nell'enemyPool`,
+              'rooms',
+              room.id,
+              `Aggiungi un nemico boss (isBoss=true) all'enemyPool`,
+              'locations',
+            ),
+          );
+        }
+      }
+    }
+
+    // ── 33. Location without rooms ──
+    for (const loc of locations) {
+      const locRooms = roomsByLocation.get(loc.id);
+      if (!locRooms || locRooms.length === 0) {
+        info.push(
+          issue(
+            `Locazione "${loc.name}" (${loc.id}) — nessuna stanza definita`,
+            'locations',
+            loc.id,
+            `Aggiungi almeno una stanza alla locazione`,
+            'locations',
+          ),
+        );
+      }
+    }
+
+    // ── 34. Unreachable locations (BFS on cross-location doors) ──
+    if (locations.length > 1) {
+      const startLocs = locations.filter((l) => l.mapRow === 0);
+      const startLocIds = new Set(startLocs.map((l) => l.id));
+      // Build adjacency from cross-location doors
+      const adj = new Map<string, Set<string>>();
+      for (const loc of locations) adj.set(loc.id, new Set());
+      for (const door of doors) {
+        const fromRoom = rooms.find((r) => r.id === door.fromRoomId);
+        const toRoom = rooms.find((r) => r.id === door.toRoomId);
+        if (fromRoom && toRoom && fromRoom.locationId !== toRoom.locationId) {
+          adj.get(fromRoom.locationId)?.add(toRoom.locationId);
+          adj.get(toRoom.locationId)?.add(fromRoom.locationId);
+        }
+      }
+      // BFS from start locations
+      const visited = new Set<string>();
+      const queue: string[] = [];
+      for (const startId of startLocIds) {
+        visited.add(startId);
+        queue.push(startId);
+      }
+      if (queue.length > 0) {
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          for (const neighbor of adj.get(current) ?? []) {
+            if (!visited.has(neighbor)) {
+              visited.add(neighbor);
+              queue.push(neighbor);
+            }
+          }
+        }
+      }
+      for (const loc of locations) {
+        if (!visited.has(loc.id) && startLocIds.size > 0) {
+          warnings.push(
+            issue(
+              `Locazione "${loc.name}" (${loc.id}) — non raggiungibile dalla locazione iniziale (nessuna porta cross-location connessa)`,
+              'locations',
+              loc.id,
+              `Aggiungi porte cross-location per collegare questa locazione al grafo raggiungibile`,
+              'locations',
+            ),
+          );
+        }
+      }
+    }
+
+    // ── 35. nextLocations mismatch with actual cross-location doors ──
+    for (const loc of locations) {
+      const nextLocs = jsonStrArray(loc.nextLocations);
+      // Compute actual cross-location neighbors from doors
+      const actualNeighbors = new Set<string>();
+      const locRooms = roomsByLocation.get(loc.id) ?? [];
+      for (const room of locRooms) {
+        for (const door of doors) {
+          if (door.fromRoomId === room.id) {
+            const toRoom = rooms.find((r) => r.id === door.toRoomId);
+            if (toRoom && toRoom.locationId !== loc.id) actualNeighbors.add(toRoom.locationId);
+          }
+          if (door.toRoomId === room.id) {
+            const fromRoom = rooms.find((r) => r.id === door.fromRoomId);
+            if (fromRoom && fromRoom.locationId !== loc.id) actualNeighbors.add(fromRoom.locationId);
+          }
+        }
+      }
+      // Check for references in nextLocations that don't match actual cross-location doors
+      for (const refId of nextLocs) {
+        if (!actualNeighbors.has(refId)) {
+          info.push(
+          issue(
+            `Locazione "${loc.name}" (${loc.id}) — nextLocations contiene "${refId}" ma non esiste una porta cross-location che le collega`,
+            'locations',
+            loc.id,
+            `Aggiungi una porta cross-location tra le stanze delle due locazioni o rimuovi il riferimento`,
+            'locations',
+          ),
+        );
+        }
+      }
+      // Check for actual neighbors not listed in nextLocations
+      for (const neighborId of actualNeighbors) {
+        if (!nextLocs.includes(neighborId)) {
+          info.push(
+            issue(
+              `Locazione "${loc.name}" (${loc.id}) — porta cross-location verso "${neighborId}" ma non presente in nextLocations`,
+              'locations',
+              loc.id,
+              `Aggiungi "${neighborId}" ai nextLocations per riflettere il collegamento reale`,
+              'locations',
+            ),
+          );
+        }
+      }
+    }
+
+    // ── 36. Deprecated nextRooms/lockedRooms fields still used ──
+    for (const room of rooms) {
+      const nextRooms = jsonStrArray(room.nextRooms);
+      if (nextRooms.length > 0) {
+        info.push(
+          issue(
+            `Stanza "${room.name}" (${room.id}) — usa nextRooms deprecato (${nextRooms.length} riferimenti). Usa GameDoor invece`,
+            'rooms',
+            room.id,
+            `Migra i collegamenti a GameDoor e svuota nextRooms`,
+            'locations',
+          ),
+        );
+      }
+      const lockedRooms = safeJson<{ roomId: string; requiredItemId: string }[]>(room.lockedRooms, []);
+      if (lockedRooms.length > 0) {
+        info.push(
+          issue(
+            `Stanza "${room.name}" (${room.id}) — usa lockedRooms deprecato (${lockedRooms.length} riferimenti). Usa GameDoor con state="key_locked" invece`,
+            'rooms',
+            room.id,
+            `Migra i collegamenti a GameDoor e svuota lockedRooms`,
+            'locations',
           ),
         );
       }

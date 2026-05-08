@@ -97,6 +97,9 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
   const [importingJson, setImportingJson] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Pending edit ID for cross-tab navigation (fix race condition) ──
+  const pendingEditIdRef = useRef<string | null>(null);
+
   // ── Dialog states for new features ──
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -236,12 +239,8 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
 
   // ── Global search result handler (#1) ──
   const handleGlobalSearchSelect = useCallback((tabId: TabId, entityId: string) => {
+    pendingEditIdRef.current = entityId;
     setActiveTab(tabId);
-    // After tab switch, open edit for the entity
-    setTimeout(() => {
-      setEditingId(entityId);
-      setCreating(false);
-    }, 100);
   }, []);
 
   // ── Template create handler (#7) ──
@@ -266,13 +265,8 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
 
   // ── Validator navigate handler (#8) ──
   const handleValidatorNavigate = useCallback((tabId: string, entityId?: string) => {
+    pendingEditIdRef.current = entityId ?? null;
     setActiveTab(tabId as TabId);
-    if (entityId) {
-      setTimeout(() => {
-        setEditingId(entityId);
-        setCreating(false);
-      }, 100);
-    }
   }, []);
 
   // ── Dialog close ──
@@ -284,17 +278,21 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
   // ── Entity link navigate from forms (#11) ──
   const handleEntityNavigate = useCallback((tabId: string, entityId: string) => {
     handleDialogClose();
+    pendingEditIdRef.current = entityId;
     setActiveTab(tabId as TabId);
-    setTimeout(() => {
-      setEditingId(entityId);
-      setCreating(false);
-    }, 100);
   }, []);
 
   // Fetch data when tab changes
   useEffect(() => {
     fetchCounts();
-    fetchData();
+    fetchData().then(() => {
+      // After data loads, check if a pending edit was requested (from validator/search/entity-link)
+      if (pendingEditIdRef.current) {
+        setEditingId(pendingEditIdRef.current);
+        setCreating(false);
+        pendingEditIdRef.current = null;
+      }
+    });
     fetchRefs();
     setCreating(false);
     setEditingId(null);
