@@ -4,7 +4,17 @@ import { Archetype, CustomCharacterConfig, DifficultyLevel } from '../../types';
 import { fetchGameSettings } from '../settings-cache';
 import { buildStartState } from '../initial-state';
 import { createCharacter, createCustomCharacter, addItemToParty } from '../helpers';
-import { NGPLUS_CONFIG } from '../../data/loader';
+import { NGPLUS_CONFIG, LOCATIONS } from '../../data/loader';
+
+/** Trigger NPC encounter for the first room if it has un-encountered NPCs */
+function checkFirstRoomNpcs(get: () => GameStore) {
+  const state = get();
+  const location = LOCATIONS[state.currentLocationId];
+  const firstRoom = location?.rooms?.find(r => r.id === state.currentRoomId);
+  if (firstRoom?.npcIds && firstRoom.npcIds.length > 0) {
+    get().encounterNpc(firstRoom.npcIds[0]);
+  }
+}
 
 export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
   startGame: () => {
@@ -103,6 +113,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const party = selectedArchetypes.filter(id => id !== 'custom').map(id => createCharacter(id));
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
     set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate della città...'));
+    // Trigger NPC encounter if the starting room has NPCs
+    checkFirstRoomNpcs(get);
     // NG+ bonus: give bonus items if cycle >= configured threshold
     if ((state.ngPlusCycle || 0) >= Number(NGPLUS_CONFIG.bonusItemCycle)) {
       const postState = get();
@@ -120,6 +132,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], GameStore> = (set,
     const party = [...presetParty, ...customParty];
     const activeDifficulty = state.selectedDifficulty || state.difficulty;
     set(buildStartState(party, activeDifficulty, state.randomizerMode, 'Iniziate il vostro viaggio attraverso le strade desolate della città...'));
+    // Trigger NPC encounter if the starting room has NPCs
+    checkFirstRoomNpcs(get);
     // NG+ bonus: give bonus items if cycle >= configured threshold
     if ((state.ngPlusCycle || 0) >= Number(NGPLUS_CONFIG.bonusItemCycle)) {
       const postState = get();

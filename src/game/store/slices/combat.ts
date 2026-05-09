@@ -1059,7 +1059,10 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       for (const enemyId of defeatedEnemyIds) {
         for (const npc of Object.values(NPCS)) {
           if (npc.quest?.type === 'kill' && npc.quest.targetId === enemyId) {
-            const qp = { ...(updatedNpcQuestProgress[npc.quest.id] || { currentCount: 0, completed: false }) };
+            // Only track progress for quests that have been accepted by the player
+            const existingQp = updatedNpcQuestProgress[npc.quest.id];
+            if (!existingQp) continue; // Quest not accepted yet — skip silently
+            const qp = { ...existingQp };
             if (!qp.completed) {
               qp.currentCount += 1;
               if (qp.currentCount >= npc.quest.targetCount) {
