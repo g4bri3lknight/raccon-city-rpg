@@ -95,7 +95,6 @@ async function seedLocations(): Promise<SeedResult> {
       name: loc.name, description: loc.description, encounterRate: loc.encounterRate,
       enemyPool: JSON.stringify(loc.enemyPool), itemPool: JSON.stringify(loc.itemPool),
       storyEvent: loc.storyEvent ? JSON.stringify(loc.storyEvent) : '',
-      nextLocations: JSON.stringify(loc.nextLocations),
       isBossArea: loc.isBossArea, bossId: loc.bossId ?? null,
       ambientText: JSON.stringify(loc.ambientText ?? []),
       lockedLocations: JSON.stringify(loc.lockedLocations ?? []),
@@ -117,10 +116,9 @@ async function seedNpcs(): Promise<SeedResult> {
     const npc = entries[i];
     const existing = await db.gameNPC.findUnique({ where: { id: npc.id } });
     const data = {
-      name: npc.name, portrait: npc.portrait, locationId: npc.locationId,
+      name: npc.name, portrait: npc.portrait,
       greeting: npc.greeting, dialogues: JSON.stringify(npc.dialogues),
       farewell: npc.farewell,
-      questId: null,
       tradeInventory: JSON.stringify(npc.tradeInventory ?? []),
       questCompletedDialogue: JSON.stringify(npc.questCompletedDialogue ?? []),
       sortOrder: i,

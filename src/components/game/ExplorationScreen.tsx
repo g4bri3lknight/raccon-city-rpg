@@ -74,6 +74,7 @@ export default function ExplorationScreen() {
     currentRoomId: s.currentRoomId,
     exploredRooms: s.exploredRooms,
     navigateToRoom: s.navigateToRoom,
+    encounterNpc: s.encounterNpc,
   })));
 
   const {
@@ -88,7 +89,7 @@ export default function ExplorationScreen() {
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
     toggleSettings, toggleHelp, handleDynamicEventChoice, enterSafeRoom, quickHeal,
-    currentRoomId, exploredRooms, navigateToRoom,
+    currentRoomId, exploredRooms, navigateToRoom, encounterNpc,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
@@ -156,10 +157,12 @@ export default function ExplorationScreen() {
   const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
   const activeMissions = Object.entries(npcQuestProgress)
     .filter(([_, progress]) => !progress.completed).length;
-  // NPCs present in this location that have already been encountered
-  const localNpcs = Object.values(NPCS).filter(
-    n => n.locationId === currentLocationId && npcsEncountered.includes(n.id)
-  );
+  // NPCs present in the current room
+  const roomNpcs = currentRoom?.npcIds
+    ? currentRoom.npcIds
+        .map(npcId => NPCS[npcId])
+        .filter(Boolean)
+    : [];
 
   // Search counter display — room-aware: use searchKey based on room
   const roomSearchKey = currentRoom ? `${currentLocationId}__${currentRoom.id}` : currentLocationId;
@@ -839,6 +842,17 @@ export default function ExplorationScreen() {
                   className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
                 >
                   <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Safe Room</span><span className="sm:hidden">Safe</span>
+                </Button>
+              )}
+
+              {/* Parla button: talk to NPCs in current room */}
+              {roomNpcs.length > 0 && (
+                <Button
+                  onClick={() => encounterNpc(roomNpcs[0].id)}
+                  disabled={isActionBlocked}
+                  className="bg-amber-500/[0.06] hover:bg-amber-500/10 border border-amber-500/20 text-amber-300/80 hover:text-amber-200 hover:border-amber-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Parla con {roomNpcs.length === 1 ? roomNpcs[0].name : 'NPC'}</span><span className="sm:hidden">Parla</span>
                 </Button>
               )}
 

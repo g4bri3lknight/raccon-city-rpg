@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { ENEMIES, LOCATIONS, NPCS, ITEMS, DOCUMENTS } from '@/game/data/loader';
+import { ENEMIES, LOCATIONS, NPCS, ITEMS, DOCUMENTS, getNpcLocationId } from '@/game/data/loader';
 import {
   Heart, Package, Key, Crosshair, Bug, Skull, MapPin,
   Shield, Zap, ChevronDown, ChevronUp, X, Flame, Users, Settings,
@@ -439,7 +439,10 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                   icon={<span className="text-sm">💬</span>}
                   onClick={() => {
                     const locId = useGameStore.getState().currentLocationId;
-                    const localNpcs = npcList.filter(n => n.locationId === locId);
+                    const localNpcs = npcList.filter(n => {
+                      const room = LOCATIONS[locId]?.rooms?.find(r => r.npcIds?.includes(n.id));
+                      return !!room;
+                    });
                     if (localNpcs.length > 0) {
                       useGameStore.getState().encounterNpc(localNpcs[0].id);
                     }
@@ -458,8 +461,9 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                     // Close any active dialog first
                     useGameStore.setState({ activeNpc: null });
                     // Teleport to NPC location if needed
-                    if (state.currentLocationId !== randomNpc.locationId) {
-                      useGameStore.getState().debugTeleport(randomNpc.locationId);
+                    const npcLocId = getNpcLocationId(randomNpc.id);
+                    if (npcLocId && state.currentLocationId !== npcLocId) {
+                      useGameStore.getState().debugTeleport(npcLocId);
                     }
                     // Encounter after a short delay to allow teleport to settle
                     setTimeout(() => {
@@ -500,8 +504,9 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                     key={npc.id}
                     onClick={() => {
                       const state = useGameStore.getState();
-                      if (state.currentLocationId !== npc.locationId) {
-                        useGameStore.getState().debugTeleport(npc.locationId);
+                      const npcLocId = getNpcLocationId(npc.id);
+                      if (npcLocId && state.currentLocationId !== npcLocId) {
+                        useGameStore.getState().debugTeleport(npcLocId);
                       }
                       setTimeout(() => {
                         useGameStore.getState().encounterNpc(npc.id);
@@ -511,7 +516,7 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                   >
                     <span className="text-xs">{npc.portrait}</span>
                     <span className="flex-1 truncate">{npc.name}</span>
-                    <span className="text-[8px] text-white/20 truncate max-w-[80px]">{LOCATIONS[npc.locationId]?.name}</span>
+                    <span className="text-[8px] text-white/20 truncate max-w-[80px]">{LOCATIONS[getNpcLocationId(npc.id) ?? '']?.name}</span>
                     <span className="text-[9px] text-cyan-400/60 shrink-0">↕️</span>
                   </button>
                 ))}

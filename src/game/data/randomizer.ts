@@ -201,51 +201,6 @@ function distributeKeyItems(
   return keyItemDistribution;
 }
 
-// ── Build connections between shuffled locations ensuring the graph is connected ──
-function buildConnections(
-  shuffledLocations: string[],
-  finalLocId: string,
-): Record<string, string[]> {
-  const connections: Record<string, string[]> = {};
-
-  // Strategy: create a linear path (chain) plus some cross-connections for variety
-  // This guarantees reachability from start to end
-  for (let i = 0; i < shuffledLocations.length; i++) {
-    connections[shuffledLocations[i]] = [];
-
-    // Forward connection (to next location in chain)
-    if (i + 1 < shuffledLocations.length) {
-      connections[shuffledLocations[i]].push(shuffledLocations[i + 1]);
-    }
-
-    // Backward connection (from previous location)
-    if (i - 1 >= 0) {
-      // Only add backward connection if not already added by the previous location's forward
-      if (!connections[shuffledLocations[i]].includes(shuffledLocations[i - 1])) {
-        connections[shuffledLocations[i]].push(shuffledLocations[i - 1]);
-      }
-    }
-  }
-
-  // Add some extra cross-connections for exploration variety (skip connections)
-  for (let i = 0; i < shuffledLocations.length - 2; i++) {
-    if (Math.random() < 0.4) {
-      const targetIdx = i + 2;
-      if (targetIdx < shuffledLocations.length) {
-        if (!connections[shuffledLocations[i]].includes(shuffledLocations[targetIdx])) {
-          connections[shuffledLocations[i]].push(shuffledLocations[targetIdx]);
-          connections[shuffledLocations[targetIdx]].push(shuffledLocations[i]);
-        }
-      }
-    }
-  }
-
-  // Final boss area has no outgoing connections
-  connections[finalLocId] = [];
-
-  return connections;
-}
-
 // ── Main randomization function ──
 export function generateRandomizedData(): RandomizedLocationData {
   // 1. Get locations dynamically from DB
@@ -265,16 +220,13 @@ export function generateRandomizedData(): RandomizedLocationData {
   const bossIds = getBossEnemyIds();
   const bossId = bossIds.length > 0 ? bossIds[0] : 'tyrant_boss';
 
-  // 4. Build connections (ensuring connected graph)
-  const connections = buildConnections(shuffledLocations, finalLocId);
-
-  // 5. Distribute critical key items
+  // 4. Distribute critical key items
   const keyItemDistribution = distributeKeyItems(shuffledMainLocations);
 
-  // 6. Assign locked paths
+  // 5. Assign locked paths
   const lockedPaths = assignLockedPaths(shuffledLocations, shuffledMainLocations, finalLocId);
 
-  // 7. For each location, generate randomized pools
+  // 6. For each location, generate randomized pools
   const randomizedLocations: RandomizedLocationData['locations'] = {};
 
   for (let i = 0; i < shuffledLocations.length; i++) {
@@ -287,7 +239,6 @@ export function generateRandomizedData(): RandomizedLocationData {
         // Add distributed key items
         ...(keyItemDistribution[locId] || []),
       ],
-      nextLocations: connections[locId] || [],
       isBossArea: locId === finalLocId,
       encounterRate: locId === finalLocId ? 0 : 30 + Math.floor(i * 5) + Math.floor(Math.random() * 10),
       lockedLocations: lockedPaths[i]?.length ? lockedPaths[i] : undefined,
@@ -310,7 +261,6 @@ export function getEffectiveLocation(
   return loc ? {
     enemyPool: loc.enemyPool,
     itemPool: loc.itemPool.map(entry => ({ itemId: entry.itemId, chance: entry.chance, quantity: entry.quantity })),
-    nextLocations: loc.nextLocations,
     isBossArea: loc.isBossArea,
     bossEnemy: loc.bossId,
     lockedLocations: loc.lockedLocations,

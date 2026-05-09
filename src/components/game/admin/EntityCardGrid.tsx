@@ -485,40 +485,7 @@ function CardInfoBadges({
         </span>
       );
     }
-    let exits: string[] = [];
-    try {
-      exits =
-        typeof row.nextLocations === 'string'
-          ? JSON.parse(row.nextLocations)
-          : (row.nextLocations as string[] ?? []);
-    } catch {
-      /* empty */
-    }
-    if (exits.length > 0) {
-      badges.push(
-        <span key="exits" className="text-[10px] text-white/35">
-          🚪 {exits.length} uscite
-        </span>
-      );
-    }
-  }
 
-  // NPC location + quest indicator
-  if (activeTab === 'npcs') {
-    if (row.locationId) {
-      badges.push(
-        <span key="loc" className="text-[10px] text-white/35 font-mono truncate max-w-[120px]">
-          📍 {String(row.locationId)}
-        </span>
-      );
-    }
-    if (row.questId) {
-      badges.push(
-        <span key="quest" className="text-[10px] text-emerald-400">
-          📜 Quest
-        </span>
-      );
-    }
   }
 
   // Enemy ability power/chance

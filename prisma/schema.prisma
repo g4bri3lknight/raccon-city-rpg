@@ -29,23 +29,6 @@ model Item {
   @@map("items")
 }
 
-model SideQuest {
-  id              String   @id
-  npcId           String
-  name            String
-  description     String
-  type            String   // fetch | kill | explore
-  targetId        String
-  targetCount     Int      @default(1)
-  rewardItems     String   // JSON: [{"itemId":"ammo_pistol","quantity":6}]
-  rewardExp       Int      @default(0)
-  rewardDialogue  String   // JSON: ["line1","line2"]
-  sortOrder       Int      @default(0)
-  prerequisiteQuestId String? // quest id that must be completed first
-  createdAt       DateTime @default(now())
-  @@map("side_quests")
-}
-
 model DynamicEvent {
   id               String   @id
   title            String
@@ -125,7 +108,6 @@ model GameLocation {
   enemyPool       String   @default("[]")   // JSON: ["zombie","zombie_dog"]
   itemPool        String   @default("[]")   // JSON: [{itemId,chance,quantity}]
   storyEvent      String   @default("")     // JSON: full StoryEvent object
-  nextLocations   String   @default("[]")   // JSON: ["rpd_station","hospital_district"]
   isBossArea      Boolean  @default(false)
   bossId          String?
   ambientText     String   @default("[]")   // JSON: ["text1","text2"]
@@ -217,11 +199,9 @@ model GameNPC {
   id                     String   @id
   name                   String
   portrait               String   @default("")     // emoji or custom
-  locationId             String
   greeting               String
   dialogues              String   @default("[]")   // JSON: ["line1","line2"]
   farewell               String   @default("")
-  questId                String?                   // references SideQuest.id
   tradeInventory         String   @default("[]")   // JSON: [{itemId,priceItemId,priceQuantity}]
   questCompletedDialogue String   @default("[]")   // JSON: ["line1"]
   badgeLabel             String   @default("")     // e.g. "Meccanico", "Medico"
@@ -466,14 +446,15 @@ model GameAvatar {
 }
 
 model QuestChain {
-  id          String   @id
-  npcId       String
-  name        String
-  description String   @default("")
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  steps       QuestChainStep[]
-  finalReward QuestChainFinalReward?
+  id                   String   @id
+  npcId                String
+  name                 String
+  description          String   @default("")
+  sortOrder            Int      @default(0)
+  prerequisiteQuestId  String?  // quest chain that must be completed first (single-step chains only)
+  createdAt            DateTime @default(now())
+  steps                QuestChainStep[]
+  finalReward          QuestChainFinalReward?
   @@map("quest_chains")
 }
 

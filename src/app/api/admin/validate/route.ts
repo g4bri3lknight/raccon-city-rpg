@@ -156,44 +156,6 @@ export async function GET() {
       );
     }
 
-    // ── 3. Orphaned NPCs: questId doesn't match any quest chain ──
-    for (const npc of npcs) {
-      if (npc.questId && !questIds.has(npc.questId)) {
-        warnings.push(
-          issue(
-            `NPC "${npc.name}" (${npc.id}) — questId "${npc.questId}" non trovata`,
-            'npcs',
-            npc.id,
-            `Apri la scheda dell'NPC e correggi il campo Quest ID, oppure usa Auto-fix per pulire i riferimenti obsoleti`,
-            'npcs',
-          ),
-        );
-      }
-    }
-
-    // ── 5. Non-empty nextLocations with invalid references (legacy field) ──
-    for (const loc of locations) {
-      const nextLocs = jsonStrArray(loc.nextLocations);
-      if (nextLocs.length > 0) {
-        // nextLocations is legacy — connectivity is now determined by cross-location doors.
-        // Only warn about broken refs, not about emptiness.
-        const brokenRefs = nextLocs.filter(refId => !locationIds.has(refId));
-        if (brokenRefs.length > 0) {
-          for (const refId of brokenRefs) {
-            info.push(
-              issue(
-                `Locazione "${loc.name}" (${loc.id}) — nextLocations (legacy) riferisce a "${refId}" inesistente. Nota: la connettività è ora determinata dalle porte cross-location`,
-                'locations',
-                loc.id,
-                `Rimuovi "${refId}" da nextLocations o ignora (il campo è deprecato)`,
-                'locations',
-              ),
-            );
-          }
-        }
-      }
-    }
-
     // ── 6. Empty Enemy Pools: encounterRate > 0 but empty enemyPool ──
     for (const loc of locations) {
       if (loc.encounterRate > 0) {
@@ -451,21 +413,6 @@ export async function GET() {
       }
     }
 
-    // ── 16. NPC locationId references ──
-    for (const npc of npcs) {
-      if (!locationIds.has(npc.locationId)) {
-        warnings.push(
-          issue(
-            `NPC "${npc.name}" (${npc.id}) — locationId "${npc.locationId}" inesistente`,
-            'npcs',
-            npc.id,
-            `Correggi locationId o crea la locazione "${npc.locationId}"`,
-            'npcs',
-          ),
-        );
-      }
-    }
-
     // ── 17. QuestChain npcId references ──
     for (const qc of questChains) {
       if (!npcIds.has(qc.npcId)) {
@@ -490,6 +437,26 @@ export async function GET() {
             'quest-chains',
             qc.id,
             `Correggi il prerequisiteQuestId o crea la catena prerequisite`,
+            'quest-chains',
+          ),
+        );
+      }
+    }
+
+    // ── 18b. QuestChain with no steps ──
+    const stepsByChain = new Map<string, number>();
+    for (const step of questChainSteps) {
+      stepsByChain.set(step.chainId, (stepsByChain.get(step.chainId) || 0) + 1);
+    }
+    for (const qc of questChains) {
+      const stepCount = stepsByChain.get(qc.id) || 0;
+      if (stepCount === 0) {
+        warnings.push(
+          issue(
+            `Catena di quest "${qc.name}" (${qc.id}) — nessuno step definito. L'NPC non potrà assegnare questa missione.`,
+            'quest-chains',
+            qc.id,
+            `Aggiungi almeno uno step alla catena nel campo Steps`,
             'quest-chains',
           ),
         );
@@ -767,25 +734,6 @@ export async function GET() {
       }
     }
 
-    // ── 30. NPC in different location than room ──
-    for (const room of rooms) {
-      const roomNpcIds = jsonStrArray(room.npcIds);
-      for (const npcId of roomNpcIds) {
-        const npc = npcs.find((n) => n.id === npcId);
-        if (npc && npc.locationId !== room.locationId) {
-          warnings.push(
-            issue(
-              `Stanza "${room.name}" (${room.id}) — NPC "${npc.name}" (${npcId}) appartiene alla locazione "${npc.locationId}" ma la stanza è in "${room.locationId}"`,
-              'rooms',
-              room.id,
-              `Sposta l'NPC nella stessa locazione della stanza o rimuovi dal npcIds`,
-              'rooms',
-            ),
-          );
-        }
-      }
-    }
-
     // ── 31. Isolated rooms (no doors) ──
     const roomsWithDoors = new Set<string>();
     for (const door of doors) {
@@ -896,41 +844,6 @@ export async function GET() {
       }
     }
 
-    // ── 35. nextLocations stale/missing vs actual cross-location doors (info only) ──
-    for (const loc of locations) {
-      const nextLocs = jsonStrArray(loc.nextLocations);
-      // Compute actual cross-location neighbors from doors
-      const actualNeighbors = new Set<string>();
-      const locRooms = roomsByLocation.get(loc.id) ?? [];
-      for (const room of locRooms) {
-        for (const door of doors) {
-          if (door.fromRoomId === room.id) {
-            const toRoom = rooms.find((r) => r.id === door.toRoomId);
-            if (toRoom && toRoom.locationId !== loc.id) actualNeighbors.add(toRoom.locationId);
-          }
-          if (door.toRoomId === room.id) {
-            const fromRoom = rooms.find((r) => r.id === door.fromRoomId);
-            if (fromRoom && fromRoom.locationId !== loc.id) actualNeighbors.add(fromRoom.locationId);
-          }
-        }
-      }
-      // Only flag if nextLocations is non-empty and completely stale (no overlap with doors)
-      if (nextLocs.length > 0) {
-        const overlap = nextLocs.filter(id => actualNeighbors.has(id)).length;
-        if (overlap === 0 && actualNeighbors.size > 0) {
-          info.push(
-            issue(
-              `Locazione "${loc.name}" (${loc.id}) — nextLocations non corrisponde alle porte cross-location effettive. Il campo è deprecato: la connettività è determinata dalle porte`,
-              'locations',
-              loc.id,
-              `Puoi svuotare nextLocations — le porte cross-location gestiscono la connettività`,
-              'locations',
-            ),
-          );
-        }
-      }
-    }
-
     // ── 36. Deprecated nextRooms/lockedRooms fields still used ──
     for (const room of rooms) {
       const nextRooms = jsonStrArray(room.nextRooms);
@@ -1003,19 +916,6 @@ export async function POST(request: NextRequest) {
     const fixType: string = body.fixType || '';
 
     const fixes: string[] = [];
-
-    if (!fixType || fixType === 'npc-questid') {
-      // Fix 1: Clear stale questId from NPCs that reference non-existent quest chains
-      const questChains = await db.questChain.findMany({ select: { id: true } });
-      const chainIds = new Set(questChains.map(qc => qc.id));
-      const npcs = await db.gameNPC.findMany({ where: { questId: { not: null } } });
-      for (const npc of npcs) {
-        if (npc.questId && !chainIds.has(npc.questId)) {
-          await db.gameNPC.update({ where: { id: npc.id }, data: { questId: null } });
-          fixes.push(`Pulito questId "${npc.questId}" da NPC "${npc.name}" (${npc.id})`);
-        }
-      }
-    }
 
     if (!fixType || fixType === 'secretroom-questid') {
       // Fix 2: Clear stale requiredNpcQuestId from SecretRooms

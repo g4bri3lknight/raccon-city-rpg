@@ -89,15 +89,6 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     const destination = LOCATIONS[locationId];
     if (!destination) return;
 
-    // #45 Randomizer: validate against randomized connections
-    if (state.randomizedLocationData) {
-      const effectiveCurrent = getEffectiveLocation(state.currentLocationId, state.randomizedLocationData);
-      if (effectiveCurrent && !effectiveCurrent.nextLocations.includes(locationId)) {
-        set({ messageLog: [...state.messageLog, `[${state.turnCount}] 🚫 Non puoi viaggiare in quella direzione.`] });
-        return;
-      }
-    }
-
     try { playLocationAmbient(locationId); } catch {}
 
     const effectiveCurrentLoc = getEffectiveLocation(state.currentLocationId, state.randomizedLocationData);

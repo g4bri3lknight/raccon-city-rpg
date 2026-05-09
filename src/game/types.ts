@@ -562,7 +562,6 @@ export interface LocationDefinition {
   enemyPool: string[]; // EnemyDefinition ids
   itemPool: LootEntry[]; // Items that can be found
   storyEvent?: StoryEvent;
-  nextLocations: string[];
   isBossArea: boolean;
   bossId?: string;
   ambientText: string[];
@@ -881,7 +880,6 @@ export interface RandomizedLocationData {
   locations: Record<string, {
     enemyPool: string[];
     itemPool: { itemId: string; chance: number; quantity: number }[];
-    nextLocations: string[];
     isBossArea: boolean;
     bossEnemy?: string;
     lockedLocations?: { locationId: string; requiredItemId: string; lockedMessage: string }[];
@@ -948,8 +946,8 @@ export interface NPCQuest {
   id: string;
   name: string;
   description: string;
-  type: 'fetch' | 'kill' | 'explore';
-  targetId: string; // itemId to fetch, enemyId to kill, locationId to explore
+  type: 'fetch' | 'kill' | 'explore' | 'talk';
+  targetId: string; // itemId to fetch, enemyId to kill, locationId to explore, npcId to talk to
   targetCount: number;
   rewardItems: { itemId: string; quantity: number }[];
   rewardExp: number;
@@ -971,7 +969,6 @@ export interface GameNPC {
   id: string;
   name: string;
   portrait: string; // emoji
-  locationId: string;
   greeting: string;
   dialogues: string[];
   quest?: NPCQuest;

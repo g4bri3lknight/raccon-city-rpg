@@ -16,7 +16,10 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
   },
   encounterNpc: (npcId: string, specificQuestId?: string) => {
     const npc = NPCS[npcId];
-    if (!npc) return;
+    if (!npc) {
+      console.warn('[NPC] encounterNpc: NPC not found in registry', npcId);
+      return;
+    }
 
     const state = get();
     const alreadyEncountered = state.npcsEncountered.includes(npcId);
@@ -31,6 +34,18 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
       const completedQuestIds = Object.keys(state.npcQuestProgress).filter(id => state.npcQuestProgress[id]?.completed);
       // Also check if this NPC has an in-progress quest and reattach it
       const dbQuest = getFirstAvailableQuest(npcId, completedQuestIds);
+      // Debug: log quest lookup result
+      const allQuestsForNpc = Object.values(QUESTS).filter(q => q.npcId === npcId);
+      console.log('[NPC] encounterNpc:', {
+        npcId,
+        npcName: npc.name,
+        alreadyEncountered,
+        completedQuestIds,
+        allQuestsForNpc: allQuestsForNpc.map(q => ({ id: q.id, name: q.name, type: q.type, prereq: q.prerequisiteQuestId })),
+        foundQuest: dbQuest ? { id: dbQuest.id, name: dbQuest.name } : null,
+        npcBaseQuest: npc.quest ? { id: npc.quest.id, name: npc.quest.name } : null,
+        totalQUESTS: Object.keys(QUESTS).length,
+      });
       if (dbQuest) {
         npcWithQuest = { ...npc, quest: dbQuest };
       } else {
@@ -214,6 +229,53 @@ export const createNpcSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
           messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${msg}"`],
         }));
         return { handled: true, chatMessage: msg };
+      }
+    }
+
+    // ── Check for talk quest completion ──
+    if (npc.quest && npc.quest.type === 'talk' && !state.npcQuestProgress[npc.quest.id]?.completed) {
+      const questProgress = state.npcQuestProgress[npc.quest.id];
+      if (questProgress) {
+        const targetNpcEncountered = state.npcsEncountered.includes(npc.quest.targetId);
+        if (targetNpcEncountered) {
+          // Player has encountered the target NPC → complete the quest
+          const logMsgs: string[] = [`[${state.turnCount}] 💬 ${npc.name}: "${npc.quest.rewardDialogue?.[0] || 'Hai parlato con la persona giusta!'}"`];
+          logMsgs.push(`[${state.turnCount}] 📋 Missione completata: "${npc.quest.name}"!`);
+          let updatedParty = [...state.party];
+          if (npc.quest.rewardItems) {
+            for (const reward of npc.quest.rewardItems) {
+              const rewardDef = ITEMS[reward.itemId];
+              if (!rewardDef) continue;
+              const result = addItemToParty(updatedParty, reward.itemId, reward.quantity);
+              updatedParty = result.party;
+              if (result.added) logMsgs.push(`[${state.turnCount}] 🎁 Ricompensa: ${rewardDef.name} x${reward.quantity} → ${result.characterName}`);
+            }
+          }
+          if (npc.quest.rewardExp > 0) {
+            logMsgs.push(`[${state.turnCount}] ⬆️ +${npc.quest.rewardExp} EXP (missione completata)`);
+            updatedParty = updatedParty.map(p => {
+              if (p.currentHp <= 0) return p;
+              return { ...p, exp: p.exp + npc.quest.rewardExp };
+            });
+          }
+          set({
+            party: updatedParty,
+            npcQuestProgress: {
+              ...state.npcQuestProgress,
+              [npc.quest.id]: { currentCount: 1, completed: true },
+            },
+            messageLog: [...state.messageLog, ...logMsgs],
+          });
+          get().incrementRunStat('questsCompleted');
+          get().modifyNpcReputation(npc.id, REPUTATION_CONFIG.questRepGain);
+          return { handled: true, chatMessage: `${npc.quest.rewardDialogue?.[0] || 'Hai parlato con la persona giusta!'} Missione "${npc.quest.name}" completata!` };
+        } else {
+          const msg = `Non hai ancora parlato con ${npc.quest.targetId.replace(/_/g, ' ')}. Trova questa persona e torna da me!`;
+          set(state => ({
+            messageLog: [...state.messageLog, `[${state.turnCount}] 💬 ${npc.name}: "${msg}"`],
+          }));
+          return { handled: true, chatMessage: msg };
+        }
       }
     }
 

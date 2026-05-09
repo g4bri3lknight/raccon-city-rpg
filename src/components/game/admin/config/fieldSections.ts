@@ -59,9 +59,8 @@ export const FIELD_SECTIONS: Partial<Record<TabId, FieldSection[]>> = {
   ],
   npcs: [
     { id: 'info', label: 'Informazioni', icon: '📋', fieldKeys: ['id', 'name', 'portrait'] },
-    { id: 'location', label: 'Location & Badge', icon: '📍', fieldKeys: ['locationId', 'sortOrder', 'badgeLabel', 'badgeIcon', 'badgeColor'] },
+    { id: 'badge', label: 'Badge', icon: '🏷️', fieldKeys: ['sortOrder', 'badgeLabel', 'badgeIcon', 'badgeColor'] },
     { id: 'dialogues', label: 'Dialoghi', icon: '💬', fieldKeys: ['greeting', 'dialogues', 'farewell', 'questCompletedDialogue', 'dynamicDialogues'] },
-    { id: 'quest', label: 'Quest', icon: '📜', fieldKeys: ['questId'] },
     { id: 'trade', label: 'Commercio', icon: '🤝', fieldKeys: ['tradeInventory'] },
   ],
   archetypes: [

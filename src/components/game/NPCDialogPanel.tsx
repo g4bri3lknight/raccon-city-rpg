@@ -113,6 +113,9 @@ export default function NPCDialogPanel() {
       if (visitedLocations?.includes(quest!.targetId)) return '🗺️ Rapporto';
       return '💬 Parla';
     }
+    if (quest!.type === 'talk') {
+      return '💬 Parla';
+    }
     if (quest!.type === 'kill') {
       const remaining = quest!.targetCount - questProgress.currentCount;
       return `⚔️ Stato (${remaining})`;
@@ -301,6 +304,11 @@ export default function NPCDialogPanel() {
                     {quest.type === 'explore' && (
                       <span className="text-[10px] text-white/40">
                         Esplora: {quest.targetId.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    {quest.type === 'talk' && (
+                      <span className="text-[10px] text-white/40">
+                        Parla con: {quest.targetId.replace(/_/g, ' ')}
                       </span>
                     )}
                   </div>

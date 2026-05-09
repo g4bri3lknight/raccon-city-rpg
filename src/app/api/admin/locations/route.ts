@@ -50,7 +50,6 @@ export async function GET() {
       description: loc.description,
       backgroundImage: `/api/media/image?id=bg_${loc.id}`,
       encounterRate: loc.encounterRate,
-      nextLocations: JSON.parse(loc.nextLocations || '[]'),
       isBossArea: loc.isBossArea,
       bossId: loc.bossId ?? null,
       lockedLocations: JSON.parse(loc.lockedLocations || '[]'),
@@ -104,7 +103,6 @@ export async function POST(request: NextRequest) {
         enemyPool: jsonStr(body.enemyPool, '[]'),
         itemPool: jsonStr(body.itemPool, '[]'),
         storyEvent: body.storyEvent ? jsonStr(body.storyEvent, '') : '',
-        nextLocations: jsonStr(body.nextLocations, '[]'),
         isBossArea: !!body.isBossArea,
         bossId: body.bossId ?? null,
         ambientText: jsonStr(body.ambientText, '[]'),
@@ -148,7 +146,6 @@ export async function PUT(request: NextRequest) {
     if (updateFields.enemyPool !== undefined) data.enemyPool = jsonStr(updateFields.enemyPool, '[]');
     if (updateFields.itemPool !== undefined) data.itemPool = jsonStr(updateFields.itemPool, '[]');
     if (updateFields.storyEvent !== undefined) data.storyEvent = updateFields.storyEvent ? jsonStr(updateFields.storyEvent, '') : '';
-    if (updateFields.nextLocations !== undefined) data.nextLocations = jsonStr(updateFields.nextLocations, '[]');
     if (updateFields.isBossArea !== undefined) data.isBossArea = updateFields.isBossArea;
     if (updateFields.bossId !== undefined) data.bossId = updateFields.bossId;
     if (updateFields.ambientText !== undefined) data.ambientText = jsonStr(updateFields.ambientText, '[]');

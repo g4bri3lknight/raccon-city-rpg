@@ -173,14 +173,6 @@ export async function GET() {
 
     // ─── NPCs ───
     for (const npc of npcs) {
-      addCrossRef(npc.locationId, 'npcs');
-      checkRef(npc.id, 'locationId', npc.locationId, locationIds);
-
-      if (npc.questId) {
-        addCrossRef(npc.questId, 'npcs');
-        checkRef(npc.id, 'questId', npc.questId, questIds);
-      } // questId now references QuestChain.id
-
       const tradeItemIds = parseJsonIds(npc.tradeInventory);
       for (const itemId of tradeItemIds) addCrossRef(itemId, 'npcs');
       // tradeInventory also references priceItemId
@@ -207,10 +199,6 @@ export async function GET() {
         addCrossRef(loc.bossId, 'locations');
         checkRef(loc.id, 'bossId', loc.bossId, enemyIds);
       }
-
-      const nextLocIds = parseJsonIds(loc.nextLocations);
-      for (const nLocId of nextLocIds) addCrossRef(nLocId, 'locations');
-      checkJsonRefs(loc.id, 'nextLocations', nextLocIds, locationIds);
 
       const enemyPoolIds = parseJsonIds(loc.enemyPool);
       for (const eId of enemyPoolIds) addCrossRef(eId, 'locations');

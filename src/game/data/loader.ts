@@ -230,7 +230,6 @@ interface DbLocation {
   enemyPool: string;
   itemPool: string;
   storyEvent: string;
-  nextLocations: string;
   isBossArea: boolean;
   bossId: string | null;
   ambientText: string;
@@ -254,11 +253,9 @@ interface DbNPC {
   id: string;
   name: string;
   portrait: string;
-  locationId: string;
   greeting: string;
   dialogues: string;
   farewell: string;
-  questId: string | null;
   tradeInventory: string;
   questCompletedDialogue: string;
   badgeLabel: string;
@@ -613,7 +610,6 @@ function mapDbLocation(loc: DbLocation): LocationDefinition {
     enemyPool: JSON.parse(loc.enemyPool || '[]'),
     itemPool: JSON.parse(loc.itemPool || '[]'),
     storyEvent: loc.storyEvent ? JSON.parse(loc.storyEvent) : undefined,
-    nextLocations: JSON.parse(loc.nextLocations || '[]'),
     isBossArea: loc.isBossArea,
     bossId: loc.bossId ?? undefined,
     ambientText: JSON.parse(loc.ambientText || '[]'),
@@ -642,7 +638,6 @@ function mapDbNpc(row: DbNPC): GameNPC {
     id: row.id,
     name: row.name,
     portrait: row.portrait,
-    locationId: row.locationId,
     greeting: row.greeting,
     dialogues,
     farewell: row.farewell,
@@ -1139,16 +1134,18 @@ function loadQuestChains(api: Awaited<ReturnType<typeof loadFromApi>>): void {
 
     // Derive QUESTS from single-step chains (backward compat for npc.ts / MissionsPanel)
     QUESTS = {};
+    console.log('[Loader] loadQuestChains: building QUESTS from', Object.keys(QUEST_CHAINS_DATA).length, 'chains');
     for (const chain of Object.values(QUEST_CHAINS_DATA)) {
+      if (chain.steps.length === 0) continue; // skip chains with no steps
       if (chain.steps.length === 1 && !chain.steps[0].branchChoice) {
         const step = chain.steps[0];
-        if (['fetch', 'kill', 'explore'].includes(step.type)) {
+        if (['fetch', 'kill', 'explore', 'talk'].includes(step.type)) {
           QUESTS[chain.id] = {
             id: chain.id,
             npcId: chain.npcId,
             name: chain.name,
             description: step.description,
-            type: step.type as 'fetch' | 'kill' | 'explore',
+            type: step.type as 'fetch' | 'kill' | 'explore' | 'talk',
             targetId: step.targetId || '',
             targetCount: step.targetCount,
             rewardItems: step.reward.items || [],
@@ -1158,8 +1155,29 @@ function loadQuestChains(api: Awaited<ReturnType<typeof loadFromApi>>): void {
             prerequisiteQuestId: chain.prerequisiteQuestId || undefined,
           };
         }
+      } else if (chain.steps.length > 1) {
+        // Multi-step chain: create a basic QUEST entry from the first step
+        // so the NPC dialog shows the quest and the player can accept it
+        const firstStep = chain.steps[0];
+        if (!firstStep.branchChoice && ['fetch', 'kill', 'explore', 'talk'].includes(firstStep.type)) {
+          QUESTS[chain.id] = {
+            id: chain.id,
+            npcId: chain.npcId,
+            name: chain.name,
+            description: firstStep.description,
+            type: firstStep.type as 'fetch' | 'kill' | 'explore' | 'talk',
+            targetId: firstStep.targetId || '',
+            targetCount: firstStep.targetCount,
+            rewardItems: firstStep.reward.items || [],
+            rewardExp: firstStep.reward.exp,
+            rewardDialogue: firstStep.reward.dialogue || [],
+            sortOrder: 0,
+            prerequisiteQuestId: chain.prerequisiteQuestId || undefined,
+          };
+        }
       }
     }
+    console.log('[Loader] QUESTS derived:', Object.keys(QUESTS).length, 'entries →', Object.values(QUESTS).map(q => ({ id: q.id, npcId: q.npcId, name: q.name, type: q.type })));
   }
 }
 
@@ -1436,7 +1454,6 @@ export async function initGameData(): Promise<void> {
         loadEvents(api),
         loadDocuments(api),
         loadLocations(api),
-        loadNpcs(api),
         loadCharacters(api),
         loadSpecials(api),
         loadEnemyAbilities(api),
@@ -1446,11 +1463,13 @@ export async function initGameData(): Promise<void> {
         loadAchievements(api),
         loadEndings(api),
         loadAvatars(api),
-        loadQuestChains(api),
         loadGameSettings(),
       ]);
+      // QuestChains MUST load before NPCs (mapDbNpc reads QUESTS to attach quest to NPC)
+      loadQuestChains(api);
+      // NPCs MUST load after QuestChains (depends on QUESTS being populated)
+      loadNpcs(api);
       // Rooms must load AFTER locations (depends on LOCATIONS being populated)
-      // Also AFTER loadQuestChains (which populates QUESTS used by loadNpcs)
       loadRooms(api);
       // Doors must load AFTER rooms (attaches doors to room definitions)
       loadDoors(api);
@@ -1480,7 +1499,6 @@ export async function refreshGameData(): Promise<void> {
     loadEvents(api),
     loadDocuments(api),
     loadLocations(api),
-    loadNpcs(api),
     loadCharacters(api),
     loadSpecials(api),
     loadEnemyAbilities(api),
@@ -1490,9 +1508,12 @@ export async function refreshGameData(): Promise<void> {
     loadAchievements(api),
     loadEndings(api),
     loadAvatars(api),
-    loadQuestChains(api),
     loadGameSettings(),
   ]);
+  // QuestChains MUST load before NPCs (mapDbNpc reads QUESTS to attach quest to NPC)
+  loadQuestChains(api);
+  // NPCs MUST load after QuestChains (depends on QUESTS being populated)
+  loadNpcs(api);
   // Rooms must load AFTER locations (depends on LOCATIONS being populated)
   loadRooms(api);
   // Doors must load AFTER rooms (attaches doors to room definitions)
@@ -1585,4 +1606,32 @@ export function mediaUrl(idOrPath: string, version: number): string {
 /** Get all rooms for a given location */
 export function getLocationRooms(locationId: string): RoomDefinition[] {
   return LOCATIONS[locationId]?.rooms || [];
+}
+
+/** Find which location an NPC belongs to (via room assignment) */
+export function getNpcLocationId(npcId: string): string | undefined {
+  for (const loc of Object.values(LOCATIONS)) {
+    if (loc.rooms) {
+      for (const room of loc.rooms) {
+        if (room.npcIds?.includes(npcId)) {
+          return loc.id;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/** Get the room and location an NPC is assigned to */
+export function getNpcRoom(npcId: string): { roomId: string; locationId: string } | undefined {
+  for (const loc of Object.values(LOCATIONS)) {
+    if (loc.rooms) {
+      for (const room of loc.rooms) {
+        if (room.npcIds?.includes(npcId)) {
+          return { roomId: room.id, locationId: loc.id };
+        }
+      }
+    }
+  }
+  return undefined;
 }
