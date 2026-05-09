@@ -220,20 +220,7 @@ interface DbDocument {
   hintRequired: string | null;
 }
 
-interface DbQuest {
-  id: string;
-  npcId: string;
-  name: string;
-  description: string;
-  type: string;
-  targetId: string;
-  targetCount: number;
-  rewardItems: string;
-  rewardExp: number;
-  rewardDialogue: string;
-  sortOrder: number;
-  prerequisiteQuestId: string | null;
-}
+// DbQuest interface removed — quests are now derived from single-step QuestChains
 
 interface DbLocation {
   id: string;
@@ -282,9 +269,34 @@ interface DbNPC {
   dynamicDialogues: string;
 }
 
+interface DbArchetype {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  maxHp: number;
+  atk: number;
+  def: number;
+  spd: number;
+  hpGrowth: number;
+  atkGrowth: number;
+  defGrowth: number;
+  spdGrowth: number;
+  specialId: string;
+  special2Id: string;
+  passiveName: string;
+  passiveDescription: string;
+  startingItems: string;
+  portraitEmoji: string;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface DbCharacter {
   id: string;
-  archetype: string;
+  archetypeId: string | null;
+  archetypeFallback: string;
   name: string;
   displayName: string;
   description: string;
@@ -589,22 +601,7 @@ function mapDbDocument(doc: DbDocument): GameDocument {
   };
 }
 
-function mapDbQuest(quest: DbQuest): NPCQuest {
-  return {
-    id: quest.id,
-    npcId: quest.npcId,
-    name: quest.name,
-    description: quest.description,
-    type: quest.type as NPCQuest['type'],
-    targetId: quest.targetId,
-    targetCount: quest.targetCount,
-    rewardItems: JSON.parse(quest.rewardItems || '[]'),
-    rewardExp: quest.rewardExp,
-    rewardDialogue: JSON.parse(quest.rewardDialogue || '[]'),
-    sortOrder: quest.sortOrder,
-    prerequisiteQuestId: quest.prerequisiteQuestId ?? undefined,
-  };
-}
+// mapDbQuest removed — quests are now derived from single-step QuestChains
 
 function mapDbLocation(loc: DbLocation): LocationDefinition {
   return {
@@ -659,8 +656,8 @@ function mapDbNpc(row: DbNPC): GameNPC {
   };
 }
 
-function mapDbCharacter(row: DbCharacter): CharacterArchetype {
-  const rawItems = JSON.parse(row.startingItems || '[]');
+function mapDbCharacter(row: DbCharacter, startingItemsOverride?: string): CharacterArchetype {
+  const rawItems = JSON.parse(startingItemsOverride || row.startingItems || '[]');
   // Support both full ItemInstance[] and simplified {itemId, quantity, isEquipped}[]
   const startingItems: ItemInstance[] = rawItems.map((r: Record<string, unknown>) => {
     // If it has a uid and itemId, treat as full ItemInstance — but enrich from ITEMS dict
@@ -1005,11 +1002,6 @@ export function getRoomDoors(roomId: string): DoorDefinition[] {
   return ROOM_DOORS_MAP[roomId] || [];
 }
 
-/** Get all doors */
-export function getAllDoors(): DoorDefinition[] {
-  return DOORS_DATA;
-}
-
 /**
  * Get rooms reachable from a specific room via doors.
  * Returns array of { roomId, door, isFromSide } where isFromSide indicates
@@ -1138,10 +1130,35 @@ function loadQuestChains(api: Awaited<ReturnType<typeof loadFromApi>>): void {
         description: chain.description,
         steps: multiSteps,
         finalReward,
+        ...(chain.prerequisiteQuestId ? { prerequisiteQuestId: chain.prerequisiteQuestId } : {}),
       };
 
       // Build NPC→chain map
       NPC_QUEST_CHAIN_MAP[chain.npcId] = chain.id;
+    }
+
+    // Derive QUESTS from single-step chains (backward compat for npc.ts / MissionsPanel)
+    QUESTS = {};
+    for (const chain of Object.values(QUEST_CHAINS_DATA)) {
+      if (chain.steps.length === 1 && !chain.steps[0].branchChoice) {
+        const step = chain.steps[0];
+        if (['fetch', 'kill', 'explore'].includes(step.type)) {
+          QUESTS[chain.id] = {
+            id: chain.id,
+            npcId: chain.npcId,
+            name: chain.name,
+            description: step.description,
+            type: step.type as 'fetch' | 'kill' | 'explore',
+            targetId: step.targetId || '',
+            targetCount: step.targetCount,
+            rewardItems: step.reward.items || [],
+            rewardExp: step.reward.exp,
+            rewardDialogue: step.reward.dialogue || [],
+            sortOrder: 0,
+            prerequisiteQuestId: chain.prerequisiteQuestId || undefined,
+          };
+        }
+      }
     }
   }
 }
@@ -1288,7 +1305,6 @@ async function loadFromApi(): Promise<{
   items: DbItem[];
   events: DbEvent[];
   documents: DbDocument[];
-  quests: DbQuest[];
   locations: DbLocation[];
   npcs: DbNPC[];
   characters: DbCharacter[];
@@ -1306,6 +1322,7 @@ async function loadFromApi(): Promise<{
   questChainFinalRewards: DbQuestChainFinalReward[];
   rooms: DbRoom[];
   doors: DbDoor[];
+  archetypes: DbArchetype[];
 } | null> {
   try {
     const resp = await fetch('/api/game-data');
@@ -1343,14 +1360,7 @@ async function loadDocuments(api: Awaited<ReturnType<typeof loadFromApi>>): Prom
   }
 }
 
-async function loadQuests(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
-  QUESTS = {};
-  if (api?.quests && api.quests.length > 0) {
-    for (const quest of api.quests) {
-      QUESTS[quest.id] = mapDbQuest(quest);
-    }
-  }
-}
+// loadQuests removed — QUESTS is now derived from single-step QuestChains in loadQuestChains
 
 async function loadLocations(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
   LOCATIONS = {};
@@ -1372,9 +1382,21 @@ async function loadNpcs(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<v
 
 async function loadCharacters(api: Awaited<ReturnType<typeof loadFromApi>>): Promise<void> {
   CHARACTERS_DATA = [];
+  // Build archetype startingItems lookup: archetypeId → parsed starting items JSON
+  const archetypeItemsMap = new Map<string, string>();
+  if (api?.archetypes && api.archetypes.length > 0) {
+    for (const arch of api.archetypes) {
+      archetypeItemsMap.set(arch.id, arch.startingItems || '[]');
+    }
+  }
   if (api?.characters && api.characters.length > 0) {
     for (const row of api.characters) {
-      CHARACTERS_DATA.push(mapDbCharacter(row));
+      // If character has an archetypeId, prefer archetype's startingItems over character's own
+      let effectiveStartingItems = row.startingItems || '[]';
+      if (row.archetypeId && archetypeItemsMap.has(row.archetypeId)) {
+        effectiveStartingItems = archetypeItemsMap.get(row.archetypeId)!;
+      }
+      CHARACTERS_DATA.push(mapDbCharacter(row, effectiveStartingItems));
     }
   }
   // Rebuild stat points (does NOT depend on specials)
@@ -1413,7 +1435,6 @@ export async function initGameData(): Promise<void> {
       await Promise.all([
         loadEvents(api),
         loadDocuments(api),
-        loadQuests(api),
         loadLocations(api),
         loadNpcs(api),
         loadCharacters(api),
@@ -1429,6 +1450,7 @@ export async function initGameData(): Promise<void> {
         loadGameSettings(),
       ]);
       // Rooms must load AFTER locations (depends on LOCATIONS being populated)
+      // Also AFTER loadQuestChains (which populates QUESTS used by loadNpcs)
       loadRooms(api);
       // Doors must load AFTER rooms (attaches doors to room definitions)
       loadDoors(api);
@@ -1457,7 +1479,6 @@ export async function refreshGameData(): Promise<void> {
   await Promise.all([
     loadEvents(api),
     loadDocuments(api),
-    loadQuests(api),
     loadLocations(api),
     loadNpcs(api),
     loadCharacters(api),

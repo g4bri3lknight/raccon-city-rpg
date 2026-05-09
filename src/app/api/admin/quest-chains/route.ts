@@ -2,6 +2,11 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { safeErrorResponse } from '@/lib/api-utils';
 
+/** Generate a short unique id for quest chain steps */
+function stepId(): string {
+  return 'step_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
 /** Safely parse JSON string — return fallback on failure */
 function safeJsonParse(val: unknown, fallback: unknown): unknown {
   if (val === null || val === undefined) return fallback;
@@ -45,6 +50,7 @@ export async function GET() {
         name: chain.name,
         description: chain.description,
         sortOrder: chain.sortOrder,
+        prerequisiteQuestId: chain.prerequisiteQuestId,
         steps,
         finalReward,
       };
@@ -59,7 +65,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, npcId, name, description, sortOrder, steps, finalReward } = body;
+    const { id, npcId, name, description, sortOrder, prerequisiteQuestId, steps, finalReward } = body;
 
     if (!id || !npcId || !name) {
       return NextResponse.json({ error: 'Missing required fields: id, npcId, name' }, { status: 400 });
@@ -73,6 +79,7 @@ export async function POST(request: NextRequest) {
         name,
         description: description || '',
         sortOrder: sortOrder || 0,
+        prerequisiteQuestId: prerequisiteQuestId || null,
       },
     });
 
@@ -81,7 +88,7 @@ export async function POST(request: NextRequest) {
       for (const step of steps) {
         await db.questChainStep.create({
           data: {
-            id: step.id,
+            id: step.id || stepId(),
             chainId: chain.id,
             stepIndex: step.stepIndex ?? 0,
             description: step.description || '',
@@ -121,7 +128,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, npcId, name, description, sortOrder, steps, finalReward } = body;
+    const { id, npcId, name, description, sortOrder, prerequisiteQuestId, steps, finalReward } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -135,6 +142,7 @@ export async function PUT(request: NextRequest) {
         ...(name !== undefined ? { name } : {}),
         ...(description !== undefined ? { description } : {}),
         ...(sortOrder !== undefined ? { sortOrder } : {}),
+        ...(prerequisiteQuestId !== undefined ? { prerequisiteQuestId: prerequisiteQuestId || null } : {}),
       },
     });
 
@@ -144,7 +152,7 @@ export async function PUT(request: NextRequest) {
       for (const step of steps) {
         await db.questChainStep.create({
           data: {
-            id: step.id,
+            id: step.id || stepId(),
             chainId: id,
             stepIndex: step.stepIndex ?? 0,
             description: step.description || '',

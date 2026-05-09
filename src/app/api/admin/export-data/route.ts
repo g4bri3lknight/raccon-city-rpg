@@ -10,7 +10,6 @@ export async function POST() {
       items,
       events,
       documents,
-      quests,
       locations,
       npcs,
       characters,
@@ -23,11 +22,11 @@ export async function POST() {
       sounds,
       images,
       notifications,
+      questChains,
     ] = await Promise.all([
       db.item.findMany({ orderBy: { createdAt: 'asc' } }),
       db.dynamicEvent.findMany({ orderBy: { createdAt: 'asc' } }),
       db.document.findMany({ orderBy: { createdAt: 'asc' } }),
-      db.sideQuest.findMany({ orderBy: { createdAt: 'asc' } }),
       db.gameLocation.findMany({ orderBy: { createdAt: 'asc' } }),
       db.gameNPC.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
       db.gameCharacter.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
@@ -40,6 +39,7 @@ export async function POST() {
       db.gameSound.findMany({ orderBy: { createdAt: 'asc' } }),
       db.gameImage.findMany({ orderBy: { createdAt: 'asc' } }),
       db.notificationConfig.findMany({ orderBy: { sortOrder: 'asc' } }),
+      db.questChain.findMany({ include: { steps: true, finalReward: true } }),
     ]);
 
     // Build game-data object, stripping BLOBs from sounds/images
@@ -51,7 +51,6 @@ export async function POST() {
           items.length +
           events.length +
           documents.length +
-          quests.length +
           locations.length +
           npcs.length +
           characters.length +
@@ -63,12 +62,12 @@ export async function POST() {
           settings.length +
           sounds.length +
           images.length +
-          notifications.length,
+          notifications.length +
+          questChains.length,
       },
       items,
       events,
       documents,
-      quests,
       locations,
       npcs,
       characters,
@@ -79,6 +78,7 @@ export async function POST() {
       recipes,
       settings,
       notifications,
+      questChains,
       sounds: sounds.map((s) => ({
         id: s.id,
         name: s.name,

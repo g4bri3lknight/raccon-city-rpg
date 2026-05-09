@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { safeErrorResponse } from '@/lib/api-utils';
 
 // ── Types ──
@@ -35,11 +35,17 @@ function safeJson<T>(raw: string, fallback: T): T {
   }
 }
 
-/** Parse a JSON string field and return an array of strings. */
+/** Parse a JSON string field and return an array of strings.
+ *  Handles both plain string arrays ["a","b"] and object arrays [{itemId:"a"},...]. */
 function jsonStrArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
   const parsed = safeJson(raw, [] as unknown);
-  return Array.isArray(parsed) ? parsed.map(String) : [];
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((item: unknown) => {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object' && 'itemId' in item) return String((item as { itemId: string }).itemId);
+    return String(item);
+  });
 }
 
 function issue(
@@ -63,7 +69,6 @@ export async function GET() {
     // ── Fetch ALL entities ──
 
     const [
-      quests,
       npcs,
       locations,
       endings,
@@ -75,6 +80,7 @@ export async function GET() {
       items,
       questChains,
       questChainSteps,
+      questChainFinalRewards,
       documents,
       archetypes,
       characters,
@@ -84,7 +90,6 @@ export async function GET() {
       rooms,
       doors,
     ] = await Promise.all([
-      db.sideQuest.findMany(),
       db.gameNPC.findMany(),
       db.gameLocation.findMany(),
       db.gameEnding.findMany(),
@@ -96,6 +101,7 @@ export async function GET() {
       db.item.findMany(),
       db.questChain.findMany(),
       db.questChainStep.findMany(),
+      db.questChainFinalReward.findMany(),
       db.document.findMany(),
       db.gameArchetype.findMany(),
       db.gameCharacter.findMany(),
@@ -108,7 +114,7 @@ export async function GET() {
 
     // Build index sets for fast lookups
     const npcIds = new Set(npcs.map((n) => n.id));
-    const questIds = new Set(quests.map((q) => q.id));
+    const questIds = new Set(questChains.map((qc) => qc.id));
     const locationIds = new Set(locations.map((l) => l.id));
     const enemyIds = new Set(enemies.map((e) => e.id));
     const documentIds = new Set(documents.map((d) => d.id));
@@ -150,22 +156,7 @@ export async function GET() {
       );
     }
 
-    // ── 3. Orphaned Quests: npcId doesn't match any NPC ──
-    for (const q of quests) {
-      if (!npcIds.has(q.npcId)) {
-        warnings.push(
-          issue(
-            `Quest "${q.name}" (${q.id}) — npcId "${q.npcId}" non trovato`,
-            'quests',
-            q.id,
-            `Correggi l'npcId o crea l'NPC mancante`,
-            'quests',
-          ),
-        );
-      }
-    }
-
-    // ── 4. Orphaned NPCs: questId doesn't match any quest ──
+    // ── 3. Orphaned NPCs: questId doesn't match any quest chain ──
     for (const npc of npcs) {
       if (npc.questId && !questIds.has(npc.questId)) {
         warnings.push(
@@ -173,36 +164,28 @@ export async function GET() {
             `NPC "${npc.name}" (${npc.id}) — questId "${npc.questId}" non trovata`,
             'npcs',
             npc.id,
-            `Correggi il questId o crea la quest mancante`,
+            `Apri la scheda dell'NPC e correggi il campo Quest ID, oppure usa Auto-fix per pulire i riferimenti obsoleti`,
             'npcs',
           ),
         );
       }
     }
 
-    // ── 5. Empty Locations: no nextLocations (isolated / dead-end) ──
+    // ── 5. Non-empty nextLocations with invalid references (legacy field) ──
     for (const loc of locations) {
       const nextLocs = jsonStrArray(loc.nextLocations);
-      if (nextLocs.length === 0) {
-        info.push(
-          issue(
-            `Locazione "${loc.name}" (${loc.id}) — nessuna uscita (nextLocations vuoto)`,
-            'locations',
-            loc.id,
-            'Aggiungi almeno una locazione collegata in nextLocations',
-            'locations',
-          ),
-        );
-      } else {
-        // Also check if referenced nextLocations actually exist
-        for (const refId of nextLocs) {
-          if (!locationIds.has(refId)) {
-            warnings.push(
+      if (nextLocs.length > 0) {
+        // nextLocations is legacy — connectivity is now determined by cross-location doors.
+        // Only warn about broken refs, not about emptiness.
+        const brokenRefs = nextLocs.filter(refId => !locationIds.has(refId));
+        if (brokenRefs.length > 0) {
+          for (const refId of brokenRefs) {
+            info.push(
               issue(
-                `Locazione "${loc.name}" (${loc.id}) — nextLocations riferisce a "${refId}" inesistente`,
+                `Locazione "${loc.name}" (${loc.id}) — nextLocations (legacy) riferisce a "${refId}" inesistente. Nota: la connettività è ora determinata dalle porte cross-location`,
                 'locations',
                 loc.id,
-                `Rimuovi il riferimento o crea la locazione "${refId}"`,
+                `Rimuovi "${refId}" da nextLocations o ignora (il campo è deprecato)`,
                 'locations',
               ),
             );
@@ -246,58 +229,6 @@ export async function GET() {
 
     // ── 7. Missing Loot Tables: Enemies with empty lootTable ──
     for (const enemy of enemies) {
-      const loot = safeJson<{ itemId: string }[]>(enemy.lootTable, []);
-      if (!loot || loot.length === 0) {
-        info.push(
-          issue(
-            `Nemico "${enemy.name}" (${enemy.id}) — lootTable vuoto`,
-            'enemies',
-            enemy.id,
-            'Aggiungi drop items alla lootTable per ricompense',
-            'enemies',
-          ),
-        );
-      } else {
-        // Validate referenced item IDs
-        for (const entry of loot) {
-          if (entry.itemId && !itemIds.has(entry.itemId)) {
-            warnings.push(
-              issue(
-                `Nemico "${enemy.name}" (${enemy.id}) — lootTable riferisce a item "${entry.itemId}" inesistente`,
-                'enemies',
-                enemy.id,
-                `Correggi l'itemId o crea l'item "${entry.itemId}"`,
-                'enemies',
-              ),
-            );
-          }
-        }
-      }
-    }
-
-    // ── 8. Quests without Rewards ──
-    for (const q of quests) {
-      const rewardItems = safeJson<{ itemId: string; quantity: number }[]>(
-        q.rewardItems,
-        [],
-      );
-      const hasItems = rewardItems && rewardItems.length > 0;
-      const hasExp = q.rewardExp > 0;
-      if (!hasItems && !hasExp) {
-        warnings.push(
-          issue(
-            `Quest "${q.name}" (${q.id}) — nessuna ricompensa (rewardItems vuoto, rewardExp=0)`,
-            'quests',
-            q.id,
-            'Aggiungi item ricompensa o esperienza alla quest',
-            'quests',
-          ),
-        );
-      }
-    }
-
-    // ── 9. Boss without Phases ──
-    for (const enemy of enemies) {
       if (enemy.isBoss && (bossPhaseMap.get(enemy.id) || 0) === 0) {
         warnings.push(
           issue(
@@ -305,7 +236,7 @@ export async function GET() {
             'enemies',
             enemy.id,
             'Aggiungi fasi boss nella sezione Nemici → Boss Phases',
-            'enemies',
+            'boss-phases',
           ),
         );
       }
@@ -550,16 +481,16 @@ export async function GET() {
       }
     }
 
-    // ── 18. Quest prerequisite references ──
-    for (const q of quests) {
-      if (q.prerequisiteQuestId && !questIds.has(q.prerequisiteQuestId)) {
+    // ── 18. QuestChain prerequisite references ──
+    for (const qc of questChains) {
+      if (qc.prerequisiteQuestId && !questIds.has(qc.prerequisiteQuestId)) {
         warnings.push(
           issue(
-            `Quest "${q.name}" (${q.id}) — prerequisiteQuestId "${q.prerequisiteQuestId}" non trovata`,
-            'quests',
-            q.id,
-            `Correggi il prerequisiteQuestId o crea la quest prerequisite`,
-            'quests',
+            `Catena di quest "${qc.name}" (${qc.id}) — prerequisiteQuestId "${qc.prerequisiteQuestId}" non trovata`,
+            'quest-chains',
+            qc.id,
+            `Correggi il prerequisiteQuestId o crea la catena prerequisite`,
+            'quest-chains',
           ),
         );
       }
@@ -652,21 +583,21 @@ export async function GET() {
       }
     }
 
-    // ── 22. Quest reward item references ──
-    for (const q of quests) {
+    // ── 22. QuestChain final reward item references ──
+    for (const fr of questChainFinalRewards) {
       const rewardItems = safeJson<{ itemId: string; quantity: number }[]>(
-        q.rewardItems,
+        fr.rewardItems,
         [],
       );
       for (const entry of rewardItems) {
         if (entry.itemId && !itemIds.has(entry.itemId)) {
           warnings.push(
             issue(
-              `Quest "${q.name}" (${q.id}) — rewardItems contiene item "${entry.itemId}" inesistente`,
-              'quests',
-              q.id,
+              `Ricompensa finale catena (${fr.chainId}) — rewardItems contiene item "${entry.itemId}" inesistente`,
+              'quest-chains',
+              fr.chainId,
               `Correggi l'itemId della ricompensa o crea l'item "${entry.itemId}"`,
-              'quests',
+              'quest-chains',
             ),
           );
         }
@@ -740,7 +671,7 @@ export async function GET() {
             'rooms',
             room.id,
             `Correggi locationId o crea la locazione "${room.locationId}"`,
-            'locations',
+            'rooms',
           ),
         );
       }
@@ -755,7 +686,7 @@ export async function GET() {
             'doors',
             door.id,
             `Correggi fromRoomId o crea la stanza`,
-            'locations',
+            'rooms',
           ),
         );
       }
@@ -766,7 +697,7 @@ export async function GET() {
             'doors',
             door.id,
             `Correggi toRoomId o crea la stanza`,
-            'locations',
+            'rooms',
           ),
         );
       }
@@ -781,7 +712,7 @@ export async function GET() {
             'doors',
             door.id,
             `Correggi requiredItemId o crea l'item "${door.requiredItemId}"`,
-            'locations',
+            'rooms',
           ),
         );
       }
@@ -799,7 +730,7 @@ export async function GET() {
               'rooms',
               room.id,
               `Rimuovi "${eId}" dall'enemyPool o crea il nemico`,
-              'locations',
+              'rooms',
             ),
           );
         }
@@ -814,7 +745,7 @@ export async function GET() {
               'rooms',
               room.id,
               `Correggi l'itemId o crea l'item "${entry.itemId}"`,
-              'locations',
+              'rooms',
             ),
           );
         }
@@ -829,7 +760,7 @@ export async function GET() {
               'rooms',
               room.id,
               `Rimuovi "${npcId}" dagli npcIds o crea l'NPC`,
-              'locations',
+              'rooms',
             ),
           );
         }
@@ -848,7 +779,7 @@ export async function GET() {
               'rooms',
               room.id,
               `Sposta l'NPC nella stessa locazione della stanza o rimuovi dal npcIds`,
-              'locations',
+              'rooms',
             ),
           );
         }
@@ -872,7 +803,7 @@ export async function GET() {
               'rooms',
               room.id,
               `Aggiungi porte per collegare la stanza`,
-              'locations',
+              'rooms',
             ),
           );
         }
@@ -894,7 +825,7 @@ export async function GET() {
               'rooms',
               room.id,
               `Aggiungi un nemico boss (isBoss=true) all'enemyPool`,
-              'locations',
+              'rooms',
             ),
           );
         }
@@ -965,7 +896,7 @@ export async function GET() {
       }
     }
 
-    // ── 35. nextLocations mismatch with actual cross-location doors ──
+    // ── 35. nextLocations stale/missing vs actual cross-location doors (info only) ──
     for (const loc of locations) {
       const nextLocs = jsonStrArray(loc.nextLocations);
       // Compute actual cross-location neighbors from doors
@@ -983,29 +914,16 @@ export async function GET() {
           }
         }
       }
-      // Check for references in nextLocations that don't match actual cross-location doors
-      for (const refId of nextLocs) {
-        if (!actualNeighbors.has(refId)) {
-          info.push(
-          issue(
-            `Locazione "${loc.name}" (${loc.id}) — nextLocations contiene "${refId}" ma non esiste una porta cross-location che le collega`,
-            'locations',
-            loc.id,
-            `Aggiungi una porta cross-location tra le stanze delle due locazioni o rimuovi il riferimento`,
-            'locations',
-          ),
-        );
-        }
-      }
-      // Check for actual neighbors not listed in nextLocations
-      for (const neighborId of actualNeighbors) {
-        if (!nextLocs.includes(neighborId)) {
+      // Only flag if nextLocations is non-empty and completely stale (no overlap with doors)
+      if (nextLocs.length > 0) {
+        const overlap = nextLocs.filter(id => actualNeighbors.has(id)).length;
+        if (overlap === 0 && actualNeighbors.size > 0) {
           info.push(
             issue(
-              `Locazione "${loc.name}" (${loc.id}) — porta cross-location verso "${neighborId}" ma non presente in nextLocations`,
+              `Locazione "${loc.name}" (${loc.id}) — nextLocations non corrisponde alle porte cross-location effettive. Il campo è deprecato: la connettività è determinata dalle porte`,
               'locations',
               loc.id,
-              `Aggiungi "${neighborId}" ai nextLocations per riflettere il collegamento reale`,
+              `Puoi svuotare nextLocations — le porte cross-location gestiscono la connettività`,
               'locations',
             ),
           );
@@ -1023,7 +941,7 @@ export async function GET() {
             'rooms',
             room.id,
             `Migra i collegamenti a GameDoor e svuota nextRooms`,
-            'locations',
+            'rooms',
           ),
         );
       }
@@ -1035,7 +953,7 @@ export async function GET() {
             'rooms',
             room.id,
             `Migra i collegamenti a GameDoor e svuota lockedRooms`,
-            'locations',
+            'rooms',
           ),
         );
       }
@@ -1075,5 +993,45 @@ export async function GET() {
     return NextResponse.json(report);
   } catch (error) {
     return safeErrorResponse(error, '[Admin Validate]');
+  }
+}
+
+// ── POST /api/admin/validate/fix — auto-fix common issues ──
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const fixType: string = body.fixType || '';
+
+    const fixes: string[] = [];
+
+    if (!fixType || fixType === 'npc-questid') {
+      // Fix 1: Clear stale questId from NPCs that reference non-existent quest chains
+      const questChains = await db.questChain.findMany({ select: { id: true } });
+      const chainIds = new Set(questChains.map(qc => qc.id));
+      const npcs = await db.gameNPC.findMany({ where: { questId: { not: null } } });
+      for (const npc of npcs) {
+        if (npc.questId && !chainIds.has(npc.questId)) {
+          await db.gameNPC.update({ where: { id: npc.id }, data: { questId: null } });
+          fixes.push(`Pulito questId "${npc.questId}" da NPC "${npc.name}" (${npc.id})`);
+        }
+      }
+    }
+
+    if (!fixType || fixType === 'secretroom-questid') {
+      // Fix 2: Clear stale requiredNpcQuestId from SecretRooms
+      const questChains = await db.questChain.findMany({ select: { id: true } });
+      const chainIds = new Set(questChains.map(qc => qc.id));
+      const secretRooms = await db.secretRoom.findMany({ where: { requiredNpcQuestId: { not: null } } });
+      for (const sr of secretRooms) {
+        if (sr.requiredNpcQuestId && !chainIds.has(sr.requiredNpcQuestId)) {
+          await db.secretRoom.update({ where: { id: sr.id }, data: { requiredNpcQuestId: null } });
+          fixes.push(`Pulito requiredNpcQuestId "${sr.requiredNpcQuestId}" da Secret Room "${sr.name}" (${sr.id})`);
+        }
+      }
+    }
+
+    return NextResponse.json({ fixed: fixes.length, fixes });
+  } catch (error) {
+    return safeErrorResponse(error, '[Admin Validate Fix]');
   }
 }

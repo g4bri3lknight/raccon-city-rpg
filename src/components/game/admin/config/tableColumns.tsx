@@ -298,21 +298,6 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       },
     },
   ],
-  quests: [
-    { key: 'id', label: 'ID', width: 'w-44' },
-    { key: 'name', label: 'Nome' },
-    { key: 'npcId', label: 'NPC ID', width: 'w-32' },
-    {
-      key: 'type',
-      label: 'Tipo',
-      width: 'w-32',
-      render: (row) => (
-        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
-          {getEnumLabel('questType', String(row.type))}
-        </Badge>
-      ),
-    },
-  ],
   events: [
     { key: 'id', label: 'ID', width: 'w-40' },
     { key: 'title', label: 'Titolo' },

@@ -4,16 +4,15 @@ import { NextResponse } from 'next/server';
 import { safeErrorResponse } from '@/lib/api-utils';
 /**
  * GET /api/game-data
- * Returns all game data (items, events, documents, quests, locations, npcs, characters) as JSON.
+ * Returns all game data (items, events, documents, locations, npcs, characters) as JSON.
  * This is the server-side data layer — the client-side loader fetches from here.
  */
 export async function GET() {
   try {
-    const [items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms, doors] = await Promise.all([
+    const [items, events, documents, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms, doors, archetypes] = await Promise.all([
       db.item.findMany({ orderBy: { createdAt: 'asc' } }),
       db.dynamicEvent.findMany({ orderBy: { createdAt: 'asc' } }),
       db.document.findMany({ orderBy: { createdAt: 'asc' } }),
-      db.sideQuest.findMany({ orderBy: { createdAt: 'asc' } }),
       db.gameLocation.findMany({ orderBy: { createdAt: 'asc' } }),
       db.gameNPC.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
       db.gameCharacter.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
@@ -31,9 +30,10 @@ export async function GET() {
       db.questChainFinalReward.findMany(),
       db.gameRoom.findMany({ orderBy: [{ locationId: 'asc' }, { sortOrder: 'asc' }] }),
       db.gameDoor.findMany({ orderBy: { sortOrder: 'asc' } }),
+      db.gameArchetype.findMany({ orderBy: { sortOrder: 'asc' } }),
     ]);
 
-    return NextResponse.json({ items, events, documents, quests, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms, doors });
+    return NextResponse.json({ items, events, documents, locations, npcs, characters, specials, enemies, enemyAbilities, secretRooms, recipes, bossPhases, achievements, endings, avatars, questChains, questChainSteps, questChainFinalRewards, rooms, doors, archetypes });
   } catch (error) {
     return safeErrorResponse(error, '[Game Data]');
   }

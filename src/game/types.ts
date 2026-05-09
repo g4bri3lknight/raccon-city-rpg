@@ -1153,6 +1153,7 @@ export interface MultiStepQuest {
   npcId: string;
   name: string;
   description: string;
+  prerequisiteQuestId?: string;
   steps: QuestChainStep[];
   finalReward: {
     items?: { itemId: string; quantity: number }[];

@@ -109,27 +109,6 @@ async function seedLocations(): Promise<SeedResult> {
   return { entity: 'locations', total: entries.length, created, updated };
 }
 
-async function seedQuests(): Promise<SeedResult> {
-  const npcEntries = Object.values(SEED_NPCS);
-  let created = 0, updated = 0, total = 0;
-  for (const npc of npcEntries) {
-    const quest = (npc as any).quest;
-    if (!quest) continue;
-    total++;
-    const existing = await db.sideQuest.findUnique({ where: { id: quest.id } });
-    const data = {
-      npcId: npc.id, name: quest.name, description: quest.description,
-      type: quest.type, targetId: quest.targetId, targetCount: quest.targetCount,
-      rewardItems: JSON.stringify(quest.rewardItems ?? []),
-      rewardExp: quest.rewardExp ?? 0,
-      rewardDialogue: JSON.stringify(quest.rewardDialogue ?? []),
-      sortOrder: 0, prerequisiteQuestId: quest.prerequisiteQuestId ?? null,
-    };
-    if (existing) { await db.sideQuest.update({ where: { id: quest.id }, data }); updated++; }
-    else { await db.sideQuest.create({ data: { id: quest.id, ...data } }); created++; }
-  }
-  return { entity: 'quests', total, created, updated };
-}
 
 async function seedNpcs(): Promise<SeedResult> {
   const entries = Object.values(SEED_NPCS);
@@ -141,7 +120,7 @@ async function seedNpcs(): Promise<SeedResult> {
       name: npc.name, portrait: npc.portrait, locationId: npc.locationId,
       greeting: npc.greeting, dialogues: JSON.stringify(npc.dialogues),
       farewell: npc.farewell,
-      questId: (npc as any).quest?.id ?? null,
+      questId: null,
       tradeInventory: JSON.stringify(npc.tradeInventory ?? []),
       questCompletedDialogue: JSON.stringify(npc.questCompletedDialogue ?? []),
       sortOrder: i,
@@ -286,7 +265,6 @@ export async function POST() {
       seedEvents(),
       seedDocuments(),
       seedLocations(),
-      seedQuests(),
       seedNpcs(),
       seedCharacters(),
       seedSpecials(),

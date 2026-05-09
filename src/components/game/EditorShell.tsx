@@ -6,7 +6,7 @@ import {
   ArrowLeft, Play, ChevronDown, Menu, X,
   Plus, Pencil, Trash2, RefreshCw, Loader2, Search, Upload,
   LayoutGrid, List, Copy, Filter, ArrowUpDown, ArrowUp, ArrowDown,
-  AlertTriangle, Link2, Download, CheckSquare, Shield, FileText, Palette, Compass,
+  AlertTriangle, Link2, Download, CheckSquare, Shield, Palette, Compass,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
 import { useGameStore } from '@/game/store';
@@ -34,7 +34,7 @@ import ThemeEditor from '@/components/game/admin/tabs/ThemeEditor';
 import MapEditor from '@/components/game/admin/tabs/MapEditor';
 import GlobalSearchDialog from '@/components/game/admin/GlobalSearchDialog';
 import { KeyboardShortcutsOverlay } from '@/components/game/admin/KeyboardShortcutsOverlay';
-import { EntityTemplates } from '@/components/game/admin/EntityTemplates';
+
 import { GameValidator } from '@/components/game/admin/GameValidator';
 import { EntityColorConfig, useEntityColors } from '@/components/game/admin/EntityColorConfig';
 
@@ -103,7 +103,6 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
   // ── Dialog states for new features ──
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [validatorOpen, setValidatorOpen] = useState(false);
   const [colorConfigOpen, setColorConfigOpen] = useState(false);
 
@@ -242,26 +241,6 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
     pendingEditIdRef.current = entityId;
     setActiveTab(tabId);
   }, []);
-
-  // ── Template create handler (#7) ──
-  const handleTemplateCreate = useCallback(async (tabId: TabId, templateData: Record<string, unknown>) => {
-    try {
-      const targetTab = TABS.find(t => t.id === tabId);
-      if (!targetTab) return;
-      const res = await adminFetch(targetTab.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(templateData),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      showStatus('Template creato con successo!', 'success');
-      setTemplatesOpen(false);
-      setActiveTab(tabId);
-      fetchCounts();
-    } catch (err) {
-      showStatus(`Errore creazione template: ${err}`, 'error');
-    }
-  }, [showStatus, fetchCounts]);
 
   // ── Validator navigate handler (#8) ──
   const handleValidatorNavigate = useCallback((tabId: string, entityId?: string) => {
@@ -824,41 +803,27 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
           </div>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* #1 — Global Search button */}
+            {/* #1 — Inline search input with dropdown */}
+            <div className="relative hidden sm:block">
+              <div className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md text-white/40 bg-white/[0.03] border border-white/[0.08] focus-within:border-white/20 focus-within:bg-white/[0.05] transition-all cursor-text" onClick={() => setSearchOpen(true)}>
+                <Compass className="w-3.5 h-3.5 shrink-0" />
+                <span className="select-none">Cerca...</span>
+                <kbd className="text-[10px] text-white/20 border border-white/[0.1] rounded px-1 py-px ml-auto font-mono">⌘K</kbd>
+              </div>
+            </div>
+            {/* Mobile search button */}
             <button
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
+              className="sm:hidden flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/[0.06] text-white/40 transition-colors"
               title="Ricerca globale (Ctrl+K)"
             >
               <Compass className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Cerca</span>
-              <kbd className="hidden lg:inline text-[10px] text-white/25 border border-white/[0.1] rounded px-1 py-px ml-1 font-mono">⌘K</kbd>
-            </button>
-
-            {/* #7 — Templates button */}
-            <button
-              onClick={() => setTemplatesOpen(true)}
-              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
-              title="Template predefiniti"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Template</span>
-            </button>
-
-            {/* #8 — Validator button */}
-            <button
-              onClick={() => setValidatorOpen(true)}
-              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
-              title="Validatore completezza gioco"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Valida</span>
             </button>
 
             {/* #6 — Color config button */}
             <button
               onClick={() => setColorConfigOpen(true)}
-              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
+              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/40 hover:text-white/60 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
               title="Colori per tipologia"
             >
               <Palette className="w-3.5 h-3.5" />
@@ -875,16 +840,29 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
 
             <div className="hidden sm:block w-px h-4 bg-white/[0.08]" />
 
+            {/* Refresh — Cyan/Teal */}
             <Button
               variant="ghost"
               size="sm"
               onClick={handleRefreshGameData}
               disabled={refreshing}
-              className="text-xs px-2 sm:px-3 text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10"
+              className="text-xs px-2 sm:px-3 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/25 bg-cyan-600/10"
             >
               {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">Refresh</span>
             </Button>
+
+            {/* Verifiche — Amber/Yellow */}
+            <button
+              onClick={() => setValidatorOpen(true)}
+              className="flex items-center gap-1.5 text-xs px-2 sm:px-3 py-1.5 rounded-md text-amber-300 hover:text-amber-200 hover:bg-amber-600/15 border border-amber-500/25 bg-amber-600/10 transition-colors"
+              title="Verifiche completezza gioco"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Verifiche</span>
+            </button>
+
+            {/* Play Test — Emerald/Green */}
             <button
               onClick={() => onPlay(gameId)}
               className="flex items-center gap-1.5 text-xs px-2 sm:px-3 py-1.5 rounded-md text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10 transition-colors"
@@ -1443,14 +1421,6 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
           onOpenChange={setColorConfigOpen}
         />
       )}
-
-      {/* ── #7 Entity Templates ── */}
-      <EntityTemplates
-        open={templatesOpen}
-        onOpenChange={setTemplatesOpen}
-        onCreateFromTemplate={handleTemplateCreate}
-        activeTab={activeTab}
-      />
 
       {/* ── #8 Game Validator ── */}
       <GameValidator
