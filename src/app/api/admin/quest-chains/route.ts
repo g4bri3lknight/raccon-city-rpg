@@ -83,9 +83,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create steps if provided
-    if (steps && Array.isArray(steps)) {
-      for (const step of steps) {
+    // Create steps if provided (defensive: accept both array and JSON string)
+    let parsedSteps = steps;
+    if (typeof parsedSteps === 'string') {
+      try { parsedSteps = JSON.parse(parsedSteps); } catch { parsedSteps = []; }
+    }
+    if (parsedSteps && Array.isArray(parsedSteps)) {
+      for (const step of parsedSteps) {
         await db.questChainStep.create({
           data: {
             id: step.id || stepId(),
@@ -147,9 +151,15 @@ export async function PUT(request: NextRequest) {
     });
 
     // Update steps if provided (delete all existing, recreate)
+    // Defensive: accept both array and JSON string
     if (steps !== undefined) {
+      let parsedSteps = steps;
+      if (typeof parsedSteps === 'string') {
+        try { parsedSteps = JSON.parse(parsedSteps); } catch { parsedSteps = []; }
+      }
+      if (!Array.isArray(parsedSteps)) parsedSteps = [];
       await db.questChainStep.deleteMany({ where: { chainId: id } });
-      for (const step of steps) {
+      for (const step of parsedSteps) {
         await db.questChainStep.create({
           data: {
             id: step.id || stepId(),

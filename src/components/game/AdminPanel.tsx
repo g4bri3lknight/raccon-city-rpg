@@ -236,7 +236,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
       const processed = { ...formData };
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults', 'quest-chain-steps']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
@@ -296,7 +296,7 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
       if (editingId && !processed.id) {
         processed.id = editingId;
       }
-      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults', 'quest-chain-steps']);
+      const ARRAY_TYPES = new Set(['tag-editor', 'entity-tag-editor', 'item-pool', 'text-list', 'locked-locs', 'sub-areas', 'story-event', 'status-apply', 'quest-rewards', 'event-choices', 'trade-inventory', 'effects-editor', 'item-box-defaults']);
       for (const f of fields) {
         if (f.type === 'number' && processed[f.key] !== '' && processed[f.key] !== undefined) {
           processed[f.key] = Number(processed[f.key]);
