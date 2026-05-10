@@ -13,6 +13,7 @@ const SECTION_MAP: Record<string, keyof TemplateSeedData> = {
   locations: 'locations',
   npcs: 'npcs',
   characters: 'characters',
+  archetypes: 'archetypes',
   specials: 'specials',
   enemies: 'enemies',
   'secret-rooms': 'secretRooms',
@@ -22,10 +23,11 @@ const SECTION_MAP: Record<string, keyof TemplateSeedData> = {
   endings: 'endings',
   avatars: 'avatars',
   'quest-chains': 'questChains',
+  'enemy-abilities': 'enemy-abilities',
 };
 
 /** Sections that are arrays (not Record<string, …>) */
-const ARRAY_SECTIONS = new Set(['characters', 'specials', 'secretRooms', 'bossPhases', 'achievements', 'endings', 'avatars', 'questChains']);
+const ARRAY_SECTIONS = new Set(['characters', 'archetypes', 'specials', 'secretRooms', 'bossPhases', 'achievements', 'endings', 'avatars', 'questChains']);
 
 /**
  * POST /api/admin/seed-template
@@ -76,6 +78,19 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // enemy-abilities is derived from enemies, not a direct TemplateSeedData key
+      if (section === 'enemy-abilities') {
+        const enemyCount = Object.keys(data.enemies).length;
+        if (enemyCount === 0) {
+          return NextResponse.json(
+            { error: `Il template "${templateId}" non ha dati per la sezione "${section}"` },
+            { status: 404 },
+          );
+        }
+        const result = await seedEnemyAbilitiesFromEnemies(data.enemies);
+        return NextResponse.json({ success: true, templateId, section, ...result });
+      }
+
       const sectionData = data[dataKey];
       if (!sectionData || (ARRAY_SECTIONS.has(section) && (sectionData as unknown[]).length === 0) || (!ARRAY_SECTIONS.has(section) && Object.keys(sectionData as object).length === 0)) {
         return NextResponse.json(
@@ -102,6 +117,7 @@ export async function POST(req: NextRequest) {
     results.push(await seedLocations(data.locations, data.mapLayout));
     results.push(await seedNpcs(data.npcs));
     results.push(await seedCharacters(data.characters));
+    results.push(await seedArchetypes(data.archetypes));
     results.push(await seedSpecials(data.specials));
     results.push(await seedEnemies(data.enemies));
     results.push(await seedSecretRooms(data.secretRooms));
@@ -143,6 +159,7 @@ async function runSectionSeed(
     case 'locations': return seedLocations(sectionData as Record<string, unknown>, mapLayout as Record<string, unknown>);
     case 'npcs': return seedNpcs(sectionData as Record<string, unknown>);
     case 'characters': return seedCharacters(sectionData as unknown[]);
+    case 'archetypes': return seedArchetypes(sectionData as unknown[]);
     case 'specials': return seedSpecials(sectionData as unknown[]);
     case 'enemies': return seedEnemies(sectionData as Record<string, unknown>);
     case 'secretRooms': return seedSecretRooms(sectionData as unknown[]);
@@ -152,6 +169,7 @@ async function runSectionSeed(
     case 'endings': return seedEndings(sectionData as unknown[]);
     case 'avatars': return seedAvatars(sectionData as unknown[]);
     case 'questChains': return seedQuestChains(sectionData as unknown[]);
+    case 'enemy-abilities': return { entity: 'enemy-abilities', total: 0, created: 0, updated: 0 };
     case 'mapLayout': return { entity: 'mapLayout', total: 0, created: 0, updated: 0 };
     case 'bossPhaseAbilities': return { entity: 'bossPhaseAbilities', total: 0, created: 0, updated: 0 };
     default: return { entity: String(key), total: 0, created: 0, updated: 0 };
@@ -296,6 +314,36 @@ async function seedCharacters(chars: any[]): Promise<SeedResult> { // eslint-dis
     else { await db.gameCharacter.create({ data: { id: arch.id, ...d } }); created++; }
   }
   return { entity: 'characters', total: chars.length, created, updated };
+}
+
+async function seedArchetypes(archetypes: any[]): Promise<SeedResult> {
+  let created = 0, updated = 0;
+  for (let i = 0; i < archetypes.length; i++) {
+    const a = archetypes[i];
+    const d = {
+      name: a.name, displayName: a.displayName ?? '',
+      description: a.description ?? '',
+      maxHp: a.maxHp ?? 100, atk: a.atk ?? 15, def: a.def ?? 10, spd: a.spd ?? 10,
+      hpGrowth: a.hpGrowth ?? 1.0, atkGrowth: a.atkGrowth ?? 1.0,
+      defGrowth: a.defGrowth ?? 1.0, spdGrowth: a.spdGrowth ?? 1.0,
+      specialId: a.specialId ?? '', special2Id: a.special2Id ?? '',
+      passiveName: a.passiveName ?? '', passiveDescription: a.passiveDescription ?? '',
+      startingItems: a.startingItems ?? '[]',
+      portraitEmoji: a.portraitEmoji ?? '⚔️', sortOrder: a.sortOrder ?? i,
+    };
+    // Look up by ID first (template re-seed), then by name (legacy migration)
+    const existingById = await db.gameArchetype.findUnique({ where: { id: a.id } });
+    const existingByName = !existingById ? await db.gameArchetype.findUnique({ where: { name: a.name } }) : null;
+    if (existingById) {
+      await db.gameArchetype.update({ where: { id: a.id }, data: d }); updated++;
+    } else if (existingByName) {
+      await db.gameArchetype.delete({ where: { id: existingByName.id } });
+      await db.gameArchetype.create({ data: { id: a.id, ...d } }); created++;
+    } else {
+      await db.gameArchetype.create({ data: { id: a.id, ...d } }); created++;
+    }
+  }
+  return { entity: 'archetypes', total: archetypes.length, created, updated };
 }
 
 async function seedSpecials(specs: any[]): Promise<SeedResult> { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -525,4 +573,51 @@ async function seedQuestChains(chains: any[]): Promise<SeedResult> { // eslint-d
     }
   }
   return { entity: 'quest-chains', total: chains.length, created, updated };
+}
+
+// Slugify: lowercase, replace accents, spaces→underscores, remove special chars
+function slugify(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
+function abilityKey(a: { name: string; power: number }): string {
+  return `${a.name}|${a.power}`;
+}
+
+async function seedEnemyAbilitiesFromEnemies(enemies: Record<string, any>): Promise<SeedResult> {
+  const seen = new Map<string, { slug: string; count: number }>();
+  const abilities: Array<{ id: string; name: string; description: string; power: number; chance: number; effects: string }> = [];
+
+  for (const enemy of Object.values(enemies)) {
+    for (const ab of (enemy.abilities ?? [])) {
+      const key = abilityKey(ab);
+      if (seen.has(key)) continue;
+      let slug = slugify(ab.name);
+      const existing = seen.get(slug);
+      if (existing) { existing.count++; slug = `${slug}_v${existing.count}`; }
+      seen.set(key, { slug, count: 1 });
+      abilities.push({ id: slug, name: ab.name, description: ab.description ?? '', power: ab.power, chance: ab.chance ?? 50, effects: ab.effects ? JSON.stringify(ab.effects) : '[]' });
+    }
+  }
+
+  let created = 0, updated = 0;
+  for (const ab of abilities) {
+    const existing = await db.gameEnemyAbility.findUnique({ where: { id: ab.id } });
+    const d = { name: ab.name, description: ab.description, power: ab.power, chance: ab.chance, effects: ab.effects };
+    if (existing) { await db.gameEnemyAbility.update({ where: { id: ab.id }, data: d }); updated++; }
+    else { await db.gameEnemyAbility.create({ data: { id: ab.id, ...d } }); created++; }
+  }
+
+  // Update enemies with ability ID references
+  for (const enemy of Object.values(enemies)) {
+    const abilityIds: string[] = [];
+    for (const ab of (enemy.abilities ?? [])) {
+      const key = abilityKey(ab);
+      const info = seen.get(key);
+      if (info) abilityIds.push(info.slug);
+    }
+    await db.gameEnemy.update({ where: { id: (enemy as any).id }, data: { abilities: JSON.stringify(abilityIds) } });
+  }
+
+  return { entity: 'enemy-abilities', total: abilities.length, created, updated };
 }

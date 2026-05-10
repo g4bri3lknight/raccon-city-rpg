@@ -646,6 +646,16 @@ export const FANTASY_SEED_DATA: TemplateSeedData = {
   ],
 
   // ═══════════════════════════════════════════
+  // ARCHETYPES (stat templates with growth rates)
+  // ═══════════════════════════════════════════
+  archetypes: [
+    { id: 'fr_knight', name: 'knight', displayName: 'Cavaliere', description: 'Specializzato nella difesa e nell\'assorbimento danni. Un muro inamovibile.', maxHp: 160, atk: 16, def: 16, spd: 6, hpGrowth: 1.2, atkGrowth: 0.9, defGrowth: 1.3, spdGrowth: 0.8, specialId: 'shield_wall', special2Id: 'charge', passiveName: 'Resistenza', passiveDescription: 'Resistenza: -10% danni subiti passivamente.', startingItems: JSON.stringify([{ itemId: 'iron_sword', quantity: 1 }, { itemId: 'health_potion', quantity: 3 }]), portraitEmoji: '🛡️', sortOrder: 1 },
+    { id: 'fr_mage', name: 'mage', displayName: 'Mago', description: 'Specializzato nella magia offensiva. Danni devastanti ma fragile.', maxHp: 90, atk: 22, def: 6, spd: 10, hpGrowth: 0.8, atkGrowth: 1.4, defGrowth: 0.7, spdGrowth: 1.0, specialId: 'fireball', special2Id: 'ice_lance', passiveName: 'Potenza Arcana', passiveDescription: 'Potenza Arcana: +15% danni magici.', startingItems: JSON.stringify([{ itemId: 'fire_staff', quantity: 1 }, { itemId: 'mana_crystal', quantity: 2 }]), portraitEmoji: '🧙‍♀️', sortOrder: 2 },
+    { id: 'fr_ranger', name: 'ranger', displayName: 'Ranger', description: 'Veloce, preciso e letale a distanza. Attacchi critici frequenti.', maxHp: 110, atk: 18, def: 8, spd: 14, hpGrowth: 0.9, atkGrowth: 1.2, defGrowth: 0.7, spdGrowth: 1.3, specialId: 'rapid_shot', special2Id: 'backstab', passiveName: 'Precisione', passiveDescription: 'Precisione: +20% probabilità di colpo critico.', startingItems: JSON.stringify([{ itemId: 'wooden_bow', quantity: 1 }, { itemId: 'arrow', quantity: 10 }]), portraitEmoji: '🏹', sortOrder: 3 },
+    { id: 'fr_cleric', name: 'cleric', displayName: 'Chierico', description: 'Specializzato nella cura e nel supporto. Mantiene il gruppo in vita.', maxHp: 100, atk: 10, def: 10, spd: 8, hpGrowth: 1.0, atkGrowth: 0.8, defGrowth: 0.9, spdGrowth: 0.9, specialId: 'holy_light', special2Id: 'heal_party', passiveName: 'Fede', passiveDescription: 'Fede: +20% efficacia cure.', startingItems: JSON.stringify([{ itemId: 'war_hammer', quantity: 1 }, { itemId: 'health_potion', quantity: 4 }]), portraitEmoji: '✨', sortOrder: 4 },
+  ],
+
+  // ═══════════════════════════════════════════
   // SPECIALS
   // ═══════════════════════════════════════════
   specials: [

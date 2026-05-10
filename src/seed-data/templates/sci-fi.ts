@@ -629,6 +629,16 @@ export const SCIFI_SEED_DATA: TemplateSeedData = {
   ],
 
   // ═══════════════════════════════════════════
+  // ARCHETYPES (stat templates with growth rates)
+  // ═══════════════════════════════════════════
+  archetypes: [
+    { id: 'sf_marine', name: 'marine', displayName: 'Marine', description: 'Corazzato e specializzato in armi pesanti. La prima linea di difesa.', maxHp: 160, atk: 18, def: 16, spd: 6, hpGrowth: 1.2, atkGrowth: 1.1, defGrowth: 1.3, spdGrowth: 0.8, specialId: 'sci_shield', special2Id: 'sci_suppress', passiveName: 'Corazza', passiveDescription: 'Corazza: -10% danni subiti.', startingItems: JSON.stringify([{ itemId: 'pistol_9mm', quantity: 1 }, { itemId: 'ammo_pistol', quantity: 10 }]), portraitEmoji: '🪖', sortOrder: 1 },
+    { id: 'sf_engineer', name: 'engineer', displayName: 'Ingegnere', description: 'Specialista in riparazioni e tecnologia. Supporto tattico versatile.', maxHp: 110, atk: 16, def: 10, spd: 10, hpGrowth: 1.0, atkGrowth: 1.0, defGrowth: 1.0, spdGrowth: 1.0, specialId: 'sci_repair', special2Id: 'sci_emp_blast', passiveName: 'Tecnologia', passiveDescription: 'Tecnologia: +15% efficacia kit di riparazione.', startingItems: JSON.stringify([{ itemId: 'laser_rifle', quantity: 1 }, { itemId: 'energy_cell', quantity: 5 }]), portraitEmoji: '🔧', sortOrder: 2 },
+    { id: 'sf_hacker', name: 'hacker', displayName: 'Hacker', description: 'Specialista in guerra cibernetica. Debole fisicamente ma letale con la tecnologia.', maxHp: 85, atk: 14, def: 6, spd: 14, hpGrowth: 0.8, atkGrowth: 1.2, defGrowth: 0.7, spdGrowth: 1.3, specialId: 'sci_overcharge', special2Id: 'sci_neural_hack', passiveName: 'Cyber', passiveDescription: 'Cyber: +25% probabilità di stordire.', startingItems: JSON.stringify([{ itemId: 'stun_baton', quantity: 1 }, { itemId: 'hacking_tool', quantity: 1 }]), portraitEmoji: '💻', sortOrder: 3 },
+    { id: 'sf_medic', name: 'medic', displayName: 'Medico', description: 'Specialista in medicina d\'emergenza e biologia aliena. Curativo di gruppo.', maxHp: 100, atk: 10, def: 10, spd: 8, hpGrowth: 1.0, atkGrowth: 0.8, defGrowth: 0.9, spdGrowth: 0.9, specialId: 'sci_med_drone', special2Id: 'sci_group_heal', passiveName: 'Medicina', passiveDescription: 'Medicina: +20% efficacia cure.', startingItems: JSON.stringify([{ itemId: 'med_kit', quantity: 3 }, { itemId: 'antidote', quantity: 3 }]), portraitEmoji: '🩺', sortOrder: 4 },
+  ],
+
+  // ═══════════════════════════════════════════
   // SPECIALS
   // ═════════════════════════════════════════════
   specials: [
