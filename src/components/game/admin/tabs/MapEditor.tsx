@@ -47,7 +47,7 @@ const CARD_H = 84;
 const SNAP_GRID = 20;
 
 const ENDPOINT = '/api/admin/locations';
-const LOCATION_SEED_ENDPOINT = '/api/admin/seed-template';
+const LOCATION_SEED_ENDPOINT = '/api/admin/seed-locations';
 
 // Form fields without mapCol/mapRow (managed via canvas)
 const locationFormFields = FIELD_MAP.locations.filter(
@@ -792,14 +792,10 @@ export default function MapEditor() {
   const handleSeedDefault = async () => {
     setSeeding(true);
     try {
-      const res = await adminFetch(LOCATION_SEED_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ section: 'locations' }),
-      });
+      const res = await adminFetch(LOCATION_SEED_ENDPOINT, { method: 'POST' });
       if (!res.ok) throw new Error(await res.text());
       const result = await res.json();
-      showStatus(result.message ?? 'Seed location completato', 'success');
+      showStatus(result.message, 'success');
       fetchLocations();
     } catch (err) {
       showStatus(`Errore seed: ${err}`, 'error');
@@ -941,17 +937,6 @@ export default function MapEditor() {
                 <Grid3x3 className="w-3 h-3" />
                 <span className="hidden sm:inline">Snap</span>
               </Button>
-              {/* Controls */}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setControlsDialogOpen(true)}
-                className="text-xs gap-1.5 h-7 text-white/40 hover:text-white/60"
-                title="Controlli mappa"
-              >
-                <Keyboard className="w-3 h-3" />
-                <span className="hidden sm:inline">Controlli</span>
-              </Button>
 
               <div className="w-px h-5 bg-white/[0.08] mx-0.5" />
 
@@ -1017,6 +1002,15 @@ export default function MapEditor() {
                 {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                 <span className="hidden sm:inline">Seed</span>
               </Button>
+              {/* Add Location */}
+              <Button
+                size="sm"
+                onClick={() => { setCreating(true); setEditingId(null); }}
+                className="text-xs gap-1.5 h-7 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Aggiungi</span>
+              </Button>
             </div>
           </div>
 
@@ -1043,15 +1037,15 @@ export default function MapEditor() {
           {/* ── Sidebar Panel ── */}
           {sidebarOpen && (
             <div className="w-[260px] shrink-0 border-r border-white/[0.06] bg-[#0d0d14] flex flex-col overflow-hidden">
-              {/* Add Location button */}
+              {/* Controls button */}
               <div className="px-3 py-2 border-b border-white/[0.06]">
                 <button
                   type="button"
-                  onClick={() => { setCreating(true); setEditingId(null); }}
-                  className="flex items-center gap-1.5 w-full text-xs px-2 py-1.5 rounded-md bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200 transition-colors"
+                  onClick={() => setControlsDialogOpen(true)}
+                  className="flex items-center gap-1.5 w-full text-[10px] text-white/30 hover:text-white/50 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Aggiungi Location</span>
+                  <Keyboard className="w-3 h-3" />
+                  <span>Controlli</span>
                 </button>
               </div>
               {/* Scrollable content */}

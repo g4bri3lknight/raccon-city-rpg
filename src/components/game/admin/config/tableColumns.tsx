@@ -298,6 +298,21 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       },
     },
   ],
+  quests: [
+    { key: 'id', label: 'ID', width: 'w-44' },
+    { key: 'name', label: 'Nome' },
+    { key: 'npcId', label: 'NPC ID', width: 'w-32' },
+    {
+      key: 'type',
+      label: 'Tipo',
+      width: 'w-32',
+      render: (row) => (
+        <Badge variant="outline" className="text-[12px] px-1.5 py-0 border-white/10 text-white/70 bg-white/[0.04]">
+          {getEnumLabel('questType', String(row.type))}
+        </Badge>
+      ),
+    },
+  ],
   events: [
     { key: 'id', label: 'ID', width: 'w-40' },
     { key: 'title', label: 'Titolo' },
@@ -529,6 +544,16 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       ),
     },
     {
+      key: 'nextLocations',
+      label: 'Uscite',
+      width: 'w-20',
+      render: (row) => {
+        let exits: string[] = [];
+        try { exits = typeof row.nextLocations === 'string' ? JSON.parse(row.nextLocations) : (row.nextLocations as string[] ?? []); } catch { /* empty */ }
+        return <span className="text-[12px] text-white/40 font-mono">{exits.length}</span>;
+      },
+    },
+    {
       key: '_roomCount',
       label: 'Stanze',
       width: 'w-20',
@@ -546,6 +571,22 @@ export const TABLE_COLUMNS: Record<TabId, ColumnDef[]> = {
       label: 'Ritratto',
       width: 'w-12',
       render: (row) => <span className="text-sm">{String(row.portrait ?? '❓')}</span>,
+    },
+    {
+      key: 'locationId',
+      label: 'Location',
+      width: 'w-40',
+      render: (row) => <span className="text-[12px] text-white/50 font-mono">{String(row.locationId ?? '')}</span>,
+    },
+    {
+      key: 'questId',
+      label: 'Quest',
+      width: 'w-16',
+      render: (row) => (
+        <span className={row.questId ? 'text-emerald-400 text-[12px]' : 'text-white/15 text-[12px]'}>
+          {row.questId ? '✓' : '—'}
+        </span>
+      ),
     },
     {
       key: 'dialogues',

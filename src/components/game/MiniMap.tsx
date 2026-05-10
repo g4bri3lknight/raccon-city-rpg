@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useGameStore } from '@/game/store';
-import { LOCATIONS, DOORS_DATA, findRoomLocation } from '@/game/data/loader';
+import { LOCATIONS } from '@/game/data/loader';
+import { getEffectiveLocation } from '@/game/data/randomizer';
 import { Map } from 'lucide-react';
 
 export default function MiniMap() {
@@ -10,6 +11,8 @@ export default function MiniMap() {
   const visitedLocations = useGameStore(s => s.visitedLocations);
   const unlockedPaths = useGameStore(s => s.unlockedPaths);
   const party = useGameStore(s => s.party);
+  const randomizerMode = useGameStore(s => s.randomizerMode);
+  const randomizedLocationData = useGameStore(s => s.randomizedLocationData);
   const toggleMap = useGameStore(s => s.toggleMap);
   const dataVersion = useGameStore(s => s.dataVersion);
 
@@ -19,27 +22,10 @@ export default function MiniMap() {
     const currentLoc = LOCATIONS[currentLocationId];
     if (!currentLoc) return { current: null, connections: [] };
 
-    // Compute connected location IDs from cross-location doors
-    const roomIds = currentLoc.rooms?.length
-      ? new Set(currentLoc.rooms.map(r => r.id))
-      : null;
-    const connectedLocationIds: string[] = [];
-    if (roomIds) {
-      for (const door of DOORS_DATA) {
-        if (door.state === 'inaccessible') continue;
-        const fromLoc = findRoomLocation(door.fromRoomId);
-        const toLoc = findRoomLocation(door.toRoomId);
-        if (!fromLoc || !toLoc) continue;
-        if (roomIds.has(door.fromRoomId) && toLoc.locationId !== currentLocationId) {
-          if (!connectedLocationIds.includes(toLoc.locationId)) connectedLocationIds.push(toLoc.locationId);
-        }
-        if (roomIds.has(door.toRoomId) && fromLoc.locationId !== currentLocationId) {
-          if (!connectedLocationIds.includes(fromLoc.locationId)) connectedLocationIds.push(fromLoc.locationId);
-        }
-      }
-    }
-
-    const lockedLocs = currentLoc.lockedLocations || [];
+    // Get effective location (handles randomizer)
+    const effectiveLoc = getEffectiveLocation(currentLocationId, randomizerMode ? randomizedLocationData : null);
+    const nextLocs = effectiveLoc?.nextLocations || currentLoc.nextLocations || [];
+    const lockedLocs = effectiveLoc?.lockedLocations || currentLoc.lockedLocations || [];
 
     const hasKey = (keyId: string) =>
       party.some(p => p.inventory.some(i => i.itemId === keyId));
@@ -47,7 +33,7 @@ export default function MiniMap() {
       unlockedPaths.includes(`${fromId}→${toId}`);
 
     // Build connected locations data
-    const connections = connectedLocationIds.map(locId => {
+    const connections = nextLocs.map(locId => {
       const loc = LOCATIONS[locId];
       if (!loc) return null;
       const locked = lockedLocs.find(l => l.locationId === locId);
@@ -75,7 +61,7 @@ export default function MiniMap() {
       },
       connections,
     };
-  }, [currentLocationId, visitedLocations, unlockedPaths, party, dataVersion]);
+  }, [currentLocationId, visitedLocations, unlockedPaths, party, randomizerMode, randomizedLocationData, dataVersion]);
 
   if (!mapData.current) return null;
 

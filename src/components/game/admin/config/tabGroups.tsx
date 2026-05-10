@@ -3,13 +3,13 @@ import {
   MapPin, Users, Scroll, FileText,
   Swords, Sparkles, Skull, Flame, Crown,
   Package, Wrench, Trophy, Flag, Bell,
-  Monitor, Settings, Gamepad2, Palette,
+  Monitor, Settings, Link2, Gamepad2, Palette,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════
-export type TabId = 'games' | 'items' | 'documents' | 'notifications' | 'locations' | 'rooms' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
+export type TabId = 'games' | 'items' | 'quests' | 'documents' | 'notifications' | 'locations' | 'rooms' | 'npcs' | 'archetypes' | 'characters' | 'specials' | 'enemies' | 'enemy-abilities' | 'boss-phases' | 'achievements' | 'endings' | 'avatars' | 'start-screen' | 'settings' | 'theme' | 'recipes' | 'quest-chains';
 
 export interface TabConfig {
   id: TabId;
@@ -36,7 +36,8 @@ export const TAB_GROUPS: TabGroupDef[] = [
   { id: 'world', label: 'Mondo', icon: '🌍', defaultOpen: true, tabs: [
     { id: 'locations', label: 'Location & Mappa', icon: <MapPin className="w-4 h-4" />, endpoint: '/api/admin/locations', entityLabel: 'Location', custom: true, group: 'world' },
     { id: 'npcs', label: 'NPC', icon: <Users className="w-4 h-4" />, endpoint: '/api/admin/npcs', entityLabel: 'NPC', group: 'world' },
-    { id: 'quest-chains', label: 'Missioni', icon: <Scroll className="w-4 h-4" />, endpoint: '/api/admin/quest-chains', entityLabel: 'Missione', group: 'world' },
+    { id: 'quests', label: 'Missioni', icon: <Scroll className="w-4 h-4" />, endpoint: '/api/admin/quests', entityLabel: 'Missione', group: 'world' },
+    { id: 'quest-chains', label: 'Quest Chain', icon: <Link2 className="w-4 h-4" />, endpoint: '/api/admin/quest-chains', entityLabel: 'Quest Chain', group: 'world' },
     { id: 'documents', label: 'Documenti', icon: <FileText className="w-4 h-4" />, endpoint: '/api/admin/documents', entityLabel: 'Documento', group: 'world' },
   ]},
   { id: 'combat', label: 'Combattimento', icon: '⚔️', tabs: [

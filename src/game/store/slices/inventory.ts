@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { ItemInstance, WeaponInstance, Character, SpecialEffect } from '../../types';
-import { ITEMS, RECIPES_DATA } from '../../data/loader';
+import { ITEMS } from '../../data/loader';
 import { WEAPON_MODS } from '../../data/weapon-mods';
 import { createModItemInstance } from '../../data/equipment';
 import { getMaxInventorySlots } from '../settings-cache';
@@ -304,73 +304,57 @@ export const createInventorySlice: StateCreator<GameStore, [], [], GameStore> = 
     });
   },
 
-  combineItems: (characterId: string, recipeId: string) => {
-    const recipe = RECIPES_DATA.find(r => r.id === recipeId);
-    if (!recipe) return false;
-
+  combineHerbs: (characterId: string, redHerbUid: string) => {
     let combined = false;
     set(state => {
       const party = state.party.map(p => {
         if (p.id !== characterId) return p;
+        const redHerb = p.inventory.find(i => i.uid === redHerbUid && i.itemId === 'herb_red');
+        if (!redHerb) return p;
 
-        // Check that the character has all required ingredients with sufficient quantity
-        const remaining = [...recipe.ingredients];
-        const uidsToRemove: string[] = [];
+        const greenIdx = p.inventory.findIndex(i => i.itemId === 'herb_green');
+        if (greenIdx === -1) return p;
 
-        for (const ing of remaining) {
-          let qtyNeeded = ing.quantity;
-          for (const invItem of p.inventory) {
-            if (invItem.itemId === ing.itemId && qtyNeeded > 0) {
-              const take = Math.min(qtyNeeded, invItem.quantity);
-              uidsToRemove.push(invItem.uid);
-              qtyNeeded -= take;
-            }
-          }
-          if (qtyNeeded > 0) return p; // missing ingredients
-        }
+        const mixedDef = ITEMS['herb_mixed'];
+        if (!mixedDef) return p;
 
-        // Create the result item from the ITEMS registry
-        const resultDef = ITEMS[recipe.result.itemId];
-        if (!resultDef) return p;
-
-        const resultItem: ItemInstance = {
-          uid: `${recipe.result.itemId}_${Date.now()}_${Math.random()}`,
-          itemId: recipe.result.itemId,
-          name: resultDef.name,
-          description: resultDef.description,
-          type: resultDef.type,
-          rarity: resultDef.rarity,
-          icon: resultDef.icon,
-          usable: resultDef.usable,
-          equippable: resultDef.equippable,
-          effects: resultDef.effects,
-          quantity: recipe.result.quantity,
+        const mixedHerb: ItemInstance = {
+          uid: `herb_mixed_${Date.now()}_${Math.random()}`,
+          itemId: 'herb_mixed',
+          name: mixedDef.name,
+          description: mixedDef.description,
+          type: mixedDef.type,
+          rarity: mixedDef.rarity,
+          icon: mixedDef.icon,
+          usable: mixedDef.usable,
+          equippable: mixedDef.equippable,
+          effects: mixedDef.effects,
+          quantity: 1,
         };
 
         combined = true;
         return {
           ...p,
           inventory: [
-            ...p.inventory.filter(i => !uidsToRemove.includes(i.uid)),
-            resultItem,
+            ...p.inventory.filter((_, idx) => idx !== greenIdx && p.inventory[idx].uid !== redHerbUid),
+            mixedHerb,
           ],
         };
       });
 
       const logMsg = combined
-        ? `[Turno ${state.turnCount}] 🧪 Craftato: ${recipe.name}!`
+        ? `[Turno ${state.turnCount}] 🌱 Erbe miscelate! Erba Verde + Erba Rossa = Erba Mista (cura 70 HP + rimuove status).`
         : '';
 
       return {
         party,
         messageLog: combined ? [...state.messageLog, logMsg] : state.messageLog,
-        craftingCombineCount: combined ? state.craftingCombineCount + 1 : state.craftingCombineCount,
+        herbCombineCount: combined ? state.herbCombineCount + 1 : state.herbCombineCount,
       };
     });
     if (combined) {
-      get().checkAchievements();
+      setTimeout(() => get().checkAchievements(), 50);
     }
-    return combined;
   },
 
   transferItem: (fromCharacterId: string, itemUid: string, toCharacterId: string, quantity?: number) => {

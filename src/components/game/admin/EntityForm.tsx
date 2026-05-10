@@ -58,35 +58,17 @@ function ArchetypeInheritBanner({ archetypeId }: { archetypeId: string }) {
     specialId: string; special2Id: string;
     startingItems: string;
   } | null>(null);
-  const [itemNames, setItemNames] = useState<Record<string, { name: string; icon?: string }>>({});
 
   useEffect(() => {
     let cancelled = false;
     if (!archetypeId) return;
     (async () => {
       try {
-        const [archRes, itemRes] = await Promise.all([
-          adminFetch('/api/admin/archetypes'),
-          adminFetch('/api/admin/items'),
-        ]);
-        if (cancelled) return;
-
-        // Resolve archetype
-        if (archRes.ok) {
-          const list = await archRes.json();
-          const found = list.find((a: { id: string }) => a.id === archetypeId);
-          if (found && !cancelled) setArchetype(found);
-        }
-
-        // Build item lookup map
-        if (itemRes.ok) {
-          const items = await itemRes.json();
-          const map: Record<string, { name: string; icon?: string }> = {};
-          for (const it of items) {
-            map[it.id] = { name: it.name || it.id, icon: it.icon || it.emoji || '' };
-          }
-          if (!cancelled) setItemNames(map);
-        }
+        const res = await adminFetch('/api/admin/archetypes');
+        if (!res.ok || cancelled) return;
+        const list = await res.json();
+        const found = list.find((a: { id: string }) => a.id === archetypeId);
+        if (found && !cancelled) setArchetype(found);
       } catch { /* silent */ }
     })();
     return () => { cancelled = true; };
@@ -144,27 +126,8 @@ function ArchetypeInheritBanner({ archetypeId }: { archetypeId: string }) {
       )}
 
       {startingItems.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="text-[11px] text-white/30 font-medium">🎒 Oggetti iniziali ereditati ({startingItems.length})</div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {startingItems.map((entry: { itemId: string; quantity?: number; isEquipped?: boolean }, i: number) => {
-              const resolved = itemNames[entry.itemId];
-              const label = resolved?.name || entry.itemId;
-              const icon = resolved?.icon || '';
-              const qty = entry.quantity > 1 ? ` ×${entry.quantity}` : '';
-              const equipBadge = entry.isEquipped ? (
-                <span className="text-[9px] px-1 py-0 rounded bg-amber-500/15 text-amber-400/70 ml-0.5">equip</span>
-              ) : null;
-              return (
-                <span key={entry.itemId + '-' + i} className="inline-flex items-center gap-1 text-[11px] text-white/50">
-                  <span>{icon}</span>
-                  <span>{label}</span>
-                  <span className="text-white/30">{qty}</span>
-                  {equipBadge}
-                </span>
-              );
-            })}
-          </div>
+        <div className="text-[11px] text-white/20">
+          🎒 {startingItems.length} oggetto/i iniziale/i dall&apos;archetipo
         </div>
       )}
 

@@ -1,18 +1,16 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
 import { getDifficultyConfig } from '../../data/difficulty';
-import { ITEMS, PURSUER_CONFIG } from '../../data/loader';
+import { ITEMS } from '../../data/loader';
 import { createEnemyInstance, getAutoCombatDefault } from '../helpers';
 import { rollVictoryCondition } from '../../data/victory-conditions';
 
 export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, get) => ({
-  startQTE: (triggerSource: 'pursuer' | 'event' | 'boss') => {
+  startQTE: (triggerSource: 'nemesis' | 'event' | 'boss') => {
     const state = get();
     const difficulty = state.difficulty;
-    const diffConfig = getDifficultyConfig(difficulty);
-    const statMult = diffConfig.statMult;
-    const sequenceCount = statMult <= 0.65 ? 3 : statMult <= 0.9 ? 4 : 5;
-    const baseTime = statMult <= 0.65 ? 2500 : statMult <= 0.9 ? 2000 : 1400;
+    const sequenceCount = difficulty === 'sopravvissuto' ? 3 : difficulty === 'normale' ? 4 : 5;
+    const baseTime = difficulty === 'sopravvissuto' ? 2500 : difficulty === 'normale' ? 2000 : 1400;
 
     const directions: Array<'up' | 'down' | 'left' | 'right' | 'space'> = ['up', 'down', 'left', 'right', 'space'];
     const sequences: Array<QTESequence> = [];
@@ -23,19 +21,19 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
       });
     }
 
-    const hpSave = statMult <= 0.65 ? 30 : statMult <= 0.9 ? 20 : 10;
+    const hpSave = difficulty === 'sopravvissuto' ? 30 : difficulty === 'normale' ? 20 : 10;
 
     let postSuccessMessage = '📊 Riesci a schivare!';
     let postFailureMessage = '💀 Non sei riuscito a schivare!';
     let postSuccessItems: { itemId: string; quantity: number }[] | undefined;
     let postFailureCombat: string[] | undefined;
 
-    if (triggerSource === 'pursuer') {
-      postSuccessMessage = `🏃 Sei riuscito a fuggire da ${PURSUER_CONFIG.name}! Trovi un nascondiglio sicuro.`;
-      postFailureMessage = `💀 ${PURSUER_CONFIG.name} ti colpisce! Sei ferito ma sei sopravvissuto... per ora.`;
+    if (triggerSource === 'nemesis') {
+      postSuccessMessage = '🏃 Sei riuscito a fuggire da NEMESIS! Trovi un nascondiglio sicuro.';
+      postFailureMessage = '💀 NEMESIS ti colpisce! Sei ferito ma sei sopravvissuto... per ora.';
       postSuccessItems = [{ itemId: 'first_aid', quantity: 1 }];
-      // Failed escape → trigger pursuer combat
-      postFailureCombat = [PURSUER_CONFIG.enemyId];
+      // Failed escape → trigger Nemesis combat
+      postFailureCombat = ['nemesis_boss'];
     } else if (triggerSource === 'event') {
       postSuccessMessage = '🏃 Sei scappato appena in tempo!';
       postFailureMessage = '💥 Sei caduto e ti sei ferito!';
@@ -172,31 +170,31 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
         }
       }
 
-      // Successful escape from pursuer increases pursuit level
-      if (qs.triggerSource === 'pursuer' && state.pursuerLevel < PURSUER_CONFIG.maxPursuitLevel) {
-        newPursuitLevelOnSuccess = state.pursuerLevel + 1;
-        logMessages.push(`[${state.turnCount}] 💀 ${PURSUER_CONFIG.name} vi rintraccerà... Livello Inseguimento: ${newPursuitLevelOnSuccess}/${PURSUER_CONFIG.maxPursuitLevel}`);
+      // Successful escape from Nemesis increases pursuit level
+      if (qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5) {
+        newPursuitLevelOnSuccess = state.nemesisPursuitLevel + 1;
+        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevelOnSuccess}/5`);
       }
     } else if (qs.result === 'partial') {
       logMessages.push(`[${state.turnCount}] ⚠️ ${qs.postFailureMessage} (parziale)`);
       // Deal some damage
-      const dmg = Math.floor(10 * (statMult >= 1.2 ? 1.5 : 1));
+      const dmg = Math.floor(10 * (state.difficulty === 'incubo' ? 1.5 : 1));
       updatedParty = updatedParty.map(p => ({
         ...p,
         currentHp: Math.max(1, p.currentHp - dmg),
       }));
       logMessages.push(`[${state.turnCount}] 💔-${dmg} HP a tutti!`);
 
-      // Partial escape still increases pursuer pursuit level
-      if (qs.triggerSource === 'pursuer' && state.pursuerLevel < PURSUER_CONFIG.maxPursuitLevel) {
-        const newPursuitLevel = state.pursuerLevel + 1;
-        logMessages.push(`[${state.turnCount}] 💀 ${PURSUER_CONFIG.name} vi rintraccerà... Livello Inseguimento: ${newPursuitLevel}/${PURSUER_CONFIG.maxPursuitLevel}`);
+      // Partial escape still increases Nemesis pursuit level
+      if (qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5) {
+        const newPursuitLevel = state.nemesisPursuitLevel + 1;
+        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevel}/5`);
         set({
           phase: 'exploration' as const,
           party: updatedParty,
           qteState: null,
           messageLog: [...state.messageLog, ...logMessages],
-          pursuerLevel: newPursuitLevel,
+          nemesisPursuitLevel: newPursuitLevel,
           turnCount: state.turnCount + 1,
         });
         return;
@@ -204,25 +202,25 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
     } else {
       logMessages.push(`[${state.turnCount}] 💀 ${qs.postFailureMessage}`);
       // Deal heavy damage
-      const dmg = Math.floor(25 * (statMult >= 1.2 ? 2 : 1));
+      const dmg = Math.floor(25 * (state.difficulty === 'incubo' ? 2 : 1));
       updatedParty = updatedParty.map(p => ({
         ...p,
         currentHp: Math.max(1, p.currentHp - dmg),
       }));
       logMessages.push(`[${state.turnCount}] 💔-${dmg} HP a tutti!`);
 
-      // Failed escape from pursuer also increases pursuit level
-      if (qs.triggerSource === 'pursuer' && state.pursuerLevel < PURSUER_CONFIG.maxPursuitLevel) {
-        newPursuitLevelOnSuccess = state.pursuerLevel + 1;
-        logMessages.push(`[${state.turnCount}] 💀 ${PURSUER_CONFIG.name} vi rintraccerà... Livello Inseguimento: ${newPursuitLevelOnSuccess}/${PURSUER_CONFIG.maxPursuitLevel}`);
+      // Failed escape from Nemesis also increases pursuit level
+      if (qs.triggerSource === 'nemesis' && state.nemesisPursuitLevel < 5) {
+        newPursuitLevelOnSuccess = state.nemesisPursuitLevel + 1;
+        logMessages.push(`[${state.turnCount}] 💀 NEMESIS vi rintraccerà... Livello Inseguimento: ${newPursuitLevelOnSuccess}/5`);
       }
 
-      // If pursuer QTE failed, trigger combat
-      if (qs.triggerSource === 'pursuer' && qs.postFailureCombat) {
+      // If nemesis QTE failed, trigger combat
+      if (qs.triggerSource === 'nemesis' && qs.postFailureCombat) {
         const diff = getDifficultyConfig(state.difficulty, state.partySize);
-        // Scale pursuer strength with pursuit level (same formula as exploration)
-        const pursuerStatMult = diff.statMult * (0.8 + 0.1 * state.pursuerLevel);
-        const enemies = qs.postFailureCombat.map(id => createEnemyInstance(id, pursuerStatMult));
+        // Scale Nemesis strength with pursuit level (same formula as exploration)
+        const nemesisStatMult = diff.statMult * (0.8 + 0.1 * state.nemesisPursuitLevel);
+        const enemies = qs.postFailureCombat.map(id => createEnemyInstance(id, nemesisStatMult));
         const allActors = [
           ...updatedParty.filter(p => p.currentHp > 0).map(p => ({ id: p.id, spd: p.baseSpd, type: 'player' as const })),
           ...enemies.map(e => ({ id: e.id, spd: e.spd, type: 'enemy' as const })),
@@ -230,12 +228,12 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
         const firstActor = allActors[0];
 
         // Track bestiary
-        const pursuerBestiary = [...state.bestiary];
-        const existingPursuer = pursuerBestiary.find(b => b.enemyId === PURSUER_CONFIG.enemyId);
-        if (!existingPursuer) {
-          pursuerBestiary.push({ enemyId: PURSUER_CONFIG.enemyId, encountered: true, defeated: false, timesDefeated: 0 });
+        const nemesisBestiary = [...state.bestiary];
+        const existingNem = nemesisBestiary.find(b => b.enemyId === 'nemesis_boss');
+        if (!existingNem) {
+          nemesisBestiary.push({ enemyId: 'nemesis_boss', encountered: true, defeated: false, timesDefeated: 0 });
         } else {
-          existingPursuer.encountered = true;
+          existingNem.encountered = true;
         }
 
         const nemesisVc = rollVictoryCondition(enemies);
@@ -257,7 +255,7 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
             selectedTarget: null,
             selectedItemUid: null,
             isProcessing: false,
-            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player' as const, action: 'QTE Fallito', message: `${PURSUER_CONFIG.name} vi ha raggiunto!` }],
+            log: [{ turn: 1, actorName: 'Sistema', actorType: 'player' as const, action: 'QTE Fallito', message: `NEMESIS vi ha raggiunto!` }],
             isVictory: false,
             isDefeat: false,
             fled: true,
@@ -271,11 +269,11 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
             comboTargetId: null,
             lastOffensiveAction: null,
           },
-          bestiary: pursuerBestiary,
-          pursuerLastSeenLocation: state.currentLocationId,
-          pursuerLastSeenTurn: state.turnCount,
+          bestiary: nemesisBestiary,
+          nemesisLastSeenLocation: state.currentLocationId,
+          nemesisLastSeenTurn: state.turnCount,
           messageLog: [...state.messageLog, ...logMessages],
-          ...(state.pursuerLevel < PURSUER_CONFIG.maxPursuitLevel ? { pursuerLevel: state.pursuerLevel + 1 } : {}),
+          ...(state.nemesisPursuitLevel < 5 ? { nemesisPursuitLevel: state.nemesisPursuitLevel + 1 } : {}),
         });
         if (firstActor.type === 'enemy') {
           setTimeout(() => get().advanceToNextActor(), 1400);
@@ -290,7 +288,7 @@ export const createQteSlice: StateCreator<GameStore, [], [], GameStore> = (set, 
       party: updatedParty,
       messageLog: [...state.messageLog, ...logMessages],
       skipNextEncounter: true,
-      ...(newPursuitLevelOnSuccess !== null ? { pursuerLevel: newPursuitLevelOnSuccess } : {}),
+      ...(newPursuitLevelOnSuccess !== null ? { nemesisPursuitLevel: newPursuitLevelOnSuccess } : {}),
     });
   },
 });

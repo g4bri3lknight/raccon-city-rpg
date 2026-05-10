@@ -8,6 +8,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_marco',
     name: 'Marco',
     portrait: '🔧',
+    locationId: 'city_outskirts',
     greeting: 'Ehi, tu! Sei ancora vivo? Grazie a Dio! Mi chiamo Marco, ero il meccanico del distretto.',
     dialogues: [
       'Conosco ogni angolo di questa città — compresa un\'entrata posteriore alla R.P.D. che i poliziotti usavano per le pause fumatori. Se ti serve un consiglio, chiedi pure.',
@@ -44,6 +45,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_dr_chen',
     name: 'Dr. Chen',
     portrait: '🥼',
+    locationId: 'hospital_district',
     greeting: 'Sssh! Abbassate la voce! Non fatevi sentire da quelle cose. Io sono il dottor Chen, reparto malattie infettive.',
     dialogues: [
       'Mi sono nascosto nel ripostiglio dei medicinali quando è iniziato il caos. Ho visto tutto — il virus che mutava i pazienti in quelle... creature. L\'ospedale era un laboratorio di ricerca per la Umbrella, e lo sapevano solo pochi di noi.',
@@ -76,6 +78,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_soldier_reyes',
     name: 'Soldato Reyes',
     portrait: '🎖️',
+    locationId: 'rpd_station',
     greeting: 'Non sparare! Sono umano! Soldato Reyes, UBCS — Unità di Biocontenimento della Umbrella.',
     dialogues: [
       'La mia squadra è stata decimata. Quelle cose nei corridoi... i soldati zombie sono i miei ex compagni. Li ho visti trasformarsi uno per uno. Non c\'è stato niente da fare.',
@@ -115,6 +118,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_hannah',
     name: 'Hannah',
     portrait: '🔦',
+    locationId: 'sewers',
     greeting: 'Woah! Mi hai spaventata! Aspetta... sei umano? Che sollievo. Mi chiamo Hannah, esploravo le fogne cercando una via d\'uscita.',
     dialogues: [
       'Conosco bene questi condotti — sono una città sotterranea. Ci sono scorciatoie che i dipendenti della Umbrella usavano per spostarsi senza essere visti. Ma attenzione, le creature qui sono più aggressive che in superficie.',
@@ -151,6 +155,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_umbrella_scientist',
     name: 'Dr. Alessandro Voss',
     portrait: '🧬',
+    locationId: 'laboratory_entrance',
     greeting: 'Chi... chi siete? Siete della S.T.A.R.S.? No? Allora forse... forse siete diversi dagli altri.',
     dialogues: [
       'Mi chiamo Alessandro Voss. Ero uno dei ricercatori capo del progetto Tyrant. Ho contribuito a creare quei mostri. Ora tutto questo... è colpa mia.',
@@ -191,6 +196,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_gravedigger',
     name: 'Pietro il Becchino',
     portrait: '🪦',
+    locationId: 'cemetery',
     greeting: 'Shhh... non fate rumore. Loro sentono tutto. Mi chiamo Pietro, sono il becchino di questo cimitero da trent\'anni. Ormai non so più chi sia più pericoloso: i morti che camminano o i vivi che li hanno creati.',
     dialogues: [
       'Ho scavato abbastanza tombe da sapere quando qualcosa non va. Ultimamente la terra è troppo morbida in certe zone... come se qualcosa si muovesse sottoterra. E le lapidi? Alcune sono state spostate dall\'interno. Credetemi, non è opera di vandali.',
@@ -230,6 +236,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_nurse_ghost',
     name: 'Infermiera Chiara',
     portrait: '👩‍⚕️',
+    locationId: 'abandoned_hospital',
     greeting: 'Non... non scappate! Sono viva, giuro! Mi chiamo Chiara, infermiera. Mi sono nascosta qui quando l\'ospedale è stato evacuato. Non sapevo che le cose sarebbero diventate così.',
     dialogues: [
       'Lavoravo al reparto sperimentale. Non sapevo cosa facessero davvero qui. I pazienti arrivavano di notte, non li vedevo mai uscire. Poi un giorno le porte si sono chiuse e abbiamo sentito le urla. Il virus si è diffuso troppo in fretta.',
@@ -269,6 +276,7 @@ export const SEED_NPCS: Record<string, GameNPC> = {
     id: 'npc_maintenance_worker',
     name: 'Giovanni Ferri',
     portrait: '🔧',
+    locationId: 'water_tower',
     greeting: 'Ehi! Finalmente qualcuno! Mi chiamo Giovanni, manutentore idraulico. Sono bloccato qui da due giorni — le scale sono piene di quelle cose striscianti.',
     dialogues: [
       'Questa torre non è una normale torre dell\'acqua. La Umbrella l\'ha convertita anni fa per smaltire rifiuti biologici dal laboratorio sotterraneo. Quello che pensate sia acqua verde? È virus diluito. Non toccatelo.',

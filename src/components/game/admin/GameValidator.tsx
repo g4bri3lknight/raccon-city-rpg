@@ -17,7 +17,6 @@ import {
   RefreshCw,
   ArrowRight,
   CheckCircle,
-  Wrench,
 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 
@@ -100,8 +99,6 @@ export function GameValidator({
 }: GameValidatorProps) {
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fixing, setFixing] = useState(false);
-  const [fixResult, setFixResult] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchReport = useCallback(async () => {
@@ -132,30 +129,6 @@ export function GameValidator({
     }
   };
 
-  const handleAutoFix = async () => {
-    setFixing(true);
-    setFixResult(null);
-    try {
-      const res = await adminFetch('/api/admin/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error('Errore nell\'auto-fix');
-      const data = await res.json();
-      setFixResult(data.fixes || []);
-      // Re-run validation after fix
-      fetchReport();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore sconosciuto');
-    } finally {
-      setFixing(false);
-    }
-  };
-
-  const hasAutoFixable = report && report.categories.some(cat =>
-    cat.issues.some(iss => iss.message.includes('questId') && iss.message.includes('non trovata')),
-  );
   const allClear = report && report.totalIssues === 0;
 
   return (
@@ -296,38 +269,9 @@ export function GameValidator({
           </div>
         )}
 
-        {/* Auto-fix result banner */}
-        {fixResult && fixResult.length > 0 && (
-          <div className="shrink-0 mx-0 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <p className="text-xs font-medium text-emerald-400 mb-1">
-              {'✓ '}{fixResult.length} problema{fixResult.length === 1 ? '' : 'i'} risolt{fixResult.length === 1 ? 'o' : 'i'} automaticamente:
-            </p>
-            <ul className="text-[11px] text-emerald-300/60 space-y-0.5 max-h-20 overflow-y-auto">
-              {fixResult.map((f, i) => <li key={i}>• {f}</li>)}
-            </ul>
-          </div>
-        )}
-        {fixResult && fixResult.length === 0 && (
-          <div className="shrink-0 p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
-            <p className="text-xs text-zinc-500">Nessun problema auto-risolvibile trovato.</p>
-          </div>
-        )}
-
         {/* Footer actions */}
         {!loading && report && (
-          <div className="shrink-0 pt-2 border-t border-zinc-800 flex justify-between">
-            {hasAutoFixable ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAutoFix}
-                disabled={fixing}
-                className="border-amber-700/50 text-amber-400 hover:bg-amber-500/10"
-              >
-                <Wrench className={`h-3.5 w-3.5 mr-1.5 ${fixing ? 'animate-pulse' : ''}`} />
-                {fixing ? 'Risoluzione...' : 'Auto-fix'}
-              </Button>
-            ) : <div />}
+          <div className="shrink-0 pt-2 border-t border-zinc-800 flex justify-end">
             <Button
               variant="outline"
               size="sm"

@@ -8,8 +8,7 @@ export type GamePhase = 'title' | 'character-select' | 'character-creator' | 'ex
 // DIFFICULTY
 // ==========================================
 
-/** Dynamic — valid levels come from template config (template.config.validTypes.difficultyLevels) */
-export type DifficultyLevel = string;
+export type DifficultyLevel = 'sopravvissuto' | 'normale' | 'incubo';
 
 export interface DifficultyConfig {
   label: string;
@@ -24,11 +23,9 @@ export interface DifficultyConfig {
   description: string;
 }
 
-/** Dynamic — valid archetypes come from DB (GameArchetype table) */
-export type Archetype = string;
+export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'survivor' | 'custom';
 
-/** Dynamic — valid effects come from template config (template.config.validTypes.statusEffects) */
-export type StatusEffect = string;
+export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'none';
 
 export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible' | 'armor' | 'accessory' | 'weapon_mod';
 
@@ -565,6 +562,7 @@ export interface LocationDefinition {
   enemyPool: string[]; // EnemyDefinition ids
   itemPool: LootEntry[]; // Items that can be found
   storyEvent?: StoryEvent;
+  nextLocations: string[];
   isBossArea: boolean;
   bossId?: string;
   ambientText: string[];
@@ -753,7 +751,7 @@ export interface QTEState {
   timeRemaining: number; // ms
   result: 'pending' | 'success' | 'partial' | 'failure';
   rewardHpSave: number; // HP saved on success
-  triggerSource: string;
+  triggerSource: 'nemesis' | 'event' | 'boss';
   postSuccessMessage: string;
   postFailureMessage: string;
   postSuccessItems?: { itemId: string; quantity: number }[];
@@ -834,10 +832,10 @@ export interface GameState {
   exploredSubAreas: Record<string, string[]>; // locationId → sub-area IDs
   // #14 Boss multi-fase
   bossPhases: Record<string, BossPhase[]>; // enemyId → phases
-  // #27 Persistent Pursuer (Nemesis-like)
-  pursuerLevel: number; // 0-maxPursuitLevel, increases each invasion
-  pursuerLastSeenLocation: string | null;
-  pursuerLastSeenTurn: number;
+  // #27 Nemesis persistente
+  nemesisPursuitLevel: number; // 0-5, increases each invasion
+  nemesisLastSeenLocation: string | null;
+  nemesisLastSeenTurn: number;
   // #45 Randomizer Mode
   randomizerMode: boolean;
   randomizedLocationData: RandomizedLocationData | null;
@@ -862,7 +860,7 @@ export interface GameState {
   // Help overlay
   helpOpen: boolean;
   // Achievement tracking
-  craftingCombineCount: number; // total crafting combination actions
+  herbCombineCount: number; // total herb combination actions
   // Auto-save
   lastAutoSaveTurn: number;
   // #8 Crafting Avanzato
@@ -883,6 +881,7 @@ export interface RandomizedLocationData {
   locations: Record<string, {
     enemyPool: string[];
     itemPool: { itemId: string; chance: number; quantity: number }[];
+    nextLocations: string[];
     isBossArea: boolean;
     bossEnemy?: string;
     lockedLocations?: { locationId: string; requiredItemId: string; lockedMessage: string }[];
@@ -926,8 +925,7 @@ export interface BestiaryEntry {
 // #16 - DOCUMENTS / LORE
 // ==========================================
 
-/** Dynamic — valid types come from template config (template.config.validTypes.documentTypes) */
-export type DocumentType = string;
+export type DocumentType = 'diary' | 'umbrella_file' | 'note' | 'photo' | 'report' | 'email';
 
 export interface GameDocument {
   id: string;
@@ -950,8 +948,8 @@ export interface NPCQuest {
   id: string;
   name: string;
   description: string;
-  type: 'fetch' | 'kill' | 'explore' | 'talk';
-  targetId: string; // itemId to fetch, enemyId to kill, locationId to explore, npcId to talk to
+  type: 'fetch' | 'kill' | 'explore';
+  targetId: string; // itemId to fetch, enemyId to kill, locationId to explore
   targetCount: number;
   rewardItems: { itemId: string; quantity: number }[];
   rewardExp: number;
@@ -973,6 +971,7 @@ export interface GameNPC {
   id: string;
   name: string;
   portrait: string; // emoji
+  locationId: string;
   greeting: string;
   dialogues: string[];
   quest?: NPCQuest;
@@ -995,8 +994,7 @@ export interface AvatarDefinition {
 // #20 - DYNAMIC EVENTS
 // ==========================================
 
-/** Dynamic — valid types come from template config (template.config.validTypes.eventTypes) */
-export type DynamicEventType = string;
+export type DynamicEventType = 'blackout' | 'alarm' | 'collapse' | 'lockdown' | 'gas_leak' | 'fire' | 'nemesis_invasion' | 'horde';
 
 export interface DynamicEvent {
   id: string;
@@ -1059,8 +1057,7 @@ export interface SecretRoom {
 // #23 - MULTIPLE ENDINGS
 // ==========================================
 
-/** Dynamic — valid types come from template config (template.config.validTypes.endingTypes) */
-export type EndingType = string;
+export type EndingType = 'escape' | 'hero' | 'truth' | 'dark';
 
 export interface EndingDefinition {
   id: EndingType;
@@ -1080,8 +1077,7 @@ export interface EndingDefinition {
 // #21 - STORY CHOICES TRACKING
 // ==========================================
 
-/** Dynamic — valid tags come from game data / story events */
-export type StoryChoiceTag = string;
+export type StoryChoiceTag = 'help_survivors' | 'ignore_survivors' | 'enter_lab' | 'skip_lab' | 'go_back_sewers' | 'proceed_sewers' | 'hack_computer' | 'skip_computer';
 
 // ==========================================
 // RUN STATS
@@ -1157,7 +1153,6 @@ export interface MultiStepQuest {
   npcId: string;
   name: string;
   description: string;
-  prerequisiteQuestId?: string;
   steps: QuestChainStep[];
   finalReward: {
     items?: { itemId: string; quantity: number }[];

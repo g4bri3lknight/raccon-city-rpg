@@ -6,7 +6,7 @@ import {
   ArrowLeft, Play, ChevronDown, Menu, X,
   Plus, Pencil, Trash2, RefreshCw, Loader2, Search, Upload,
   LayoutGrid, List, Copy, Filter, ArrowUpDown, ArrowUp, ArrowDown,
-  AlertTriangle, Link2, Download, CheckSquare, Shield, Palette, Compass,
+  AlertTriangle, Link2, Download, CheckSquare, Shield, FileText, Palette, Compass,
 } from 'lucide-react';
 import { refreshGameData } from '@/game/data/loader';
 import { useGameStore } from '@/game/store';
@@ -31,11 +31,10 @@ import { AvatarManager } from '@/components/game/admin/tabs/AvatarManager';
 import { StartScreenEditor } from '@/components/game/admin/tabs/StartScreenEditor';
 import { GameSettingsEditor } from '@/components/game/admin/tabs/GameSettingsEditor';
 import ThemeEditor from '@/components/game/admin/tabs/ThemeEditor';
-import { useAdminAccent } from '@/hooks/useAdminAccent';
 import MapEditor from '@/components/game/admin/tabs/MapEditor';
 import GlobalSearchDialog from '@/components/game/admin/GlobalSearchDialog';
 import { KeyboardShortcutsOverlay } from '@/components/game/admin/KeyboardShortcutsOverlay';
-
+import { EntityTemplates } from '@/components/game/admin/EntityTemplates';
 import { GameValidator } from '@/components/game/admin/GameValidator';
 import { EntityColorConfig, useEntityColors } from '@/components/game/admin/EntityColorConfig';
 
@@ -94,24 +93,20 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
 
   // ── Bulk selection (#9) ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const pendingEditIdRef = useRef<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [importingJson, setImportingJson] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Pending edit ID for cross-tab navigation (fix race condition) ──
-  const pendingEditIdRef = useRef<string | null>(null);
-
   // ── Dialog states for new features ──
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [validatorOpen, setValidatorOpen] = useState(false);
   const [colorConfigOpen, setColorConfigOpen] = useState(false);
 
   // ── Entity colors (#6) ──
   const entityColors = useEntityColors();
-
-  // ── Apply template accent color to admin UI ──
-  useAdminAccent();
 
   const tabConfig = TABS.find(t => t.id === activeTab)!;
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -209,6 +204,14 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
       const arr = Array.isArray(json) ? json : [];
       setData(arr);
       setCounts(prev => ({ ...prev, [activeTab]: arr.length }));
+      // Apply pending edit navigation after data is loaded
+      if (pendingEditIdRef.current) {
+        const pendingId = pendingEditIdRef.current;
+        pendingEditIdRef.current = null;
+        if (arr.some(r => String(r.id) === pendingId)) {
+          setEditingId(pendingId);
+        }
+      }
     } catch (err) {
       showStatus(`Errore caricamento: ${err}`, 'error');
       setData([]);
@@ -242,13 +245,37 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
 
   // ── Global search result handler (#1) ──
   const handleGlobalSearchSelect = useCallback((tabId: TabId, entityId: string) => {
-    pendingEditIdRef.current = entityId;
     setActiveTab(tabId);
+    // After tab switch, open edit for the entity
+    setTimeout(() => {
+      setEditingId(entityId);
+      setCreating(false);
+    }, 100);
   }, []);
+
+  // ── Template create handler (#7) ──
+  const handleTemplateCreate = useCallback(async (tabId: TabId, templateData: Record<string, unknown>) => {
+    try {
+      const targetTab = TABS.find(t => t.id === tabId);
+      if (!targetTab) return;
+      const res = await adminFetch(targetTab.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(templateData),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showStatus('Template creato con successo!', 'success');
+      setTemplatesOpen(false);
+      setActiveTab(tabId);
+      fetchCounts();
+    } catch (err) {
+      showStatus(`Errore creazione template: ${err}`, 'error');
+    }
+  }, [showStatus, fetchCounts]);
 
   // ── Validator navigate handler (#8) ──
   const handleValidatorNavigate = useCallback((tabId: string, entityId?: string) => {
-    pendingEditIdRef.current = entityId ?? null;
+    pendingEditIdRef.current = entityId || null;
     setActiveTab(tabId as TabId);
   }, []);
 
@@ -268,14 +295,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
   // Fetch data when tab changes
   useEffect(() => {
     fetchCounts();
-    fetchData().then(() => {
-      // After data loads, check if a pending edit was requested (from validator/search/entity-link)
-      if (pendingEditIdRef.current) {
-        setEditingId(pendingEditIdRef.current);
-        setCreating(false);
-        pendingEditIdRef.current = null;
-      }
-    });
+    fetchData();
     fetchRefs();
     setCreating(false);
     setEditingId(null);
@@ -802,32 +822,46 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
               {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
             <span className="text-base">⚙️</span>
-            <span className="text-sm font-black tracking-wider admin-accent shrink-0">EDITOR</span>
+            <span className="text-sm font-black tracking-wider text-emerald-400 shrink-0">EDITOR</span>
             <span className="text-[11px] sm:text-[12px] text-white/25 bg-white/[0.06] px-2 py-0.5 rounded-md font-mono truncate max-w-[100px] sm:max-w-none">{gameId || '...'}</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* #1 — Inline search input with dropdown */}
-            <div className="relative hidden sm:block">
-              <div className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md text-white/40 bg-white/[0.03] border border-white/[0.08] focus-within:border-white/20 focus-within:bg-white/[0.05] transition-all cursor-text" onClick={() => setSearchOpen(true)}>
-                <Compass className="w-3.5 h-3.5 shrink-0" />
-                <span className="select-none">Cerca...</span>
-                <kbd className="text-[10px] text-white/20 border border-white/[0.1] rounded px-1 py-px ml-auto font-mono">⌘K</kbd>
-              </div>
-            </div>
-            {/* Mobile search button */}
+            {/* #1 — Global Search button */}
             <button
               onClick={() => setSearchOpen(true)}
-              className="sm:hidden flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/[0.06] text-white/40 transition-colors"
+              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
               title="Ricerca globale (Ctrl+K)"
             >
               <Compass className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Cerca</span>
+              <kbd className="hidden lg:inline text-[10px] text-white/25 border border-white/[0.1] rounded px-1 py-px ml-1 font-mono">⌘K</kbd>
+            </button>
+
+            {/* #7 — Templates button */}
+            <button
+              onClick={() => setTemplatesOpen(true)}
+              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
+              title="Template predefiniti"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Template</span>
+            </button>
+
+            {/* #8 — Validator button */}
+            <button
+              onClick={() => setValidatorOpen(true)}
+              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
+              title="Validatore completezza gioco"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Valida</span>
             </button>
 
             {/* #6 — Color config button */}
             <button
               onClick={() => setColorConfigOpen(true)}
-              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/40 hover:text-white/60 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
+              className="flex items-center gap-1.5 text-xs px-2 sm:px-2.5 py-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.06] border border-white/[0.08] transition-colors"
               title="Colori per tipologia"
             >
               <Palette className="w-3.5 h-3.5" />
@@ -844,29 +878,16 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
 
             <div className="hidden sm:block w-px h-4 bg-white/[0.08]" />
 
-            {/* Refresh — Cyan/Teal */}
             <Button
               variant="ghost"
               size="sm"
               onClick={handleRefreshGameData}
               disabled={refreshing}
-              className="text-xs px-2 sm:px-3 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-600/15 border border-cyan-500/25 bg-cyan-600/10"
+              className="text-xs px-2 sm:px-3 text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10"
             >
               {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-
-            {/* Verifiche — Amber/Yellow */}
-            <button
-              onClick={() => setValidatorOpen(true)}
-              className="flex items-center gap-1.5 text-xs px-2 sm:px-3 py-1.5 rounded-md text-amber-300 hover:text-amber-200 hover:bg-amber-600/15 border border-amber-500/25 bg-amber-600/10 transition-colors"
-              title="Verifiche completezza gioco"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Verifiche</span>
-            </button>
-
-            {/* Play Test — Emerald/Green */}
             <button
               onClick={() => onPlay(gameId)}
               className="flex items-center gap-1.5 text-xs px-2 sm:px-3 py-1.5 rounded-md text-emerald-300 hover:text-emerald-200 hover:bg-emerald-600/15 border border-emerald-500/25 bg-emerald-600/10 transition-colors"
@@ -923,7 +944,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                 </button>
                 <div className="hidden sm:block w-px h-4 bg-white/[0.1]" />
                 <div className="min-w-0">
-                  <h2 className="text-sm font-semibold admin-accent">
+                  <h2 className="text-sm font-semibold text-emerald-400">
                     {activeTab === 'notifications'
                       ? (editingId ? `Modifica Notifica: ${editingId}` : 'Nuova Notifica')
                       : (editingId ? `Modifica: ${editingId}` : `Nuovo ${tabConfig.entityLabel}`)
@@ -1170,14 +1191,10 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                           variant="ghost"
                           onClick={async () => {
                             try {
-                              const res = await adminFetch(banner.seedEndpoint, {
-                                method: 'POST',
-                                headers: banner.seedBody ? { 'Content-Type': 'application/json' } : undefined,
-                                body: banner.seedBody ? JSON.stringify(banner.seedBody) : undefined,
-                              });
+                              const res = await adminFetch(banner.seedEndpoint, { method: 'POST' });
                               if (!res.ok) throw new Error(await res.text());
                               const result = await res.json();
-                              showStatus(result.message ?? `Seed ${banner.label} completato`, 'success');
+                              showStatus(result.message, 'success');
                               fetchData();
                               fetchCounts();
                             } catch (err) {
@@ -1429,6 +1446,14 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
           onOpenChange={setColorConfigOpen}
         />
       )}
+
+      {/* ── #7 Entity Templates ── */}
+      <EntityTemplates
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        onCreateFromTemplate={handleTemplateCreate}
+        activeTab={activeTab}
+      />
 
       {/* ── #8 Game Validator ── */}
       <GameValidator

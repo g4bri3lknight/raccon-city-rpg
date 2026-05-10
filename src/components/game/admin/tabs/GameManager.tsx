@@ -11,8 +11,6 @@ import { refreshGameData } from '@/game/data/loader';
 import { useGameStore } from '@/game/store';
 import { Button } from '@/components/ui/button';
 import ExportDialog from './ExportDialog';
-import TemplateSelector from '../templates/TemplateSelector';
-import { getTemplateById } from '../templates';
 
 interface GameManagerProps {
   onOpenEditor: (gameId: string) => void;
@@ -49,8 +47,6 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
   const [createClone, setCreateClone] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
-  const [createStep, setCreateStep] = useState<'template' | 'details'>('template');
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
 
   // Edit game dialog
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -128,21 +124,6 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
     }
   };
 
-  const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplateId(templateId);
-    setCreateStep('details');
-  };
-
-  const resetCreateDialog = () => {
-    setShowCreate(false);
-    setCreateError('');
-    setCreateName('');
-    setCreateDesc('');
-    setCreateClone('');
-    setCreateStep('template');
-    setSelectedTemplateId('');
-  };
-
   // Create new game
   const handleCreate = async () => {
     if (!createName.trim()) {
@@ -153,7 +134,6 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
     setCreateError('');
     try {
       const body: Record<string, string> = { name: createName.trim(), description: createDesc.trim() };
-      if (selectedTemplateId) body.templateId = selectedTemplateId;
       if (createClone) body.cloneFrom = createClone;
       const res = await adminFetch('/api/games', {
         method: 'POST',
@@ -165,7 +145,10 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       showStatus(`Gioco "${createName.trim()}" creato con successo!`, 'success');
-      resetCreateDialog();
+      setShowCreate(false);
+      setCreateName('');
+      setCreateDesc('');
+      setCreateClone('');
       fetchGames();
     } catch (err) {
       setCreateError(String(err));
@@ -732,115 +715,75 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
         <div className="fixed inset-0 z-[120] flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/70"
-            onClick={resetCreateDialog}
+            onClick={() => { setShowCreate(false); setCreateError(''); }}
           />
           <div
-            className={`relative w-full ${createStep === 'template' ? 'max-w-2xl' : 'max-w-lg'} mx-4 rounded-xl overflow-hidden`}
+            className="relative w-full max-w-lg mx-4 rounded-xl p-6"
             style={{
               background: 'rgba(12, 12, 20, 0.98)',
               border: '1px solid rgba(255,255,255,0.1)',
               boxShadow: '0 24px 80px rgba(0,0,0,0.8)',
             }}
           >
-            {/* Header */}
-            <div className="shrink-0 px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-5">
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                {createStep === 'template'
-                  ? <Gamepad2 className="w-4 h-4 text-emerald-400" />
-                  : <Plus className="w-4 h-4 text-emerald-400" />
-                }
+                <Plus className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-white/90">
-                  {createStep === 'template' ? 'Nuovo Gioco — Template' : 'Nuovo Gioco — Dettagli'}
-                </h3>
-                <p className="text-[12px] text-white/35">
-                  {createStep === 'template'
-                    ? 'Scegli il template di base per il tuo RPG'
-                    : selectedTemplateId ? getTemplateById(selectedTemplateId)?.name ?? 'Template selezionato' : 'Configura il tuo gioco'}
-                </p>
+              <div>
+                <h3 className="text-sm font-bold text-white/90">Nuovo Gioco</h3>
+                <p className="text-[12px] text-white/35">Crea un nuovo database di gioco</p>
               </div>
-              {createStep === 'details' && selectedTemplateId && (
-                <span
-                  className="text-[11px] font-semibold px-2 py-0.5 rounded-full border"
-                  style={{
-                    backgroundColor: `${getTemplateById(selectedTemplateId)?.color}20`,
-                    color: getTemplateById(selectedTemplateId)?.color,
-                    borderColor: `${getTemplateById(selectedTemplateId)?.color}30`,
-                  }}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Nome *</label>
+                <input
+                  type="text"
+                  value={createName}
+                  onChange={e => { setCreateName(e.target.value); setCreateError(''); }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
+                  placeholder="Es. Il mio GDR Fantasy"
+                  autoFocus
+                  className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 placeholder-white/25 focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Descrizione</label>
+                <textarea
+                  value={createDesc}
+                  onChange={e => setCreateDesc(e.target.value)}
+                  rows={2}
+                  placeholder="Descrivi il tuo gioco..."
+                  className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 placeholder-white/25 focus:outline-none focus:border-emerald-500/50 resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Clona da (opzionale)</label>
+                <select
+                  value={createClone}
+                  onChange={e => setCreateClone(e.target.value)}
+                  className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 focus:outline-none focus:border-emerald-500/50 [&>option]:bg-[#1a1a2e] [&>option]:text-white/80"
                 >
-                  {getTemplateById(selectedTemplateId)?.icon} {getTemplateById(selectedTemplateId)?.name}
-                </span>
+                  <option value="" className="bg-black text-white">— Nuovo gioco vuoto —</option>
+                  {games.map(g => (
+                    <option key={g.id} value={g.id} className="bg-black text-white">{g.name} ({g.id})</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-white/20 mt-1">Clonare copia tutti i dati (oggetti, nemici, location, ecc.) nel nuovo gioco</p>
+              </div>
+
+              {createError && (
+                <p className="text-[12px] text-red-400">❌ {createError}</p>
               )}
-            </div>
 
-            {/* Content */}
-            <div className="px-6 py-5">
-              {createStep === 'template' ? (
-                <TemplateSelector onSelect={handleTemplateSelect} />
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-[11px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Nome *</label>
-                    <input
-                      type="text"
-                      value={createName}
-                      onChange={e => { setCreateName(e.target.value); setCreateError(''); }}
-                      onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
-                      placeholder="Es. Il mio GDR Fantasy"
-                      autoFocus
-                      className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 placeholder-white/25 focus:outline-none focus:border-emerald-500/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Descrizione</label>
-                    <textarea
-                      value={createDesc}
-                      onChange={e => setCreateDesc(e.target.value)}
-                      rows={2}
-                      placeholder="Descrivi il tuo gioco..."
-                      className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 placeholder-white/25 focus:outline-none focus:border-emerald-500/50 resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-white/30 uppercase tracking-wider font-semibold mb-1.5 block">Clona da (opzionale)</label>
-                    <select
-                      value={createClone}
-                      onChange={e => setCreateClone(e.target.value)}
-                      className="w-full text-sm bg-white/[0.06] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white/80 focus:outline-none focus:border-emerald-500/50 [&>option]:bg-[#1a1a2e] [&>option]:text-white/80"
-                    >
-                      <option value="" className="bg-black text-white">— Nuovo gioco vuoto —</option>
-                      {games.map(g => (
-                        <option key={g.id} value={g.id} className="bg-black text-white">{g.name} ({g.id})</option>
-                      ))}
-                    </select>
-                    <p className="text-[11px] text-white/20 mt-1">Clonare copia tutti i dati (oggetti, nemici, location, ecc.) nel nuovo gioco</p>
-                  </div>
-
-                  {createError && (
-                    <p className="text-[12px] text-red-400">❌ {createError}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="shrink-0 px-6 py-4 border-t border-white/[0.06] flex gap-2 bg-black/80">
-              {createStep === 'details' && (
+              <div className="flex gap-2 pt-2">
                 <Button
-                  onClick={() => { setCreateStep('template'); setCreateError(''); }}
-                  className="text-xs bg-white/[0.06] border border-white/[0.1] text-white/50 hover:bg-white/[0.1] hover:text-white/70"
+                  onClick={() => { setShowCreate(false); setCreateError(''); }}
+                  className="flex-1 text-xs bg-white/[0.06] border border-white/[0.1] text-white/50 hover:bg-white/[0.1] hover:text-white/70"
                 >
-                  ← Template
+                  Annulla
                 </Button>
-              )}
-              <Button
-                onClick={resetCreateDialog}
-                className="flex-1 text-xs bg-white/[0.06] border border-white/[0.1] text-white/50 hover:bg-white/[0.1] hover:text-white/70"
-              >
-                Annulla
-              </Button>
-              {createStep === 'details' && (
                 <Button
                   onClick={handleCreate}
                   disabled={creating || !createName.trim()}
@@ -849,7 +792,7 @@ export default function GameManager({ onOpenEditor, onPlay }: GameManagerProps) 
                   {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                   Crea Gioco
                 </Button>
-              )}
+              </div>
             </div>
           </div>
         </div>

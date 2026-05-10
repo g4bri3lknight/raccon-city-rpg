@@ -70,11 +70,12 @@ export async function GET() {
   try {
     // ── Load ALL entities in parallel ──
     const [
-      items, events, documents, locations, npcs, enemies,
+      items, quests, events, documents, locations, npcs, enemies,
       enemyAbilities, archetypes, characters, specials, recipes,
-      secretRooms, bossPhases, questChains, questChainSteps, questChainFinalRewards,
+      secretRooms, bossPhases, questChains, questChainSteps,
     ] = await Promise.all([
       db.item.findMany(),
+      db.sideQuest.findMany(),
       db.dynamicEvent.findMany(),
       db.document.findMany(),
       db.gameLocation.findMany(),
@@ -89,12 +90,11 @@ export async function GET() {
       db.gameBossPhase.findMany(),
       db.questChain.findMany(),
       db.questChainStep.findMany(),
-      db.questChainFinalReward.findMany(),
     ]);
 
     // ── Build ID lookup sets ──
     const itemIds = buildIdSet(items);
-    const questIds = buildIdSet(questChains);
+    const questIds = buildIdSet(quests);
     const eventIds = buildIdSet(events);
     const documentIds = buildIdSet(documents);
     const locationIds = buildIdSet(locations);
@@ -137,42 +137,43 @@ export async function GET() {
     // SCAN — for each entity table, find cross-refs and broken refs
     // ════════════════════════════════════════════════════════════
 
-    // ─── QuestChains ───
-    for (const qc of questChains) {
-      addCrossRef(qc.npcId, 'quest-chains');
-      checkRef(qc.id, 'npcId', qc.npcId, npcIds);
+    // ─── SideQuests ───
+    for (const q of quests) {
+      addCrossRef(q.npcId, 'npcs');
+      checkRef(q.id, 'npcId', q.npcId, npcIds);
 
-      if (qc.prerequisiteQuestId) {
-        addCrossRef(qc.prerequisiteQuestId, 'quest-chains');
-        checkRef(qc.id, 'prerequisiteQuestId', qc.prerequisiteQuestId, questIds);
-      }
-    }
-
-    // ─── QuestChainSteps ───
-    for (const step of questChainSteps) {
-      if (step.targetId) {
-        // targetId could be item, enemy, location, ability
-        if (!itemIds.has(step.targetId) && !enemyIds.has(step.targetId) && !locationIds.has(step.targetId) && !abilityIds.has(step.targetId)) {
-          addBroken(step.id, 'targetId', step.targetId);
+      // targetId — could reference items, enemies, locations, or abilities
+      checkRef(q.id, 'targetId', q.targetId, itemIds);
+      // Only mark broken if not found in ANY known table
+      if (q.targetId && !itemIds.has(q.targetId) && !enemyIds.has(q.targetId) && !locationIds.has(q.targetId) && !abilityIds.has(q.targetId)) {
+        addBroken(q.id, 'targetId', q.targetId);
+      } else {
+        // Remove the false positive from the itemIds check above
+        if (q.targetId && (enemyIds.has(q.targetId) || locationIds.has(q.targetId) || abilityIds.has(q.targetId))) {
+          brokenRefs[q.id] = (brokenRefs[q.id] || []).filter(r => !(r.field === 'targetId'));
         }
       }
-      if (step.nextStepId) {
-        checkRef(step.id, 'nextStepId', step.nextStepId, stepIds);
-      }
-      const rewardIds = parseJsonIds(step.rewardItems);
-      for (const iId of rewardIds) addCrossRef(iId, 'quest-chains');
-      checkJsonRefs(step.id, 'rewardItems', rewardIds, itemIds);
-    }
 
-    // ─── QuestChainFinalRewards ───
-    for (const fr of questChainFinalRewards) {
-      const rewardIds = parseJsonIds(fr.rewardItems);
-      for (const iId of rewardIds) addCrossRef(iId, 'quest-chains');
-      checkJsonRefs(fr.chainId, 'finalReward.rewardItems', rewardIds, itemIds);
+      if (q.prerequisiteQuestId) {
+        addCrossRef(q.prerequisiteQuestId, 'quests');
+        checkRef(q.id, 'prerequisiteQuestId', q.prerequisiteQuestId, questIds);
+      }
+
+      const rewardItemIds = parseJsonIds(q.rewardItems);
+      for (const itemId of rewardItemIds) addCrossRef(itemId, 'quests');
+      checkJsonRefs(q.id, 'rewardItems', rewardItemIds, itemIds);
     }
 
     // ─── NPCs ───
     for (const npc of npcs) {
+      addCrossRef(npc.locationId, 'npcs');
+      checkRef(npc.id, 'locationId', npc.locationId, locationIds);
+
+      if (npc.questId) {
+        addCrossRef(npc.questId, 'npcs');
+        checkRef(npc.id, 'questId', npc.questId, questIds);
+      }
+
       const tradeItemIds = parseJsonIds(npc.tradeInventory);
       for (const itemId of tradeItemIds) addCrossRef(itemId, 'npcs');
       // tradeInventory also references priceItemId
@@ -199,6 +200,10 @@ export async function GET() {
         addCrossRef(loc.bossId, 'locations');
         checkRef(loc.id, 'bossId', loc.bossId, enemyIds);
       }
+
+      const nextLocIds = parseJsonIds(loc.nextLocations);
+      for (const nLocId of nextLocIds) addCrossRef(nLocId, 'locations');
+      checkJsonRefs(loc.id, 'nextLocations', nextLocIds, locationIds);
 
       const enemyPoolIds = parseJsonIds(loc.enemyPool);
       for (const eId of enemyPoolIds) addCrossRef(eId, 'locations');
@@ -243,7 +248,7 @@ export async function GET() {
       if (sr.requiredNpcQuestId) {
         addCrossRef(sr.requiredNpcQuestId, 'secret-rooms');
         checkRef(sr.id, 'requiredNpcQuestId', sr.requiredNpcQuestId, questIds);
-      } // requiredNpcQuestId now references QuestChain.id
+      }
 
       if (sr.uniqueItemId) {
         addCrossRef(sr.uniqueItemId, 'secret-rooms');
@@ -295,6 +300,28 @@ export async function GET() {
         addCrossRef(arch.special2Id, 'archetypes');
         checkRef(arch.id, 'special2Id', arch.special2Id, specialIds);
       }
+    }
+
+    // ─── QuestChains ───
+    for (const qc of questChains) {
+      addCrossRef(qc.npcId, 'quest-chains');
+      checkRef(qc.id, 'npcId', qc.npcId, npcIds);
+    }
+
+    // ─── QuestChainSteps ───
+    for (const step of questChainSteps) {
+      if (step.targetId) {
+        // targetId could be item, enemy, location, ability
+        if (!itemIds.has(step.targetId) && !enemyIds.has(step.targetId) && !locationIds.has(step.targetId) && !abilityIds.has(step.targetId)) {
+          addBroken(step.id, 'targetId', step.targetId);
+        }
+      }
+      if (step.nextStepId) {
+        checkRef(step.id, 'nextStepId', step.nextStepId, stepIds);
+      }
+      const rewardIds = parseJsonIds(step.rewardItems);
+      for (const iId of rewardIds) addCrossRef(iId, 'quest-chains');
+      checkJsonRefs(step.id, 'rewardItems', rewardIds, itemIds);
     }
 
     // ─── Events ───

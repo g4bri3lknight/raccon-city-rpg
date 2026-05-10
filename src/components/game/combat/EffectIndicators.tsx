@@ -130,7 +130,7 @@ export default function EffectIndicators({
         return (
           <span
             key={buff.id}
-            className={`effect-badge-pulse inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-green-900/60 border border-green-600/40 ${config.color}`}
+            className={`effect-badge-pulse effect-indicator-enter inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-green-900/60 border border-green-600/40 ${config.color}`}
             title={`${buff.sourceIcon || ''} +${buff.amount}% ${config.label} (${buff.remainingTurns}t)`}
           >
             <EffectSourceIcon sourceAbilityId={buff.sourceAbilityId} fallbackIcon={config.icon} dataVersion={dataVersion} />
@@ -146,7 +146,7 @@ export default function EffectIndicators({
         return (
           <span
             key={debuff.id}
-            className={`effect-badge-pulse inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-red-900/60 border border-red-600/40 text-red-300`}
+            className={`effect-badge-pulse effect-indicator-enter inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-red-900/60 border border-red-600/40 text-red-300`}
             title={`${debuff.sourceIcon || ''} -${Math.abs(debuff.amount || 0)}% ${config.label} (${debuff.remainingTurns}t)`}
           >
             <EffectSourceIcon sourceAbilityId={debuff.sourceAbilityId} fallbackIcon={config.icon} dataVersion={dataVersion} />
@@ -159,7 +159,7 @@ export default function EffectIndicators({
       {shields.map(shield => (
         <span
           key={shield.id}
-          className="effect-badge-pulse inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-cyan-900/60 border border-cyan-600/40 text-cyan-300"
+          className="effect-badge-pulse effect-indicator-enter inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-cyan-900/60 border border-cyan-600/40 text-cyan-300"
           title={`Scudo ${shield.shieldHp}HP (${shield.remainingTurns}t)`}
         >
           <EffectSourceIcon sourceAbilityId={shield.sourceAbilityId} fallbackIcon="🔮" dataVersion={dataVersion} />
@@ -171,7 +171,7 @@ export default function EffectIndicators({
       {hots.map(hot => (
         <span
           key={hot.id}
-          className="effect-badge-pulse inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-emerald-900/60 border border-emerald-600/40 text-emerald-300"
+          className="effect-badge-pulse effect-indicator-enter inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-emerald-900/60 border border-emerald-600/40 text-emerald-300"
           title={`Cura +${hot.amount}HP/turno (${hot.remainingTurns}t)`}
         >
           <EffectSourceIcon sourceAbilityId={hot.sourceAbilityId} fallbackIcon="💚" dataVersion={dataVersion} />
@@ -183,7 +183,7 @@ export default function EffectIndicators({
       {reflects.map(ref => (
         <span
           key={ref.id}
-          className="effect-badge-pulse inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-violet-900/60 border border-violet-600/40 text-violet-300"
+          className="effect-badge-pulse effect-indicator-enter inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-violet-900/60 border border-violet-600/40 text-violet-300"
           title={`Riflette ${ref.amount}% (${ref.remainingTurns}t)`}
         >
           <EffectSourceIcon sourceAbilityId={ref.sourceAbilityId} fallbackIcon="🔄" dataVersion={dataVersion} />
@@ -195,7 +195,7 @@ export default function EffectIndicators({
       {taunts.map(taunt => (
         <span
           key={taunt.id}
-          className="effect-badge-pulse inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-amber-900/60 border border-amber-600/40 text-amber-300"
+          className="effect-badge-pulse effect-indicator-enter inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none bg-amber-900/60 border border-amber-600/40 text-amber-300"
           title={`Provoca (${taunt.remainingTurns}t)`}
         >
           <EffectSourceIcon sourceAbilityId={taunt.sourceAbilityId} fallbackIcon="🎯" dataVersion={dataVersion} />
@@ -209,7 +209,7 @@ export default function EffectIndicators({
         return (
           <span
             key={sd.effect}
-            className={`effect-badge-pulse inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none ${config.bgColor} border border-white/15 ${config.color}`}
+            className={`effect-badge-pulse effect-indicator-enter inline-flex items-center gap-[2px] px-[4px] py-[2px] rounded text-[8px] sm:text-[9px] font-bold leading-none ${config.bgColor} border border-white/15 ${config.color}`}
             title={`${sd.effect} (${sd.turnsLeft}t)`}
           >
             {config.icon}

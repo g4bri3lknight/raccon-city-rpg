@@ -18,7 +18,9 @@ import { createDebugSlice } from './slices/debug';
 import { createRunStatsSlice } from './slices/run-stats';
 import { createQuestChainsSlice } from './slices/quest-chains';
 
-export { getMaxItemBoxSlots, getMaxInventorySlots } from './settings-cache';
+// Re-export for backward compatibility
+export { getDifficultyConfig } from '../data/difficulty';
+export { fetchGameSettings, getMaxInventorySlots, getMaxItemBoxSlots, getStartingInventorySlots, getDefaultItemBoxItems, DEFAULT_GAME_SETTINGS, applyThemeSettings } from './settings-cache';
 export type { SaveSlotInfo } from './types';
 
 const defaultState = getDefaultState();

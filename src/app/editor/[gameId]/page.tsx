@@ -599,14 +599,10 @@ export default function EditorPage({ params }: { params: Promise<{ gameId: strin
                       variant="ghost"
                       onClick={async () => {
                         try {
-                          const res = await adminFetch(banner.seedEndpoint, {
-                            method: 'POST',
-                            headers: banner.seedBody ? { 'Content-Type': 'application/json' } : undefined,
-                            body: banner.seedBody ? JSON.stringify(banner.seedBody) : undefined,
-                          });
+                          const res = await adminFetch(banner.seedEndpoint, { method: 'POST' });
                           if (!res.ok) throw new Error(await res.text());
                           const result = await res.json();
-                          showStatus(result.message ?? `Seed ${banner.label} completato`, 'success');
+                          showStatus(result.message, 'success');
                           fetchData();
                           fetchCounts();
                         } catch (err) {

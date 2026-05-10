@@ -6,7 +6,7 @@ import { useGameStore } from '@/game/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ENDINGS } from '@/game/data/endings';
-import { ACHIEVEMENTS, COLLECTIBLE_CONFIG } from '@/game/data/loader';
+import { ACHIEVEMENTS } from '@/game/data/loader';
 import { getEquipStatBonus } from '@/game/utils/effect-helpers';
 import { getArchetypeEmoji, MAX_RIBBONS } from '@/game/utils/archetype-helpers';
 import {
@@ -304,10 +304,10 @@ export default function VictoryScreen() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src={`/api/media/image?id=icon_${COLLECTIBLE_CONFIG.itemId}`} alt={COLLECTIBLE_CONFIG.label} className="w-6 h-6" />
+              <img src="/api/media/image?id=icon_ink_ribbon" alt="Ink Ribbon" className="w-6 h-6" />
               <div className="text-left">
                 <p className="text-xs text-white/50">Collezionabili — Questa Run</p>
-                <p className="text-sm font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/{MAX_RIBBONS}</span> {COLLECTIBLE_CONFIG.label}</p>
+                <p className="text-sm font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/{MAX_RIBBONS}</span> Nastri d&apos;Inchiostro</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

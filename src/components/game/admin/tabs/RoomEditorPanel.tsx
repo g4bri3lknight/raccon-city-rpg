@@ -2103,17 +2103,6 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
                 <Grid3x3 className="w-3 h-3" />
                 <span className="hidden sm:inline">Snap</span>
               </Button>
-              {/* Controls */}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setControlsDialogOpen(true)}
-                className="text-xs gap-1.5 h-7 text-white/40 hover:text-white/60"
-                title="Controlli mappa stanze"
-              >
-                <Keyboard className="w-3 h-3" />
-                <span className="hidden sm:inline">Controlli</span>
-              </Button>
 
               <div className="w-px h-5 bg-white/[0.08] mx-0.5" />
 
@@ -2167,7 +2156,15 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
               >
                 <RefreshCw className="w-3 h-3" />
               </Button>
-
+              {/* Add Room */}
+              <Button
+                size="sm"
+                onClick={() => { setCreating(true); setEditingId(null); }}
+                className="text-xs gap-1.5 h-7 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Aggiungi Stanza</span>
+              </Button>
             </div>
           </div>
 
@@ -2186,15 +2183,15 @@ export default function RoomEditorPanel({ locationId, locationName, onBack }: Ro
           {/* ── Sidebar ── */}
           {sidebarOpen && (
             <div className="w-[260px] shrink-0 border-r border-white/[0.06] bg-[#0d0d14] flex flex-col overflow-hidden">
-              {/* Add Room button */}
+              {/* Controls button */}
               <div className="px-3 py-2 border-b border-white/[0.06]">
                 <button
                   type="button"
-                  onClick={() => { setCreating(true); setEditingId(null); }}
-                  className="flex items-center gap-1.5 w-full text-xs px-2 py-1.5 rounded-md bg-emerald-600/15 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-600/25 hover:text-emerald-200 transition-colors"
+                  onClick={() => setControlsDialogOpen(true)}
+                  className="flex items-center gap-1.5 w-full text-[10px] text-white/30 hover:text-white/50 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Aggiungi Stanza</span>
+                  <Keyboard className="w-3 h-3" />
+                  <span>Controlli</span>
                 </button>
               </div>
               {/* Scrollable content */}

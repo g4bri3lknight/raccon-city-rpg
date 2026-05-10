@@ -143,6 +143,17 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     setTimeout(() => get().checkAchievements(), 100);
   },
 
+  discoverRecipe: (recipeId: string) => {
+    const state = get();
+    if (state.discoveredRecipes.includes(recipeId)) return;
+    // Track run stats: recipes discovered
+    get().incrementRunStat('recipesDiscovered');
+    set({
+      discoveredRecipes: [...state.discoveredRecipes, recipeId],
+      messageLog: [...state.messageLog, `[${state.turnCount}] 📜 Ricetta scoperta! Nuova ricetta di crafting disponibile.`],
+    });
+  },
+
   determineEnding: () => {
     const state = get();
     const endings = Object.values(ENDINGS).sort((a, b) => b.priority - a.priority);
@@ -206,4 +217,17 @@ export const createEventsSlice: StateCreator<GameStore, [], [], GameStore> = (se
     set(state => ({ mapOpen: !state.mapOpen }));
   },
 
+  exploreSubArea: (subAreaId: string) => {
+    const state = get();
+    const locId = state.currentLocationId;
+    const currentSubAreas = state.exploredSubAreas[locId] || [];
+    if (currentSubAreas.includes(subAreaId)) return;
+    set(state => ({
+      exploredSubAreas: {
+        ...state.exploredSubAreas,
+        [locId]: [...currentSubAreas, subAreaId],
+      },
+      messageLog: [...state.messageLog, `[${state.turnCount}] 🗺️ Nuova area esplorata: ${subAreaId}`],
+    }));
+  },
 });

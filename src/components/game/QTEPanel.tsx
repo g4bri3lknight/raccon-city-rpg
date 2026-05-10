@@ -3,7 +3,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { PURSUER_CONFIG } from '@/game/data/loader';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Space } from 'lucide-react';
 
 // ── Types & Constants ──
@@ -426,13 +425,13 @@ export default function QTEPanel() {
             >
               Q.T.E.
             </span>
-            {qteState.triggerSource === 'pursuer' && (
+            {qteState.triggerSource === 'nemesis' && (
               <motion.span
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
                 className="text-[10px] sm:text-xs font-bold text-red-400 bg-red-900/50 px-2 py-0.5 rounded"
               >
-                {PURSUER_CONFIG.name}
+                NEMESIS
               </motion.span>
             )}
             {qteState.triggerSource === 'boss' && (

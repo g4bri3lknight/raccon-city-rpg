@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { parseStringArray } from './helpers';
 
 // ═══════════════════════════════════════════════════════════════
-// Tag Editor — for simple string arrays (enemyPool)
+// Tag Editor — for simple string arrays (enemyPool, nextLocations)
 // ═══════════════════════════════════════════════════════════════
 export function TagEditor({ value, onChange, placeholder }: { value: unknown; onChange: (v: string[]) => void; placeholder?: string }) {
   const tags = parseStringArray(value);

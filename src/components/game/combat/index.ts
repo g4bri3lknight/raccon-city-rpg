@@ -8,6 +8,7 @@ export { default as ItemSelector } from './ItemSelector';
 export { default as TargetSelector } from './TargetSelector';
 export { default as BottomBars } from './BottomBars';
 export { default as EffectIndicators } from './EffectIndicators';
+export { default as CombatParticles } from './CombatParticles';
 
 // ── Types ──
 export type { AnimResult, CombatHeaderProps, EnemyDisplayProps, PartyDisplayProps, CombatLogPanelProps, ActionMenuProps, ItemSelectorProps, TargetSelectorProps, BottomBarsProps } from './types';

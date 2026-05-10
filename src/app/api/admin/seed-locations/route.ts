@@ -21,6 +21,7 @@ export async function POST() {
         enemyPool: JSON.stringify(loc.enemyPool),
         itemPool: JSON.stringify(loc.itemPool),
         storyEvent: loc.storyEvent ? JSON.stringify(loc.storyEvent) : '',
+        nextLocations: JSON.stringify(loc.nextLocations),
         isBossArea: loc.isBossArea,
         bossId: loc.bossId ?? null,
         ambientText: JSON.stringify(loc.ambientText ?? []),

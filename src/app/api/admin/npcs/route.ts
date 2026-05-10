@@ -22,9 +22,11 @@ export async function GET() {
       id: row.id,
       name: row.name,
       portrait: row.portrait,
+      locationId: row.locationId,
       greeting: row.greeting,
       dialogues: JSON.parse(row.dialogues || '[]'),
       farewell: row.farewell,
+      questId: row.questId ?? null,
       tradeInventory: JSON.parse(row.tradeInventory || '[]'),
       questCompletedDialogue: JSON.parse(row.questCompletedDialogue || '[]'),
       sortOrder: row.sortOrder,
@@ -57,9 +59,11 @@ export async function POST(request: NextRequest) {
         id: body.id,
         name: body.name,
         portrait: body.portrait ?? '',
+        locationId: body.locationId ?? '',
         greeting: body.greeting ?? '',
         dialogues: jsonStr(body.dialogues, '[]'),
         farewell: body.farewell ?? '',
+        questId: body.questId ?? null,
         tradeInventory: jsonStr(body.tradeInventory, '[]'),
         questCompletedDialogue: jsonStr(body.questCompletedDialogue, '[]'),
         sortOrder: body.sortOrder ?? 0,
@@ -92,9 +96,11 @@ export async function PUT(request: NextRequest) {
     const data: Record<string, unknown> = {};
     if (updateFields.name !== undefined) data.name = updateFields.name;
     if (updateFields.portrait !== undefined) data.portrait = updateFields.portrait;
+    if (updateFields.locationId !== undefined) data.locationId = updateFields.locationId;
     if (updateFields.greeting !== undefined) data.greeting = updateFields.greeting;
     if (updateFields.dialogues !== undefined) data.dialogues = jsonStr(updateFields.dialogues, '[]');
     if (updateFields.farewell !== undefined) data.farewell = updateFields.farewell;
+    if (updateFields.questId !== undefined) data.questId = updateFields.questId;
     if (updateFields.tradeInventory !== undefined) data.tradeInventory = jsonStr(updateFields.tradeInventory, '[]');
     if (updateFields.questCompletedDialogue !== undefined) data.questCompletedDialogue = jsonStr(updateFields.questCompletedDialogue, '[]');
     if (updateFields.sortOrder !== undefined) data.sortOrder = updateFields.sortOrder;

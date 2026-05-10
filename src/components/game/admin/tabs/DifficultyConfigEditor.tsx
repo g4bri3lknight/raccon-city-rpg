@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react';
 import {
-  DIFFICULTY_DEFAULTS,
+  DIFFICULTY_LEVELS,
   DiffLevel,
   DiffConfig,
-  getDifficultyLevelsFromSettings,
+  DIFFICULTY_DEFAULTS,
 } from '../config';
 
 export function DifficultyConfigEditor({
@@ -15,12 +15,10 @@ export function DifficultyConfigEditor({
   settings: Record<string, string>;
   onChange: (key: string, value: string) => void;
 }) {
-  // Parse difficulty levels and configs from settings (dynamic, template-driven)
-  const diffLevels = useMemo<string[]>(() => getDifficultyLevelsFromSettings(settings), [settings]);
-
-  const diffConfigs = useMemo<Record<string, DiffConfig>>(() => {
-    const parsed: Record<string, DiffConfig> = { ...DIFFICULTY_DEFAULTS };
-    for (const lvl of diffLevels) {
+  // Parse difficulty configs from settings (derived, no effect needed)
+  const diffConfigs = useMemo<Record<DiffLevel, DiffConfig>>(() => {
+    const parsed: Record<DiffLevel, DiffConfig> = { ...DIFFICULTY_DEFAULTS };
+    for (const lvl of DIFFICULTY_LEVELS) {
       const key = `difficulty.${lvl}`;
       if (settings[key]) {
         try {
@@ -29,26 +27,24 @@ export function DifficultyConfigEditor({
       }
     }
     return parsed;
-  }, [settings, diffLevels]);
+  }, [settings]);
 
   const updateDiff = (level: DiffLevel, field: keyof DiffConfig, value: string | number) => {
     const updated = { ...diffConfigs[level], [field]: value };
     onChange(`difficulty.${level}`, JSON.stringify(updated));
   };
 
-  const getDiffMeta = (lvl: string): { badge: string; borderColor: string; bgGlow: string } => {
-    const idx = diffLevels.indexOf(lvl);
-    if (idx === 0) return { badge: 'FACILE', borderColor: 'border-green-500/30', bgGlow: 'bg-green-500/5' };
-    if (idx === diffLevels.length - 1) return { badge: 'DIFFICILE', borderColor: 'border-red-500/30', bgGlow: 'bg-red-500/5' };
-    return { badge: 'NORMALE', borderColor: 'border-emerald-500/30', bgGlow: 'bg-emerald-500/5' };
+  const diffMeta: Record<DiffLevel, { badge: string; borderColor: string; bgGlow: string }> = {
+    sopravvissuto: { badge: 'FACILE', borderColor: 'border-green-500/30', bgGlow: 'bg-green-500/5' },
+    normale: { badge: 'NORMALE', borderColor: 'border-emerald-500/30', bgGlow: 'bg-emerald-500/5' },
+    incubo: { badge: 'DIFFICILE', borderColor: 'border-red-500/30', bgGlow: 'bg-red-500/5' },
   };
 
   return (
     <div className="space-y-4">
-      {diffLevels.map(lvl => {
+      {DIFFICULTY_LEVELS.map(lvl => {
         const cfg = diffConfigs[lvl];
-        if (!cfg) return null;
-        const meta = getDiffMeta(lvl);
+        const meta = diffMeta[lvl];
         return (
           <div key={lvl} className={`rounded-xl border ${meta.borderColor} ${meta.bgGlow} p-4 space-y-3`}>
             {/* Header */}

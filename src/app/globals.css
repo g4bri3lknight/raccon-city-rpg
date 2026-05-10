@@ -188,22 +188,6 @@
   --rpg-subtitle-color: rgba(248, 113, 113, 0.8);
 }
 
-/* ── Admin Panel Accent Color ──
-   Dynamic accent color for the editor UI, set at runtime based on the active game's template. 
-   Defaults to emerald (#10b981) for backward compatibility. */
-:root {
-  --admin-accent: #10b981;
-  --admin-accent-rgb: 16, 185, 129;
-}
-
-.admin-accent { color: var(--admin-accent); }
-.admin-accent-bg { background-color: var(--admin-accent); }
-.admin-accent-border { border-color: var(--admin-accent); }
-.admin-accent-soft-bg { background-color: rgba(var(--admin-accent-rgb), 0.1); }
-.admin-accent-soft-border { border-color: rgba(var(--admin-accent-rgb), 0.25); }
-.admin-accent-hover:hover { background-color: rgba(var(--admin-accent-rgb), 0.15); color: var(--admin-accent); }
-.admin-accent-badge-bg { background-color: rgba(var(--admin-accent-rgb), 0.2); color: rgba(var(--admin-accent-rgb), 0.8); }
-
 .game-horror {
   background: var(--rpg-bg, #0a0a0a);
   font-family: var(--rpg-font, 'Courier New', monospace);
@@ -212,7 +196,7 @@
 /* Theme-driven glow for headings and title elements */
 .game-horror .theme-glow,
 .game-horror .horror-glow {
-  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 20px) var(--rpg-primary, #dc2626);
+  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 20px) var(--rpg-primary, #10b981);
 }
 
 /* Theme-driven title screen elements */
@@ -232,17 +216,17 @@
 }
 
 /* Theme-driven primary accent color (buttons, links, highlights) */
-.game-root .theme-primary { color: var(--rpg-primary, #dc2626); }
-.game-root .theme-secondary { color: var(--rpg-secondary, #ef4444); }
-.game-root .theme-accent { color: var(--rpg-accent, #f87171); }
+.game-root .theme-primary { color: var(--rpg-primary, #10b981); }
+.game-root .theme-secondary { color: var(--rpg-secondary, #06b6d4); }
+.game-root .theme-accent { color: var(--rpg-accent, #f59e0b); }
 
-.game-root .theme-primary-bg { background-color: var(--rpg-primary, #dc2626); }
-.game-root .theme-secondary-bg { background-color: var(--rpg-secondary, #ef4444); }
-.game-root .theme-accent-bg { background-color: var(--rpg-accent, #f87171); }
+.game-root .theme-primary-bg { background-color: var(--rpg-primary, #10b981); }
+.game-root .theme-secondary-bg { background-color: var(--rpg-secondary, #06b6d4); }
+.game-root .theme-accent-bg { background-color: var(--rpg-accent, #f59e0b); }
 
-.game-root .theme-primary-border { border-color: var(--rpg-primary, #dc2626); }
-.game-root .theme-secondary-border { border-color: var(--rpg-secondary, #ef4444); }
-.game-root .theme-accent-border { border-color: var(--rpg-accent, #f87171); }
+.game-root .theme-primary-border { border-color: var(--rpg-primary, #10b981); }
+.game-root .theme-secondary-border { border-color: var(--rpg-secondary, #06b6d4); }
+.game-root .theme-accent-border { border-color: var(--rpg-accent, #f59e0b); }
 
 .game-root .theme-radius {
   border-radius: var(--rpg-radius, 12px);
@@ -250,11 +234,11 @@
 
 /* Theme-driven glow effect for active elements */
 .game-root .theme-glow-effect {
-  box-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #dc2626);
+  box-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #10b981);
 }
 
 .game-root .theme-text-glow {
-  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #dc2626);
+  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #10b981);
 }
 
 .horror-border {
@@ -1654,4 +1638,450 @@ input[type="number"]:hover::-webkit-outer-spin-button {
 @keyframes admin-tooltip-in {
   from { opacity: 0; filter: blur(2px); }
   to { opacity: 1; filter: blur(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VISUAL IMPROVEMENT #1 — Adrenaline & Stun Overlays
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Adrenaline Overlay: pulsing orange/red energy aura ── */
+.adrenaline-overlay {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(251, 146, 60, 0.3), transparent 70%),
+    radial-gradient(ellipse at 30% 20%, rgba(249, 115, 22, 0.2), transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(234, 88, 12, 0.15), transparent 50%);
+  animation: adrenaline-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes adrenaline-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    box-shadow: inset 0 0 15px 3px rgba(251, 146, 60, 0.3);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: inset 0 0 30px 8px rgba(251, 146, 60, 0.5), inset 0 0 50px 12px rgba(234, 88, 12, 0.2);
+  }
+}
+
+.adrenaline-border {
+  animation: adrenaline-border-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes adrenaline-border-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(251, 146, 60, 0.3), 0 0 16px rgba(249, 115, 22, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(251, 146, 60, 0.6), 0 0 30px rgba(249, 115, 22, 0.3), 0 0 45px rgba(234, 88, 12, 0.15);
+  }
+}
+
+/* ── Stun Overlay: spinning stars + distortion effect ── */
+.stun-overlay {
+  background: radial-gradient(ellipse at 50% 50%, rgba(250, 204, 21, 0.15), transparent 70%);
+  animation: stun-flicker 0.8s ease-in-out infinite;
+}
+
+@keyframes stun-flicker {
+  0%, 100% { opacity: 0.3; }
+  25% { opacity: 0.8; }
+  50% { opacity: 0.2; }
+  75% { opacity: 0.7; }
+}
+
+.stun-star {
+  position: absolute;
+  font-size: 12px;
+  pointer-events: none;
+  animation: stun-star-orbit var(--orbit-dur, 2s) linear infinite;
+  color: rgba(250, 204, 21, 0.9);
+  filter: drop-shadow(0 0 3px rgba(250, 204, 21, 0.6));
+  z-index: 25;
+}
+
+@keyframes stun-star-orbit {
+  0% { transform: translate(-50%, -50%) rotate(0deg) translateX(var(--orbit-r, 30px)) rotate(0deg) scale(1); opacity: 1; }
+  25% { transform: translate(-50%, -50%) rotate(90deg) translateX(var(--orbit-r, 30px)) rotate(-90deg) scale(0.8); opacity: 0.7; }
+  50% { transform: translate(-50%, -50%) rotate(180deg) translateX(var(--orbit-r, 30px)) rotate(-180deg) scale(1.1); opacity: 1; }
+  75% { transform: translate(-50%, -50%) rotate(270deg) translateX(var(--orbit-r, 30px)) rotate(-270deg) scale(0.7); opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) rotate(360deg) translateX(var(--orbit-r, 30px)) rotate(-360deg) scale(1); opacity: 1; }
+}
+
+.stun-wave {
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid rgba(250, 204, 21, 0.4);
+  pointer-events: none;
+  animation: stun-wave-ring 1.5s ease-out infinite;
+  z-index: 24;
+}
+
+@keyframes stun-wave-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VISUAL IMPROVEMENT #2 — Template-Based Visual Variants
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Fantasy Theme: earthy/organic effects ── */
+.template-fantasy .poison-overlay {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(22, 101, 52, 0.5), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(20, 40, 20, 0.6) 100%);
+  animation: fantasy-poison-pulse 2.8s ease-in-out infinite;
+}
+
+.template-fantasy .poison-edge-glow {
+  box-shadow: inset 0 0 12px 3px rgba(34, 197, 94, 0.5), inset 0 0 25px 6px rgba(22, 101, 52, 0.3);
+}
+
+@keyframes fantasy-poison-pulse {
+  0%, 100% { opacity: 0.6; }
+  35% { opacity: 1; }
+  70% { opacity: 0.75; }
+}
+
+.template-fantasy .bleeding-overlay {
+  background:
+    radial-gradient(ellipse at 10% 50%, rgba(101, 67, 33, 0.55), transparent 65%),
+    radial-gradient(ellipse at 90% 80%, rgba(69, 26, 3, 0.35), transparent 50%);
+}
+
+.template-fantasy .blood-streak {
+  background: linear-gradient(to bottom, transparent, rgba(139, 69, 19, 0.7), rgba(101, 67, 33, 0.5));
+}
+
+.template-fantasy .adrenaline-overlay {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(234, 179, 8, 0.3), transparent 70%),
+    radial-gradient(ellipse at 30% 20%, rgba(202, 138, 4, 0.2), transparent 50%);
+}
+
+.template-fantasy .adrenaline-border {
+  animation: fantasy-adrenaline-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes fantasy-adrenaline-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(234, 179, 8, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(234, 179, 8, 0.6), 0 0 35px rgba(202, 138, 4, 0.2); }
+}
+
+/* ── Sci-Fi Theme: neon/cybernetic effects ── */
+.template-scifi .poison-overlay {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(6, 182, 212, 0.45), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(8, 28, 62, 0.6) 100%);
+  animation: scifi-poison-pulse 2s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+
+.template-scifi .poison-edge-glow {
+  box-shadow: inset 0 0 12px 3px rgba(6, 182, 212, 0.6), inset 0 0 25px 6px rgba(8, 145, 178, 0.3);
+  animation: scifi-edge-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes scifi-poison-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes scifi-edge-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.template-scifi .bleeding-overlay {
+  background:
+    radial-gradient(ellipse at 10% 50%, rgba(30, 58, 138, 0.55), transparent 65%),
+    radial-gradient(ellipse at 90% 80%, rgba(15, 23, 42, 0.4), transparent 50%);
+}
+
+.template-scifi .blood-streak {
+  background: linear-gradient(to bottom, transparent, rgba(59, 130, 246, 0.6), rgba(37, 99, 235, 0.4));
+}
+
+.template-scifi .adrenaline-overlay {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(6, 182, 212, 0.3), transparent 70%),
+    radial-gradient(ellipse at 30% 20%, rgba(168, 85, 247, 0.2), transparent 50%);
+}
+
+.template-scifi .adrenaline-border {
+  animation: scifi-adrenaline-glow 1s ease-in-out infinite;
+}
+
+@keyframes scifi-adrenaline-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(6, 182, 212, 0.4), 0 0 12px rgba(168, 85, 247, 0.15); }
+  50% { box-shadow: 0 0 14px rgba(6, 182, 212, 0.7), 0 0 28px rgba(168, 85, 247, 0.3), 0 0 42px rgba(6, 182, 212, 0.15); }
+}
+
+.template-scifi .stun-overlay {
+  background: radial-gradient(ellipse at 50% 50%, rgba(168, 85, 247, 0.2), transparent 70%);
+  animation: scifi-stun-glitch 0.4s ease-in-out infinite;
+}
+
+@keyframes scifi-stun-glitch {
+  0%, 100% { opacity: 0.3; transform: translateX(0); }
+  20% { opacity: 0.8; transform: translateX(1px); }
+  40% { opacity: 0.2; transform: translateX(-1px); }
+  60% { opacity: 0.7; transform: translateX(1px); }
+  80% { opacity: 0.4; transform: translateX(-1px); }
+}
+
+.template-scifi .stun-star {
+  color: rgba(168, 85, 247, 0.9);
+  filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.6));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VISUAL IMPROVEMENT #4 — Smooth Status Effect Transitions
+   ═══════════════════════════════════════════════════════════ */
+
+.status-effect-transition {
+  transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out, box-shadow 0.4s ease-in-out;
+}
+
+.status-effect-enter {
+  animation: status-enter 0.5s ease-out forwards;
+}
+
+@keyframes status-enter {
+  0% { opacity: 0; transform: scale(0.7) translateY(4px); }
+  60% { opacity: 1; transform: scale(1.05) translateY(-1px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.status-effect-exit {
+  animation: status-exit 0.4s ease-in forwards;
+}
+
+@keyframes status-exit {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.6) translateY(-6px); }
+}
+
+.effect-indicator-enter {
+  animation: indicator-enter 0.3s ease-out forwards;
+}
+
+@keyframes indicator-enter {
+  0% { opacity: 0; transform: scale(0.5) translateY(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VISUAL IMPROVEMENT #5 — Audio-Visual Sync CSS
+   ═══════════════════════════════════════════════════════════ */
+
+/* Entity vibration on heavy hit */
+.anim-vibrate-light {
+  animation: vibrate-light 0.15s linear 3;
+}
+
+@keyframes vibrate-light {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-2px, 1px); }
+  50% { transform: translate(2px, -1px); }
+  75% { transform: translate(-1px, -1px); }
+}
+
+.anim-vibrate-heavy {
+  animation: vibrate-heavy 0.1s linear 5;
+}
+
+@keyframes vibrate-heavy {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-4px, 2px); }
+  40% { transform: translate(3px, -3px); }
+  60% { transform: translate(-3px, 1px); }
+  80% { transform: translate(2px, -2px); }
+}
+
+/* Heal pulse — scale bounce + green flash */
+.anim-heal-pulse {
+  animation: heal-pulse-bounce 0.6s ease-out;
+}
+
+@keyframes heal-pulse-bounce {
+  0% { transform: scale(1); filter: brightness(1); }
+  15% { transform: scale(1.08); filter: brightness(1.3) saturate(1.5); }
+  30% { transform: scale(0.97); filter: brightness(1.1); }
+  50% { transform: scale(1.04); filter: brightness(1.2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* Shield absorb — cyan ripple */
+.anim-shield-absorb {
+  animation: shield-absorb-ripple 0.5s ease-out;
+}
+
+@keyframes shield-absorb-ripple {
+  0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.6); }
+  50% { box-shadow: 0 0 20px 8px rgba(34, 211, 238, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VISUAL IMPROVEMENT #6 — Advanced Particle Effects
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Star Burst (Critical Hits) ── */
+.crit-star-particle {
+  position: absolute;
+  pointer-events: none;
+  z-index: 40;
+  color: #fbbf24;
+  font-size: var(--star-size, 14px);
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.8));
+  animation: crit-star-burst 0.8s ease-out forwards;
+}
+
+@keyframes crit-star-burst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--star-tx, 0px)), calc(-50% + var(--star-ty, 0px))) scale(1.2) rotate(90deg);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translate(calc(-50% + var(--star-tx, 0px) * 1.5), calc(-50% + var(--star-ty, 0px) * 1.5)) scale(0.8) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--star-tx, 0px) * 2), calc(-50% + var(--star-ty, 0px) * 2)) scale(0) rotate(360deg);
+  }
+}
+
+/* ── Fire Sparks ── */
+.fire-spark {
+  position: absolute;
+  pointer-events: none;
+  z-index: 40;
+  width: var(--spark-w, 3px);
+  height: var(--spark-h, 8px);
+  background: linear-gradient(to top, #ef4444, #fbbf24, transparent);
+  border-radius: 2px;
+  filter: blur(0.5px);
+  box-shadow: 0 0 3px rgba(251, 146, 60, 0.6);
+  animation: fire-spark-rise 0.7s ease-out forwards;
+}
+
+@keyframes fire-spark-rise {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scaleY(1) rotate(0deg);
+  }
+  30% {
+    opacity: 0.9;
+    transform: translate(var(--spark-tx, 5px), var(--spark-ty, -15px)) scaleY(1.2) rotate(20deg);
+  }
+  60% {
+    opacity: 0.5;
+    transform: translate(calc(var(--spark-tx, 5px) * 1.8), calc(var(--spark-ty, -15px) * 2)) scaleY(0.6) rotate(45deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--spark-tx, 5px) * 2.2), calc(var(--spark-ty, -15px) * 3)) scaleY(0) rotate(90deg);
+  }
+}
+
+/* ── Bone Fragments ── */
+.bone-fragment {
+  position: absolute;
+  pointer-events: none;
+  z-index: 40;
+  width: var(--bone-w, 4px);
+  height: var(--bone-h, 8px);
+  background: linear-gradient(135deg, #e5e5e5, #a3a3a3, #d4d4d4);
+  border-radius: 1px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.3);
+  animation: bone-fly 0.9s ease-out forwards;
+}
+
+@keyframes bone-fly {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  25% {
+    opacity: 0.9;
+    transform: translate(var(--bone-tx, 10px), var(--bone-ty, -20px)) rotate(90deg) scale(0.9);
+  }
+  60% {
+    opacity: 0.6;
+    transform: translate(calc(var(--bone-tx, 10px) * 1.5), calc(var(--bone-ty, -20px) + 15px)) rotate(200deg) scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--bone-tx, 10px) * 2), calc(var(--bone-ty, -20px) + 30px)) rotate(360deg) scale(0.3);
+  }
+}
+
+/* ── Neon Trails (Sci-Fi/energy attacks) ── */
+.neon-trail {
+  position: absolute;
+  pointer-events: none;
+  z-index: 40;
+  width: var(--trail-w, 2px);
+  height: var(--trail-h, 20px);
+  border-radius: 2px;
+  filter: blur(1px);
+  animation: neon-trail-dash 0.6s ease-out forwards;
+}
+
+.neon-trail-cyan {
+  background: linear-gradient(to bottom, rgba(6, 182, 212, 0.9), transparent);
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.6), 0 0 12px rgba(6, 182, 212, 0.3);
+}
+
+.neon-trail-purple {
+  background: linear-gradient(to bottom, rgba(168, 85, 247, 0.9), transparent);
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.6), 0 0 12px rgba(168, 85, 247, 0.3);
+}
+
+.neon-trail-orange {
+  background: linear-gradient(to bottom, rgba(251, 146, 60, 0.9), transparent);
+  box-shadow: 0 0 6px rgba(251, 146, 60, 0.6), 0 0 12px rgba(251, 146, 60, 0.3);
+}
+
+@keyframes neon-trail-dash {
+  0% {
+    opacity: 0;
+    transform: translateX(0) scaleX(0.3);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(var(--trail-offset, -30px)) scaleX(1);
+  }
+  60% {
+    opacity: 0.6;
+    transform: translateX(calc(var(--trail-offset, -30px) * 1.8)) scaleX(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(calc(var(--trail-offset, -30px) * 2.5)) scaleX(0);
+  }
+}
+
+/* ── Impact Ring (generic heavy hit) ── */
+.impact-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 35;
+  border: 3px solid var(--ring-color, rgba(239, 68, 68, 0.6));
+  animation: impact-ring-expand 0.5s ease-out forwards;
+}
+
+@keyframes impact-ring-expand {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
 }

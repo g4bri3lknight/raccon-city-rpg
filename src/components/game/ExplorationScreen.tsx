@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import { useShallow } from 'zustand/react/shallow';
-import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS, QUESTS, DOCUMENTS as DOCUMENTS_DATA, COLLECTIBLE_CONFIG } from '@/game/data/loader';
+import { LOCATIONS, CHARACTER_IMAGES, mediaUrl, NPCS, QUESTS, DOCUMENTS as DOCUMENTS_DATA } from '@/game/data/loader';
 import LogText from '@/components/game/LogText';
 import { ItemInstance, Character } from '@/game/types';
 import { CompactHpPanel } from './HpBar';
@@ -74,7 +74,6 @@ export default function ExplorationScreen() {
     currentRoomId: s.currentRoomId,
     exploredRooms: s.exploredRooms,
     navigateToRoom: s.navigateToRoom,
-    encounterNpc: s.encounterNpc,
   })));
 
   const {
@@ -89,7 +88,7 @@ export default function ExplorationScreen() {
     toggleInventory, selectCharacter, startBossFight, toggleMap,
     toggleAchievements, toggleBestiary, toggleDocuments, toggleMissions,
     toggleSettings, toggleHelp, handleDynamicEventChoice, enterSafeRoom, quickHeal,
-    currentRoomId, exploredRooms, navigateToRoom, encounterNpc,
+    currentRoomId, exploredRooms, navigateToRoom,
   } = state;
 
   const location = LOCATIONS[currentLocationId];
@@ -157,12 +156,10 @@ export default function ExplorationScreen() {
   const diffIcon = difficulty === 'sopravvissuto' ? '🏃' : difficulty === 'incubo' ? '💀' : '⚔️';
   const activeMissions = Object.entries(npcQuestProgress)
     .filter(([_, progress]) => !progress.completed).length;
-  // NPCs present in the current room
-  const roomNpcs = currentRoom?.npcIds
-    ? currentRoom.npcIds
-        .map(npcId => NPCS[npcId])
-        .filter(Boolean)
-    : [];
+  // NPCs present in this location that have already been encountered
+  const localNpcs = Object.values(NPCS).filter(
+    n => n.locationId === currentLocationId && npcsEncountered.includes(n.id)
+  );
 
   // Search counter display — room-aware: use searchKey based on room
   const roomSearchKey = currentRoom ? `${currentLocationId}__${currentRoom.id}` : currentLocationId;
@@ -255,7 +252,7 @@ export default function ExplorationScreen() {
             </div>
           )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 backdrop-blur-sm">
-            <img src={`/api/media/image?id=icon_${COLLECTIBLE_CONFIG.itemId}`} alt={COLLECTIBLE_CONFIG.label} className="w-5 h-5" />
+            <img src="/api/media/image?id=icon_ink_ribbon" alt="Ink Ribbon" className="w-5 h-5" />
             <span className="text-xs font-bold text-purple-300">{collectedRibbons}<span className="text-purple-400/60">/{MAX_RIBBONS}</span></span>
             {(persistentRibbons || 0) > 0 && (
               <span className="text-purple-400/40">|</span>
@@ -842,17 +839,6 @@ export default function ExplorationScreen() {
                   className="bg-emerald-500/[0.06] hover:bg-emerald-500/10 border border-emerald-500/20 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
                 >
                   <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Safe Room</span><span className="sm:hidden">Safe</span>
-                </Button>
-              )}
-
-              {/* Parla button: talk to NPCs in current room */}
-              {roomNpcs.length > 0 && (
-                <Button
-                  onClick={() => encounterNpc(roomNpcs[0].id)}
-                  disabled={isActionBlocked}
-                  className="bg-amber-500/[0.06] hover:bg-amber-500/10 border border-amber-500/20 text-amber-300/80 hover:text-amber-200 hover:border-amber-500/30 text-[10px] sm:text-sm py-1.5 sm:py-2.5"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Parla con {roomNpcs.length === 1 ? roomNpcs[0].name : 'NPC'}</span><span className="sm:hidden">Parla</span>
                 </Button>
               )}
 

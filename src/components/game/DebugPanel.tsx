@@ -3,14 +3,13 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
-import { ENEMIES, LOCATIONS, NPCS, ITEMS, DOCUMENTS, getNpcLocationId } from '@/game/data/loader';
+import { ENEMIES, LOCATIONS, NPCS, ITEMS, DOCUMENTS } from '@/game/data/loader';
 import {
   Heart, Package, Key, Crosshair, Bug, Skull, MapPin,
   Shield, Zap, ChevronDown, ChevronUp, X, Flame, Users, Settings,
   FileText, Search
 } from 'lucide-react';
 import { MAX_RIBBONS } from '@/game/utils/archetype-helpers';
-import { PURSUER_CONFIG } from '@/game/data/loader';
 
 // Static level options (no DB dependency)
 const LEVEL_OPTIONS = [1, 5, 10, 15, 20, 30, 50];
@@ -424,7 +423,7 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
               <div className="flex justify-between"><span>Persist Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().persistentRibbons}/{MAX_RIBBONS}</span></div>
               <div className="flex justify-between"><span>Documents:</span><span className="text-white/70 font-mono">{collectedDocuments.length}/{docList.length}</span></div>
               <div className="flex justify-between"><span>Recipes:</span><span className="text-white/70 font-mono">{useGameStore.getState().discoveredRecipes.length}</span></div>
-              <div className="flex justify-between"><span>Pursuer:</span><span className="text-white/70 font-mono">{useGameStore.getState().pursuerLevel}/{PURSUER_CONFIG.maxPursuitLevel}</span></div>
+              <div className="flex justify-between"><span>Nemesis Pursuit:</span><span className="text-white/70 font-mono">{useGameStore.getState().nemesisPursuitLevel}/5</span></div>
               <div className="flex justify-between"><span>New Game+:</span><span className="text-white/70 font-mono">{useGameStore.getState().isNewGamePlus ? 'YES' : 'NO'}</span></div>
             </div>
           </Section>
@@ -440,10 +439,7 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                   icon={<span className="text-sm">💬</span>}
                   onClick={() => {
                     const locId = useGameStore.getState().currentLocationId;
-                    const localNpcs = npcList.filter(n => {
-                      const room = LOCATIONS[locId]?.rooms?.find(r => r.npcIds?.includes(n.id));
-                      return !!room;
-                    });
+                    const localNpcs = npcList.filter(n => n.locationId === locId);
                     if (localNpcs.length > 0) {
                       useGameStore.getState().encounterNpc(localNpcs[0].id);
                     }
@@ -462,9 +458,8 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                     // Close any active dialog first
                     useGameStore.setState({ activeNpc: null });
                     // Teleport to NPC location if needed
-                    const npcLocId = getNpcLocationId(randomNpc.id);
-                    if (npcLocId && state.currentLocationId !== npcLocId) {
-                      useGameStore.getState().debugTeleport(npcLocId);
+                    if (state.currentLocationId !== randomNpc.locationId) {
+                      useGameStore.getState().debugTeleport(randomNpc.locationId);
                     }
                     // Encounter after a short delay to allow teleport to settle
                     setTimeout(() => {
@@ -505,9 +500,8 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                     key={npc.id}
                     onClick={() => {
                       const state = useGameStore.getState();
-                      const npcLocId = getNpcLocationId(npc.id);
-                      if (npcLocId && state.currentLocationId !== npcLocId) {
-                        useGameStore.getState().debugTeleport(npcLocId);
+                      if (state.currentLocationId !== npc.locationId) {
+                        useGameStore.getState().debugTeleport(npc.locationId);
                       }
                       setTimeout(() => {
                         useGameStore.getState().encounterNpc(npc.id);
@@ -517,7 +511,7 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
                   >
                     <span className="text-xs">{npc.portrait}</span>
                     <span className="flex-1 truncate">{npc.name}</span>
-                    <span className="text-[8px] text-white/20 truncate max-w-[80px]">{LOCATIONS[getNpcLocationId(npc.id) ?? '']?.name}</span>
+                    <span className="text-[8px] text-white/20 truncate max-w-[80px]">{LOCATIONS[npc.locationId]?.name}</span>
                     <span className="text-[9px] text-cyan-400/60 shrink-0">↕️</span>
                   </button>
                 ))}

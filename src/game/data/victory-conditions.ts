@@ -1,7 +1,6 @@
 // Victory condition system — rolled at combat start to provide optional bonus EXP challenges.
 
 import { EnemyInstance } from '../types';
-import { PURSUER_CONFIG } from './loader';
 
 // Local type — not yet defined in ../types; define here until migrated
 interface VictoryCondition {
@@ -28,66 +27,57 @@ export interface VictoryConditionDef {
   chance: number;         // 0-100, chance of appearing for eligible fights
 }
 
-/**
- * Get victory conditions array with dynamic enemy IDs from PURSUER_CONFIG.
- * Called at combat start to ensure latest config is used.
- */
-export function getVictoryConditions(): VictoryConditionDef[] {
-  return [
-    {
-      id: 'survive_5',
-      type: 'survive_turns',
-      turnsRequired: 5,
-      description: 'Sopravvivi 5 turni!',
-      rewardExpBonus: 30,
-      rewardLabel: 'Sopravvissuto!',
-      appliesTo: ['zombie', 'zombie_female', 'zombie_soldier', 'zombie_doctor', 'zombie_dog', 'cerberus_alpha'],
-      chance: 30,
-    },
-    {
-      id: 'survive_8',
-      type: 'survive_turns',
-      turnsRequired: 8,
-      description: 'Sopravvivi 8 turni!',
-      rewardExpBonus: 50,
-      rewardLabel: 'Resistente!',
-      appliesTo: ['licker', 'licker_smasher', 'licker_crawler', 'hunter'],
-      chance: 20,
-    },
-    {
-      id: 'destroy_weak_point_tyrant',
-      type: 'destroy_weak_point',
-      turnsRequired: 12,
-      description: 'Distruggi il punto debole del Tyrant! (uccidi entro 12 turni)',
-      rewardExpBonus: 80,
-      rewardLabel: 'Punto Debole Distrutto!',
-      appliesTo: ['tyrant_boss'],
-      chance: 100,
-    },
-    {
-      id: 'destroy_weak_point_pursuer',
-      type: 'destroy_weak_point',
-      turnsRequired: 10,
-      description: `Distruggi il punto debole di ${PURSUER_CONFIG.name}! (uccidi entro 10 turni)`,
-      rewardExpBonus: 100,
-      rewardLabel: `${PURSUER_CONFIG.name} Annientato!`,
-      appliesTo: [PURSUER_CONFIG.enemyId],
-      chance: 100,
-    },
-    {
-      id: 'kill_target_first',
-      type: 'kill_target',
-      description: 'Elimina il bersaglio primario per primo!',
-      rewardExpBonus: 40,
-      rewardLabel: 'Bersaglio Eliminato!',
-      appliesTo: ['zombie', 'zombie_female', 'zombie_soldier', 'zombie_doctor', 'zombie_dog', 'cerberus_alpha', 'licker', 'licker_smasher', 'licker_crawler', 'hunter'],
-      chance: 25,
-    },
-  ];
-}
-
-// Backward compat alias
-export const VICTORY_CONDITIONS = getVictoryConditions;
+export const VICTORY_CONDITIONS: VictoryConditionDef[] = [
+  {
+    id: 'survive_5',
+    type: 'survive_turns',
+    turnsRequired: 5,
+    description: 'Sopravvivi 5 turni!',
+    rewardExpBonus: 30,
+    rewardLabel: 'Sopravvissuto!',
+    appliesTo: ['zombie', 'zombie_female', 'zombie_soldier', 'zombie_doctor', 'zombie_dog', 'cerberus_alpha'],
+    chance: 30,
+  },
+  {
+    id: 'survive_8',
+    type: 'survive_turns',
+    turnsRequired: 8,
+    description: 'Sopravvivi 8 turni!',
+    rewardExpBonus: 50,
+    rewardLabel: 'Resistente!',
+    appliesTo: ['licker', 'licker_smasher', 'licker_crawler', 'hunter'],
+    chance: 20,
+  },
+  {
+    id: 'destroy_weak_point_tyrant',
+    type: 'destroy_weak_point',
+    turnsRequired: 12,
+    description: 'Distruggi il punto debole del Tyrant! (uccidi entro 12 turni)',
+    rewardExpBonus: 80,
+    rewardLabel: 'Punto Debole Distrutto!',
+    appliesTo: ['tyrant_boss'],
+    chance: 100,
+  },
+  {
+    id: 'destroy_weak_point_nemesis',
+    type: 'destroy_weak_point',
+    turnsRequired: 10,
+    description: 'Distruggi il punto debole di Nemesis! (uccidi entro 10 turni)',
+    rewardExpBonus: 100,
+    rewardLabel: 'Nemesis Annientato!',
+    appliesTo: ['nemesis_boss'],
+    chance: 100,
+  },
+  {
+    id: 'kill_target_first',
+    type: 'kill_target',
+    description: 'Elimina il bersaglio primario per primo!',
+    rewardExpBonus: 40,
+    rewardLabel: 'Bersaglio Eliminato!',
+    appliesTo: ['zombie', 'zombie_female', 'zombie_soldier', 'zombie_doctor', 'zombie_dog', 'cerberus_alpha', 'licker', 'licker_smasher', 'licker_crawler', 'hunter'],
+    chance: 25,
+  },
+];
 
 /**
  * Roll for a victory condition based on the enemies present in combat.
@@ -98,7 +88,7 @@ export function rollVictoryCondition(enemies: EnemyInstance[]): VictoryCondition
 
   const enemyDefIds = Array.from(new Set(enemies.map(e => e.definitionId)));
 
-  for (const def of getVictoryConditions()) {
+  for (const def of VICTORY_CONDITIONS) {
     // Check if any enemy type matches this condition's appliesTo
     if (!enemyDefIds.some(id => def.appliesTo.includes(id))) continue;
 

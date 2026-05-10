@@ -22,7 +22,6 @@ import {
   getCombatDelay,
   COMBAT_CONFIG,
   COMBAT_BOOL_CONFIG,
-  PURSUER_CONFIG,
 } from '../../data/loader';
 import { WEAPON_MODS } from '../../data/weapon-mods';
 import { EQUIPMENT_STATS } from '../../data/equipment';
@@ -167,11 +166,11 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
 
     if (action === 'flee') {
       const canFlee = calculateFleeChance(state.party, state.enemies);
-      const hasPursuer = PURSUER_CONFIG.enabled && state.enemies.some(e => e.definitionId === PURSUER_CONFIG.enemyId);
+      const hasNemesis = state.enemies.some(e => e.definitionId === 'nemesis_boss');
 
-      if (hasPursuer && PURSUER_CONFIG.qteOnFlee) {
-        // Fleeing from the pursuer triggers a QTE — success = escape, failure = combat continues
-        get().startQTE('pursuer');
+      if (hasNemesis) {
+        // Fleeing from Nemesis triggers a QTE — success = escape, failure = combat continues
+        get().startQTE('nemesis');
         return;
       }
 
@@ -1034,11 +1033,11 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       let updatedNpcQuestProgress = { ...state.npcQuestProgress };
       const questLogMsgs: string[] = [];
 
-      // ── PURSUER PERSISTENT: if Pursuer is defeated, set pursuit level to max ──
-      let newPursuerLevel = state.pursuerLevel;
-      if (PURSUER_CONFIG.enabled && defeatedEnemyIds.includes(PURSUER_CONFIG.enemyId) && state.pursuerLevel < PURSUER_CONFIG.maxPursuitLevel) {
-        newPursuerLevel = PURSUER_CONFIG.maxPursuitLevel;
-        questLogMsgs.push(`[${state.turnCount}] 💀 ${PURSUER_CONFIG.name} è stato eliminato definitivamente! L'inseguimento è finito.`);
+      // ── NEMESIS PERSISTENT: if Nemesis is defeated, set pursuit level to 5 ──
+      let newNemesisPursuitLevel = state.nemesisPursuitLevel;
+      if (defeatedEnemyIds.includes('nemesis_boss') && state.nemesisPursuitLevel < 5) {
+        newNemesisPursuitLevel = 5;
+        questLogMsgs.push(`[${state.turnCount}] 💀 NEMESIS è stato eliminato definitivamente! L'inseguimento è finito.`);
       }
 
       // ── Track combat victory stats (damage, kills, combo, etc.) ──
@@ -1060,10 +1059,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
       for (const enemyId of defeatedEnemyIds) {
         for (const npc of Object.values(NPCS)) {
           if (npc.quest?.type === 'kill' && npc.quest.targetId === enemyId) {
-            // Only track progress for quests that have been accepted by the player
-            const existingQp = updatedNpcQuestProgress[npc.quest.id];
-            if (!existingQp) continue; // Quest not accepted yet — skip silently
-            const qp = { ...existingQp };
+            const qp = { ...(updatedNpcQuestProgress[npc.quest.id] || { currentCount: 0, completed: false }) };
             if (!qp.completed) {
               qp.currentCount += 1;
               if (qp.currentCount >= npc.quest.targetCount) {
@@ -1116,7 +1112,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
           ],
           bestiary: victoryBestiary,
           npcQuestProgress: updatedNpcQuestProgress,
-          pursuerLevel: newPursuerLevel,
+          nemesisPursuitLevel: newNemesisPursuitLevel,
           clearedRooms: updatedClearedRooms,
           combatRoomId: null,
         });
@@ -1150,7 +1146,7 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         ],
         bestiary: victoryBestiary,
         npcQuestProgress: updatedNpcQuestProgress,
-        pursuerLevel: newPursuerLevel,
+        nemesisPursuitLevel: newNemesisPursuitLevel,
         clearedRooms: updatedClearedRooms,
         combatRoomId: null,
       });
@@ -1353,11 +1349,11 @@ export const createCombatSlice: StateCreator<GameStore, [], [], GameStore> = (se
         : null;
       const statusTarget = selfHasStatus ? character : allyWithStatus;
       if (statusTarget) {
-        // Prefer any usable item that both heals and cures status effects if target's HP is also low
-        const healCureItem = myUsableItems.find(i => getItemHealInfo(i) && getItemHasStatusCure(i));
-        if (healCureItem && statusTarget.currentHp < statusTarget.maxHp * 0.7) {
+        // Prefer herb_mixed (heals + cures) if target's HP is also low
+        const mixedHerb = myUsableItems.find(i => i.itemId === 'herb_mixed');
+        if (mixedHerb && statusTarget.currentHp < statusTarget.maxHp * 0.7) {
           get().selectCombatAction('use_item');
-          get().selectCombatItem(healCureItem.uid);
+          get().selectCombatItem(mixedHerb.uid);
           get().selectCombatTarget(statusTarget.id);
           setTimeout(() => get().executeCombatTurn(), getCombatDelay(600));
           return;

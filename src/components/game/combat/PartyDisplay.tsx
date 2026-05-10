@@ -5,6 +5,7 @@ import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
 import { getWeaponAmmoType, getEffectiveAtk, getEffectiveDef, getEffectiveSpd } from '@/game/engine/combat';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import EffectIndicators from './EffectIndicators';
+import CombatParticles from './CombatParticles';
 import type { Character } from '@/game/types';
 import type { PartyDisplayProps } from './types';
 
@@ -36,6 +37,7 @@ export default function PartyDisplay({
         const isPoisoned = char.statusEffects?.includes('poison') || false;
         const isBleeding = char.statusEffects?.includes('bleeding') || false;
         const isStunned = char.statusEffects?.includes('stunned') || false;
+        const isAdrenaline = char.statusEffects?.includes('adrenaline') || false;
         const animClass = isMissAnim ? 'animate-dodge' : isHurt ? (isCrit ? 'animate-critical-impact' : 'entity-shake') : !isDead ? 'entity-player-idle' : 'entity-dead';
         const isHealed = healTargetId === char.id;
         const borderColor = isTargetable
@@ -57,7 +59,7 @@ export default function PartyDisplay({
                 onAllyClick(char.id);
               }
             }}
-            className={`relative flex flex-col items-center gap-0.5 ${animClass} ${isDead ? 'grayscale opacity-30' : ''} transition-all duration-150 ${
+            className={`relative flex flex-col items-center gap-0.5 ${animClass} ${isDead ? 'grayscale opacity-30' : ''} ${isHealed ? 'anim-heal-pulse' : ''} ${isHurt && !isCrit && anim.value && anim.value > 30 ? 'anim-vibrate-light' : ''} ${isHurt && !isCrit && anim.value && anim.value > 60 ? 'anim-vibrate-heavy' : ''} transition-all duration-150 ${
               isTargetable ? 'cursor-crosshair scale-105 hover:scale-110' : ''
             }`}
           >
@@ -79,7 +81,7 @@ export default function PartyDisplay({
             {/* Tooltip wrapper for character card */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor}">
+                <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor} ${isAdrenaline && !isDead ? 'adrenaline-border' : ''}`}>
                   <img src={mediaUrl(char.avatarUrl || CHARACTER_IMAGES[char.archetype] || '', dataVersion)} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} />
                   {/* ── BLEEDING VISUAL: blood drips on left + red pulse ── */}
                   {isBleeding && !isDead && (
@@ -133,9 +135,52 @@ export default function PartyDisplay({
                       <div className="absolute inset-0 rounded-lg pointer-events-none poison-edge-glow" />
                     </>
                   )}
-                  {/* ── STUN VISUAL: golden tint overlay ── */}
+                  {/* ── ADRENALINE OVERLAY: orange/red energy glow ── */}
+                  {isAdrenaline && !isDead && (
+                    <div className="absolute inset-0 rounded-lg pointer-events-none adrenaline-overlay status-effect-transition" />
+                  )}
+                  {/* ── STUN VISUAL: enhanced spinning stars + distortion ── */}
                   {isStunned && !isDead && (
-                    <div className="absolute inset-0 rounded-lg pointer-events-none bg-yellow-500/10 border-2 border-yellow-400/30" />
+                    <>
+                      <div className="absolute inset-0 rounded-lg pointer-events-none stun-overlay status-effect-transition" />
+                      {['⭐', '💫', '✦', '✧'].map((star, si) => (
+                        <span
+                          key={`stun-star-${si}`}
+                          className="stun-star"
+                          style={{
+                            left: '50%',
+                            top: '50%',
+                            '--orbit-dur': `${1.5 + si * 0.3}s`,
+                            '--orbit-r': `${28 + si * 6}px`,
+                            animationDelay: `${si * 0.4}s`,
+                            fontSize: `${10 + si * 2}px`,
+                          } as React.CSSProperties}
+                        >
+                          {star}
+                        </span>
+                      ))}
+                      <div className="stun-wave" />
+                    </>
+                  )}
+                  {/* ── Advanced Particles ── */}
+                  {isHurt && (
+                    <CombatParticles
+                      triggerKey={anim?.value ? anim.value + (anim.isCritical ? 1000 : 0) + idx : 0}
+                      particleType={isCrit ? 'crit-star' : 'impact'}
+                      count={isCrit ? 8 : 3}
+                    />
+                  )}
+                  {/* ── Impact ring on heavy hit ── */}
+                  {isHurt && anim.value && anim.value > 30 && !isCrit && (
+                    <div className="impact-ring" style={{ '--ring-color': 'rgba(239, 68, 68, 0.5)' } as React.CSSProperties} />
+                  )}
+                  {/* ── Heal pulse particles ── */}
+                  {isHealing && anim.value && (
+                    <CombatParticles
+                      triggerKey={anim.value + 5000 + idx}
+                      particleType="neon-cyan"
+                      count={4}
+                    />
                   )}
                   {/* ── Active effect indicators (buffs, debuffs, shields, etc.) ── */}
                   <EffectIndicators

@@ -10,10 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { BookOpen, X, FileText, MapPin, Filter, ChevronDown, Mail, Eye } from 'lucide-react';
 import type { DocumentType, GameDocument } from '@/game/types';
 
-const DOC_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+const DOC_TYPE_LABELS: Record<DocumentType, { label: string; icon: string; color: string }> = {
   diary: { label: 'Diario', icon: '📔', color: 'text-amber-300 border-amber-700/30 bg-amber-950/20' },
-  umbrella_file: { label: 'File Classificato', icon: '📁', color: 'text-red-300 border-red-700/30 bg-red-950/20' },
-  classified: { label: 'Documento Classificato', icon: '📁', color: 'text-red-300 border-red-700/30 bg-red-950/20' },
+  umbrella_file: { label: 'File Umbrella', icon: '📁', color: 'text-red-300 border-red-700/30 bg-red-950/20' },
   note: { label: 'Nota', icon: '📝', color: 'text-gray-300 border-gray-700/30 bg-gray-950/20' },
   photo: { label: 'Foto', icon: '📷', color: 'text-emerald-300 border-emerald-700/30 bg-emerald-950/20' },
   report: { label: 'Rapporto', icon: '📋', color: 'text-cyan-300 border-cyan-700/30 bg-cyan-950/20' },
@@ -256,8 +255,8 @@ function ReportDocumentReader({ doc }: { doc: GameDocument }) {
   );
 }
 
-// ─── CLASSIFIED DOCUMENT (generic, replaces UmbrellaFileReader) ───
-function ClassifiedDocumentReader({ doc }: { doc: GameDocument }) {
+// ─── UMBRELLA FILE ───
+function UmbrellaFileReader({ doc }: { doc: GameDocument }) {
   return (
     <div className="rounded-lg overflow-hidden">
       <div className="relative border border-red-700/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(220,38,38,0.08)]">
@@ -266,13 +265,13 @@ function ClassifiedDocumentReader({ doc }: { doc: GameDocument }) {
         {/* Header */}
         <div className="px-4 py-2.5 border-b border-red-800/20 bg-red-950/20 flex items-center gap-2">
           <span className="text-base">📁</span>
-          <span className="text-[11px] font-bold text-red-300 uppercase tracking-wider">CLASSIFICATO</span>
-          <Badge className="text-[7px] bg-red-900/60 text-red-300 border-red-700/40 ml-auto uppercase tracking-widest">Riservato</Badge>
+          <span className="text-[11px] font-bold text-red-300 uppercase tracking-wider">Umbrella Corp — CLASSIFICATO</span>
+          <Badge className="text-[7px] bg-red-900/60 text-red-300 border-red-700/40 ml-auto uppercase tracking-widest">Top Secret</Badge>
         </div>
         {/* Warning banner */}
         <div className="px-4 py-1.5 bg-red-950/15 border-b border-red-800/10">
           <p className="text-[9px] text-red-400/50 uppercase tracking-[0.15em] text-center">
-            ⚠️ Divieto di riproduzione
+            ⚠️ Divieto di riproduzione — Livello di accesso: Alpha
           </p>
         </div>
         {/* Body */}
@@ -386,8 +385,7 @@ function DocumentReader({ doc }: { doc: GameDocument }) {
     case 'email': return <EmailDocumentReader doc={doc} />;
     case 'diary': return <DiaryDocumentReader doc={doc} />;
     case 'report': return <ReportDocumentReader doc={doc} />;
-    case 'classified':
-    case 'umbrella_file': return <ClassifiedDocumentReader doc={doc} />;
+    case 'umbrella_file': return <UmbrellaFileReader doc={doc} />;
     case 'photo': return <PhotoDocumentReader doc={doc} />;
     case 'note': return <NoteDocumentReader doc={doc} />;
     default: return <NoteDocumentReader doc={doc} />;
@@ -536,8 +534,8 @@ export default function DocumentsPanel() {
                     <div className="flex-1 min-w-0">
                       <h4 className="text-base sm:text-lg font-bold text-white">{selectedDoc.title}</h4>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <Badge className={`text-[9px] ${DOC_TYPE_LABELS[selectedDoc.type]?.color || RARITY_COLORS.common}`}>
-                          {DOC_TYPE_LABELS[selectedDoc.type]?.icon || '📄'} {DOC_TYPE_LABELS[selectedDoc.type]?.label || selectedDoc.type}
+                        <Badge className={`text-[9px] ${DOC_TYPE_LABELS[selectedDoc.type].color}`}>
+                          {DOC_TYPE_LABELS[selectedDoc.type].icon} {DOC_TYPE_LABELS[selectedDoc.type].label}
                         </Badge>
                         <span className="text-[10px] text-white/30 flex items-center gap-1">
                           <MapPin className="w-2.5 h-2.5" />
@@ -585,7 +583,7 @@ export default function DocumentsPanel() {
                                 <div className="flex-1 min-w-0">
                                   <p className={`text-sm font-medium truncate ${isRead ? 'text-white/60' : 'text-white'}`}>{doc.title}</p>
                                   <p className="text-[10px] text-white/40 truncate">
-                                    {DOC_TYPE_LABELS[doc.type]?.icon || '📄'} {DOC_TYPE_LABELS[doc.type]?.label || doc.type}
+                                    {DOC_TYPE_LABELS[doc.type].icon} {DOC_TYPE_LABELS[doc.type].label}
                                   </p>
                                 </div>
                                 {!isRead && (

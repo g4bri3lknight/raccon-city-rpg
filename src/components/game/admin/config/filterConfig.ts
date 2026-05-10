@@ -16,6 +16,9 @@ export const TAB_FILTERS: Partial<Record<TabId, FilterDef[]>> = {
     { key: 'type', label: 'Tipo', enumGroup: 'itemType' },
     { key: 'rarity', label: 'Rarità', enumGroup: 'rarity' },
   ],
+  quests: [
+    { key: 'type', label: 'Tipo', enumGroup: 'questType' },
+  ],
   events: [
     { key: 'type', label: 'Tipo', enumGroup: 'eventType' },
   ],

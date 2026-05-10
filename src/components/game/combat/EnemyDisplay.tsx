@@ -4,6 +4,7 @@ import { Swords, Crosshair } from 'lucide-react';
 import { ENEMY_IMAGES, mediaUrl } from '@/game/data/loader';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import EffectIndicators from './EffectIndicators';
+import CombatParticles from './CombatParticles';
 import type { EnemyDisplayProps } from './types';
 
 export default function EnemyDisplay({
@@ -51,7 +52,7 @@ export default function EnemyDisplay({
           <div
             key={enemy.id}
             onClick={() => onEnemyClick(enemy.id)}
-            className={`relative flex flex-col items-center gap-0.5 ${animClass} ${hitAnimClass} ${deathAnimClass} ${bossPhaseClass} ${isDead ? 'grayscale opacity-30' : ''} transition-all duration-150 ${isTargetable ? 'cursor-crosshair scale-105 hover:scale-110 hover:shadow-[0_0_24px_rgba(239,68,68,0.7)]' : ''}`}
+            className={`relative flex flex-col items-center gap-0.5 ${animClass} ${hitAnimClass} ${deathAnimClass} ${bossPhaseClass} ${isDead ? 'grayscale opacity-30' : ''} ${isHurt && !isCrit && anim.value && anim.value > 30 ? 'anim-vibrate-light' : ''} ${isHurt && !isCrit && anim.value && anim.value > 60 ? 'anim-vibrate-heavy' : ''} transition-all duration-150 ${isTargetable ? 'cursor-crosshair scale-105 hover:scale-110 hover:shadow-[0_0_24px_rgba(239,68,68,0.7)]' : ''}`}
           >
             {/* Active turn indicator */}
             {isActive && (
@@ -71,7 +72,7 @@ export default function EnemyDisplay({
                 </span>
               );
             })()}
-            <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor} ${bossGlowClass}`}>
+            <div className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-56 lg:h-56 rounded-lg overflow-hidden border-2 shrink-0 relative ${borderColor} ${bossGlowClass} ${enemy.statusEffects?.includes('adrenaline') && !isDead ? 'adrenaline-border' : ''}`}>
               <img src={mediaUrl(ENEMY_IMAGES[enemy.definitionId] || '', dataVersion)} alt="" className="w-full h-full object-cover object-[center_15%]" draggable={false} onError={(e) => {
                 const t = e.currentTarget;
                 if (t.style.display !== 'none') {
@@ -101,6 +102,33 @@ export default function EnemyDisplay({
                   <div className="absolute inset-0 rounded-lg pointer-events-none poison-edge-glow" />
                 </>
               )}
+              {/* ── ADRENALINE OVERLAY: orange/red energy glow ── */}
+              {enemy.statusEffects?.includes('adrenaline') && !isDead && (
+                <div className="absolute inset-0 rounded-lg pointer-events-none adrenaline-overlay status-effect-transition" />
+              )}
+              {/* ── STUN OVERLAY: spinning stars + distortion ── */}
+              {enemy.statusEffects?.includes('stunned') && !isDead && (
+                <>
+                  <div className="absolute inset-0 rounded-lg pointer-events-none stun-overlay status-effect-transition" />
+                  {['⭐', '💫', '✦', '✧'].map((star, si) => (
+                    <span
+                      key={`stun-star-${si}`}
+                      className="stun-star"
+                      style={{
+                        left: '50%',
+                        top: '50%',
+                        '--orbit-dur': `${1.5 + si * 0.3}s`,
+                        '--orbit-r': `${28 + si * 6}px`,
+                        animationDelay: `${si * 0.4}s`,
+                        fontSize: `${10 + si * 2}px`,
+                      } as React.CSSProperties}
+                    >
+                      {star}
+                    </span>
+                  ))}
+                  <div className="stun-wave" />
+                </>
+              )}
               {/* ── Active effect indicators (buffs, debuffs, shields, etc.) ── */}
               <EffectIndicators
                 entityId={enemy.id}
@@ -108,6 +136,14 @@ export default function EnemyDisplay({
                 statusDurations={statusDurations[enemy.id] || []}
                 isDead={isDead}
               />
+              {/* ── Advanced Particles ── */}
+              {isHurt && (
+                <CombatParticles
+                  triggerKey={anim?.value ? anim.value + (anim.isCritical ? 1000 : 0) + idx : 0}
+                  particleType={isCrit ? 'crit-star' : 'impact'}
+                  count={isCrit ? 8 : 3}
+                />
+              )}
             </div>
             <span className={`text-[10px] sm:text-xs font-bold ${isDead ? 'text-gray-700' : enemy.isBoss ? 'text-red-300' : 'text-gray-300'}`}>
               {enemy.name}
@@ -134,6 +170,10 @@ export default function EnemyDisplay({
             {/* ── #41 Flash overlay on critical (orange glow) ── */}
             {hitIsCritical && isHitTarget && (
               <div className="absolute inset-0 rounded-lg animate-flash-white pointer-events-none z-30" style={{ backgroundColor: 'rgba(251,146,60,0.15)' }} />
+            )}
+            {/* ── Impact ring on heavy hit (>30 dmg) ── */}
+            {isHurt && anim.value && anim.value > 30 && !isCrit && (
+              <div className="impact-ring" style={{ '--ring-color': 'rgba(239, 68, 68, 0.5)' } as React.CSSProperties} />
             )}
             {/* ── Status effect badges with durations ── */}
             {!isDead && enemy.statusEffects?.filter(s => s !== 'none').length > 0 && (
