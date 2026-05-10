@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../types';
-import { ACHIEVEMENTS } from '../../data/loader';
+import { ACHIEVEMENTS, PURSUER_CONFIG } from '../../data/loader';
 import { getKeyItemIds } from '../helpers';
 
 let achievementNotifTimer: ReturnType<typeof setTimeout> | null = null;
@@ -60,8 +60,8 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
       checkAndUnlock('boss_slayer');
     }
 
-    // defeat_nemesis_invasion: bestiary has nemesis_boss with defeated=true
-    if (state.bestiary.some(b => b.enemyId === 'nemesis_boss' && b.defeated)) {
+    // defeat_pursuer_invasion: bestiary has pursuer with defeated=true
+    if (PURSUER_CONFIG.enabled && state.bestiary.some(b => b.enemyId === PURSUER_CONFIG.enemyId && b.defeated)) {
       checkAndUnlock('nemesis_defeated');
     }
 
@@ -124,7 +124,7 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
     // no_damage_victory: won combat without any party member losing HP
     if (state.phase === 'victory' || state.phase === 'exploration') {
       // Check after combat: if party has no missing HP from start of last combat
-      if (state.herbCombineCount >= 3) {
+      if (state.craftingCombineCount >= 3) {
         checkAndUnlock('herb_master');
       }
     }
@@ -169,8 +169,8 @@ export const createAchievementsSlice: StateCreator<GameStore, [], [], GameStore>
 
   incrementHerbCombine: () => {
     const state = get();
-    const newCount = state.herbCombineCount + 1;
-    set({ herbCombineCount: newCount });
+    const newCount = state.craftingCombineCount + 1;
+    set({ craftingCombineCount: newCount });
     // Check immediately
     if (newCount >= 3) {
       get().checkAchievements();

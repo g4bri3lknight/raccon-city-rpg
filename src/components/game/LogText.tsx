@@ -2,12 +2,18 @@
 
 import { useMemo } from 'react';
 import { useGameStore } from '@/game/store';
-import { CHARACTER_IMAGES, mediaUrl } from '@/game/data/loader';
+import { CHARACTER_IMAGES, mediaUrl, COLLECTIBLE_CONFIG } from '@/game/data/loader';
 
-const EMOJI_TO_PNG: Record<string, string> = {
-  '🎀': '/api/media/image?id=icon_ink_ribbon',
-  '⚔️': '/api/media/image?id=icon_combat_knife',
-};
+// Build EMOJI_TO_PNG dynamically so collectible icon is configurable
+function buildEmojiToPng(): Record<string, string> {
+  const map: Record<string, string> = {
+    '⚔️': '/api/media/image?id=icon_combat_knife',
+  };
+  if (COLLECTIBLE_CONFIG.enabled) {
+    map[COLLECTIBLE_CONFIG.icon] = `/api/media/image?id=icon_${COLLECTIBLE_CONFIG.itemId}`;
+  }
+  return map;
+}
 
 interface CharacterAvatar {
   name: string;
@@ -43,6 +49,7 @@ export default function LogText({ text, className = '', party }: LogTextProps) {
     const nameMap = party && party.length > 0 ? buildNameAvatarMap(party) : null;
 
     // Step 1: split by emoji-to-PNG patterns
+    const EMOJI_TO_PNG = buildEmojiToPng();
     const allEmojis = Object.keys(EMOJI_TO_PNG);
     const emojiEscaped = allEmojis.map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
     const emojiRegex = new RegExp(`(${emojiEscaped})`, 'g');

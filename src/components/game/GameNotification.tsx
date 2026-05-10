@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/game/store';
 import ItemIcon from '@/components/game/ItemIcon';
 import { playSfx } from '@/game/engine/sounds';
+import { COLLECTIBLE_CONFIG } from '@/game/data/loader';
 import type { GameNotification } from '@/game/types';
 
 // ── Theme config per notification type ──
@@ -78,9 +79,13 @@ const THEMES = {
 } as const;
 
 // Extra label icon for notification types that need a PNG instead of emoji in label
-const LABEL_ITEM_ICONS: Record<string, string> = {
-  collectible_found: 'ink_ribbon',
-};
+// Dynamically built from COLLECTIBLE_CONFIG so it works for any collectible
+function getLabelItemIcons(): Record<string, string> {
+  if (COLLECTIBLE_CONFIG.enabled) {
+    return { collectible_found: COLLECTIBLE_CONFIG.itemId };
+  }
+  return {};
+}
 
 type NotifType = keyof typeof THEMES;
 const defaultTheme = THEMES.bag_expand;
@@ -487,7 +492,7 @@ export default function GameNotification() {
                 className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] mb-1 flex items-center justify-center gap-1.5"
                 style={{ color: theme.titleColor, opacity: 0.7 }}
               >
-                {LABEL_ITEM_ICONS[notification.type] && <ItemIcon itemId={LABEL_ITEM_ICONS[notification.type]} size={14} />}
+                {getLabelItemIcons()[notification.type] && <ItemIcon itemId={getLabelItemIcons()[notification.type]} size={14} />}
                 {theme.label}
               </motion.div>
             )}

@@ -8,7 +8,8 @@ export type GamePhase = 'title' | 'character-select' | 'character-creator' | 'ex
 // DIFFICULTY
 // ==========================================
 
-export type DifficultyLevel = 'sopravvissuto' | 'normale' | 'incubo';
+/** Dynamic — valid levels come from template config (template.config.validTypes.difficultyLevels) */
+export type DifficultyLevel = string;
 
 export interface DifficultyConfig {
   label: string;
@@ -23,9 +24,11 @@ export interface DifficultyConfig {
   description: string;
 }
 
-export type Archetype = 'tank' | 'healer' | 'dps' | 'control' | 'survivor' | 'custom';
+/** Dynamic — valid archetypes come from DB (GameArchetype table) */
+export type Archetype = string;
 
-export type StatusEffect = 'poison' | 'bleeding' | 'stunned' | 'adrenaline' | 'none';
+/** Dynamic — valid effects come from template config (template.config.validTypes.statusEffects) */
+export type StatusEffect = string;
 
 export type ItemType = 'weapon' | 'healing' | 'ammo' | 'utility' | 'antidote' | 'bag' | 'collectible' | 'armor' | 'accessory' | 'weapon_mod';
 
@@ -750,7 +753,7 @@ export interface QTEState {
   timeRemaining: number; // ms
   result: 'pending' | 'success' | 'partial' | 'failure';
   rewardHpSave: number; // HP saved on success
-  triggerSource: 'nemesis' | 'event' | 'boss';
+  triggerSource: string;
   postSuccessMessage: string;
   postFailureMessage: string;
   postSuccessItems?: { itemId: string; quantity: number }[];
@@ -831,10 +834,10 @@ export interface GameState {
   exploredSubAreas: Record<string, string[]>; // locationId → sub-area IDs
   // #14 Boss multi-fase
   bossPhases: Record<string, BossPhase[]>; // enemyId → phases
-  // #27 Nemesis persistente
-  nemesisPursuitLevel: number; // 0-5, increases each invasion
-  nemesisLastSeenLocation: string | null;
-  nemesisLastSeenTurn: number;
+  // #27 Persistent Pursuer (Nemesis-like)
+  pursuerLevel: number; // 0-maxPursuitLevel, increases each invasion
+  pursuerLastSeenLocation: string | null;
+  pursuerLastSeenTurn: number;
   // #45 Randomizer Mode
   randomizerMode: boolean;
   randomizedLocationData: RandomizedLocationData | null;
@@ -859,7 +862,7 @@ export interface GameState {
   // Help overlay
   helpOpen: boolean;
   // Achievement tracking
-  herbCombineCount: number; // total herb combination actions
+  craftingCombineCount: number; // total crafting combination actions
   // Auto-save
   lastAutoSaveTurn: number;
   // #8 Crafting Avanzato
@@ -923,7 +926,8 @@ export interface BestiaryEntry {
 // #16 - DOCUMENTS / LORE
 // ==========================================
 
-export type DocumentType = 'diary' | 'umbrella_file' | 'note' | 'photo' | 'report' | 'email';
+/** Dynamic — valid types come from template config (template.config.validTypes.documentTypes) */
+export type DocumentType = string;
 
 export interface GameDocument {
   id: string;
@@ -991,7 +995,8 @@ export interface AvatarDefinition {
 // #20 - DYNAMIC EVENTS
 // ==========================================
 
-export type DynamicEventType = 'blackout' | 'alarm' | 'collapse' | 'lockdown' | 'gas_leak' | 'fire' | 'nemesis_invasion' | 'horde';
+/** Dynamic — valid types come from template config (template.config.validTypes.eventTypes) */
+export type DynamicEventType = string;
 
 export interface DynamicEvent {
   id: string;
@@ -1054,7 +1059,8 @@ export interface SecretRoom {
 // #23 - MULTIPLE ENDINGS
 // ==========================================
 
-export type EndingType = 'escape' | 'hero' | 'truth' | 'dark';
+/** Dynamic — valid types come from template config (template.config.validTypes.endingTypes) */
+export type EndingType = string;
 
 export interface EndingDefinition {
   id: EndingType;
@@ -1074,7 +1080,8 @@ export interface EndingDefinition {
 // #21 - STORY CHOICES TRACKING
 // ==========================================
 
-export type StoryChoiceTag = 'help_survivors' | 'ignore_survivors' | 'enter_lab' | 'skip_lab' | 'go_back_sewers' | 'proceed_sewers' | 'hack_computer' | 'skip_computer';
+/** Dynamic — valid tags come from game data / story events */
+export type StoryChoiceTag = string;
 
 // ==========================================
 // RUN STATS

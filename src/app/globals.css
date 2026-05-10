@@ -188,6 +188,22 @@
   --rpg-subtitle-color: rgba(248, 113, 113, 0.8);
 }
 
+/* ── Admin Panel Accent Color ──
+   Dynamic accent color for the editor UI, set at runtime based on the active game's template. 
+   Defaults to emerald (#10b981) for backward compatibility. */
+:root {
+  --admin-accent: #10b981;
+  --admin-accent-rgb: 16, 185, 129;
+}
+
+.admin-accent { color: var(--admin-accent); }
+.admin-accent-bg { background-color: var(--admin-accent); }
+.admin-accent-border { border-color: var(--admin-accent); }
+.admin-accent-soft-bg { background-color: rgba(var(--admin-accent-rgb), 0.1); }
+.admin-accent-soft-border { border-color: rgba(var(--admin-accent-rgb), 0.25); }
+.admin-accent-hover:hover { background-color: rgba(var(--admin-accent-rgb), 0.15); color: var(--admin-accent); }
+.admin-accent-badge-bg { background-color: rgba(var(--admin-accent-rgb), 0.2); color: rgba(var(--admin-accent-rgb), 0.8); }
+
 .game-horror {
   background: var(--rpg-bg, #0a0a0a);
   font-family: var(--rpg-font, 'Courier New', monospace);
@@ -196,7 +212,7 @@
 /* Theme-driven glow for headings and title elements */
 .game-horror .theme-glow,
 .game-horror .horror-glow {
-  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 20px) var(--rpg-primary, #10b981);
+  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 20px) var(--rpg-primary, #dc2626);
 }
 
 /* Theme-driven title screen elements */
@@ -216,17 +232,17 @@
 }
 
 /* Theme-driven primary accent color (buttons, links, highlights) */
-.game-root .theme-primary { color: var(--rpg-primary, #10b981); }
-.game-root .theme-secondary { color: var(--rpg-secondary, #06b6d4); }
-.game-root .theme-accent { color: var(--rpg-accent, #f59e0b); }
+.game-root .theme-primary { color: var(--rpg-primary, #dc2626); }
+.game-root .theme-secondary { color: var(--rpg-secondary, #ef4444); }
+.game-root .theme-accent { color: var(--rpg-accent, #f87171); }
 
-.game-root .theme-primary-bg { background-color: var(--rpg-primary, #10b981); }
-.game-root .theme-secondary-bg { background-color: var(--rpg-secondary, #06b6d4); }
-.game-root .theme-accent-bg { background-color: var(--rpg-accent, #f59e0b); }
+.game-root .theme-primary-bg { background-color: var(--rpg-primary, #dc2626); }
+.game-root .theme-secondary-bg { background-color: var(--rpg-secondary, #ef4444); }
+.game-root .theme-accent-bg { background-color: var(--rpg-accent, #f87171); }
 
-.game-root .theme-primary-border { border-color: var(--rpg-primary, #10b981); }
-.game-root .theme-secondary-border { border-color: var(--rpg-secondary, #06b6d4); }
-.game-root .theme-accent-border { border-color: var(--rpg-accent, #f59e0b); }
+.game-root .theme-primary-border { border-color: var(--rpg-primary, #dc2626); }
+.game-root .theme-secondary-border { border-color: var(--rpg-secondary, #ef4444); }
+.game-root .theme-accent-border { border-color: var(--rpg-accent, #f87171); }
 
 .game-root .theme-radius {
   border-radius: var(--rpg-radius, 12px);
@@ -234,11 +250,11 @@
 
 /* Theme-driven glow effect for active elements */
 .game-root .theme-glow-effect {
-  box-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #10b981);
+  box-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #dc2626);
 }
 
 .game-root .theme-text-glow {
-  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #10b981);
+  text-shadow: 0 0 calc(var(--rpg-glow-intensity, 0.3) * 15px) var(--rpg-glow-color, #dc2626);
 }
 
 .horror-border {

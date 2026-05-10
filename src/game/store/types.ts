@@ -110,7 +110,7 @@ export interface GameStore extends GameState {
   removeMod: (characterId: string, modIndex: number) => void;
   consumeItemOutsideCombat: (characterId: string, itemUid: string) => void;
   quickHeal: () => void;
-  combineHerbs: (characterId: string, redHerbUid: string) => boolean;
+  combineItems: (characterId: string, recipeId: string) => boolean;
   selectCharacter: (characterId: string) => void;
   transferItem: (fromCharacterId: string, itemUid: string, toCharacterId: string, quantity?: number) => boolean;
   swapInventoryItems: (characterId: string, uid1: string, uid2: string) => void;
@@ -167,7 +167,7 @@ export interface GameStore extends GameState {
   closePuzzle: () => void;
 
   // QTE
-  startQTE: (triggerSource: 'nemesis' | 'event' | 'boss') => void;
+  startQTE: (triggerSource: 'pursuer' | 'event' | 'boss') => void;
   handleQTEInput: (direction: string) => void;
   completeQTE: () => void;
 

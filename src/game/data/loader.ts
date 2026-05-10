@@ -107,6 +107,39 @@ export let REPUTATION_CONFIG: Record<string, number> = {
   suspiciousThreshold: -2,
 };
 
+// ── Template-driven configuration (loaded from GameSetting DB) ──
+export let TEMPLATE_CONFIG: Record<string, any> | null = null;
+
+export let PURSUER_CONFIG: {
+  enabled: boolean;
+  enemyId: string;
+  name: string;
+  qteOnFlee: boolean;
+  startingPursuitLevel: number;
+  maxPursuitLevel: number;
+} = {
+  enabled: false,
+  enemyId: 'nemesis_boss',
+  name: 'NEMESIS',
+  qteOnFlee: true,
+  startingPursuitLevel: 0,
+  maxPursuitLevel: 5,
+};
+
+export let COLLECTIBLE_CONFIG: {
+  enabled: boolean;
+  itemId: string;
+  label: string;
+  icon: string;
+  maxPerRun: number;
+} = {
+  enabled: false,
+  itemId: 'ink_ribbon',
+  label: 'Nastro d\'Inchiostro',
+  icon: '🎀',
+  maxPerRun: 10,
+};
+
 // NG+ config — loaded from GameSetting DB
 export let NGPLUS_CONFIG: Record<string, number | string> = {
   cycle1Multiplier: 1.15,
@@ -1187,15 +1220,15 @@ async function loadGameSettings(): Promise<void> {
     if (!resp.ok) return;
     const settings: Record<string, string> = await resp.json();
 
-    // Difficulty configs
+    // Difficulty configs — dynamically read all difficulty.* keys from settings
     const configs: Record<string, DifficultyConfig> = {};
-    for (const key of ['sopravvissuto', 'normale', 'incubo']) {
-      const raw = settings[`difficulty.${key}`];
-      if (raw) {
+    for (const [key, raw] of Object.entries(settings)) {
+      if (key.startsWith('difficulty.') && raw) {
+        const levelKey = key.slice('difficulty.'.length);
         try {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object' && parsed.label) {
-            configs[key] = parsed as DifficultyConfig;
+            configs[levelKey] = parsed as DifficultyConfig;
           }
         } catch { /* skip invalid JSON */ }
       }
@@ -1267,6 +1300,53 @@ async function loadGameSettings(): Promise<void> {
         const parsed = parseFloat(raw);
         if (!isNaN(parsed)) NGPLUS_CONFIG[key] = parsed;
       }
+    }
+
+    // ── Template-driven configuration ──
+    const rawTemplateConfig = settings['template.config'];
+    if (rawTemplateConfig) {
+      try {
+        TEMPLATE_CONFIG = JSON.parse(rawTemplateConfig);
+      } catch { /* ignore malformed JSON */ }
+    }
+
+    // ── Pursuer (Nemesis-like persistent enemy) config ──
+    const pursuerEnemyId = settings['pursuer.enemyId'];
+    const pursuerName = settings['pursuer.name'];
+    const pursuerEnabled = settings['pursuer.enabled'];
+    const pursuerMaxLevel = settings['pursuer.maxPursuitLevel'];
+    if (pursuerEnemyId) PURSUER_CONFIG.enemyId = pursuerEnemyId;
+    if (pursuerName) PURSUER_CONFIG.name = pursuerName;
+    if (pursuerEnabled !== undefined) PURSUER_CONFIG.enabled = pursuerEnabled === 'true';
+    if (pursuerMaxLevel) {
+      const p = parseInt(pursuerMaxLevel, 10);
+      if (!isNaN(p)) PURSUER_CONFIG.maxPursuitLevel = p;
+    }
+    // Derive enabled from template config if DB setting is missing
+    if (TEMPLATE_CONFIG && pursuerEnabled === undefined) {
+      PURSUER_CONFIG.enabled = TEMPLATE_CONFIG.systems?.persistentPursuer === true;
+    }
+
+    // ── Collectible (ink ribbon equivalent) config ──
+    const collItemId = settings['collectible.itemId'];
+    const collLabel = settings['collectible.label'];
+    const collIcon = settings['collectible.icon'];
+    const collMax = settings['collectible.maxPerRun'];
+    const collEnabled = settings['collectible.enabled'];
+    if (collItemId) COLLECTIBLE_CONFIG.itemId = collItemId;
+    if (collLabel) COLLECTIBLE_CONFIG.label = collLabel;
+    if (collIcon) COLLECTIBLE_CONFIG.icon = collIcon;
+    if (collMax) {
+      const m = parseInt(collMax, 10);
+      if (!isNaN(m)) COLLECTIBLE_CONFIG.maxPerRun = m;
+    }
+    if (collEnabled !== undefined) COLLECTIBLE_CONFIG.enabled = collEnabled === 'true';
+    // Derive from template config if DB setting is missing
+    if (TEMPLATE_CONFIG && collEnabled === undefined) {
+      const tc = TEMPLATE_CONFIG.collectible;
+      COLLECTIBLE_CONFIG.enabled = tc?.enabled === true;
+      if (tc?.label) COLLECTIBLE_CONFIG.label = tc.label;
+      if (tc?.maxPerRun) COLLECTIBLE_CONFIG.maxPerRun = tc.maxPerRun;
     }
 
     // Apply theme settings as CSS variables on .game-root

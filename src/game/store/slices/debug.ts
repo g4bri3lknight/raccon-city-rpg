@@ -3,7 +3,7 @@ import { GameStore } from '../types';
 import type { DifficultyLevel } from '../types';
 import { ItemInstance } from '../../types';
 import { getDifficultyConfig } from '../../data/difficulty';
-import { ITEMS, ENEMIES, DOCUMENTS, LOCATIONS, RECIPES_DATA, refreshGameData } from '../../data/loader';
+import { ITEMS, ENEMIES, DOCUMENTS, LOCATIONS, RECIPES_DATA, refreshGameData, COLLECTIBLE_CONFIG } from '../../data/loader';
 import { addItemToParty, createEnemyInstance, getAutoCombatDefault } from '../helpers';
 import { invalidateSettingsCache, fetchGameSettings } from '../settings-cache';
 
@@ -298,20 +298,20 @@ export const createDebugSlice: StateCreator<GameStore, [], [], GameStore> = (set
 
   debugSpawnCollectible: () => {
     set(state => {
-      if (state.collectedRibbons >= 10) {
-        return { messageLog: [...state.messageLog, '[DEBUG] 🎀 Hai già trovato tutti e 10 i nastri in questa run!'] };
+      if (state.collectedRibbons >= COLLECTIBLE_CONFIG.maxPerRun) {
+        return { messageLog: [...state.messageLog, `[DEBUG] ${COLLECTIBLE_CONFIG.icon} Hai già trovato tutti e ${COLLECTIBLE_CONFIG.maxPerRun} i collezionabili in questa run!`] };
       }
       const newCount = state.collectedRibbons + 1;
       return {
         collectedRibbons: newCount,
-        messageLog: [...state.messageLog, `[DEBUG] 🎀 Nastro d'Inchiostro spawnato! (${newCount}/10)`],
+        messageLog: [...state.messageLog, `[DEBUG] ${COLLECTIBLE_CONFIG.icon} ${COLLECTIBLE_CONFIG.label} spawnato! (${newCount}/${COLLECTIBLE_CONFIG.maxPerRun})`],
         notification: {
           id: `notif_debug_${Date.now()}`,
           type: 'collectible_found' as const,
-          message: "Nastro d'Inchiostro",
-          icon: '🎀',
-          itemId: 'ink_ribbon',
-          subMessage: `Collezionabili: ${newCount}/10`,
+          message: COLLECTIBLE_CONFIG.label,
+          icon: COLLECTIBLE_CONFIG.icon,
+          itemId: COLLECTIBLE_CONFIG.itemId,
+          subMessage: `Collezionabili: ${newCount}/${COLLECTIBLE_CONFIG.maxPerRun}`,
         },
       };
     });
@@ -319,9 +319,9 @@ export const createDebugSlice: StateCreator<GameStore, [], [], GameStore> = (set
 
   debugGiveAllRibbons: () => {
     set(state => ({
-      collectedRibbons: 10,
-      persistentRibbons: 10,
-      messageLog: [...state.messageLog, '[DEBUG] 🎀 Tutti e 10 i nastri sbloccati (run + persistenti)!'],
+      collectedRibbons: COLLECTIBLE_CONFIG.maxPerRun,
+      persistentRibbons: COLLECTIBLE_CONFIG.maxPerRun,
+      messageLog: [...state.messageLog, `[DEBUG] ${COLLECTIBLE_CONFIG.icon} Tutti e ${COLLECTIBLE_CONFIG.maxPerRun} i collezionabili sbloccati (run + persistenti)!`],
     }));
   },
 

@@ -62,8 +62,9 @@ export const START_SCREEN_FIELDS: SettingDef[] = [
 ];
 
 // Difficulty types shared between DifficultyConfigEditor and GameSettingsEditor
-export const DIFFICULTY_LEVELS = ['sopravvissuto', 'normale', 'incubo'] as const;
-export type DiffLevel = typeof DIFFICULTY_LEVELS[number];
+// Dynamic: levels come from template config stored in game settings
+export const DIFFICULTY_FALLBACK_LEVELS = ['sopravvissuto', 'normale', 'incubo'] as const;
+export type DiffLevel = string;
 
 export interface DiffConfig {
   label: string;
@@ -78,11 +79,31 @@ export interface DiffConfig {
   description: string;
 }
 
-export const DIFFICULTY_DEFAULTS: Record<DiffLevel, DiffConfig> = {
+/** Fallback defaults for backwards compatibility */
+export const DIFFICULTY_DEFAULTS: Record<string, DiffConfig> = {
   sopravvissuto: { label: 'Sopravvissuto', color: '#22c55e', icon: '🏃', statMult: 0.6, lootMult: 1.5, minEnemies: 1, maxEnemies: 2, expMult: 1.4, enemyCritChance: 5, description: 'Nemici deboli, molto bottino, EXP bonus. Per chi vuole godersi la storia.' },
   normale: { label: 'Normale', color: '#eab308', icon: '⚔️', statMult: 0.85, lootMult: 1.1, minEnemies: 1, maxEnemies: 3, expMult: 1.0, enemyCritChance: 10, description: "Bilanciato. L'esperienza RPG completa." },
   incubo: { label: 'Incubo', color: '#ef4444', icon: '💀', statMult: 1.4, lootMult: 0.6, minEnemies: 2, maxEnemies: 4, expMult: 0.8, enemyCritChance: 20, description: 'Nemici potenti, poco bottino. Solo per i più coraggiosi.' },
 };
+
+/** Extract difficulty levels from game settings (reads template.config or difficulty.* keys) */
+export function getDifficultyLevelsFromSettings(settings: Record<string, string>): string[] {
+  // Try template.config first
+  const templateConfigRaw = settings['template.config'];
+  if (templateConfigRaw) {
+    try {
+      const config = JSON.parse(templateConfigRaw);
+      if (config?.validTypes?.difficultyLevels?.length) {
+        return config.validTypes.difficultyLevels;
+      }
+    } catch { /* fallback */ }
+  }
+  // Fallback: read from difficulty.* keys in settings
+  const levels = Object.keys(settings)
+    .filter(k => k.startsWith('difficulty.') && settings[k])
+    .map(k => k.slice('difficulty.'.length));
+  return levels.length > 0 ? levels : [...DIFFICULTY_FALLBACK_LEVELS];
+}
 
 // Gameplay settings types for GameSettingsEditor
 export interface GameplaySettingDef {

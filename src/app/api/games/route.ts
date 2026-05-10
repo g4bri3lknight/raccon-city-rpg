@@ -4,9 +4,11 @@ import {
   listGameDbFiles,
   initGameDb,
   cloneGameDb,
+  getGameDb,
   getActiveGameId,
   setActiveGameId,
 } from '@/lib/game-db';
+import { getTemplateById, serializeTemplateConfig, serializeTemplateThemePreset } from '@/components/game/admin/templates';
 import { listGames, setGameEntry } from '@/lib/game-registry';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +37,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, description = '', cloneFrom } = body;
+    const { name, description = '', cloneFrom, templateId } = body;
 
     if (!name || typeof name !== 'string') {
       return jsonResponse({ error: 'Game name is required' }, 400);
@@ -66,6 +68,45 @@ export async function POST(req: NextRequest) {
       }
     } else {
       await initGameDb(gameId);
+    }
+
+    // Seed template config as game settings (if template provided)
+    if (templateId) {
+      const template = getTemplateById(templateId);
+      if (template) {
+        const gameDb = getGameDb(gameId);
+        const settings = serializeTemplateConfig(template.config);
+        for (const [key, value] of Object.entries(settings)) {
+          await gameDb.gameSetting.upsert({
+            where: { key },
+            update: { value },
+            create: { key, value },
+          });
+        }
+
+        // Seed theme preset settings
+        const themeSettings = serializeTemplateThemePreset(template);
+        for (const [key, value] of Object.entries(themeSettings)) {
+          await gameDb.gameSetting.upsert({
+            where: { key },
+            update: { value },
+            create: { key, value },
+          });
+        }
+      }
+    }
+
+    // Auto-seed template game data (if template has seed data and not cloning)
+    if (templateId && !cloneFrom) {
+      try {
+        const { getTemplateSeedData } = await import('@/seed-data/templates');
+        const seedData = await getTemplateSeedData(templateId);
+        if (seedData) {
+          await seedGameDataForGame(gameDb, seedData);
+        }
+      } catch (err) {
+        console.warn(`[POST /api/games] Template seed warning:`, err);
+      }
     }
 
     // Add to editor DB registry (metadata lives in custom.db, NOT in the game DB)

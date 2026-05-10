@@ -19,6 +19,7 @@ import {
   getRoomDoors,
   getReachableRoomsViaDoors,
   findRoomLocation,
+  COLLECTIBLE_CONFIG,
 } from '../../data/loader';
 import { generateRandomizedData, getEffectiveLocation } from '../../data/randomizer';
 import {
@@ -619,16 +620,11 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       // Track run stats: documents found
       try { get().incrementRunStat('documentsFound'); } catch {}
 
-      // Some documents reveal hidden recipes
-      const RECIPE_HINT_DOCS: Record<string, string[]> = {
-        'doc_rpd_diary': ['craft_spray_super', 'craft_mega_bandage'],
-        'doc_lab_report': ['craft_pipe_bomb', 'craft_grenade_40mm'],
-        'doc_sewers_map': ['craft_machinegun_ammo'],
-      };
+      // Documents with hintRequired can reveal hidden recipes (comma-separated recipe IDs)
       let newDiscoveredRecipes: string[] | undefined;
-      const hintRecipes = RECIPE_HINT_DOCS[doc.id];
-      if (hintRecipes) {
-        for (const recipeId of hintRecipes) {
+      if (doc.hintRequired) {
+        const hintRecipeIds = doc.hintRequired.split(',').map(s => s.trim()).filter(Boolean);
+        for (const recipeId of hintRecipeIds) {
           if (!state.discoveredRecipes.includes(recipeId)) {
             newDiscoveredRecipes = [...(newDiscoveredRecipes || state.discoveredRecipes), recipeId];
             const recipe = RECIPES_DATA.find(r => r.id === recipeId);
@@ -651,7 +647,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
           type: 'item_found',
           message: doc.title,
           icon: doc.icon,
-          subMessage: doc.type === 'umbrella_file' ? '📄 File Umbrella' : `📝 ${doc.type}`,
+          subMessage: doc.type === 'umbrella_file' || doc.type === 'classified' ? '📄 Documento Classificato' : `📝 ${doc.type}`,
         },
       });
       setTimeout(() => get().checkAchievements(), 100);
@@ -662,9 +658,9 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
     const itemDef = ITEMS[nextFindId];
     if (!itemDef) return;
 
-    // ── Collectible (ink ribbon) ──
-    if (itemDef.type === 'collectible') {
-      if (state.collectedRibbons >= 10) {
+    // ── Collectible (configurable) ──
+    if (itemDef.type === 'collectible' && COLLECTIBLE_CONFIG.enabled) {
+      if (state.collectedRibbons >= COLLECTIBLE_CONFIG.maxPerRun) {
         set({
           messageLog: [...newLog, `[${state.turnCount}] 🔍 ${flavourText} Non trovate nulla di utile qui.`],
           turnCount: state.turnCount + 1,
@@ -675,7 +671,7 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
       }
       const newCount = state.collectedRibbons + 1;
       set({
-        messageLog: [...newLog, `[${state.turnCount}] 🎀 Nastro d'Inchiostro trovato! (${newCount}/10)`],
+        messageLog: [...newLog, `[${state.turnCount}] ${COLLECTIBLE_CONFIG.icon} ${COLLECTIBLE_CONFIG.label} trovato! (${newCount}/${COLLECTIBLE_CONFIG.maxPerRun})`],
         turnCount: state.turnCount + 1,
         collectedRibbons: newCount,
         searchCounts: newSearchCounts,
@@ -683,10 +679,10 @@ export const createExplorationSlice: StateCreator<GameStore, [], [], GameStore> 
         notification: {
           id: nextNotifId(),
           type: 'collectible_found' as const,
-          message: `Nastro d'Inchiostro`,
-          icon: '🎀',
-          itemId: 'ink_ribbon',
-          subMessage: `Collezionabili: ${newCount}/10`,
+          message: COLLECTIBLE_CONFIG.label,
+          icon: COLLECTIBLE_CONFIG.icon,
+          itemId: COLLECTIBLE_CONFIG.itemId,
+          subMessage: `Collezionabili: ${newCount}/${COLLECTIBLE_CONFIG.maxPerRun}`,
         },
       });
       setTimeout(() => get().checkAchievements(), 100);

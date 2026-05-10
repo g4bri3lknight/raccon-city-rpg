@@ -47,7 +47,7 @@ const CARD_H = 84;
 const SNAP_GRID = 20;
 
 const ENDPOINT = '/api/admin/locations';
-const LOCATION_SEED_ENDPOINT = '/api/admin/seed-locations';
+const LOCATION_SEED_ENDPOINT = '/api/admin/seed-template';
 
 // Form fields without mapCol/mapRow (managed via canvas)
 const locationFormFields = FIELD_MAP.locations.filter(
@@ -792,10 +792,14 @@ export default function MapEditor() {
   const handleSeedDefault = async () => {
     setSeeding(true);
     try {
-      const res = await adminFetch(LOCATION_SEED_ENDPOINT, { method: 'POST' });
+      const res = await adminFetch(LOCATION_SEED_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section: 'locations' }),
+      });
       if (!res.ok) throw new Error(await res.text());
       const result = await res.json();
-      showStatus(result.message, 'success');
+      showStatus(result.message ?? 'Seed location completato', 'success');
       fetchLocations();
     } catch (err) {
       showStatus(`Errore seed: ${err}`, 'error');

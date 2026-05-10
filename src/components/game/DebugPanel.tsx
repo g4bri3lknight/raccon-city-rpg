@@ -10,6 +10,7 @@ import {
   FileText, Search
 } from 'lucide-react';
 import { MAX_RIBBONS } from '@/game/utils/archetype-helpers';
+import { PURSUER_CONFIG } from '@/game/data/loader';
 
 // Static level options (no DB dependency)
 const LEVEL_OPTIONS = [1, 5, 10, 15, 20, 30, 50];
@@ -423,7 +424,7 @@ export default function DebugPanel({ isStandalone = false }: { isStandalone?: bo
               <div className="flex justify-between"><span>Persist Ribbons:</span><span className="text-white/70 font-mono">{useGameStore.getState().persistentRibbons}/{MAX_RIBBONS}</span></div>
               <div className="flex justify-between"><span>Documents:</span><span className="text-white/70 font-mono">{collectedDocuments.length}/{docList.length}</span></div>
               <div className="flex justify-between"><span>Recipes:</span><span className="text-white/70 font-mono">{useGameStore.getState().discoveredRecipes.length}</span></div>
-              <div className="flex justify-between"><span>Nemesis Pursuit:</span><span className="text-white/70 font-mono">{useGameStore.getState().nemesisPursuitLevel}/5</span></div>
+              <div className="flex justify-between"><span>Pursuer:</span><span className="text-white/70 font-mono">{useGameStore.getState().pursuerLevel}/{PURSUER_CONFIG.maxPursuitLevel}</span></div>
               <div className="flex justify-between"><span>New Game+:</span><span className="text-white/70 font-mono">{useGameStore.getState().isNewGamePlus ? 'YES' : 'NO'}</span></div>
             </div>
           </Section>

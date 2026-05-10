@@ -164,15 +164,18 @@ function assignLockedPaths(
     }
   }
 
-  // Add a locked path for RPD-like station access if that location exists and isn't first
-  const rpdIdx = shuffledLocations.indexOf('rpd_station');
-  if (rpdIdx > 0 && ITEMS['key_rpd']) {
-    // If RPD is not the first location, lock it
-    lockedPaths[rpdIdx].push({
-      locationId: 'rpd_station',
-      requiredItemId: 'key_rpd',
-      lockedMessage: '🔒 La porta della R.P.D. è chiusa a chiave. Serve la chiave del distretto.',
-    });
+  // Lock the second location (non-first) behind a key item for progression gating
+  if (shuffledLocations.length > 1) {
+    const secondLocId = shuffledLocations[1];
+    const keyItems = Object.values(ITEMS).filter(i => i.type === 'key');
+    if (keyItems.length > 0) {
+      const lockKey = keyItems[Math.floor(Math.random() * keyItems.length)];
+      lockedPaths[1].push({
+        locationId: secondLocId,
+        requiredItemId: lockKey.id,
+        lockedMessage: `🔒 La porta è bloccata. Serve: ${lockKey.name}.`,
+      });
+    }
   }
 
   return lockedPaths;
@@ -218,7 +221,7 @@ export function generateRandomizedData(): RandomizedLocationData {
 
   // 3. Get boss enemy IDs dynamically
   const bossIds = getBossEnemyIds();
-  const bossId = bossIds.length > 0 ? bossIds[0] : 'tyrant_boss';
+  const bossId = bossIds.length > 0 ? bossIds[0] : null;
 
   // 4. Distribute critical key items
   const keyItemDistribution = distributeKeyItems(shuffledMainLocations);

@@ -1,6 +1,7 @@
 'use client';
 
 import { Rarity } from '@/game/types';
+import { COLLECTIBLE_CONFIG } from '@/game/data/loader';
 
 // ── Unified item icon — images loaded from DB via /api/media/image ──
 // DB image ID convention: icon_{itemId} (e.g. icon_pistol, icon_herb_green)
@@ -47,13 +48,17 @@ const FALLBACK_ICONS: Record<string, string> = {
   bag_medium: '🎒',
   flashlight: '🔦',
   lockpick: '🗝️',
-  ink_ribbon: '🎀',
   key_rpd: '🔑',
   key_sewers: '🔑',
   key_lab: '💳',
   crank_handle: '⚙️',
   fuse: '🔌',
 };
+
+// Add collectible icon to fallback map from COLLECTIBLE_CONFIG
+if (COLLECTIBLE_CONFIG.enabled) {
+  FALLBACK_ICONS[COLLECTIBLE_CONFIG.itemId] = COLLECTIBLE_CONFIG.icon;
+}
 
 interface ItemIconProps {
   itemId: string;

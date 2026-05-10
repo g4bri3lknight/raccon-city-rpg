@@ -723,10 +723,14 @@ export default function AdminPanel({ isStandalone = false }: { isStandalone?: bo
                     variant="ghost"
                     onClick={async () => {
                       try {
-                        const res = await adminFetch(banner.seedEndpoint, { method: 'POST' });
+                        const res = await adminFetch(banner.seedEndpoint, {
+                          method: 'POST',
+                          headers: banner.seedBody ? { 'Content-Type': 'application/json' } : undefined,
+                          body: banner.seedBody ? JSON.stringify(banner.seedBody) : undefined,
+                        });
                         if (!res.ok) throw new Error(await res.text());
                         const result = await res.json();
-                        showStatus(result.message, 'success');
+                        showStatus(result.message ?? `Seed ${banner.label} completato`, 'success');
                         fetchData();
                         fetchCounts();
                       } catch (err) {

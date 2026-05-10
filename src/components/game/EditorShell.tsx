@@ -31,6 +31,7 @@ import { AvatarManager } from '@/components/game/admin/tabs/AvatarManager';
 import { StartScreenEditor } from '@/components/game/admin/tabs/StartScreenEditor';
 import { GameSettingsEditor } from '@/components/game/admin/tabs/GameSettingsEditor';
 import ThemeEditor from '@/components/game/admin/tabs/ThemeEditor';
+import { useAdminAccent } from '@/hooks/useAdminAccent';
 import MapEditor from '@/components/game/admin/tabs/MapEditor';
 import GlobalSearchDialog from '@/components/game/admin/GlobalSearchDialog';
 import { KeyboardShortcutsOverlay } from '@/components/game/admin/KeyboardShortcutsOverlay';
@@ -108,6 +109,9 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
 
   // ── Entity colors (#6) ──
   const entityColors = useEntityColors();
+
+  // ── Apply template accent color to admin UI ──
+  useAdminAccent();
 
   const tabConfig = TABS.find(t => t.id === activeTab)!;
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -798,7 +802,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
               {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
             <span className="text-base">⚙️</span>
-            <span className="text-sm font-black tracking-wider text-emerald-400 shrink-0">EDITOR</span>
+            <span className="text-sm font-black tracking-wider admin-accent shrink-0">EDITOR</span>
             <span className="text-[11px] sm:text-[12px] text-white/25 bg-white/[0.06] px-2 py-0.5 rounded-md font-mono truncate max-w-[100px] sm:max-w-none">{gameId || '...'}</span>
           </div>
         </div>
@@ -919,7 +923,7 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                 </button>
                 <div className="hidden sm:block w-px h-4 bg-white/[0.1]" />
                 <div className="min-w-0">
-                  <h2 className="text-sm font-semibold text-emerald-400">
+                  <h2 className="text-sm font-semibold admin-accent">
                     {activeTab === 'notifications'
                       ? (editingId ? `Modifica Notifica: ${editingId}` : 'Nuova Notifica')
                       : (editingId ? `Modifica: ${editingId}` : `Nuovo ${tabConfig.entityLabel}`)
@@ -1166,10 +1170,14 @@ export default function EditorShell({ gameId, onBack, onPlay }: EditorShellProps
                           variant="ghost"
                           onClick={async () => {
                             try {
-                              const res = await adminFetch(banner.seedEndpoint, { method: 'POST' });
+                              const res = await adminFetch(banner.seedEndpoint, {
+                                method: 'POST',
+                                headers: banner.seedBody ? { 'Content-Type': 'application/json' } : undefined,
+                                body: banner.seedBody ? JSON.stringify(banner.seedBody) : undefined,
+                              });
                               if (!res.ok) throw new Error(await res.text());
                               const result = await res.json();
-                              showStatus(result.message, 'success');
+                              showStatus(result.message ?? `Seed ${banner.label} completato`, 'success');
                               fetchData();
                               fetchCounts();
                             } catch (err) {

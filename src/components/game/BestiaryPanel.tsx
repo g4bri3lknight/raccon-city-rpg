@@ -28,17 +28,6 @@ import {
   MapPin,
 } from 'lucide-react';
 
-const VARIANT_GROUP_LABELS: Record<string, { label: string; icon: string }> = {
-  zombie: { label: 'Zombie', icon: '🧟' },
-  cerberus: { label: 'Cerberi', icon: '🐕' },
-  licker: { label: 'Licker', icon: '👅' },
-  hunter: { label: 'Hunter', icon: '🦎' },
-  tyrant: { label: 'Tyrant', icon: '👹' },
-  nemesis: { label: 'Nemesis', icon: '💀' },
-};
-
-const VARIANT_GROUP_ORDER = ['zombie', 'cerberus', 'licker', 'hunter', 'tyrant', 'nemesis'];
-
 const MAX_STAT = 500; // reference max for stat bar width
 
 const STAT_CONFIG = [
@@ -59,31 +48,6 @@ function getRarityColor(chance: number): string {
   if (chance >= 8) return 'text-purple-400/70';
   return 'text-amber-400/80';
 }
-
-const STRATEGY_TIPS: Record<string, string> = {
-  zombie: 'Colpisci alla testa con armi da fuoco per danni extra. Le erbe curano il veleno della loro morsicatura.',
-  cerberus: 'Lateralizza per evitare le cariche. Le armi esplosive sono molto efficaci.',
-  licker: 'Non sparare alla cieca — si muovono sulle pareti. Usa armi ad area o granate.',
-  hunter: 'Evita i colpi diretti. Difenditi e contrattacca dopo il Salto Mortale.',
-  tyrant: 'Spara alla testa quando carica. Le granate sono l\'unica arma efficace.',
-  nemesis: 'Spara al tentacolo per stordirlo. Usa il lanciarazzi nella fase finale.',
-};
-
-const ENEMY_STRATEGY_TIPS: Record<string, string> = {
-  zombie: 'Colpisci alla testa con armi da fuoco per danni extra. Le erbe curano il veleno della loro morsicatura.',
-  zombie_female: 'Simile allo zombie normale ma più veloce. Attenta al suo urlo che può stordire.',
-  zombie_soldier: 'Il giubbotto antiproiettile lo rende resistente. Usa il coltello o esplosivi per aggirare la difesa.',
-  zombie_doctor: 'Le sue siringhe infette hanno alta probabilità di avvelenare. Porta sempre antidoti.',
-  zombie_dog: 'Molto veloce ma poco resistente. Le armi ad area sono efficaci contro di lui.',
-  cerberus_alpha: 'Versione potenziata del Cerbero. Molto più pericoloso — usa la difesa dopo il suo ringhio.',
-  licker: 'Non ha vista ma sente i suoni. Le armi da fuoco sono meno efficaci — usa il coltello o esplosivi.',
-  licker_smasher: 'Lento ma devastante. Difenditi contro il Pugno Terra e contrattacca quando è vulnerabile.',
-  licker_crawler: 'Velocissimo ma meno resistente. Colpiscilo quando cala dal soffitto prima che attacchi.',
-  hunter: 'B.O.W. mortale. Difenditi dal Salto Mortale e contrattacca subito. Le granate sono molto efficaci.',
-  tyrant_boss: 'Boss: Gestisci le fasi! Nella fase 2 usa munizioni pesanti. Nella fase 3 è vulnerabile dopo gli attacchi speciali.',
-  nemesis_boss: 'Boss: 3 fasi! Spara al tentacolo per stordirlo. Il lanciarazzi è efficace nella fase finale. Fuggi se la salute è bassa.',
-  proto_tyrant: 'Boss segreto: Trovato nel lab nascosto. 2 fasi pericolose. Attacca durante la transizione di fase per infliggere più danni.',
-};
 
 function getDangerRating(enemy: EnemyDefinition): { level: string; color: string; dots: number; glow: string } {
   const total = enemy.maxHp + enemy.atk * 5 + enemy.def * 5 + enemy.spd * 3;
@@ -115,12 +79,6 @@ function getWeaknesses(enemy: EnemyDefinition): Array<{ text: string; type: Weak
   if (enemy.spd >= 11) result.push({ text: 'Molto veloce — difficile da centrare', type: 'info' });
 
   if (enemy.isBoss) result.push({ text: 'Immune allo stordimento', type: 'resistance' });
-
-  const vg = enemy.variantGroup;
-  if (vg === 'zombie') result.push({ text: 'Vulnerabile al veleno', type: 'weakness' });
-  if (vg === 'licker') result.push({ text: 'Vulnerabile al fuoco', type: 'weakness' });
-  if (vg === 'hunter') result.push({ text: 'Resistente al veleno, debole agli esplosivi', type: 'info' });
-  if (vg === 'cerberus') result.push({ text: 'Vulnerabile ai colpi di area', type: 'weakness' });
 
   return result;
 }
@@ -389,9 +347,7 @@ function DangerRatingDots({ enemy }: { enemy: EnemyDefinition }) {
 
 function StrategySection({ enemy }: { enemy: EnemyDefinition }) {
   const [open, setOpen] = useState(false);
-  const specificTip = ENEMY_STRATEGY_TIPS[enemy.id];
-  const vgTip = enemy.variantGroup ? STRATEGY_TIPS[enemy.variantGroup] : null;
-  const tip = specificTip || vgTip;
+  const tip = enemy.description;
   if (!tip) return null;
 
   return (
@@ -435,7 +391,9 @@ function DiscoveredCard({
   dataVersion: number;
 }) {
   const imgSrc = ENEMY_IMAGES[enemy.id] ? mediaUrl(ENEMY_IMAGES[enemy.id], dataVersion) : null;
-  const groupInfo = VARIANT_GROUP_LABELS[enemy.variantGroup ?? ''];
+  const groupInfo = enemy.variantGroup
+    ? { label: enemy.variantGroup.charAt(0).toUpperCase() + enemy.variantGroup.slice(1), icon: enemy.icon || '👾' }
+    : undefined;
 
   return (
     <motion.div
@@ -616,6 +574,28 @@ export default function BestiaryPanel() {
   // Compute dynamically inside component so it reads current ENEMIES after DB load
   const ALL_ENEMY_IDS = Object.keys(ENEMIES);
 
+  // Derive variant groups dynamically from enemy data
+  const variantGroupOrder = useMemo(() => {
+    const groups = new Set<string>();
+    for (const enemy of Object.values(ENEMIES)) {
+      if (enemy.variantGroup) groups.add(enemy.variantGroup);
+    }
+    return Array.from(groups);
+  }, []);
+
+  const variantGroupLabels = useMemo(() => {
+    const labels: Record<string, { label: string; icon: string }> = {};
+    for (const enemy of Object.values(ENEMIES)) {
+      if (enemy.variantGroup && !labels[enemy.variantGroup]) {
+        labels[enemy.variantGroup] = {
+          label: enemy.variantGroup.charAt(0).toUpperCase() + enemy.variantGroup.slice(1),
+          icon: enemy.icon || '👾',
+        };
+      }
+    }
+    return labels;
+  }, []);
+
   const discoveredCount = bestiary.filter((e) => e.encountered).length;
   const defeatedCount = bestiary.filter((e) => e.defeated).length;
   const totalCount = ALL_ENEMY_IDS.length;
@@ -628,7 +608,7 @@ export default function BestiaryPanel() {
 
   const groupedEnemies = useMemo(() => {
     const groups: { group: string; enemies: { id: string; entry?: (typeof bestiary)[number]; def?: EnemyDefinition }[] }[] = [];
-    for (const vg of VARIANT_GROUP_ORDER) {
+    for (const vg of variantGroupOrder) {
       const enemies = ALL_ENEMY_IDS.filter((id) => ENEMIES[id]?.variantGroup === vg);
       if (enemies.length > 0) {
         groups.push({
@@ -642,7 +622,7 @@ export default function BestiaryPanel() {
       }
     }
     // Catch any enemies not in known groups
-    const knownIds = new Set(VARIANT_GROUP_ORDER.flatMap((vg) => ALL_ENEMY_IDS.filter((id) => ENEMIES[id]?.variantGroup === vg)));
+    const knownIds = new Set(variantGroupOrder.flatMap((vg) => ALL_ENEMY_IDS.filter((id) => ENEMIES[id]?.variantGroup === vg)));
     const ungrouped = ALL_ENEMY_IDS.filter((id) => !knownIds.has(id));
     if (ungrouped.length > 0) {
       groups.push({
@@ -655,7 +635,7 @@ export default function BestiaryPanel() {
       });
     }
     return groups;
-  }, [bestiaryMap, ALL_ENEMY_IDS]);
+  }, [bestiaryMap, ALL_ENEMY_IDS, variantGroupOrder]);
 
   return (
     <AnimatePresence>
@@ -720,7 +700,7 @@ export default function BestiaryPanel() {
             {/* ── Enemy List (grouped) ── */}
             <div className="flex-1 overflow-y-auto glass-scrollbar p-3 space-y-4">
               {groupedEnemies.map(({ group, enemies }) => {
-                const groupInfo = VARIANT_GROUP_LABELS[group];
+                const groupInfo = variantGroupLabels[group] || (group === 'other' ? { label: 'Altri', icon: '👾' } : null);
                 if (!groupInfo) return null;
 
                 const groupDiscovered = enemies.filter((e) => e.entry?.encountered).length;
